@@ -109,7 +109,12 @@ export const STANDARD_DOCUMENTATION = [
   'Safety data sheet',
 ];
 
-export const products: Product[] = [
+/**
+ * SEED DATA. The live catalog is the `products` table in D1, edited through
+ * the catalog manager. This array is loaded once by scripts/seed-catalog.ts
+ * and is not read by any page. Keep it as the verified baseline record.
+ */
+export const seedProducts: Product[] = [
   {
     code: 'NPL-001',
     slug: 'bpc-157',
@@ -336,12 +341,17 @@ export const products: Product[] = [
  *    letters on 31 March 2026 against this exact naming pattern.
  * ------------------------------------------------------------------------- */
 
-export function productsByClass(chemicalClass: ChemicalClass): Product[] {
-  return products.filter((p) => p.chemicalClass === chemicalClass);
-}
+/** Anchor ids used by the catalog index and the class links on the home page. */
+export const CLASS_ANCHORS: Record<ChemicalClass, string> = {
+  Peptides: 'peptides',
+  'Metal-peptide complexes': 'metal-peptide',
+  'Nucleotides & cofactors': 'nucleotides',
+};
 
-export function getProduct(slug: string): Product | undefined {
-  return products.find((p) => p.slug === slug);
-}
-
-export const featuredProducts = products.filter((p) => p.featured);
+/** Chemical-class descriptions only. Never what a compound does in an organism. */
+export const CLASS_BLURBS: Record<ChemicalClass, string> = {
+  Peptides: 'Synthetic peptides supplied lyophilised, with sequence and lot-specific analytical data.',
+  'Metal-peptide complexes': 'Peptide coordination complexes, supplied with lot-specific analytical data.',
+  'Nucleotides & cofactors':
+    'Nucleotide cofactors and coenzymes used as substrates and redox couples in enzymatic assay work.',
+};

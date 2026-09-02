@@ -1,17 +1,19 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
+import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
+import { ProductImage } from '@/components/site/product-image';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
 import {
   CHEMICAL_CLASSES,
+  CLASS_ANCHORS,
+  CLASS_BLURBS,
   REGULATORY_STATEMENT,
   STATUS_LABEL,
-  productsByClass,
-  products,
 } from '@/lib/catalog';
+import { groupByClass, listPublishedProducts, loadCatalog } from '@/lib/catalog-data';
 
-const PLACEHOLDER_IMAGE = '/products/bpc-157.png';
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Catalog',
@@ -19,26 +21,17 @@ export const metadata: Metadata = {
     'The full NexPhase Labs catalog, indexed by chemical class. Supplied to qualified organizations for laboratory research use only.',
 };
 
-const classAnchors: Record<string, string> = {
-  Peptides: 'peptides',
-  'Metal-peptide complexes': 'metal-peptide',
-  'Nucleotides & cofactors': 'nucleotides',
-};
+export default async function CatalogPage() {
+  const catalog = await loadCatalog(listPublishedProducts);
+  const all = catalog.data ?? [];
+  const byClass = groupByClass(all);
 
-// Chemical-class descriptions only. Never what a compound does in an organism.
-const classBlurbs: Record<string, string> = {
-  Peptides: 'Synthetic peptides supplied lyophilised, with sequence and lot-specific analytical data.',
-  'Metal-peptide complexes': 'Peptide coordination complexes, supplied with lot-specific analytical data.',
-  'Nucleotides & cofactors': 'Nucleotide cofactors and coenzymes used as substrates and redox couples in enzymatic assay work.',
-};
-
-export default function CatalogPage() {
   return (
     <main className="bg-background text-foreground">
       <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12 lg:py-20">
         <p className="utility-label flex items-center gap-3 text-primary">
           <span className="h-px w-8 bg-primary" />
-          Catalog &middot; {products.length} materials
+          Catalog {!catalog.unavailable && <>&middot; {all.length} materials</>}
         </p>
         <h1 className="mt-7 max-w-3xl font-display text-[clamp(2.6rem,5vw,4.6rem)] font-extrabold leading-[0.92] tracking-[-0.06em]">
           Every material, with its paperwork.
@@ -51,43 +44,50 @@ export default function CatalogPage() {
           {CHEMICAL_CLASSES.map((area) => (
             <a
               key={area}
-              href={`#${classAnchors[area]}`}
+              href={`#${CLASS_ANCHORS[area]}`}
               className="inline-flex h-10 items-center border border-foreground/20 px-4 text-sm font-semibold transition-colors hover:border-primary hover:text-primary"
             >
               {area}
             </a>
           ))}
         </nav>
+        {/* Rule 1 — conditions of supply in the body, above the fold. */}
         <div className="mt-9 max-w-2xl border-l-2 border-primary bg-secondary px-6 py-5">
           <p className="utility-label text-primary">Conditions of supply</p>
           <p className="mt-3 text-sm font-semibold leading-6">{REGULATORY_STATEMENT}</p>
         </div>
       </section>
 
+      {catalog.unavailable && (
+        <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12">
+          <CatalogUnavailable />
+        </section>
+      )}
+
       {CHEMICAL_CLASSES.map((area) => {
-        const items = productsByClass(area);
+        const items = byClass.get(area) ?? [];
         if (items.length === 0) return null;
 
         return (
           <section
             key={area}
-            id={classAnchors[area]}
+            id={CLASS_ANCHORS[area]}
             className="mx-auto max-w-[1500px] scroll-mt-32 border-b border-border px-5 py-14 sm:px-8 lg:px-12"
           >
             <div className="mb-9 max-w-2xl">
               <h2 className="font-display text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">{area}</h2>
-              <p className="mt-3 leading-7 text-muted-foreground">{classBlurbs[area]}</p>
+              <p className="mt-3 leading-7 text-muted-foreground">{CLASS_BLURBS[area]}</p>
             </div>
 
             <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
               {items.map((product) => (
                 <Link key={product.code} href={`/catalog/${product.slug}`} className="group flex flex-col bg-background">
                   <div className="relative aspect-[1.18] overflow-hidden bg-secondary">
-                    <Image
-                      src={product.image ?? PLACEHOLDER_IMAGE}
-                      alt={`${product.name} research material vial`}
-                      fill
-                      className="object-cover mix-blend-multiply transition-transform duration-500 group-hover:scale-[1.025]"
+                    <ProductImage
+                      code={product.code}
+                      name={product.name}
+                      image={product.image}
+                      imageClassName="transition-transform duration-500 group-hover:scale-[1.025]"
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                     />
                     <span className="absolute right-4 top-4 bg-background px-2 py-1 font-mono text-[10px] text-muted-foreground">

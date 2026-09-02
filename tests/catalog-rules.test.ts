@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { products, type Product } from '@/lib/catalog';
+import { seedProducts as products, type Product } from '@/lib/catalog';
 import {
   DEFAULT_PRESENTATION,
   isLabSolvent,

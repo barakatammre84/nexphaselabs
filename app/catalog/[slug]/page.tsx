@@ -1,16 +1,14 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, FileText, Lock } from 'lucide-react';
+import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
+import { ProductImage } from '@/components/site/product-image';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
-import {
-  REGULATORY_STATEMENT,
-  STANDARD_DOCUMENTATION,
-  STATUS_LABEL,
-  getProduct,
-  products,
-} from '@/lib/catalog';
+import { REGULATORY_STATEMENT, STANDARD_DOCUMENTATION, STATUS_LABEL } from '@/lib/catalog';
+import { getPublishedProduct, listPublishedProducts, loadCatalog } from '@/lib/catalog-data';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * Product page.
@@ -32,14 +30,11 @@ import {
 
 type PageProps = { params: Promise<{ slug: string }> };
 
-export function generateStaticParams() {
-  return products.map((product) => ({ slug: product.slug }));
-}
-
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const product = getProduct(slug);
-  if (!product) return { title: 'Material not found' };
+  const loaded = await loadCatalog(() => getPublishedProduct(slug));
+  const product = loaded.data;
+  if (!product) return { title: loaded.unavailable ? 'Catalog unavailable' : 'Material not found' };
 
   return {
     title: `${product.name} — ${product.code}`,
@@ -58,10 +53,24 @@ function SpecRow({ label, value }: { label: string; value: string }) {
 
 export default async function ProductPage({ params }: PageProps) {
   const { slug } = await params;
-  const product = getProduct(slug);
+  const loaded = await loadCatalog(() => getPublishedProduct(slug));
+
+  if (loaded.unavailable) {
+    return (
+      <main className="bg-background text-foreground">
+        <section className="mx-auto max-w-[1500px] px-5 py-14 sm:px-8 lg:px-12">
+          <CatalogUnavailable />
+        </section>
+      </main>
+    );
+  }
+
+  const product = loaded.data;
+  // Drafts and withdrawn products 404 here exactly like an unknown slug.
   if (!product) notFound();
 
-  const related = products
+  const siblings = await loadCatalog(listPublishedProducts);
+  const related = (siblings.data ?? [])
     .filter((item) => item.chemicalClass === product.chemicalClass && item.slug !== product.slug)
     .slice(0, 3);
 
@@ -106,24 +115,12 @@ export default async function ProductPage({ params }: PageProps) {
           </div>
 
           <div className="relative aspect-square overflow-hidden border border-border bg-secondary">
-            {product.image ? (
-              <Image
-                src={product.image}
-                alt={`${product.name} reference vial`}
-                fill
-                className="object-cover mix-blend-multiply"
-                sizes="(max-width: 1024px) 100vw, 20rem"
-              />
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
-                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                  {product.code}
-                </span>
-                <span className="font-mono text-xs text-muted-foreground">
-                  No photograph on file
-                </span>
-              </div>
-            )}
+            <ProductImage
+              code={product.code}
+              name={product.name}
+              image={product.image}
+              sizes="(max-width: 1024px) 100vw, 20rem"
+            />
           </div>
         </div>
       </section>

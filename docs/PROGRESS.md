@@ -31,7 +31,7 @@ Audit (Phase 1): independent review CLEAN. Acted on one sub-threshold note by dr
 ## Phase 2 — Catalog manager
 
 - [x] 2.1 `products` + `product_variants` tables, migration 0001 applied to local/staging/prod; `lib/catalog-rules.ts` validator (lab-solvent + presentation whitelists, forbidden-language scanner, invented-name/blend check, CAS check digit, deterministic SKUs) with 30 vitest tests. Audit: two rounds of findings (anchored name regex, synonyms unscanned, over-broad "condition"/"energy"/"muscle") fixed; final verdict CLEAN. Scanner errs toward false positives ("matrix", imperative "add N mL") — the form shows the reason so copy can be rephrased.
-- [ ] 2.2 Seed from `lib/catalog.ts`; catalog pages read from D1 with static fallback
+- [x] 2.2 Seed from `lib/catalog.ts`; catalog pages read from D1 — `lib/catalog-data.ts` (published-only reads for public pages), `scripts/seed-catalog.ts` → `drizzle/seed/catalog.sql` (validated through catalog rules, INSERT OR IGNORE), seed applied to local/staging/prod. Home, catalog, product, manage pages are dynamic and read D1; D1 failure renders an explicit "unavailable" state, never stale data (no static fallback, by design). Audit found the index/home cards substituting BPC-157's photo for imageless products; fixed with shared `ProductImage` honest placeholder. Re-audit CLEAN.
 - [ ] 2.3 Admin auth (staff sign-in) protecting `/manage`
 - [ ] 2.4 Product create/edit form with schema rules enforced server-side (no dose field, lab solvents only, source note required)
 - [ ] 2.5 Pack sizes and presentations without code changes

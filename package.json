@@ -18,6 +18,10 @@
     "db:migrate:local": "wrangler d1 migrations apply nexphase-labs --local --persist-to .wrangler/state",
     "db:migrate:staging": "wrangler d1 migrations apply nexphase-labs-staging --remote --env staging",
     "db:migrate:prod": "wrangler d1 migrations apply nexphase-labs --remote",
+    "db:seed:generate": "tsx scripts/seed-catalog.ts",
+    "db:seed:local": "npm run db:seed:generate && wrangler d1 execute nexphase-labs --local --persist-to .wrangler/state --file drizzle/seed/catalog.sql",
+    "db:seed:staging": "npm run db:seed:generate && wrangler d1 execute nexphase-labs-staging --remote --env staging --file drizzle/seed/catalog.sql",
+    "db:seed:prod": "npm run db:seed:generate && wrangler d1 execute nexphase-labs --remote --file drizzle/seed/catalog.sql",
     "deploy:staging": "CLOUDFLARE_ENV=staging vinext build && wrangler deploy --config dist/server/wrangler.json",
     "deploy": "vinext build && wrangler deploy --config dist/server/wrangler.json"
   },
@@ -58,6 +62,7 @@
     "oxlint": "1.76.0",
     "oxlint-tsgolint": "7.0.2001",
     "tailwindcss": "4.2.1",
+    "tsx": "^4.23.13",
     "typescript": "5.9.3",
     "vite": "^8.0.13",
     "vitest": "^4.1.11",

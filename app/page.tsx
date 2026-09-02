@@ -1,10 +1,13 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, ClipboardCheck, FileText, FlaskConical, PackageCheck, ShieldCheck, Thermometer } from 'lucide-react';
+import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
+import { ProductImage } from '@/components/site/product-image';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
-import { CHEMICAL_CLASSES, featuredProducts, productsByClass } from '@/lib/catalog';
+import { CHEMICAL_CLASSES, CLASS_ANCHORS } from '@/lib/catalog';
+import { groupByClass, listPublishedProducts, loadCatalog } from '@/lib/catalog-data';
 
-const PLACEHOLDER_IMAGE = '/products/bpc-157.png';
+export const dynamic = 'force-dynamic';
 
 const standards = [
   {
@@ -51,14 +54,11 @@ const documentationHighlights = [
   { icon: Thermometer, label: 'Storage and handling sheet', detail: 'Written for the receiving laboratory.' },
 ];
 
-const classAnchors: Record<string, string> = {
-  Peptides: 'peptides',
-  'Metal-peptide complexes': 'metal-peptide',
-  'Nucleotides & cofactors': 'nucleotides',
-};
-
-export default function Home() {
-  const featured = featuredProducts;
+export default async function Home() {
+  const catalog = await loadCatalog(listPublishedProducts);
+  const all = catalog.data ?? [];
+  const featured = all.filter((p) => p.featured);
+  const byClass = groupByClass(all);
 
   return (
     <main className="overflow-hidden bg-background text-foreground">
@@ -150,15 +150,16 @@ export default function Home() {
             View the full catalog <ArrowRight className="size-4" />
           </Link>
         </div>
+        {catalog.unavailable && <CatalogUnavailable compact />}
         <div className="grid gap-px bg-border sm:grid-cols-3">
           {featured.map((product) => (
             <Link key={product.code} href={`/catalog/${product.slug}`} className="group bg-background">
               <div className="relative aspect-[1.18] overflow-hidden bg-secondary">
-                <Image
-                      src={product.image ?? PLACEHOLDER_IMAGE}
-                  alt={`${product.name} research material`}
-                  fill
-                  className="object-cover mix-blend-multiply transition-transform duration-500 group-hover:scale-[1.025]"
+                <ProductImage
+                  code={product.code}
+                  name={product.name}
+                  image={product.image}
+                  imageClassName="transition-transform duration-500 group-hover:scale-[1.025]"
                   sizes="(max-width: 640px) 100vw, 33vw"
                 />
                 <span className="absolute right-4 top-4 bg-background px-2 py-1 font-mono text-[10px] text-muted-foreground">
@@ -188,11 +189,11 @@ export default function Home() {
           </h2>
           <div className="mt-10 grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
             {CHEMICAL_CLASSES.map((area) => {
-              const count = productsByClass(area).length;
+              const count = byClass.get(area)?.length ?? 0;
               return (
                 <Link
                   key={area}
-                  href={`/catalog#${classAnchors[area]}`}
+                  href={`/catalog#${CLASS_ANCHORS[area]}`}
                   className="group flex flex-col justify-between gap-8 bg-background p-7 transition-colors hover:bg-accent"
                 >
                   <span className="font-mono text-[11px] text-muted-foreground">
