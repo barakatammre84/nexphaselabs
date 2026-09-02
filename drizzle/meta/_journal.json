@@ -8,6 +8,13 @@
       "when": 1788369609133,
       "tag": "0000_wild_living_lightning",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788371983054,
+      "tag": "0001_fast_spyke",
+      "breakpoints": true
     }
   ]
 }

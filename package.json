@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
     "format": "oxfmt",
-    "check": "npm run typecheck && npm run lint && npm run build",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm run test && npm run build",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply nexphase-labs --local --persist-to .wrangler/state",
     "db:migrate:staging": "wrangler d1 migrations apply nexphase-labs-staging --remote --env staging",
@@ -59,6 +60,7 @@
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
     "vite": "^8.0.13",
+    "vitest": "^4.1.11",
     "wrangler": "4.92.0"
   },
   "type": "module"

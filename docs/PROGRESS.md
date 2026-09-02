@@ -30,7 +30,7 @@ Audit (Phase 1): independent review CLEAN. Acted on one sub-threshold note by dr
 
 ## Phase 2 — Catalog manager
 
-- [ ] 2.1 `products` table + migration (chemical-identity schema mirroring `lib/catalog.ts`)
+- [x] 2.1 `products` + `product_variants` tables, migration 0001 applied to local/staging/prod; `lib/catalog-rules.ts` validator (lab-solvent + presentation whitelists, forbidden-language scanner, invented-name/blend check, CAS check digit, deterministic SKUs) with 30 vitest tests. Audit: two rounds of findings (anchored name regex, synonyms unscanned, over-broad "condition"/"energy"/"muscle") fixed; final verdict CLEAN. Scanner errs toward false positives ("matrix", imperative "add N mL") — the form shows the reason so copy can be rephrased.
 - [ ] 2.2 Seed from `lib/catalog.ts`; catalog pages read from D1 with static fallback
 - [ ] 2.3 Admin auth (staff sign-in) protecting `/manage`
 - [ ] 2.4 Product create/edit form with schema rules enforced server-side (no dose field, lab solvents only, source note required)

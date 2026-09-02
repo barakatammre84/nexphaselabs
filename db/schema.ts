@@ -145,6 +145,121 @@ export const lotMovements = sqliteTable(
   }),
 );
 
+/**
+ * Catalog. One row per material, classified by CHEMICAL CLASS only — never by
+ * indication, research area or physiological process (CLAUDE.md rule 2).
+ *
+ * There is deliberately no column for dose, route, reconstitution volume,
+ * efficacy or indication. The catalog manager form cannot collect what the
+ * schema cannot store. Solubility, related CAS numbers, pack sizes and source
+ * notes are stored as JSON arrays and validated in lib/catalog-rules.ts before
+ * any write.
+ *
+ * Products are never deleted: `visibility` moves to 'withdrawn' with a reason,
+ * so lot records that reference the product code stay readable.
+ */
+export const products = sqliteTable(
+  'products',
+  {
+    id: text('id').primaryKey(),
+    code: text('code').notNull(),
+    slug: text('slug').notNull(),
+    name: text('name').notNull(),
+    formalName: text('formal_name').notNull(),
+    synonyms: text('synonyms', { mode: 'json' }).$type<string[]>().notNull().default([]),
+    chemicalClass: text('chemical_class').notNull(),
+
+    // Chemical identity
+    casNumber: text('cas_number').notNull(),
+    relatedCas: text('related_cas', { mode: 'json' })
+      .$type<{ form: string; cas: string }[]>()
+      .notNull()
+      .default([]),
+    sequenceOneLetter: text('sequence_one_letter'),
+    sequenceThreeLetter: text('sequence_three_letter'),
+    molecularFormula: text('molecular_formula').notNull(),
+    molecularWeight: text('molecular_weight').notNull(),
+    exactMass: text('exact_mass'),
+    smiles: text('smiles'),
+    inchiKey: text('inchi_key'),
+    pubchemCid: text('pubchem_cid'),
+
+    // Specification and handling
+    purity: text('purity').notNull(),
+    form: text('form').notNull(),
+    saltForm: text('salt_form').notNull(),
+    /** Laboratory solvents only. Each entry carries its own source. */
+    solubility: text('solubility', { mode: 'json' })
+      .$type<{ solvent: string; concentration: string; note?: string; source: string }[]>()
+      .notNull()
+      .default([]),
+    storageSolid: text('storage_solid').notNull(),
+    storageStock: text('storage_stock').notNull(),
+    stability: text('stability').notNull(),
+    shipping: text('shipping').notNull(),
+
+    /** available | limited | enquire */
+    status: text('status').notNull().default('enquire'),
+    description: text('description').notNull(),
+    /** Provenance for every published figure. Required, never empty. */
+    sourceNotes: text('source_notes', { mode: 'json' }).$type<string[]>().notNull().default([]),
+    hasSds: integer('has_sds', { mode: 'boolean' }).notNull().default(false),
+    /** Path under /public, or null where no photograph of this material exists. */
+    image: text('image'),
+    featured: integer('featured', { mode: 'boolean' }).notNull().default(false),
+
+    /** draft | published | withdrawn */
+    visibility: text('visibility').notNull().default('draft'),
+    withdrawnReason: text('withdrawn_reason'),
+    sortOrder: integer('sort_order').notNull().default(0),
+
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedBy: text('updated_by'),
+  },
+  (table) => ({
+    codeIdx: uniqueIndex('products_code_idx').on(table.code),
+    slugIdx: uniqueIndex('products_slug_idx').on(table.slug),
+    classIdx: index('products_class_idx').on(table.chemicalClass),
+    visibilityIdx: index('products_visibility_idx').on(table.visibility),
+  }),
+);
+
+/**
+ * Pack sizes. One row per orderable presentation of a product, so an order
+ * line and a lot movement can reference a stable SKU rather than a free-text
+ * quantity. `sku` is derived deterministically by `skuFor()` in
+ * lib/catalog-rules.ts (NPL-001 + "5 mg" → NPL-001-5MG). `presentation` is
+ * restricted to the PRESENTATIONS whitelist in the same module (vial of solid,
+ * etc.); there is no capsule, spray or pre-filled format because those
+ * describe a product for administration, not a reagent.
+ *
+ * Prices are in integer cents and null until set. Which price a visitor sees
+ * is decided by account tier (Phase 4), never by the page.
+ */
+export const productVariants = sqliteTable(
+  'product_variants',
+  {
+    id: text('id').primaryKey(),
+    productId: text('product_id').notNull(),
+    sku: text('sku').notNull(),
+    quantity: text('quantity').notNull(),
+    presentation: text('presentation').notNull(),
+    listPriceCents: integer('list_price_cents'),
+    institutionalPriceCents: integer('institutional_price_cents'),
+    active: integer('active', { mode: 'boolean' }).notNull().default(true),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    skuIdx: uniqueIndex('product_variants_sku_idx').on(table.sku),
+    productIdx: index('product_variants_product_idx').on(table.productId),
+  }),
+);
+
+export type ProductRow = typeof products.$inferSelect;
+export type ProductVariantRow = typeof productVariants.$inferSelect;
 export type Lot = typeof lots.$inferSelect;
 export type LotTest = typeof lotTests.$inferSelect;
 export type LotMovement = typeof lotMovements.$inferSelect;
