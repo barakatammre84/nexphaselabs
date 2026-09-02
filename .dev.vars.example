@@ -1,0 +1,4 @@
+# Copy to .dev.vars for local development. .dev.vars is git-ignored.
+# Secrets for deployed environments are set with `wrangler secret put`.
+APP_ENV=development
+PUBLIC_ORIGIN=http://localhost:3000

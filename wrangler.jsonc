@@ -1,0 +1,63 @@
+{
+  // Cloudflare Workers configuration for nexphaselabs.net.
+  //
+  // Two environments:
+  //   - top level  = production  (`npx wrangler deploy`)
+  //   - env.staging              (`npx wrangler deploy --env staging`)
+  //
+  // Each environment has its own D1 database and R2 bucket so staging can be
+  // exercised freely without touching production lot records or documents.
+  // Secrets are never written here; see docs/DEPLOY.md.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nexphaselabs",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "vinext/server/fetch-handler",
+  "assets": {
+    "directory": "dist/client",
+    "not_found_handling": "none",
+    "binding": "ASSETS"
+  },
+  "observability": { "enabled": true },
+  "vars": {
+    "APP_ENV": "production",
+    "PUBLIC_ORIGIN": "https://nexphaselabs.net"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "nexphase-labs",
+      "database_id": "70e80fa9-cd27-4fd7-b0ee-1fea56c5778d",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "DOCS",
+      "bucket_name": "nexphase-documents"
+    }
+  ],
+  "env": {
+    "staging": {
+      "name": "nexphaselabs-staging",
+      "vars": {
+        "APP_ENV": "staging",
+        "PUBLIC_ORIGIN": "https://nexphaselabs-staging.workers.dev"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "nexphase-labs-staging",
+          "database_id": "d24c1b97-1517-4ac4-a019-bed2a2a39c2b",
+          "migrations_dir": "drizzle"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "DOCS",
+          "bucket_name": "nexphase-documents-staging"
+        }
+      ]
+    }
+  }
+}

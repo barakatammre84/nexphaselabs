@@ -1,5 +1,5 @@
 {
-  "name": "sites-project",
+  "name": "nexphaselabs",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -8,10 +8,17 @@
   "scripts": {
     "dev": "vinext dev",
     "build": "vinext build",
-    "start": "wrangler dev --config dist/server/wrangler.json",
+    "start": "wrangler dev --config dist/server/wrangler.json --persist-to .wrangler/state",
+    "typecheck": "tsc --noEmit",
     "lint": "oxlint",
     "format": "oxfmt",
-    "db:generate": "drizzle-kit generate"
+    "check": "npm run typecheck && npm run lint && npm run build",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply nexphase-labs --local --persist-to .wrangler/state",
+    "db:migrate:staging": "wrangler d1 migrations apply nexphase-labs-staging --remote --env staging",
+    "db:migrate:prod": "wrangler d1 migrations apply nexphase-labs --remote",
+    "deploy:staging": "CLOUDFLARE_ENV=staging vinext build && wrangler deploy --config dist/server/wrangler.json",
+    "deploy": "vinext build && wrangler deploy --config dist/server/wrangler.json"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

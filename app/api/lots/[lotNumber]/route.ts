@@ -64,24 +64,36 @@ export async function GET(
     return Response.json({ error: 'Invalid lot number format.' }, { status: 400 });
   }
 
+  const unavailable = () =>
+    Response.json(
+      { error: 'Lot records are temporarily unavailable. Contact research@nexphaselabs.net.' },
+      { status: 503 },
+    );
+
   let db: ReturnType<typeof getDb>;
   try {
     db = getDb();
   } catch {
-    return Response.json(
-      { error: 'Lot records are temporarily unavailable. Contact research@nexphaselabs.net.' },
-      { status: 503 },
-    );
+    return unavailable();
   }
 
-  const [lot] = await db.select().from(lots).where(eq(lots.lotNumber, normalised)).limit(1);
+  let lot: typeof lots.$inferSelect | undefined;
+  let tests: (typeof lotTests.$inferSelect)[];
+  try {
+    [lot] = await db.select().from(lots).where(eq(lots.lotNumber, normalised)).limit(1);
 
-  // Limit 1: unreleased lots do not resolve, and do not reveal that they exist.
-  if (!lot || lot.status !== 'released') {
-    return Response.json({ error: 'No released lot found with that number.' }, { status: 404 });
+    // Limit 1: unreleased lots do not resolve, and do not reveal that they exist.
+    if (!lot || lot.status !== 'released') {
+      return Response.json({ error: 'No released lot found with that number.' }, { status: 404 });
+    }
+
+    tests = await db.select().from(lotTests).where(eq(lotTests.lotId, lot.id));
+  } catch (error) {
+    // A missing migration or a D1 outage is an operational fault, not a lot
+    // that does not exist. Never surface the query or the driver error.
+    console.error('[lots] query failed', error instanceof Error ? error.message : error);
+    return unavailable();
   }
-
-  const tests = await db.select().from(lotTests).where(eq(lotTests.lotId, lot.id));
 
   const payload: PublicLot = {
     lotNumber: lot.lotNumber,
@@ -116,7 +128,9 @@ export async function GET(
     })),
   };
 
+  // Short TTL and no stale serving: a withdrawn or recalled lot must stop
+  // resolving within a minute, not an hour.
   return Response.json(payload, {
-    headers: { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600' },
+    headers: { 'Cache-Control': 'public, max-age=60, must-revalidate' },
   });
 }

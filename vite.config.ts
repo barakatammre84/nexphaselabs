@@ -1,3 +1,4 @@
+import { cloudflare } from '@cloudflare/vite-plugin';
 import tailwindcss from '@tailwindcss/postcss';
 import vinext from 'vinext';
 import { defineConfig } from 'vite';
@@ -16,6 +17,13 @@ export default defineConfig(() => {
           : {}),
       },
     },
-    plugins: [vinext()],
+    plugins: [
+      vinext(),
+      // Runs the RSC environment in workerd so `cloudflare:workers` bindings
+      // (D1 `DB`, R2 `DOCS`) resolve in dev and are externalised in the build.
+      cloudflare({
+        viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
+      }),
+    ],
   };
 });
