@@ -4,6 +4,7 @@ import { ArrowRight, Lock } from 'lucide-react';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { STATUS_LABEL } from '@/lib/catalog';
 import { listAllProducts, loadCatalog } from '@/lib/catalog-data';
+import { requireStaff } from '@/lib/staff-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,8 @@ const VISIBILITY_LABEL: Record<string, string> = {
 };
 
 export default async function ManagePage() {
+  // The layout gates too; every /manage page checks for itself.
+  await requireStaff('/manage');
   const loaded = await loadCatalog(listAllProducts);
   const items = loaded.data ?? [];
 

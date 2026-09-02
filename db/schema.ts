@@ -258,6 +258,55 @@ export const productVariants = sqliteTable(
   }),
 );
 
+/**
+ * Staff. The people who can edit the catalog, receive lots, and release them.
+ * Every release, hold and catalog edit is attributed to a row here by name.
+ *
+ * Passwords are PBKDF2-SHA256 hashes (lib/staff-auth.ts). Accounts are never
+ * deleted; `active` is set false. Repeated failed sign-ins lock the account
+ * for a period rather than allowing unlimited guesses.
+ */
+export const staffUsers = sqliteTable(
+  'staff_users',
+  {
+    id: text('id').primaryKey(),
+    email: text('email').notNull(),
+    name: text('name').notNull(),
+    passwordHash: text('password_hash').notNull(),
+    /** admin | qc | ops */
+    role: text('role').notNull().default('ops'),
+    active: integer('active', { mode: 'boolean' }).notNull().default(true),
+    failedAttempts: integer('failed_attempts').notNull().default(0),
+    lockedUntil: integer('locked_until', { mode: 'timestamp' }),
+    lastLoginAt: integer('last_login_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    emailIdx: uniqueIndex('staff_users_email_idx').on(table.email),
+  }),
+);
+
+/** Server-side sessions. The cookie carries a random token; only its SHA-256 is stored. */
+export const staffSessions = sqliteTable(
+  'staff_sessions',
+  {
+    id: text('id').primaryKey(),
+    tokenHash: text('token_hash').notNull(),
+    userId: text('user_id').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    revokedAt: integer('revoked_at', { mode: 'timestamp' }),
+    userAgent: text('user_agent'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    tokenIdx: uniqueIndex('staff_sessions_token_idx').on(table.tokenHash),
+    userIdx: index('staff_sessions_user_idx').on(table.userId),
+  }),
+);
+
+export type StaffUser = typeof staffUsers.$inferSelect;
+export type StaffSession = typeof staffSessions.$inferSelect;
 export type ProductRow = typeof products.$inferSelect;
 export type ProductVariantRow = typeof productVariants.$inferSelect;
 export type Lot = typeof lots.$inferSelect;

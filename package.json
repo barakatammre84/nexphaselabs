@@ -18,6 +18,7 @@
     "db:migrate:local": "wrangler d1 migrations apply nexphase-labs --local --persist-to .wrangler/state",
     "db:migrate:staging": "wrangler d1 migrations apply nexphase-labs-staging --remote --env staging",
     "db:migrate:prod": "wrangler d1 migrations apply nexphase-labs --remote",
+    "staff:create": "tsx scripts/staff-create.ts",
     "db:seed:generate": "tsx scripts/seed-catalog.ts",
     "db:seed:local": "npm run db:seed:generate && wrangler d1 execute nexphase-labs --local --persist-to .wrangler/state --file drizzle/seed/catalog.sql",
     "db:seed:staging": "npm run db:seed:generate && wrangler d1 execute nexphase-labs-staging --remote --env staging --file drizzle/seed/catalog.sql",
@@ -50,7 +51,6 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
     "@cloudflare/workers-types": "4.20260515.1",
-    "@openai/sites-vite-plugin": "0.2.0",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",

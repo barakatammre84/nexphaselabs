@@ -54,3 +54,6 @@ tsconfig.tsbuildinfo
 
 # local archive of withdrawn/superseded files
 /.bak-archive/
+
+# staff bootstrap SQL contains password hashes
+/drizzle/seed/staff-*.sql
