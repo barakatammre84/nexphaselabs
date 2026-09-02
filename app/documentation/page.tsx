@@ -129,12 +129,12 @@ export default function DocumentationPage() {
               {
                 icon: Thermometer,
                 title: 'Sealed vials',
-                copy: 'Most lyophilized materials are stored at -20 °C, protected from light and moisture, until reconstitution.',
+                copy: 'Storage conditions for the sealed solid are stated on each catalog page and on the sheet packed with the lot. Most lyophilized materials are held at -20 °C, protected from light and moisture.',
               },
               {
                 icon: FlaskConical,
-                title: 'After reconstitution',
-                copy: 'Stability drops sharply. Prepare working solutions fresh and follow the receiving laboratory protocol.',
+                title: 'Stock solutions',
+                copy: 'Prepare fresh and follow the receiving laboratory protocol. Solubility in laboratory solvents is published per material; NexPhase Labs does not specify preparation for any other purpose.',
               },
               {
                 icon: PackageCheck,

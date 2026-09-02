@@ -57,7 +57,7 @@ const sections = [
     items: [
       {
         q: 'How should material be stored on arrival?',
-        a: 'Follow the conditions on the catalog page for that material and on the sheet packed with the shipment. Most lyophilized materials are stored at -20 °C, protected from light, until reconstitution.',
+        a: 'Follow the conditions on the catalog page for that material and on the sheet packed with the shipment. Most lyophilized materials are held at -20 °C, protected from light. Solubility in laboratory solvents is published per material where a supplier has published it.',
       },
       {
         q: 'Is cold-chain shipping available?',

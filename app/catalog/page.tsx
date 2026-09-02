@@ -3,26 +3,33 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
-import { RESEARCH_AREAS, STATUS_LABEL, productsByArea, products } from '@/lib/catalog';
+import {
+  CHEMICAL_CLASSES,
+  REGULATORY_STATEMENT,
+  STATUS_LABEL,
+  productsByClass,
+  products,
+} from '@/lib/catalog';
+
+const PLACEHOLDER_IMAGE = '/products/bpc-157.png';
 
 export const metadata: Metadata = {
   title: 'Catalog',
   description:
-    'The full NexPhase Labs catalog of research materials, indexed by research area. Supplied to qualified organizations for laboratory research use only.',
+    'The full NexPhase Labs catalog, indexed by chemical class. Supplied to qualified organizations for laboratory research use only.',
 };
 
-const areaAnchors: Record<string, string> = {
-  'Tissue & repair models': 'tissue',
-  'Metabolic & endocrine models': 'metabolic',
-  'Neurological models': 'neuro',
-  'Cellular energy models': 'cellular',
+const classAnchors: Record<string, string> = {
+  Peptides: 'peptides',
+  'Metal-peptide complexes': 'metal-peptide',
+  'Nucleotides & cofactors': 'nucleotides',
 };
 
-const areaBlurbs: Record<string, string> = {
-  'Tissue & repair models': 'Materials studied in wound, matrix, and tissue-repair research models.',
-  'Metabolic & endocrine models': 'Materials studied in preclinical metabolic and endocrine research models.',
-  'Neurological models': 'Materials studied in preclinical neurological and behavioral research models.',
-  'Cellular energy models': 'Reagents and coenzymes used in cellular energy and enzymatic assay work.',
+// Chemical-class descriptions only. Never what a compound does in an organism.
+const classBlurbs: Record<string, string> = {
+  Peptides: 'Synthetic peptides supplied lyophilised, with sequence and lot-specific analytical data.',
+  'Metal-peptide complexes': 'Peptide coordination complexes, supplied with lot-specific analytical data.',
+  'Nucleotides & cofactors': 'Nucleotide cofactors and coenzymes used as substrates and redox couples in enzymatic assay work.',
 };
 
 export default function CatalogPage() {
@@ -40,32 +47,36 @@ export default function CatalogPage() {
           Pricing and availability are shown to verified research accounts. Specifications below describe the
           material; purity and lot data come from the certificate of analysis issued for the lot you receive.
         </p>
-        <nav className="mt-9 flex flex-wrap gap-3" aria-label="Research areas">
-          {RESEARCH_AREAS.map((area) => (
+        <nav className="mt-9 flex flex-wrap gap-3" aria-label="Chemical classes">
+          {CHEMICAL_CLASSES.map((area) => (
             <a
               key={area}
-              href={`#${areaAnchors[area]}`}
+              href={`#${classAnchors[area]}`}
               className="inline-flex h-10 items-center border border-foreground/20 px-4 text-sm font-semibold transition-colors hover:border-primary hover:text-primary"
             >
               {area}
             </a>
           ))}
         </nav>
+        <div className="mt-9 max-w-2xl border-l-2 border-primary bg-secondary px-6 py-5">
+          <p className="utility-label text-primary">Conditions of supply</p>
+          <p className="mt-3 text-sm font-semibold leading-6">{REGULATORY_STATEMENT}</p>
+        </div>
       </section>
 
-      {RESEARCH_AREAS.map((area) => {
-        const items = productsByArea(area);
+      {CHEMICAL_CLASSES.map((area) => {
+        const items = productsByClass(area);
         if (items.length === 0) return null;
 
         return (
           <section
             key={area}
-            id={areaAnchors[area]}
+            id={classAnchors[area]}
             className="mx-auto max-w-[1500px] scroll-mt-32 border-b border-border px-5 py-14 sm:px-8 lg:px-12"
           >
             <div className="mb-9 max-w-2xl">
               <h2 className="font-display text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">{area}</h2>
-              <p className="mt-3 leading-7 text-muted-foreground">{areaBlurbs[area]}</p>
+              <p className="mt-3 leading-7 text-muted-foreground">{classBlurbs[area]}</p>
             </div>
 
             <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
@@ -73,7 +84,7 @@ export default function CatalogPage() {
                 <Link key={product.code} href={`/catalog/${product.slug}`} className="group flex flex-col bg-background">
                   <div className="relative aspect-[1.18] overflow-hidden bg-secondary">
                     <Image
-                      src={product.image}
+                      src={product.image ?? PLACEHOLDER_IMAGE}
                       alt={`${product.name} research material vial`}
                       fill
                       className="object-cover mix-blend-multiply transition-transform duration-500 group-hover:scale-[1.025]"
@@ -88,9 +99,9 @@ export default function CatalogPage() {
                     <div>
                       <h3 className="font-display text-2xl font-bold tracking-tight">{product.name}</h3>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {product.size} &middot; {product.form}
+                        CAS {product.casNumber} &middot; {product.form}
                       </p>
-                      <p className="mt-4 text-sm leading-6 text-muted-foreground">{product.summary}</p>
+                      <p className="mt-4 font-mono text-xs leading-6 text-muted-foreground">{product.purity}</p>
                     </div>
                     <span className="flex items-center gap-2 text-sm font-bold text-primary">
                       Specifications

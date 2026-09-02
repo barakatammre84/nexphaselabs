@@ -45,3 +45,6 @@ next-env.d.ts
 
 # typescript build info
 tsconfig.tsbuildinfo
+
+# local archive of withdrawn/superseded files
+/.bak-archive/

@@ -46,8 +46,8 @@ export default function ManagePage() {
               <tr className="border-b border-border bg-secondary text-left">
                 <th className="p-4 font-semibold">Code</th>
                 <th className="p-4 font-semibold">Name</th>
-                <th className="p-4 font-semibold">Size</th>
-                <th className="p-4 font-semibold">Research area</th>
+                <th className="p-4 font-semibold">CAS</th>
+                <th className="p-4 font-semibold">Chemical class</th>
                 <th className="p-4 font-semibold">Status</th>
                 <th className="p-4 font-semibold">Featured</th>
                 <th className="p-4 font-semibold">Page</th>
@@ -58,8 +58,8 @@ export default function ManagePage() {
                 <tr key={product.slug} className="border-b border-border last:border-b-0">
                   <td className="p-4 font-mono text-xs text-muted-foreground">{product.code}</td>
                   <td className="p-4 font-semibold">{product.name}</td>
-                  <td className="p-4 text-muted-foreground">{product.size}</td>
-                  <td className="p-4 text-muted-foreground">{product.area}</td>
+                  <td className="p-4 text-muted-foreground">{product.casNumber}</td>
+                  <td className="p-4 text-muted-foreground">{product.chemicalClass}</td>
                   <td className="p-4">
                     <span className="spec-pill">{STATUS_LABEL[product.status]}</span>
                   </td>

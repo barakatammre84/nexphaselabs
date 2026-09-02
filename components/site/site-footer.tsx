@@ -5,10 +5,9 @@ const columns = [
     heading: 'Catalog',
     links: [
       { href: '/catalog', label: 'All materials' },
-      { href: '/catalog#tissue', label: 'Tissue & repair models' },
-      { href: '/catalog#metabolic', label: 'Metabolic & endocrine models' },
-      { href: '/catalog#neuro', label: 'Neurological models' },
-      { href: '/catalog#cellular', label: 'Cellular energy models' },
+      { href: '/catalog#peptides', label: 'Peptides' },
+      { href: '/catalog#metal-peptide', label: 'Metal-peptide complexes' },
+      { href: '/catalog#nucleotides', label: 'Nucleotides & cofactors' },
     ],
   },
   {
@@ -17,6 +16,7 @@ const columns = [
       { href: '/documentation', label: 'Documentation & QC' },
       { href: '/documentation#coa', label: 'What a COA includes' },
       { href: '/documentation#handling', label: 'Storage & handling' },
+      { href: '/documentation/lot-lookup', label: 'Lot lookup' },
       { href: '/faq', label: 'FAQ' },
     ],
   },

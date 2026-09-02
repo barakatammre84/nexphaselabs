@@ -2,7 +2,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, ClipboardCheck, FileText, FlaskConical, PackageCheck, ShieldCheck, Thermometer } from 'lucide-react';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
-import { RESEARCH_AREAS, featuredProducts, productsByArea } from '@/lib/catalog';
+import { CHEMICAL_CLASSES, featuredProducts, productsByClass } from '@/lib/catalog';
+
+const PLACEHOLDER_IMAGE = '/products/bpc-157.png';
 
 const standards = [
   {
@@ -49,15 +51,14 @@ const documentationHighlights = [
   { icon: Thermometer, label: 'Storage and handling sheet', detail: 'Written for the receiving laboratory.' },
 ];
 
-const areaAnchors: Record<string, string> = {
-  'Tissue & repair models': 'tissue',
-  'Metabolic & endocrine models': 'metabolic',
-  'Neurological models': 'neuro',
-  'Cellular energy models': 'cellular',
+const classAnchors: Record<string, string> = {
+  Peptides: 'peptides',
+  'Metal-peptide complexes': 'metal-peptide',
+  'Nucleotides & cofactors': 'nucleotides',
 };
 
 export default function Home() {
-  const featured = featuredProducts();
+  const featured = featuredProducts;
 
   return (
     <main className="overflow-hidden bg-background text-foreground">
@@ -154,7 +155,7 @@ export default function Home() {
             <Link key={product.code} href={`/catalog/${product.slug}`} className="group bg-background">
               <div className="relative aspect-[1.18] overflow-hidden bg-secondary">
                 <Image
-                  src={product.image}
+                      src={product.image ?? PLACEHOLDER_IMAGE}
                   alt={`${product.name} research material`}
                   fill
                   className="object-cover mix-blend-multiply transition-transform duration-500 group-hover:scale-[1.025]"
@@ -168,7 +169,7 @@ export default function Home() {
                 <div>
                   <h3 className="font-display text-2xl font-bold tracking-tight">{product.name}</h3>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {product.size} &middot; {product.form}
+                    CAS {product.casNumber} &middot; {product.form}
                   </p>
                 </div>
                 <ArrowRight className="mb-1 size-5 text-primary transition-transform group-hover:translate-x-1" />
@@ -181,17 +182,17 @@ export default function Home() {
       {/* Research areas */}
       <section className="border-y border-border bg-secondary px-5 py-16 sm:px-8 lg:px-12 lg:py-20">
         <div className="mx-auto max-w-[1404px]">
-          <p className="utility-label text-primary">Browse by research area</p>
+          <p className="utility-label text-primary">Browse by chemical class</p>
           <h2 className="mt-3 max-w-2xl font-display text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
-            Organized by the model the material is studied in.
+            Organized by what the material is, not what it is studied for.
           </h2>
-          <div className="mt-10 grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
-            {RESEARCH_AREAS.map((area) => {
-              const count = productsByArea(area).length;
+          <div className="mt-10 grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
+            {CHEMICAL_CLASSES.map((area) => {
+              const count = productsByClass(area).length;
               return (
                 <Link
                   key={area}
-                  href={`/catalog#${areaAnchors[area]}`}
+                  href={`/catalog#${classAnchors[area]}`}
                   className="group flex flex-col justify-between gap-8 bg-background p-7 transition-colors hover:bg-accent"
                 >
                   <span className="font-mono text-[11px] text-muted-foreground">
