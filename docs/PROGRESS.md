@@ -38,7 +38,7 @@ Audit (Phase 1): independent review CLEAN. Acted on one sub-threshold note by dr
 
 ## Phase 3 — Lot intake and release
 
-- [ ] 3.1 Lot intake form (receipt writes `lot_movements` receipt row)
+- [x] 3.1 Lot intake — `/manage/lots` (list), `/manage/lots/new` (intake form), `/manage/lots/[lot]` (staff detail: provenance, analytical record, documents, tests, movement ledger). `createLot` writes the lot (status left to its quarantine default; no status parameter exists) and the receipt movement (actual received date, "Name (staff id)") in one D1 batch. `validateLotIntake`: lot-number pattern, unit-bearing quantities, real-date checks, manufacturer name+address as a pair, forbidden-language scan on public-facing text. Verified in the browser; public lookup returns 404 for the quarantined lot. Audit CLEAN (retest-after-receipt check added on a sub-threshold note).
 - [ ] 3.2 Document upload to R2 (COA, chromatogram, mass spec, SDS) keyed by lot
 - [ ] 3.3 Test result capture, one row per test
 - [ ] 3.4 Named release / hold / reject with reason; manufacturer name+address enforced before release
