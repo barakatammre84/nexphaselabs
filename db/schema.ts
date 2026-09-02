@@ -259,6 +259,33 @@ export const productVariants = sqliteTable(
 );
 
 /**
+ * Catalog history. Every create or update writes the full product (with its
+ * variants) as a JSON snapshot here, attributed to the staff member. This
+ * answers "what did the product page say on that date" without diffing
+ * deploys, and it is what makes a withdrawal auditable.
+ */
+export const productRevisions = sqliteTable(
+  'product_revisions',
+  {
+    id: text('id').primaryKey(),
+    productId: text('product_id').notNull(),
+    productCode: text('product_code').notNull(),
+    /** create | update | withdraw | restore */
+    action: text('action').notNull(),
+    snapshot: text('snapshot', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    changedBy: text('changed_by').notNull(),
+    changedByName: text('changed_by_name').notNull(),
+    note: text('note'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    productIdx: index('product_revisions_product_idx').on(table.productId),
+  }),
+);
+
+export type ProductRevision = typeof productRevisions.$inferSelect;
+
+/**
  * Staff. The people who can edit the catalog, receive lots, and release them.
  * Every release, hold and catalog edit is attributed to a row here by name.
  *

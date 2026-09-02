@@ -210,6 +210,13 @@ const CODE_PATTERN = /^NPL-\d{3,4}$/;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const CAS_PATTERN = /^\d{2,7}-\d{2}-\d$/;
 const QUANTITY_PATTERN = /^\d+(?:\.\d+)?\s?(?:mg|g|ug|µg)$/;
+/** "1419.5 g/mol", "663.43 g/mol", "1418.7 Da" */
+const MASS_PATTERN = /^\d+(?:\.\d+)?\s?(?:g\/mol|Da)$/;
+/** "10 mg/mL", "100 mg/mL", "5 mM", "50 µM" — a concentration, never a volume. */
+const CONCENTRATION_PATTERN = /^(?:~|≥|>=|up to )?\d+(?:\.\d+)?\s?(?:mg|ug|µg|g)\/mL$|^(?:~|≥|>=|up to )?\d+(?:\.\d+)?\s?(?:mM|µM|uM|nM|M)$/;
+/** Hill-style formula: element symbols with optional counts, optional charge. */
+const FORMULA_PATTERN = /^(?:[A-Z][a-z]?\d*)+(?:[+-]\d*)?$/;
+const SMILES_PATTERN = /^[A-Za-z0-9@+\-[\]()=#$%.\\/:*]+$/;
 const SKU_PATTERN = /^NPL-\d{3,4}-[A-Z0-9.]{1,12}$/;
 /**
  * "NexPhase-2T", "NPL-3R", "GLP-1-S": a brand or code prefix, a number, a
@@ -341,8 +348,18 @@ export function validateProductInput(raw: ProductInput): ValidationResult {
   if (value.sequenceOneLetter && !/^[A-Z]{2,}$/.test(value.sequenceOneLetter)) {
     errors.push('One-letter sequence must be uppercase letters only.');
   }
-  if (!value.molecularFormula) errors.push('Molecular formula is required.');
-  if (!value.molecularWeight) errors.push('Molecular weight is required.');
+  if (!FORMULA_PATTERN.test(value.molecularFormula)) {
+    errors.push('Molecular formula must be a Hill-style formula such as C62H98N16O22.');
+  }
+  if (!MASS_PATTERN.test(value.molecularWeight)) {
+    errors.push('Molecular weight must be a number with unit, e.g. "1419.5 g/mol".');
+  }
+  if (value.exactMass && !MASS_PATTERN.test(value.exactMass)) {
+    errors.push('Exact mass must be a number with unit, e.g. "1418.7 Da".');
+  }
+  if (value.smiles && !SMILES_PATTERN.test(value.smiles)) {
+    errors.push('SMILES may only contain SMILES symbols, with no spaces.');
+  }
   if (value.inchiKey && !/^[A-Z]{14}-[A-Z]{10}-[A-Z]$/.test(value.inchiKey)) {
     errors.push('InChI Key format is invalid.');
   }
@@ -357,6 +374,9 @@ export function validateProductInput(raw: ProductInput): ValidationResult {
   if (!value.saltForm) errors.push('Salt / counter-ion is required.');
   for (const s of value.solubility) {
     if (!s.solvent || !s.concentration) errors.push('Each solubility entry needs a solvent and a concentration.');
+    if (s.concentration && !CONCENTRATION_PATTERN.test(s.concentration)) {
+      errors.push(`Solubility "${s.concentration}" must be a concentration such as "10 mg/mL" or "5 mM".`);
+    }
     if (s.solvent && !isLabSolvent(s.solvent)) {
       errors.push(`"${s.solvent}" is not an accepted laboratory solvent. Accepted: ${LAB_SOLVENTS.join(', ')}.`);
     }
@@ -402,11 +422,18 @@ export function validateProductInput(raw: ProductInput): ValidationResult {
     v.sku = sku;
   }
 
-  // Language scan across every free-text field, including JSON entries.
+  // Language scan across every field that renders on the site, including
+  // JSON entries and the numeric-looking ones (which are also format-checked
+  // above, so prose cannot hide in them).
   const textFields: [string, string | null | undefined][] = [
     ['name', value.name],
     ['formalName', value.formalName],
     ['description', value.description],
+    ['molecularFormula', value.molecularFormula],
+    ['molecularWeight', value.molecularWeight],
+    ['exactMass', value.exactMass],
+    ['smiles', value.smiles],
+    ['image', value.image],
     ['purity', value.purity],
     ['form', value.form],
     ['saltForm', value.saltForm],
@@ -419,6 +446,7 @@ export function validateProductInput(raw: ProductInput): ValidationResult {
     ...value.sourceNotes.map((s, i): [string, string] => [`sourceNotes[${i}]`, s]),
     ...value.solubility.flatMap((s, i): [string, string | undefined][] => [
       [`solubility[${i}].solvent`, s.solvent],
+      [`solubility[${i}].concentration`, s.concentration],
       [`solubility[${i}].note`, s.note],
       [`solubility[${i}].source`, s.source],
     ]),

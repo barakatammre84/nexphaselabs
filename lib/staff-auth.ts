@@ -176,6 +176,11 @@ export async function requireStaff(returnTo = '/manage'): Promise<StaffPrincipal
   redirect(`/staff/sign-in?return_to=${encodeURIComponent(safeReturnPath(returnTo))}`);
 }
 
+/** Roles allowed to create and edit catalog products. */
+export function canEditCatalog(staff: StaffPrincipal): boolean {
+  return staff.role === 'admin' || staff.role === 'qc';
+}
+
 export function requireRole(staff: StaffPrincipal, ...roles: StaffRole[]): void {
   if (!roles.includes(staff.role)) {
     throw new Error(`This action requires role ${roles.join(' or ')}.`);

@@ -192,6 +192,30 @@ describe('validateProductInput', () => {
     expect(scanText('t', 'Supports lean muscle and boosts energy').length).toBeGreaterThan(0);
   });
 
+  it('rejects prose or dosing hidden in numeric-looking fields', () => {
+    const bad = [
+      { exactMass: '2.4 mg weekly subcutaneous' },
+      { molecularWeight: 'about 1419 give or take' },
+      { smiles: 'inject 2 mL' },
+      { molecularFormula: 'C62H98N16O22 (reconstitute in 2 mL)' },
+      { solubility: [{ solvent: 'Water', concentration: '2 mL per 5 mg vial', source: 'x' }] },
+      { solubility: [{ solvent: 'Water', concentration: '250 mcg daily', source: 'x' }] },
+    ];
+    for (const patch of bad) {
+      expect(validateProductInput({ ...base, ...patch }).ok, JSON.stringify(patch)).toBe(false);
+    }
+    const good = [
+      { exactMass: '1418.7 Da' },
+      { molecularWeight: '1419.5 g/mol' },
+      { smiles: 'CC(=O)O' },
+      { solubility: [{ solvent: 'DMSO', concentration: '10 mg/mL', source: 'Cayman 1' }] },
+      { solubility: [{ solvent: 'PBS (pH 7.2)', concentration: '5 mM', source: 'Cayman 1' }] },
+    ];
+    for (const patch of good) {
+      expect(validateProductInput({ ...base, ...patch }).ok, JSON.stringify(patch)).toBe(true);
+    }
+  });
+
   it('derives deterministic SKUs', () => {
     expect(skuFor('NPL-001', '5 mg')).toBe('NPL-001-5MG');
     expect(skuFor('NPL-002', '1 g')).toBe('NPL-002-1G');
