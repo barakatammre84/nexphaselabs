@@ -385,6 +385,84 @@ export const staffSessions = sqliteTable(
   }),
 );
 
+/**
+ * Customer accounts. One row per person; the organisation and its
+ * verification live in `organizations` (Phase 4.3). `tier` decides what the
+ * account can see: 'institutional' after verification, 'consumer' only if the
+ * consumer tier is enabled by the owner (CONSUMER_TIER_ENABLED). The site
+ * ships institutional-only.
+ *
+ * Every acknowledgement is recorded with the time and the document version
+ * the person saw, so the record shows what was agreed to, not just that
+ * something was.
+ */
+export const accounts = sqliteTable(
+  'accounts',
+  {
+    id: text('id').primaryKey(),
+    email: text('email').notNull(),
+    name: text('name').notNull(),
+    passwordHash: text('password_hash').notNull(),
+    /** consumer | institutional */
+    tier: text('tier').notNull().default('institutional'),
+    /** pending_email | active | suspended */
+    status: text('status').notNull().default('pending_email'),
+    emailVerifiedAt: integer('email_verified_at', { mode: 'timestamp' }),
+    termsAcceptedAt: integer('terms_accepted_at', { mode: 'timestamp' }),
+    termsVersion: text('terms_version'),
+    ruoAcceptedAt: integer('ruo_accepted_at', { mode: 'timestamp' }),
+    ruoVersion: text('ruo_version'),
+    /** none | submitted | approved | declined | more_info — mirrors organizations.verificationStatus */
+    verificationStatus: text('verification_status').notNull().default('none'),
+    failedAttempts: integer('failed_attempts').notNull().default(0),
+    lockedUntil: integer('locked_until', { mode: 'timestamp' }),
+    lastLoginAt: integer('last_login_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    emailIdx: uniqueIndex('accounts_email_idx').on(table.email),
+    statusIdx: index('accounts_status_idx').on(table.status),
+  }),
+);
+
+export const accountSessions = sqliteTable(
+  'account_sessions',
+  {
+    id: text('id').primaryKey(),
+    tokenHash: text('token_hash').notNull(),
+    accountId: text('account_id').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    revokedAt: integer('revoked_at', { mode: 'timestamp' }),
+    userAgent: text('user_agent'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    tokenIdx: uniqueIndex('account_sessions_token_idx').on(table.tokenHash),
+    accountIdx: index('account_sessions_account_idx').on(table.accountId),
+  }),
+);
+
+/** Single-use, expiring tokens for email verification and password reset. Only the hash is stored. */
+export const emailTokens = sqliteTable(
+  'email_tokens',
+  {
+    id: text('id').primaryKey(),
+    accountId: text('account_id').notNull(),
+    /** verify_email | reset_password */
+    purpose: text('purpose').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    usedAt: integer('used_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    tokenIdx: uniqueIndex('email_tokens_token_idx').on(table.tokenHash),
+    accountIdx: index('email_tokens_account_idx').on(table.accountId),
+  }),
+);
+
+export type Account = typeof accounts.$inferSelect;
 export type StaffUser = typeof staffUsers.$inferSelect;
 export type StaffSession = typeof staffSessions.$inferSelect;
 export type ProductRow = typeof products.$inferSelect;

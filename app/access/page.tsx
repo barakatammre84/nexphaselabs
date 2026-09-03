@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { ArrowRight, Building2, CircleCheck, CircleX, Mail } from 'lucide-react';
 
 export const metadata: Metadata = {
@@ -69,15 +70,24 @@ export default function AccessPage() {
           NexPhase Labs supplies research materials to qualified organizations only. Every request is read by a
           person before an account is opened, and requests that fall outside our research-use policy are declined.
         </p>
-        <a
-          href={mailHref}
-          className="mt-9 inline-flex h-12 items-center justify-center gap-3 bg-primary px-6 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
-        >
-          <Mail className="size-4" />
-          Start a request by email
-        </a>
+        <div className="mt-9 flex flex-col gap-4 sm:flex-row">
+          <Link
+            href="/account/sign-up"
+            className="inline-flex h-12 items-center justify-center gap-3 bg-primary px-6 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Create a research account
+          </Link>
+          <a
+            href={mailHref}
+            className="inline-flex h-12 items-center justify-center gap-3 border border-foreground/20 px-6 text-sm font-bold transition-colors hover:border-primary hover:text-primary"
+          >
+            <Mail className="size-4" />
+            Or start by email
+          </a>
+        </div>
         <p className="mt-4 font-mono text-xs text-muted-foreground">
-          The link opens a message to research@nexphaselabs.net with the required fields laid out.
+          An account lets you submit your organisation for verification online. The email option opens a message
+          to research@nexphaselabs.net with the required fields laid out.
         </p>
       </section>
 

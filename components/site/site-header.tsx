@@ -30,12 +30,17 @@ export function SiteHeader() {
             ))}
           </nav>
 
-          <Link
-            href="/access"
-            className="hidden h-11 shrink-0 items-center justify-center bg-primary px-5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 md:inline-flex"
-          >
-            Request research access
-          </Link>
+          <div className="hidden items-center gap-6 md:flex">
+            <Link href="/account/sign-in" className="text-sm font-semibold transition-colors hover:text-primary">
+              Sign in
+            </Link>
+            <Link
+              href="/access"
+              className="inline-flex h-11 shrink-0 items-center justify-center bg-primary px-5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Request research access
+            </Link>
+          </div>
         </div>
 
         <div className="flex items-center gap-4 border-t border-border px-5 py-3 md:hidden">

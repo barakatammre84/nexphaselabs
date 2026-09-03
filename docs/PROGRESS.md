@@ -48,7 +48,7 @@ Phase 3 ships: a received lot moved quarantine → released through documents, t
 
 ## Phase 4 — Accounts and the two tiers
 
-- [ ] 4.1 Accounts + sessions schema; sign-up, sign-in, email verification
+- [x] 4.1 Accounts, sessions, email verification — `accounts` / `account_sessions` / `email_tokens` (migration 0006, all envs); sign-up records terms + RUO acknowledgement with version and time; institutional sign-ups must use an organisation-domain email (free mailboxes refused); consumer tier gated behind `CONSUMER_TIER_ENABLED` (ships `false`); single-use hashed 24 h verification tokens; PBKDF2 + hashed sessions + atomic lockout, same posture as staff; `nx_account` cookie is not accepted by staff routes. `lib/email.ts` sends via Resend when `RESEND_API_KEY` is set, logs locally otherwise, and errors in staging/prod without a key. Verified by curl (15 paths). Audit: sign-up timing enumeration fixed (hash always, notice email on existing address); re-audit CLEAN. **Owner actions:** create a Resend account, verify the sending domain, `wrangler secret put RESEND_API_KEY` (staging and prod); decide the consumer tier with counsel before flipping the flag.
 - [ ] 4.2 Consumer tier: terms + RUO acknowledgement
 - [ ] 4.3 Institutional tier: domain check, no residential shipping, document upload, review queue, approval
 - [ ] 4.4 Tier-aware visibility rule (pricing, lot availability, bulk quantities) on the same pages

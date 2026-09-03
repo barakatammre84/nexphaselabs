@@ -21,7 +21,9 @@
   "observability": { "enabled": true },
   "vars": {
     "APP_ENV": "production",
-    "PUBLIC_ORIGIN": "https://nexphaselabs.net"
+    "PUBLIC_ORIGIN": "https://nexphaselabs.net",
+    "CONSUMER_TIER_ENABLED": "false",
+    "EMAIL_FROM": "NexPhase Labs <research@nexphaselabs.net>"
   },
   "d1_databases": [
     {
@@ -42,7 +44,9 @@
       "name": "nexphaselabs-staging",
       "vars": {
         "APP_ENV": "staging",
-        "PUBLIC_ORIGIN": "https://nexphaselabs-staging.workers.dev"
+        "PUBLIC_ORIGIN": "https://nexphaselabs-staging.workers.dev",
+        "CONSUMER_TIER_ENABLED": "false",
+        "EMAIL_FROM": "NexPhase Labs <research@nexphaselabs.net>"
       },
       "d1_databases": [
         {
