@@ -114,8 +114,14 @@ export function valuesToInput(v: FormValues): ProductInput {
     visibility: v.visibility || 'draft',
     withdrawnReason: v.withdrawnReason || null,
     variants: lines(v.variants ?? '').map((line, i) => {
-      const [quantity = '', presentation = ''] = cells(line);
-      return { quantity, presentation: presentation || DEFAULT_PRESENTATION, sortOrder: i };
+      const [quantity = '', presentation = '', listPrice = '', institutionalPrice = ''] = cells(line);
+      return {
+        quantity,
+        presentation: presentation || DEFAULT_PRESENTATION,
+        sortOrder: i,
+        listPrice: listPrice || null,
+        institutionalPrice: institutionalPrice || null,
+      };
     }),
   };
 }
@@ -159,7 +165,12 @@ export function productToValues(p: CatalogProduct): FormValues {
     withdrawnReason: p.withdrawnReason ?? '',
     variants: p.variants
       .filter((v) => v.active)
-      .map((v) => `${v.quantity} | ${v.presentation}`)
+      .map((v) => {
+        const dollars = (c: number | null) => (c === null ? '' : (c / 100).toFixed(2));
+        const cells = [v.quantity, v.presentation, dollars(v.listPriceCents), dollars(v.institutionalPriceCents)];
+        while (cells.length > 2 && cells[cells.length - 1] === '') cells.pop();
+        return cells.join(' | ');
+      })
       .join('\n'),
     note: '',
   };

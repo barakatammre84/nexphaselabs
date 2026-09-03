@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { lotTests, lots, type Lot } from '@/db/schema';
 import type { DocumentType } from '@/lib/documents';
@@ -116,4 +116,17 @@ export function publicDocumentKey(lot: Lot, type: DocumentType): string | null {
 
 export function publicDocumentPath(lotNumber: string, type: DocumentType): string {
   return `/api/lots/${encodeURIComponent(lotNumber)}/documents/${type}`;
+}
+
+export type ReleasedLotSummary = { lotNumber: string; releasedOn: string | null; retestDate: string | null; manufacturerName: string | null };
+
+/** Released lots for a product, newest first. Quantities are not included; they are internal. */
+export async function listReleasedLotsForProduct(productCode: string): Promise<ReleasedLotSummary[]> {
+  const db = getDb();
+  const rows = await db
+    .select({ lotNumber: lots.lotNumber, releasedAt: lots.releasedAt, retestDate: lots.retestDate, manufacturerName: lots.manufacturerName })
+    .from(lots)
+    .where(and(eq(lots.productCode, productCode), eq(lots.status, 'released')))
+    .orderBy(desc(lots.releasedAt));
+  return rows.map((r) => ({ lotNumber: r.lotNumber, releasedOn: iso(r.releasedAt), retestDate: iso(r.retestDate), manufacturerName: r.manufacturerName }));
 }

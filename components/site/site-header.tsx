@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getAccount } from '@/lib/account-auth';
 
 const navigation = [
   { href: '/catalog', label: 'Catalog' },
@@ -7,7 +8,14 @@ const navigation = [
   { href: '/faq', label: 'FAQ' },
 ];
 
-export function SiteHeader() {
+export async function SiteHeader() {
+  let signedIn = false;
+  try {
+    signedIn = Boolean(await getAccount());
+  } catch (error) {
+    console.error('[header] account lookup failed', error instanceof Error ? error.message : error);
+    signedIn = false;
+  }
   return (
     <>
       <div className="assay-rule" aria-hidden="true" />
@@ -31,8 +39,8 @@ export function SiteHeader() {
           </nav>
 
           <div className="hidden items-center gap-6 md:flex">
-            <Link href="/account/sign-in" className="text-sm font-semibold transition-colors hover:text-primary">
-              Sign in
+            <Link href={signedIn ? '/account' : '/account/sign-in'} className="text-sm font-semibold transition-colors hover:text-primary">
+              {signedIn ? 'Your account' : 'Sign in'}
             </Link>
             <Link
               href="/access"

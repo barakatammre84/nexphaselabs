@@ -7,6 +7,9 @@ import { ProductImage } from '@/components/site/product-image';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
 import { REGULATORY_STATEMENT, STANDARD_DOCUMENTATION, STATUS_LABEL } from '@/lib/catalog';
 import { getPublishedProduct, listPublishedProducts, loadCatalog } from '@/lib/catalog-data';
+import { listReleasedLotsForProduct } from '@/lib/lots-public';
+import { currentViewer } from '@/lib/visibility';
+import { formatCents, priceFor } from '@/lib/visibility-rules';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,6 +76,14 @@ export default async function ProductPage({ params }: PageProps) {
   const related = (siblings.data ?? [])
     .filter((item) => item.chemicalClass === product.chemicalClass && item.slug !== product.slug)
     .slice(0, 3);
+
+  // Tier-aware visibility: one rule, evaluated here, decides whether prices
+  // and released lots render. Anonymous and unverified visitors see neither.
+  const { account, visibility } = await currentViewer();
+  const releasedLots = visibility.availability
+    ? ((await loadCatalog(() => listReleasedLotsForProduct(product.code))).data ?? [])
+    : [];
+  const activeVariants = product.variants.filter((v) => v.active);
 
   return (
     <main className="bg-background text-foreground">
@@ -243,41 +254,90 @@ export default async function ProductPage({ params }: PageProps) {
         <h2 className="utility-label text-primary">Pack sizes and availability</h2>
 
         <div className="mt-6 max-w-2xl border border-border">
-          <div className="flex items-center justify-between border-b border-border bg-secondary px-6 py-3">
+          <div className="grid grid-cols-[1fr_auto_auto] items-center gap-6 border-b border-border bg-secondary px-6 py-3">
             <span className="utility-label text-muted-foreground">Quantity</span>
             <span className="utility-label text-muted-foreground">Status</span>
+            {visibility.pricing !== 'none' && <span className="utility-label text-muted-foreground">Price</span>}
           </div>
-          {product.packSizes.map((pack) => (
-            <div
-              key={pack.quantity}
-              className="flex items-center justify-between border-b border-border px-6 py-4 last:border-b-0"
-            >
-              <span className="font-mono text-sm">{pack.quantity}</span>
-              <span className="text-sm text-muted-foreground">{STATUS_LABEL[product.status]}</span>
-            </div>
-          ))}
+          {activeVariants.map((variant) => {
+            const cents = priceFor(variant, visibility.pricing);
+            return (
+              <div
+                key={variant.sku}
+                className="grid grid-cols-[1fr_auto_auto] items-center gap-6 border-b border-border px-6 py-4 last:border-b-0"
+              >
+                <span className="font-mono text-sm">
+                  {variant.quantity}
+                  <span className="block text-xs text-muted-foreground">{variant.presentation}</span>
+                </span>
+                <span className="text-sm text-muted-foreground">{STATUS_LABEL[product.status]}</span>
+                {visibility.pricing !== 'none' && (
+                  <span className="text-right font-mono text-sm">{cents === null ? 'Price on request' : formatCents(cents)}</span>
+                )}
+              </div>
+            );
+          })}
         </div>
 
-        {/*
-          Pricing behind verification. Not only a commercial choice — a gated
-          catalog leaves no public product page to be read as an offer to the
-          general public.
-        */}
-        <div className="mt-9 flex max-w-2xl flex-col gap-5 border border-border bg-secondary p-7 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <Lock className="mt-1 size-4 shrink-0 text-primary" />
-            <p className="text-sm leading-6">
-              Pricing and current lot availability are shown to verified research accounts. Every
-              request is read by a person against a written research-use policy.
+        {visibility.pricing !== 'none' ? (
+          <div className="mt-9 max-w-2xl">
+            <p className="text-sm leading-6 text-muted-foreground">
+              Prices shown for your {visibility.pricing === 'institutional' ? 'verified research organisation' : 'account'}.
+              Ordering opens in the next stage of the build; until then, email research@nexphaselabs.net quoting the SKU.
             </p>
+            <h3 className="mt-8 utility-label text-primary">Released lots</h3>
+            {releasedLots.length === 0 ? (
+              <p className="mt-4 text-sm text-muted-foreground">No lot is currently released for this material.</p>
+            ) : (
+              <ul className="mt-4 divide-y divide-border border border-border">
+                {releasedLots.map((lot) => (
+                  <li key={lot.lotNumber} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+                    <Link href={`/lots/${encodeURIComponent(lot.lotNumber)}`} className="font-mono font-semibold text-primary">
+                      {lot.lotNumber}
+                    </Link>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {lot.manufacturerName ?? 'Manufacturer on COA'} &middot; released {lot.releasedOn ?? '—'}
+                      {lot.retestDate ? ` · retest ${lot.retestDate}` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          <Link
-            href="/access"
-            className="inline-flex h-12 shrink-0 items-center justify-center bg-primary px-6 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Request access
-          </Link>
-        </div>
+        ) : (
+          /*
+            Pricing behind verification. Not only a commercial choice — a gated
+            catalog leaves no public product page to be read as an offer to the
+            general public.
+          */
+          <div className="mt-9 flex max-w-2xl flex-col gap-5 border border-border bg-secondary p-7 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <Lock className="mt-1 size-4 shrink-0 text-primary" />
+              <p className="text-sm leading-6">
+                {visibility.reason === 'anonymous' &&
+                  'Pricing and current lot availability are shown to verified research accounts. Every request is read by a person against a written research-use policy.'}
+                {visibility.reason === 'unverified' &&
+                  'Pricing and lot availability appear here once your organisation has been verified.'}
+                {visibility.reason === 'acknowledgement' &&
+                  'Confirm the current terms and research-use acknowledgement on your account page to see pricing.'}
+                {visibility.reason === 'consumer_disabled' &&
+                  'Pricing is available to verified research organisations. Contact research@nexphaselabs.net to submit one.'}
+              </p>
+            </div>
+            <Link
+              href={
+                visibility.reason === 'anonymous'
+                  ? '/access'
+                  : visibility.reason === 'unverified'
+                    ? '/account/organization'
+                    : '/account'
+              }
+              className="inline-flex h-12 shrink-0 items-center justify-center bg-primary px-6 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              {visibility.reason === 'anonymous' ? 'Request access' : visibility.reason === 'unverified' ? (account?.verificationStatus === 'none' ? 'Submit your organisation' : 'View your submission') : 'Your account'}
+            </Link>
+          </div>
+        )}
       </section>
 
       {/* ---------- Data provenance ---------- */}

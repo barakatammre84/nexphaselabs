@@ -60,8 +60,8 @@ describe('catalog form round trip', () => {
       { solvent: 'Water', concentration: '1 mg/mL', source: 'MCE 9', note: undefined },
     ]);
     expect(input.variants).toEqual([
-      { quantity: '5 mg', presentation: DEFAULT_PRESENTATION, sortOrder: 0 },
-      { quantity: '25 mg', presentation: 'Solid, amber vial', sortOrder: 1 },
+      { quantity: '5 mg', presentation: DEFAULT_PRESENTATION, sortOrder: 0, listPrice: null, institutionalPrice: null },
+      { quantity: '25 mg', presentation: 'Solid, amber vial', sortOrder: 1, listPrice: null, institutionalPrice: null },
     ]);
   });
 

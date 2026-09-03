@@ -164,7 +164,29 @@ export function scanText(field: string, text: string | null | undefined): Violat
 
 export type SolubilityInput = { solvent: string; concentration: string; note?: string; source: string };
 export type RelatedCasInput = { form: string; cas: string };
-export type VariantInput = { sku?: string; quantity: string; presentation: string; sortOrder?: number; active?: boolean };
+export type VariantInput = {
+  sku?: string;
+  quantity: string;
+  presentation: string;
+  sortOrder?: number;
+  active?: boolean;
+  /** Dollars as typed, e.g. "45" or "45.00"; blank means not priced. */
+  listPrice?: string | null;
+  institutionalPrice?: string | null;
+  /** Normalised on validation. */
+  listPriceCents?: number | null;
+  institutionalPriceCents?: number | null;
+};
+
+const PRICE_PATTERN = /^\d{1,6}(?:\.\d{1,2})?$/;
+
+/** "45" | "45.5" | "45.00" → cents; null for blank; NaN for malformed. */
+export function parsePriceCents(value: string | null | undefined): number | null {
+  const t = (value ?? '').trim().replace(/^\$/, '');
+  if (!t) return null;
+  if (!PRICE_PATTERN.test(t)) return Number.NaN;
+  return Math.round(Number(t) * 100);
+}
 
 export type ProductInput = {
   code: string;
@@ -317,6 +339,10 @@ export function validateProductInput(raw: ProductInput): ValidationResult {
       sku: t(v.sku) || undefined,
       sortOrder: v.sortOrder ?? i,
       active: v.active ?? true,
+      listPrice: t(v.listPrice) || null,
+      institutionalPrice: t(v.institutionalPrice) || null,
+      listPriceCents: v.listPriceCents ?? null,
+      institutionalPriceCents: v.institutionalPriceCents ?? null,
     })),
   };
 
@@ -420,6 +446,14 @@ export function validateProductInput(raw: ProductInput): ValidationResult {
     if (skus.has(sku)) errors.push(`Duplicate SKU ${sku}.`);
     skus.add(sku);
     v.sku = sku;
+    for (const [label, key, target] of [
+      ['List price', 'listPrice', 'listPriceCents'],
+      ['Institutional price', 'institutionalPrice', 'institutionalPriceCents'],
+    ] as const) {
+      const cents = v[key] != null ? parsePriceCents(v[key]) : (v[target] ?? null);
+      if (cents !== null && Number.isNaN(cents)) errors.push(`${label} for ${v.quantity} must be a dollar amount such as 45 or 45.00.`);
+      else v[target] = cents;
+    }
   }
 
   // Language scan across every field that renders on the site, including

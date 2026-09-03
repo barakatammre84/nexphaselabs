@@ -97,7 +97,7 @@ export default async function ManagePage({ searchParams }: Props) {
                     <td className="p-4 font-mono text-xs text-muted-foreground">
                       {product.variants
                         .filter((v) => v.active)
-                        .map((v) => v.quantity)
+                        .map((v) => `${v.quantity}${v.institutionalPriceCents !== null ? ` ($${(v.institutionalPriceCents / 100).toFixed(2)})` : ''}`)
                         .join(', ')}
                     </td>
                     <td className="p-4">

@@ -141,7 +141,7 @@ export function ProductForm({ initial, mode, action }: Props) {
           values={v}
           multiline
           required
-          hint={`One per line: quantity | presentation. Quantity is a mass (5 mg, 1 g). Presentations: ${PRESENTATIONS.join('; ')}. A line removed here retires that SKU; it is never deleted.`}
+          hint={`One per line: quantity | presentation | list price | institutional price (dollars, optional). Quantity is a mass (5 mg, 1 g). Presentations: ${PRESENTATIONS.join('; ')}. Prices render only to accounts the visibility rule allows. A line removed here retires that SKU; it is never deleted.`}
         />
         <div className="flex flex-col gap-1.5">
           <label htmlFor="status" className={label}>
