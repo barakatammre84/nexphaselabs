@@ -57,6 +57,18 @@ npx wrangler secret put NAME --env staging
 `vars` in `wrangler.jsonc` are for non-secret configuration only (`APP_ENV`,
 `PUBLIC_ORIGIN`).
 
+### Operations digest (optional)
+
+`DIGEST_TO` (an **admin's** address — the digest carries customer-account and staff-credential rows that only admins may see) and `DIGEST_TOKEN` (a random string of at least 32 characters, set as a secret) enable
+`POST /api/digest` for an external scheduler. Any cron that can send an HTTP request works — a Cloudflare
+Worker with a cron trigger, or a plain crontab:
+
+```bash
+curl -fsS -X POST https://nexphaselabs.net/api/digest -H "Authorization: Bearer $DIGEST_TOKEN"
+```
+
+Until both are set the endpoint answers 404. Admins can also email themselves the digest from the dashboard at any time.
+
 ## Rollback
 
 Every deploy creates an immutable Worker version. To roll back:

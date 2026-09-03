@@ -109,7 +109,7 @@ export async function SiteFooter() {
               NexPhase Labs. Oakland, California.
             </p>
             <Link
-              href="/manage"
+              href="/manage/products"
               className="utility-label transition-colors hover:text-primary"
             >
               Catalog manager

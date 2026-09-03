@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 export default async function NewProductPage() {
   const staff = await requireStaff('/manage/products/new');
-  if (!canEditCatalog(staff)) redirect('/manage?denied=1');
+  if (!canEditCatalog(staff)) redirect('/manage/products?denied=1');
   const action = saveProductAction.bind(null, { kind: 'create' });
   const classes = (await listActiveClasses()).map((c) => c.name);
 
@@ -24,7 +24,7 @@ export default async function NewProductPage() {
     <main className="bg-background text-foreground">
       <section className="mx-auto max-w-[1100px] px-5 py-12 sm:px-8 lg:px-12">
         <Link
-          href="/manage"
+          href="/manage/products"
           className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-primary"
         >
           <ArrowLeft className="size-4" /> Catalog manager

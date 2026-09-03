@@ -48,7 +48,7 @@ export default async function EditProductPage({ params, searchParams }: Props) {
   const staff = await requireStaff(
     `/manage/products/${encodeURIComponent(code)}`,
   );
-  if (!canEditCatalog(staff)) redirect('/manage?denied=1');
+  if (!canEditCatalog(staff)) redirect('/manage/products?denied=1');
 
   if (!/^NPL-\d{3,4}$/i.test(code)) notFound();
   const product = await getProductByCode(code);
@@ -72,7 +72,7 @@ export default async function EditProductPage({ params, searchParams }: Props) {
     <main className="bg-background text-foreground">
       <section className="mx-auto max-w-[1100px] px-5 py-12 sm:px-8 lg:px-12">
         <Link
-          href="/manage"
+          href="/manage/products"
           className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-primary"
         >
           <ArrowLeft className="size-4" /> Catalog manager

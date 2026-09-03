@@ -23,5 +23,8 @@ declare namespace Cloudflare {
     BTCPAY_STORE_ID?: string;
     BTCPAY_API_KEY?: string;
     BTCPAY_WEBHOOK_SECRET?: string;
+    /** Operations digest: recipient (an ADMIN address — the digest is admin-level content) and the bearer token an external scheduler presents to /api/digest. Both unset → endpoint absent. */
+    DIGEST_TO?: string;
+    DIGEST_TOKEN?: string;
   }
 }

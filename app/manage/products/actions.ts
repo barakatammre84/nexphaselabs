@@ -49,7 +49,7 @@ export async function saveProductAction(
   if (!(await sameOriginAction()))
     return fail('Request rejected: cross-origin.');
   const staff = await getStaff();
-  if (!staff) redirect('/staff/sign-in?return_to=%2Fmanage');
+  if (!staff) redirect('/staff/sign-in?return_to=%2Fmanage%2Fproducts');
   if (!canEditCatalog(staff)) return fail('Your role cannot edit the catalog.');
 
   let classNames: string[];
@@ -92,5 +92,5 @@ export async function saveProductAction(
   }
 
   if (!outcome.ok) return fail(outcome.error);
-  redirect(`/manage?saved=${encodeURIComponent(outcome.code)}`);
+  redirect(`/manage/products?saved=${encodeURIComponent(outcome.code)}`);
 }

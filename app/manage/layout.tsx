@@ -29,6 +29,9 @@ export default async function ManageLayout({
               <Lock className="size-4" /> Internal
             </span>
             <Link href="/manage" className="hover:text-primary">
+              Dashboard
+            </Link>
+            <Link href="/manage/products" className="hover:text-primary">
               Catalog
             </Link>
             <Link href="/manage/classes" className="hover:text-primary">
@@ -48,6 +51,9 @@ export default async function ManageLayout({
             </Link>
             <Link href="/manage/reports" className="hover:text-primary">
               Reports
+            </Link>
+            <Link href="/manage/activity" className="hover:text-primary">
+              Activity
             </Link>
             {canManageStaff(staff) && (
               <>
