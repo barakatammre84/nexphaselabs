@@ -36,7 +36,10 @@ export default async function OrdersPage() {
                   {o.orderNumber}
                 </Link>
                 <span className="font-mono text-xs text-muted-foreground">{o.submittedAt.toISOString().slice(0, 10)}</span>
-                <span>{ORDER_STATUS_LABEL[o.status as OrderStatus] ?? o.status}</span>
+                <span>
+                  {ORDER_STATUS_LABEL[o.status as OrderStatus] ?? o.status}
+                  {o.trackingNumber ? <span className="block font-mono text-xs text-muted-foreground">{o.carrier} {o.trackingNumber}</span> : null}
+                </span>
                 <span className="font-mono">{formatCents(o.totalCents)}</span>
               </li>
             ))}

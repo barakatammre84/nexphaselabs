@@ -6,6 +6,7 @@ import { requireAccount } from '@/lib/account-auth';
 import { ORDER_STATUS_LABEL, orderNumberFromParam, type OrderStatus } from '@/lib/order-rules';
 import { getOrderForAccount, paymentInstructionsFor } from '@/lib/orders';
 import { availablePaymentMethods } from '@/lib/payments';
+import { trackingUrl } from '@/lib/tracking';
 import { formatCents } from '@/lib/visibility-rules';
 
 export const dynamic = 'force-dynamic';
@@ -147,7 +148,19 @@ export default async function OrderPage({ params, searchParams }: Props) {
             {order.trackingNumber && (
               <p className="mt-3 font-mono text-sm">
                 {order.carrier} {order.trackingNumber}
+                {trackingUrl(order.carrier, order.trackingNumber) && (
+                  <>
+                    {' · '}
+                    <a href={trackingUrl(order.carrier, order.trackingNumber)!} className="font-semibold text-primary" rel="noreferrer">
+                      Track
+                    </a>
+                  </>
+                )}
+                {order.shippedAt ? <span className="block text-xs text-muted-foreground">Shipped {order.shippedAt.toISOString().slice(0, 10)}</span> : null}
               </p>
+            )}
+            {order.status === 'cancelled' && order.cancelReason && (
+              <p className="mt-3 text-sm text-muted-foreground">Cancelled: {order.cancelReason}</p>
             )}
           </div>
           <div>

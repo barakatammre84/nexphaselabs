@@ -646,7 +646,7 @@ export const orders = sqliteTable(
     // Payment (Phase 5.2)
     paymentMethod: text('payment_method'),
     paymentRef: text('payment_ref'),
-    /** unpaid | pending | paid | failed | refunded */
+    /** unpaid | pending | paid | failed | refund_due | refunded — 'refunded' only once money has actually moved */
     paymentStatus: text('payment_status').notNull().default('unpaid'),
     // Shipment (Phase 5.3)
     carrier: text('carrier'),

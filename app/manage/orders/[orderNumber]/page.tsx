@@ -6,6 +6,7 @@ import { ORDER_STATUS_LABEL, orderNumberFromParam, type OrderStatus } from '@/li
 import { pickableLots, type PickableLot } from '@/lib/fulfilment';
 import { getOrderByNumber } from '@/lib/orders';
 import { canFulfil, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
+import { trackingUrl } from '@/lib/tracking';
 import { formatCents } from '@/lib/visibility-rules';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +14,7 @@ export const metadata: Metadata = { title: 'Order', robots: { index: false, foll
 
 type Props = {
   params: Promise<{ orderNumber: string }>;
-  searchParams: Promise<{ paid?: string; error?: string; shipped?: string; fulfilling?: string }>;
+  searchParams: Promise<{ paid?: string; error?: string; shipped?: string; fulfilling?: string; cancelled?: string }>;
 };
 
 function Row({ label, value }: { label: string; value: string | null | undefined }) {
@@ -27,7 +28,7 @@ function Row({ label, value }: { label: string; value: string | null | undefined
 
 export default async function ManageOrderPage({ params, searchParams }: Props) {
   const { orderNumber } = await params;
-  const { paid, error, shipped, fulfilling } = await searchParams;
+  const { paid, error, shipped, fulfilling, cancelled } = await searchParams;
   const staff = await requireStaff(`/manage/orders/${orderNumber}`);
   const number = orderNumberFromParam(orderNumber);
   if (!number) notFound();
@@ -54,6 +55,9 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
           <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
             <CircleCheck className="size-4 text-primary" /> Fulfilment started. Choose a released lot for each line and record the shipment.
           </p>
+        )}
+        {cancelled && (
+          <p role="status" className="mt-6 border border-border bg-secondary p-4 text-sm">Order cancelled. The customer has been emailed the reason.</p>
         )}
         {shipped && (
           <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
@@ -107,7 +111,7 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
             <dl className="mt-4 border-t border-border">
               <Row label="Method" value={order.paymentMethod} />
               <Row label="Reference" value={order.paymentRef} />
-              <Row label="Status" value={order.paymentStatus} />
+              <Row label="Status" value={order.paymentStatus === 'refund_due' ? 'Refund due (not yet returned)' : order.paymentStatus} />
               <Row label="Paid at" value={order.paidAt ? order.paidAt.toISOString().slice(0, 10) : null} />
             </dl>
             {order.status === 'awaiting_payment' && (
@@ -193,7 +197,22 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                 <Row label="Carrier" value={order.carrier} />
                 <Row label="Tracking" value={order.trackingNumber} />
                 <Row label="Shipped on" value={order.shippedAt ? order.shippedAt.toISOString().slice(0, 10) : null} />
+                {trackingUrl(order.carrier, order.trackingNumber) && (
+                  <div className="py-3">
+                    <a href={trackingUrl(order.carrier, order.trackingNumber)!} className="text-sm font-semibold text-primary" rel="noreferrer">
+                      Track shipment
+                    </a>
+                  </div>
+                )}
               </dl>
+            )}
+            {(order.status === 'submitted' || order.status === 'awaiting_payment' || order.status === 'paid' || order.status === 'fulfilling') && canVerifyAccounts(staff) && (
+              <form method="post" action={`/api/manage/orders/${order.orderNumber}/cancel`} className="mt-6 flex flex-wrap items-center gap-3 text-sm">
+                <input name="reason" required maxLength={300} placeholder="Reason sent to the customer" className="h-10 min-w-[18rem] border border-foreground/20 bg-background px-3 text-sm" />
+                <button type="submit" className="h-10 border border-foreground/20 px-4 font-semibold hover:border-destructive hover:text-destructive">
+                  Cancel order
+                </button>
+              </form>
             )}
 
             <h2 className="mt-10 utility-label text-primary">History</h2>

@@ -56,7 +56,7 @@ export default async function ManageOrdersPage() {
                     </td>
                     <td className="p-4 font-mono">{formatCents(o.totalCents)}</td>
                     <td className="p-4 text-muted-foreground">
-                      {o.paymentMethod ?? '—'} &middot; {o.paymentStatus}
+                      {o.paymentMethod ?? '—'} &middot; {o.paymentStatus === 'refund_due' ? 'refund due' : o.paymentStatus}
                     </td>
                     <td className="p-4">{ORDER_STATUS_LABEL[o.status as OrderStatus] ?? o.status}</td>
                   </tr>

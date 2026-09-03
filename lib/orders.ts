@@ -187,9 +187,9 @@ export async function createOrderFromCart(
 
 export type OrderDetail = { order: Order; items: OrderItem[]; events: OrderEvent[] };
 
-export async function listOrdersForAccount(accountId: string): Promise<Order[]> {
+export async function listOrdersForAccount(accountId: string, limit = 200): Promise<Order[]> {
   const db = getDb();
-  return db.select().from(orders).where(eq(orders.accountId, accountId)).orderBy(desc(orders.submittedAt));
+  return db.select().from(orders).where(eq(orders.accountId, accountId)).orderBy(desc(orders.submittedAt)).limit(limit);
 }
 
 export async function getOrderForAccount(accountId: string, orderNumber: string): Promise<OrderDetail | null> {

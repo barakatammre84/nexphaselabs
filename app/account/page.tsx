@@ -4,6 +4,10 @@ import { Building2, CircleCheck, Clock, Lock } from 'lucide-react';
 import { AcknowledgementForm } from '@/components/site/acknowledgement-form';
 import { requireAccount } from '@/lib/account-auth';
 import { acknowledgementsCurrent } from '@/lib/account-rules';
+import { loadCatalog } from '@/lib/catalog-data';
+import { ORDER_STATUS_LABEL, type OrderStatus } from '@/lib/order-rules';
+import { listOrdersForAccount } from '@/lib/orders';
+import { formatCents } from '@/lib/visibility-rules';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Your account', robots: { index: false, follow: false } };
@@ -40,6 +44,7 @@ export default async function AccountPage({ searchParams }: Props) {
   const verification = VERIFICATION_TEXT[account.verificationStatus] ?? VERIFICATION_TEXT.none;
   const approved = account.verificationStatus === 'approved';
   const consumer = account.tier === 'consumer';
+  const recent = (await loadCatalog(() => listOrdersForAccount(account.id, 5))).data ?? [];
 
   return (
     <main className="bg-background text-foreground">
@@ -94,6 +99,23 @@ export default async function AccountPage({ searchParams }: Props) {
                 {account.verificationStatus === 'none' ? 'Submit organisation for verification' : 'View your submission'}
               </Link>
             )}
+          </div>
+        )}
+
+        {recent.length > 0 && (
+          <div className="mt-10">
+            <p className="utility-label text-primary">Recent orders</p>
+            <ul className="mt-3 divide-y divide-border border border-border text-sm">
+              {recent.map((o) => (
+                <li key={o.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                  <Link href={`/account/orders/${o.orderNumber}`} className="font-mono font-semibold text-primary">
+                    {o.orderNumber}
+                  </Link>
+                  <span>{ORDER_STATUS_LABEL[o.status as OrderStatus] ?? o.status}</span>
+                  <span className="font-mono">{formatCents(o.totalCents)}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
