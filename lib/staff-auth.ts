@@ -181,6 +181,11 @@ export function canEditCatalog(staff: StaffPrincipal): boolean {
   return staff.role === 'admin' || staff.role === 'qc';
 }
 
+/** Roles allowed to verify customer organisations. */
+export function canVerifyAccounts(staff: StaffPrincipal): boolean {
+  return staff.role === 'admin';
+}
+
 /** Roles allowed to record analytical results and decide lot disposition. */
 export function canRecordResults(staff: StaffPrincipal): boolean {
   return staff.role === 'admin' || staff.role === 'qc';

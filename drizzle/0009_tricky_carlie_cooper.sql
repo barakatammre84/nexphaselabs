@@ -1,0 +1,1 @@
+ALTER TABLE `organizations` ADD `last_decision_id` text;

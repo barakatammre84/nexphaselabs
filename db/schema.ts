@@ -492,3 +492,92 @@ export type ProductVariantRow = typeof productVariants.$inferSelect;
 export type Lot = typeof lots.$inferSelect;
 export type LotTest = typeof lotTests.$inferSelect;
 export type LotMovement = typeof lotMovements.$inferSelect;
+
+/**
+ * Organisation verification. One organisation per account. The account's
+ * `verificationStatus` mirrors `verificationStatus` here so pages can gate
+ * without a join. Decisions are appended to `verification_events`.
+ *
+ * Verification is what makes "institutional accounts only" substantive
+ * rather than a checkbox: a person reviews the organisation, its domain, its
+ * shipping address and its documents before pricing is shown.
+ */
+export const organizations = sqliteTable(
+  'organizations',
+  {
+    id: text('id').primaryKey(),
+    accountId: text('account_id').notNull(),
+    legalName: text('legal_name').notNull(),
+    website: text('website').notNull(),
+    emailDomain: text('email_domain').notNull(),
+    /** university | hospital | cro | analytical_lab | company | government | other */
+    organizationType: text('organization_type').notNull(),
+    addressLine1: text('address_line1').notNull(),
+    addressLine2: text('address_line2'),
+    city: text('city').notNull(),
+    region: text('region').notNull(),
+    postalCode: text('postal_code').notNull(),
+    country: text('country').notNull(),
+    phone: text('phone'),
+    registrationNumber: text('registration_number'),
+    researchContext: text('research_context').notNull(),
+    receivingParty: text('receiving_party').notNull(),
+    /** Automatic checks that did not pass outright, for the reviewer. JSON array of strings. */
+    reviewFlags: text('review_flags', { mode: 'json' }).$type<string[]>().notNull().default([]),
+    /** submitted | approved | declined | more_info */
+    verificationStatus: text('verification_status').notNull().default('submitted'),
+    submittedAt: integer('submitted_at', { mode: 'timestamp' }).notNull(),
+    reviewedBy: text('reviewed_by'),
+    reviewedAt: integer('reviewed_at', { mode: 'timestamp' }),
+    reviewNote: text('review_note'),
+    /** Id of the decision that produced the current status; lets the event insert be conditional on it. */
+    lastDecisionId: text('last_decision_id'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    accountIdx: uniqueIndex('organizations_account_idx').on(table.accountId),
+    statusIdx: index('organizations_status_idx').on(table.verificationStatus),
+  }),
+);
+
+export const organizationDocuments = sqliteTable(
+  'organization_documents',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull(),
+    /** registration | letterhead | other */
+    kind: text('kind').notNull(),
+    objectKey: text('object_key').notNull(),
+    contentType: text('content_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    originalName: text('original_name'),
+    uploadedAt: integer('uploaded_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    orgIdx: index('organization_documents_org_idx').on(table.organizationId),
+    keyIdx: uniqueIndex('organization_documents_key_idx').on(table.objectKey),
+  }),
+);
+
+/** Append-only verification decisions, with the named staff member and note. */
+export const verificationEvents = sqliteTable(
+  'verification_events',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull(),
+    fromStatus: text('from_status').notNull(),
+    toStatus: text('to_status').notNull(),
+    note: text('note'),
+    decidedBy: text('decided_by').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    orgIdx: index('verification_events_org_idx').on(table.organizationId),
+  }),
+);
+
+export type Organization = typeof organizations.$inferSelect;
+export type OrganizationDocument = typeof organizationDocuments.$inferSelect;
+export type VerificationEvent = typeof verificationEvents.$inferSelect;

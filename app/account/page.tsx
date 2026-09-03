@@ -85,10 +85,14 @@ export default async function AccountPage({ searchParams }: Props) {
               <h2 className="font-display text-xl font-bold tracking-tight">{verification.title}</h2>
             </div>
             <p className="mt-3 leading-7 text-muted-foreground">{verification.body}</p>
-            {(account.verificationStatus === 'none' || account.verificationStatus === 'more_info') && (
-              <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                <Building2 className="size-4" /> Organisation submission opens in the next stage of the build.
-              </p>
+            {account.verificationStatus !== 'approved' && (
+              <Link
+                href="/account/organization"
+                className="mt-6 inline-flex h-11 items-center gap-2 bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90"
+              >
+                <Building2 className="size-4" />
+                {account.verificationStatus === 'none' ? 'Submit organisation for verification' : 'View your submission'}
+              </Link>
             )}
           </div>
         )}

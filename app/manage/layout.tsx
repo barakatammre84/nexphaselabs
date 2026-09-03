@@ -27,6 +27,9 @@ export default async function ManageLayout({ children }: { children: React.React
             <Link href="/manage/lots" className="hover:text-primary">
               Lots
             </Link>
+            <Link href="/manage/verification" className="hover:text-primary">
+              Verification
+            </Link>
           </nav>
           <form method="post" action="/api/staff/sign-out" className="flex items-center gap-4">
             <span className="text-muted-foreground">

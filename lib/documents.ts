@@ -120,6 +120,50 @@ export async function headLotDocument(key: string): Promise<R2Object | null> {
   return bucket().head(key);
 }
 
+/* ------------------------------------------------------------------------ */
+/* Organisation verification documents                                       */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Supporting documents an applicant uploads for verification. Same bucket,
+ * separate prefix, staff-only retrieval. Key: organizations/<orgId>/<kind>/<uploadId>.<ext>
+ */
+export async function putOrganizationDocument(
+  organizationId: string,
+  kind: string,
+  file: File | Blob,
+  meta: { uploadedBy: string; originalName?: string },
+): Promise<StoredDocument> {
+  if (!/^org_[a-z0-9]{8,32}$/.test(organizationId) || !/^[a-z_]{3,20}$/.test(kind)) {
+    throw new Error('Invalid document key component.');
+  }
+  const contentType = file.type;
+  const ext = ALLOWED_CONTENT_TYPES[contentType];
+  if (!ext) throw new Error(`Unsupported document type: ${contentType || 'unknown'}.`);
+  if (file.size === 0) throw new Error('Empty file.');
+  if (file.size > MAX_DOCUMENT_BYTES) throw new Error('File exceeds the 25 MB limit.');
+
+  const uploadId = crypto.randomUUID().replace(/-/g, '');
+  const key = `organizations/${organizationId}/${kind}/${uploadId}.${ext}`;
+  const uploadedAt = new Date();
+  await bucket().put(key, file.stream(), {
+    httpMetadata: { contentType },
+    customMetadata: {
+      organizationId,
+      kind,
+      uploadedBy: meta.uploadedBy,
+      uploadedAt: uploadedAt.toISOString(),
+      ...(meta.originalName ? { originalName: meta.originalName.slice(0, 200) } : {}),
+    },
+  });
+  return { key, contentType, size: file.size, uploadedAt };
+}
+
+export async function getOrganizationDocument(key: string): Promise<R2ObjectBody | null> {
+  if (!key.startsWith('organizations/')) return null;
+  return bucket().get(key);
+}
+
 /** Build a download response for a stored object, with a safe filename. */
 export function documentResponse(object: R2ObjectBody, filename: string, inline = false): Response {
   const headers = new Headers();
