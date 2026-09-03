@@ -6,8 +6,12 @@ import type { LotFormState } from '@/app/manage/lots/actions';
 
 type ProductOption = { code: string; name: string };
 
+export type ExpectedOption = { lineId: string; label: string; productCode: string; quantity: string; supplierName: string; landedCost: string };
+
 type Props = {
   products: ProductOption[];
+  /** Open purchase-order lines. Choosing one carries the supplier, ordered quantity and landed cost onto the lot. */
+  expected?: ExpectedOption[];
   today: string;
   action: (prev: LotFormState, data: FormData) => Promise<LotFormState>;
 };
@@ -50,7 +54,7 @@ function Field({
   );
 }
 
-export function LotForm({ products, today, action }: Props) {
+export function LotForm({ products, expected = [], today, action }: Props) {
   const [state, formAction, pending] = useActionState(action, {
     values: { receivedAt: today },
     errors: [],
@@ -80,6 +84,29 @@ export function LotForm({ products, today, action }: Props) {
         </div>
       )}
 
+      {expected.length > 0 && (
+        <section className="grid gap-6 lg:grid-cols-2">
+          <h2 className="utility-label text-primary lg:col-span-2">Expected receipt</h2>
+          <div className="flex flex-col gap-1.5 lg:col-span-2">
+            <label htmlFor="purchaseOrderLineId" className={label}>
+              Purchase order line
+            </label>
+            <select id="purchaseOrderLineId" name="purchaseOrderLineId" key={`k-${v.purchaseOrderLineId ?? ''}`} defaultValue={v.purchaseOrderLineId ?? ''} className={input}>
+              <option value="">None — receive without a purchase order</option>
+              {expected.map((e) => (
+                <option key={e.lineId} value={e.lineId}>
+                  {e.label}
+                </option>
+              ))}
+            </select>
+            <p className={help}>
+              The product must match the line. The supplier and the landed cost (line cost plus its share of freight and duty) are taken from
+              the order unless you type them below; the received quantity is added to the line and closes it when the order is complete.
+            </p>
+          </div>
+        </section>
+      )}
+
       <section className="grid gap-6 lg:grid-cols-2">
         <h2 className="utility-label text-primary lg:col-span-2">Material</h2>
         <Field name="lotNumber" title="Lot number" values={v} required hint="As printed on the container label. Letters, digits, hyphens." />
@@ -87,7 +114,7 @@ export function LotForm({ products, today, action }: Props) {
           <label htmlFor="productCode" className={label}>
             Catalog product <span className="text-primary">*</span>
           </label>
-          <select id="productCode" name="productCode" defaultValue={v.productCode ?? ''} className={input}>
+          <select id="productCode" name="productCode" key={`k-${v.productCode ?? ''}`} defaultValue={v.productCode ?? ''} className={input}>
             <option value="">Choose…</option>
             {products.map((p) => (
               <option key={p.code} value={p.code}>

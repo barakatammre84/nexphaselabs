@@ -261,6 +261,36 @@ export function formatQuantity(amount: number, unit: QuantityUnit): string {
   return `${Number.isInteger(amount) ? amount : amount.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')} ${unit}`;
 }
 
+const UG_PER: Record<string, number> = { ug: 1, mg: 1_000, g: 1_000_000, kg: 1_000_000_000 };
+
+/** True when a mass quantity is finer than one microgram (the ledger's resolution). Counts are never finer. */
+export function finerThanMicrogram(amount: number, unit: QuantityUnit): boolean {
+  const per = UG_PER[unit];
+  if (per === undefined) return false;
+  const ug = amount * per;
+  return Math.abs(ug - Math.round(ug)) > 1e-6;
+}
+
+/**
+ * Canonical text for a quantity. Mass keeps the unit it was typed in when
+ * that unit states the whole-microgram value in at most three decimals, and
+ * otherwise steps down to the next smaller unit (1.0001 g → "1000.1 mg"), so
+ * nothing typed at intake or on a purchase order is ever truncated. Counts
+ * keep their unit.
+ */
+export function normalizeQuantity(amount: number, unit: QuantityUnit): string {
+  const per = UG_PER[unit];
+  if (per === undefined) return formatQuantity(amount, unit);
+  const ug = Math.round(amount * per);
+  const order = ['kg', 'g', 'mg', 'ug'] as const;
+  for (const u of order.slice(order.indexOf(unit as (typeof order)[number]))) {
+    // Exact in u when the µg value is a multiple of a thousandth of u (integer divisor, so no float modulus).
+    const thousandth = UG_PER[u] / 1000;
+    if (thousandth < 1 || ug % thousandth === 0) return formatQuantity(ug / UG_PER[u], u);
+  }
+  return formatQuantity(ug, 'ug');
+}
+
 function parseDate(value: string | null | undefined, field: string, errors: string[], required = false): Date | null {
   const t = (value ?? '').trim();
   if (!t) {
@@ -317,10 +347,10 @@ export function validateLotIntake(raw: LotIntakeInput, now = new Date()): LotInt
     errors.push(`Quantity received must be a number with unit (${QUANTITY_UNITS.join(', ')}), e.g. "25 g" or "40 vials".`);
   } else if (quantity.amount <= 0) {
     errors.push('Quantity received must be greater than zero.');
-  } else if (Math.round(quantity.amount * 1_000_000) % (quantity.unit === 'ug' ? 1_000_000 : quantity.unit === 'mg' ? 1_000 : 1) !== 0 && ['ug', 'mg', 'g', 'kg'].includes(quantity.unit)) {
+  } else if (finerThanMicrogram(quantity.amount, quantity.unit)) {
     errors.push('Quantity received cannot be finer than one microgram (the ledger resolution).');
   } else {
-    value.quantityReceived = formatQuantity(quantity.amount, quantity.unit);
+    value.quantityReceived = normalizeQuantity(quantity.amount, quantity.unit);
   }
 
   const receivedAtDate = parseDate(value.receivedAt, 'Date received', errors, true);

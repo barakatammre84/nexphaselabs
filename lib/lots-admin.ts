@@ -1,5 +1,5 @@
-import { and, asc, desc, eq, getTableColumns, isNull, sql } from 'drizzle-orm';
-import type { SQLiteUpdateSetSource } from 'drizzle-orm/sqlite-core';
+import { SQL, and, asc, desc, eq, getTableColumns, is, isNull, sql } from 'drizzle-orm';
+import type { SQLiteTable, SQLiteUpdateSetSource } from 'drizzle-orm/sqlite-core';
 import { getDb } from '@/db';
 import {
   lotDocuments,
@@ -7,6 +7,7 @@ import {
   lotStatusEvents,
   lotTests,
   lots,
+  purchaseOrderLines,
   type Lot,
   type LotDocument,
   type LotMovement,
@@ -28,6 +29,9 @@ import {
 import type { StaffPrincipal } from '@/lib/staff-auth';
 import { randomToken } from '@/lib/staff-auth-core';
 import { lotFamilyIds } from '@/lib/lot-family';
+import { receiptStatements, type ExpectedReceipt } from '@/lib/procurement';
+import { quantitiesComparable, quantityRatio, receiptCostCents } from '@/lib/procurement-quantities';
+import { sumQuantities } from '@/lib/lot-quantities';
 
 export { lotFamilyIds, lotVersions } from '@/lib/lot-family';
 
@@ -65,14 +69,47 @@ export function recordedBy(staff: StaffPrincipal): string {
 export type CreateLotResult = { ok: true; lotNumber: string } | { ok: false; error: string };
 
 /**
+ * INSERT … SELECT of literal values, one row, only where `where` holds on
+ * `from`. Every column of the table is supplied (drizzle emits the full
+ * column list): given values are driver-encoded through the column, missing
+ * nullable columns are NULL, missing timestamp defaults are `now` and missing
+ * booleans/integers with defaults take their declared default.
+ */
+function insertWhere<T extends SQLiteTable>(table: T, values: Record<string, unknown>, from: SQLiteTable, where: SQL) {
+  const db = getDb();
+  const columns = getTableColumns(table);
+  const projection = Object.fromEntries(
+    Object.entries(columns).map(([key, col]) => {
+      const c = col as unknown as { name: string; notNull: boolean; hasDefault: boolean; default: unknown; mapToDriverValue: (v: unknown) => unknown; dataType: string };
+      let raw: unknown;
+      if (key in values) raw = values[key];
+      else if (c.hasDefault && is(c.default, SQL)) raw = new Date(); // only sql`(unixepoch())` defaults exist on these tables
+      else if (c.hasDefault && c.default !== undefined && typeof c.default !== 'object') raw = c.default;
+      else if (c.hasDefault) throw new Error(`insertWhere: column ${c.name} has a default this helper cannot reproduce`);
+      else if (c.notNull) throw new Error(`insertWhere: no value for required column ${c.name}`);
+      else raw = null;
+      const driver = raw === null || raw === undefined ? null : c.mapToDriverValue(raw);
+      return [key, sql`${driver}`.as(c.name)];
+    }),
+  ) as unknown as typeof columns;
+  // The projection is built at runtime from the table's own columns; the generic insert().select() typing cannot see that.
+  return db.insert(table).select(db.select(projection).from(from).where(where) as never);
+}
+
+/**
  * Receive a lot. Inserts the lot in quarantine and the receipt movement in
  * one batch. There is deliberately no `status` parameter.
  */
 export async function createLot(
   validated: Extract<LotIntakeValidation, { ok: true }>['value'],
   staff: StaffPrincipal,
+  /** Expected receipt (purchase-order line) this lot arrives against, if any. */
+  expected: ExpectedReceipt | null = null,
 ): Promise<CreateLotResult> {
   const db = getDb();
+  if (expected && expected.productCode !== validated.productCode.toUpperCase()) {
+    return { ok: false, error: `Expected receipt ${expected.poNumber} is for ${expected.productCode}, not ${validated.productCode}.` };
+  }
   const product = await getProductByCode(validated.productCode);
   if (!product) return { ok: false, error: `Product ${validated.productCode} is not in the catalog.` };
   if (product.visibility === 'withdrawn') {
@@ -84,60 +121,99 @@ export async function createLot(
 
   const now = new Date();
   const id = lotId();
+  // From an expected receipt: the supplier is the purchase order's, and the landed cost — unless typed —
+  // is this receipt's conserved share of the line's landed cost (material + freight/duty share).
+  const supplierName = validated.supplierName ?? expected?.supplierName ?? null;
+  let receipt: ReturnType<typeof receiptStatements> | null = null;
+  if (expected) {
+    if (!quantitiesComparable(validated.quantityReceived, expected.quantity)) {
+      return { ok: false, error: `The line is ordered as ${expected.quantity}; record this receipt in a comparable unit, or receive without a purchase order.` };
+    }
+    if (expected.receivedQuantity && !sumQuantities([expected.receivedQuantity, validated.quantityReceived])) {
+      return { ok: false, error: `This receipt cannot be added to the ${expected.receivedQuantity} already received on the line.` };
+    }
+    receipt = receiptStatements(expected.lineId, id, validated.quantityReceived, staff, now, expected);
+  }
+  const share = expected ? quantityRatio(validated.quantityReceived, expected.quantity) : 1;
+  const costCents = validated.costCents ?? (expected && receipt ? receiptCostCents(expected.landedCostCents, expected.allocatedCents, share, receipt.complete) : null);
+  const costNote =
+    validated.costNote ??
+    (expected && validated.costCents === null
+      ? `${expected.poNumber} landed cost share (material + freight/duty), ${validated.quantityReceived} of ${expected.quantity} ordered`
+      : null);
+
+  const lotValues = {
+    id,
+    lotNumber: validated.lotNumber,
+    productCode: product.code,
+    productName: product.name,
+    casNumber: product.casNumber,
+    manufacturerName: validated.manufacturerName ?? null,
+    manufacturerAddress: validated.manufacturerAddress ?? null,
+    supplierName,
+    purchaseOrderLineId: expected?.lineId ?? null,
+    countryOfOrigin: validated.countryOfOrigin ?? null,
+    entryNumber: validated.entryNumber ?? null,
+    manufactureDate: validated.manufactureDateValue,
+    receivedAt: validated.receivedAtDate,
+    quantityReceived: validated.quantityReceived,
+    quantityRemaining: validated.quantityReceived,
+    costCents,
+    costNote,
+    storageLocation: validated.storageLocation ?? null,
+    storageCondition: validated.storageCondition ?? null,
+    retestDate: validated.retestDateValue,
+    // status is left to its default: 'quarantine'
+    statusReason: 'Received; awaiting documents, testing and release.',
+    createdAt: now,
+    updatedAt: now,
+  };
+  const movementValues = {
+    id: movementId(),
+    lotId: id,
+    movementType: 'receipt',
+    quantity: validated.quantityReceived,
+    consigneeName: supplierName,
+    occurredAt: validated.receivedAtDate,
+    recordedBy: recordedBy(staff),
+    note: [expected ? `Against ${expected.poNumber}.` : null, validated.note ?? null].filter(Boolean).join(' ') || null,
+    createdAt: now,
+  };
+  const costEventValues =
+    costCents !== null
+      ? {
+          id: `evt_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
+          lotId: id,
+          fromStatus: 'quarantine',
+          toStatus: 'quarantine',
+          reason: `Landed cost recorded at intake: $${(costCents / 100).toFixed(2)}${costNote ? ` (${costNote})` : ''}.`,
+          decidedBy: recordedBy(staff),
+          kind: 'cost',
+          createdAt: now,
+        }
+      : null;
+
   try {
-    await db.batch([
-      db.insert(lots).values({
-        id,
-        lotNumber: validated.lotNumber,
-        productCode: product.code,
-        productName: product.name,
-        casNumber: product.casNumber,
-        manufacturerName: validated.manufacturerName ?? null,
-        manufacturerAddress: validated.manufacturerAddress ?? null,
-        supplierName: validated.supplierName ?? null,
-        countryOfOrigin: validated.countryOfOrigin ?? null,
-        entryNumber: validated.entryNumber ?? null,
-        manufactureDate: validated.manufactureDateValue,
-        receivedAt: validated.receivedAtDate,
-        quantityReceived: validated.quantityReceived,
-        quantityRemaining: validated.quantityReceived,
-        costCents: validated.costCents,
-        costNote: validated.costNote ?? null,
-        storageLocation: validated.storageLocation ?? null,
-        storageCondition: validated.storageCondition ?? null,
-        retestDate: validated.retestDateValue,
-        // status is left to its default: 'quarantine'
-        statusReason: 'Received; awaiting documents, testing and release.',
-        createdAt: now,
-        updatedAt: now,
-      }),
-      db.insert(lotMovements).values({
-        id: movementId(),
-        lotId: id,
-        movementType: 'receipt',
-        quantity: validated.quantityReceived,
-        consigneeName: validated.supplierName ?? null,
-        occurredAt: validated.receivedAtDate,
-        recordedBy: recordedBy(staff),
-        note: validated.note ?? null,
-        createdAt: now,
-      }),
-      // Landed cost entered at intake is attributed the same way a later correction is.
-      ...(validated.costCents !== null
-        ? [
-            db.insert(lotStatusEvents).values({
-              id: `evt_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
-              lotId: id,
-              fromStatus: 'quarantine',
-              toStatus: 'quarantine',
-              reason: `Landed cost recorded at intake: $${(validated.costCents / 100).toFixed(2)}${validated.costNote ? ` (${validated.costNote})` : ''}.`,
-              decidedBy: recordedBy(staff),
-              kind: 'cost',
-              createdAt: now,
-            }),
-          ]
-        : []),
-    ]);
+    if (!receipt) {
+      await db.batch([
+        db.insert(lots).values(lotValues),
+        db.insert(lotMovements).values(movementValues),
+        ...(costEventValues ? [db.insert(lotStatusEvents).values(costEventValues)] : []),
+      ] as unknown as Parameters<typeof db.batch>[0]);
+    } else {
+      // Purchase-order path: claim the line first; the lot and everything after it exist only if the claim landed.
+      const lotExists = sql`${lots.id} = ${id}`;
+      const [claimed] = await db.batch([
+        receipt.claim,
+        insertWhere(lots, { ...lotValues, status: 'quarantine' }, purchaseOrderLines, receipt.claimed),
+        insertWhere(lotMovements, movementValues, lots, lotExists),
+        ...(costEventValues ? [insertWhere(lotStatusEvents, costEventValues, lots, lotExists)] : []),
+        ...receipt.after,
+      ] as unknown as Parameters<typeof db.batch>[0]);
+      if (!claimed || (claimed as unknown[]).length === 0) {
+        return { ok: false, error: 'Someone else received against that purchase-order line a moment ago. Reload, check the line, and record again.' };
+      }
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/UNIQUE constraint failed/i.test(message)) return { ok: false, error: `Lot ${validated.lotNumber} already exists.` };

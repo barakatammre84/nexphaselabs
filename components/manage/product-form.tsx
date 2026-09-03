@@ -146,7 +146,7 @@ export function ProductForm({ initial, mode, classes, action }: Props) {
           <select
             id="chemicalClass"
             name="chemicalClass"
-            defaultValue={v.chemicalClass || classes[0] || ''}
+            key={`k-${v.chemicalClass || classes[0] || ''}`} defaultValue={v.chemicalClass || classes[0] || ''}
             className={input}
           >
             {classes.length === 0 && (
@@ -272,7 +272,7 @@ export function ProductForm({ initial, mode, classes, action }: Props) {
           <select
             id="status"
             name="status"
-            defaultValue={v.status || 'enquire'}
+            key={`k-${v.status || 'enquire'}`} defaultValue={v.status || 'enquire'}
             className={input}
           >
             {Object.entries(STATUS_LABEL).map(([value, text]) => (
@@ -315,7 +315,7 @@ export function ProductForm({ initial, mode, classes, action }: Props) {
           <select
             id="visibility"
             name="visibility"
-            defaultValue={v.visibility || 'draft'}
+            key={`k-${v.visibility || 'draft'}`} defaultValue={v.visibility || 'draft'}
             className={input}
           >
             {VISIBILITIES.map((x) => (

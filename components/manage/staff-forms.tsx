@@ -64,7 +64,7 @@ export function CreateStaffForm({ action }: { action: (prev: StaffFormState, dat
           </label>
           <label className="flex flex-col gap-1.5 text-sm font-semibold">
             Role
-            <select name="role" defaultValue={v.role ?? 'ops'} className={input}>
+            <select name="role" key={`k-${v.role ?? 'ops'}`} defaultValue={v.role ?? 'ops'} className={input}>
               {STAFF_ROLES.map((r) => (
                 <option key={r} value={r}>
                   {r}
@@ -107,7 +107,7 @@ export function StaffAccountForms({ action, role, active, isSelf, activeSessions
         <input type="hidden" name="op" value="role" />
         <label className="flex flex-col gap-1.5 text-sm font-semibold">
           Role
-          <select name="role" defaultValue={role} disabled={isSelf} className={input}>
+          <select name="role" key={`k-${role}`} defaultValue={role} disabled={isSelf} className={input}>
             {STAFF_ROLES.map((r) => (
               <option key={r} value={r}>
                 {r}

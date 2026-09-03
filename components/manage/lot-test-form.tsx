@@ -42,7 +42,7 @@ export function LotTestForm({ today, action }: Props) {
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5">
           <span className={label}>Test type</span>
-          <select name="testType" defaultValue={v.testType || 'purity'} className={input}>
+          <select name="testType" key={`k-${v.testType || 'purity'}`} defaultValue={v.testType || 'purity'} className={input}>
             {TEST_TYPES.map((t) => (
               <option key={t} value={t}>
                 {TEST_TYPE_LABEL[t]}
@@ -72,7 +72,7 @@ export function LotTestForm({ today, action }: Props) {
         </label>
         <label className="flex flex-col gap-1.5">
           <span className={label}>Outcome</span>
-          <select name="passed" defaultValue={v.passed ?? ''} className={input}>
+          <select name="passed" key={`k-${v.passed ?? ''}`} defaultValue={v.passed ?? ''} className={input}>
             <option value="">Not assessed</option>
             <option value="pass">Pass</option>
             <option value="fail">Fail</option>

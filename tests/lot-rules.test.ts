@@ -166,3 +166,19 @@ describe('validateLotIntake', () => {
     if (!r.ok) expect(r.violations[0]?.field).toBe('storageCondition');
   });
 });
+
+describe('quantity normalisation', () => {
+  it('keeps whole micrograms exactly and refuses finer', async () => {
+    const { finerThanMicrogram, normalizeQuantity } = await import('@/lib/lot-rules');
+    expect(normalizeQuantity(1.0001, 'g')).toBe('1000.1 mg');
+    expect(normalizeQuantity(0.00015, 'kg')).toBe('0.15 g');
+    expect(normalizeQuantity(25, 'g')).toBe('25 g');
+    expect(normalizeQuantity(5000, 'mg')).toBe('5000 mg');
+    expect(normalizeQuantity(0.0000005, 'g')).toBe('0.001 mg');
+    expect(normalizeQuantity(40, 'vials')).toBe('40 vials');
+    expect(finerThanMicrogram(0.0000005, 'g')).toBe(true);
+    expect(finerThanMicrogram(1.0001, 'g')).toBe(false);
+    expect(finerThanMicrogram(0.5, 'ug')).toBe(true);
+    expect(finerThanMicrogram(3, 'vials')).toBe(false);
+  });
+});

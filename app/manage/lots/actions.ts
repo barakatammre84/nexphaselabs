@@ -13,8 +13,9 @@ import {
   type LotTestInput,
 } from '@/lib/lot-rules';
 import { addLotTest, correctLot, createLot, getLot, lotToIntakeInput, setLotDisposition } from '@/lib/lots-admin';
+import { getExpectedReceipt } from '@/lib/procurement';
 import type { Violation } from '@/lib/catalog-rules';
-import { canRecordResults, canVerifyAccounts, getStaff } from '@/lib/staff-auth';
+import { canFulfil, canRecordResults, canVerifyAccounts, getStaff } from '@/lib/staff-auth';
 
 export type LotFormState = {
   values: Record<string, string>;
@@ -39,6 +40,7 @@ const FIELDS = [
   'note',
   'cost',
   'costNote',
+  'purchaseOrderLineId',
 ] as const;
 
 async function sameOriginAction(): Promise<boolean> {
@@ -73,7 +75,15 @@ export async function receiveLotAction(_prev: LotFormState, data: FormData): Pro
 
   let outcome;
   try {
-    outcome = await createLot(result.value, staff);
+    const lineId = values.purchaseOrderLineId?.trim() ?? '';
+    let expected = null;
+    if (lineId) {
+      if (!canFulfil(staff)) return fail('Only ops and admin roles can receive against a purchase order. Clear the expected receipt to record the lot without one.');
+      if (!/^pol_[a-f0-9]{8,32}$/.test(lineId)) return fail('Unknown expected receipt.');
+      expected = await getExpectedReceipt(lineId);
+      if (!expected) return fail('That expected receipt is no longer open. Reload and choose again, or receive without one.');
+    }
+    outcome = await createLot(result.value, staff, expected);
   } catch (error) {
     console.error('[lots] intake failed', error instanceof Error ? error.message : error);
     return fail('The lot could not be recorded. Try again shortly.');

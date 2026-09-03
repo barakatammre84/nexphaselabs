@@ -103,6 +103,8 @@ export const lots = sqliteTable(
     retestDate: integer('retest_date', { mode: 'timestamp' }),
 
     supersededById: text('superseded_by_id'),
+    /** Expected receipt this lot arrived against, when procurement raised one. */
+    purchaseOrderLineId: text('purchase_order_line_id'),
     /** Marker of the shipment that last drew on this lot; every ledger write for that shipment is conditional on it. */
     lastMovementId: text('last_movement_id'),
 
@@ -998,3 +1000,131 @@ export type CartItem = typeof cartItems.$inferSelect;
 export type Order = typeof orders.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type OrderEvent = typeof orderEvents.$inferSelect;
+
+/* ------------------------------------------------------------------------ */
+/* Procurement                                                               */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Suppliers. Qualification is a named decision ("know your supplier"): a
+ * purchase order can only be raised on a qualified supplier. Never deleted.
+ */
+export const suppliers = sqliteTable(
+  'suppliers',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    address: text('address'),
+    country: text('country'),
+    contactName: text('contact_name'),
+    contactEmail: text('contact_email'),
+    phone: text('phone'),
+    website: text('website'),
+    notes: text('notes'),
+    /** unqualified | qualified | suspended */
+    qualificationStatus: text('qualification_status').notNull().default('unqualified'),
+    qualifiedBy: text('qualified_by'),
+    qualifiedAt: integer('qualified_at', { mode: 'timestamp' }),
+    active: integer('active', { mode: 'boolean' }).notNull().default(true),
+    lastChangeId: text('last_change_id'),
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    nameIdx: uniqueIndex('suppliers_name_idx').on(table.name),
+  }),
+);
+
+export const supplierEvents = sqliteTable(
+  'supplier_events',
+  {
+    id: text('id').primaryKey(),
+    supplierId: text('supplier_id').notNull(),
+    /** create | update | qualify | suspend | requalify */
+    action: text('action').notNull(),
+    detail: text('detail'),
+    actor: text('actor').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    supplierIdx: index('supplier_events_supplier_idx').on(table.supplierId),
+  }),
+);
+
+/** Purchase orders: what was ordered, from whom, at what cost, and what has arrived against it. */
+export const purchaseOrders = sqliteTable(
+  'purchase_orders',
+  {
+    id: text('id').primaryKey(),
+    poNumber: text('po_number').notNull(),
+    supplierId: text('supplier_id').notNull(),
+    supplierName: text('supplier_name').notNull(),
+    /** draft | sent | partially_received | received | cancelled */
+    status: text('status').notNull().default('draft'),
+    orderedOn: integer('ordered_on', { mode: 'timestamp' }),
+    expectedOn: integer('expected_on', { mode: 'timestamp' }),
+    /** Freight and duty for the whole order, allocated to lines by line cost when a lot is received. */
+    freightCents: integer('freight_cents').notNull().default(0),
+    dutyCents: integer('duty_cents').notNull().default(0),
+    supplierReference: text('supplier_reference'),
+    note: text('note'),
+    lastTransitionId: text('last_transition_id'),
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    numberIdx: uniqueIndex('purchase_orders_number_idx').on(table.poNumber),
+    supplierIdx: index('purchase_orders_supplier_idx').on(table.supplierId),
+    statusIdx: index('purchase_orders_status_idx').on(table.status),
+  }),
+);
+
+export const purchaseOrderLines = sqliteTable(
+  'purchase_order_lines',
+  {
+    id: text('id').primaryKey(),
+    purchaseOrderId: text('purchase_order_id').notNull(),
+    lineNo: integer('line_no').notNull(),
+    productCode: text('product_code').notNull(),
+    productName: text('product_name').notNull(),
+    /** Ordered quantity with unit, e.g. "25 g". */
+    quantity: text('quantity').notNull(),
+    /** Material cost for the whole line, before freight and duty. */
+    lineCostCents: integer('line_cost_cents').notNull(),
+    /** Sum of quantities received against this line so far. */
+    receivedQuantity: text('received_quantity'),
+    receivedCount: integer('received_count').notNull().default(0),
+    /** Lot id stamped by the receipt that last updated this line; the lot row is inserted only where it matches. */
+    lastReceiptLotId: text('last_receipt_lot_id'),
+    closedAt: integer('closed_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    poIdx: index('purchase_order_lines_po_idx').on(table.purchaseOrderId),
+    productIdx: index('purchase_order_lines_product_idx').on(table.productCode),
+  }),
+);
+
+export const purchaseOrderEvents = sqliteTable(
+  'purchase_order_events',
+  {
+    id: text('id').primaryKey(),
+    purchaseOrderId: text('purchase_order_id').notNull(),
+    fromStatus: text('from_status').notNull(),
+    toStatus: text('to_status').notNull(),
+    note: text('note'),
+    actor: text('actor').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    poIdx: index('purchase_order_events_po_idx').on(table.purchaseOrderId),
+  }),
+);
+
+export type Supplier = typeof suppliers.$inferSelect;
+export type SupplierEvent = typeof supplierEvents.$inferSelect;
+export type PurchaseOrder = typeof purchaseOrders.$inferSelect;
+export type PurchaseOrderLine = typeof purchaseOrderLines.$inferSelect;
+export type PurchaseOrderEvent = typeof purchaseOrderEvents.$inferSelect;

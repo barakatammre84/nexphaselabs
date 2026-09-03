@@ -4,15 +4,24 @@ import { ArrowLeft } from 'lucide-react';
 import { LotForm } from '@/components/manage/lot-form';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { listAllProducts, loadCatalog } from '@/lib/catalog-data';
-import { requireStaff } from '@/lib/staff-auth';
+import { openExpectedReceipts } from '@/lib/procurement';
+import { canFulfil, requireStaff } from '@/lib/staff-auth';
 import { receiveLotAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Receive a lot', robots: { index: false, follow: false } };
 
 export default async function NewLotPage() {
-  await requireStaff('/manage/lots/new');
+  const staff = await requireStaff('/manage/lots/new');
   const loaded = await loadCatalog(listAllProducts);
+  const expected = (canFulfil(staff) ? ((await loadCatalog(openExpectedReceipts)).data ?? []) : []).map((e) => ({
+    lineId: e.lineId,
+    productCode: e.productCode,
+    quantity: e.quantity,
+    supplierName: e.supplierName,
+    landedCost: (e.landedCostCents / 100).toFixed(2),
+    label: `${e.poNumber} · ${e.productCode} ${e.productName} · ${e.quantity} ordered${e.receivedQuantity ? `, ${e.receivedQuantity} received` : ''} · ${e.supplierName} · landed $${(e.landedCostCents / 100).toFixed(2)}`,
+  }));
   const products = (loaded.data ?? [])
     .filter((p) => p.visibility !== 'withdrawn')
     .map((p) => ({ code: p.code, name: p.name }));
@@ -32,7 +41,7 @@ export default async function NewLotPage() {
           {loaded.unavailable ? (
             <CatalogUnavailable />
           ) : (
-            <LotForm products={products} today={new Date().toISOString().slice(0, 10)} action={receiveLotAction} />
+            <LotForm products={products} expected={expected} today={new Date().toISOString().slice(0, 10)} action={receiveLotAction} />
           )}
         </div>
       </section>
