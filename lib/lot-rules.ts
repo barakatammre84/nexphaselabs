@@ -51,6 +51,107 @@ export function lotNumberFromParam(value: string): string | null {
   return LOT_NUMBER_PATTERN.test(normalised) ? normalised : null;
 }
 
+/* ------------------------------------------------------------------------ */
+/* Test results                                                              */
+/* ------------------------------------------------------------------------ */
+
+export const TEST_TYPES = ['identity', 'purity', 'water', 'endotoxin', 'heavy_metal', 'residual_solvent'] as const;
+export type TestType = (typeof TEST_TYPES)[number];
+
+export const TEST_TYPE_LABEL: Record<TestType, string> = {
+  identity: 'Identity',
+  purity: 'Purity',
+  water: 'Water content',
+  endotoxin: 'Bacterial endotoxin',
+  heavy_metal: 'Heavy metal',
+  residual_solvent: 'Residual solvent',
+};
+
+export type LotTestInput = {
+  testType: string;
+  analyte?: string | null;
+  method: string;
+  result: string;
+  specification?: string | null;
+  /** 'pass' | 'fail' | '' (not assessed) */
+  passed: string;
+  testedBy?: string | null;
+  testedAt?: string | null; // YYYY-MM-DD
+};
+
+export type LotTestValidation =
+  | {
+      ok: true;
+      value: {
+        testType: TestType;
+        analyte: string | null;
+        method: string;
+        result: string;
+        specification: string | null;
+        passed: boolean | null;
+        testedBy: string | null;
+        testedAtDate: Date | null;
+      };
+    }
+  | { ok: false; errors: string[]; violations: Violation[] };
+
+/**
+ * One row per test. Every text field here can reach the public lot lookup,
+ * so all of it is scanned. A result is a measurement, never a claim.
+ */
+export function validateLotTest(raw: LotTestInput, now = new Date()): LotTestValidation {
+  const errors: string[] = [];
+  const violations: Violation[] = [];
+  const t = (s: string | null | undefined) => (s ?? '').trim();
+
+  const testType = t(raw.testType);
+  const analyte = t(raw.analyte) || null;
+  const method = t(raw.method);
+  const result = t(raw.result);
+  const specification = t(raw.specification) || null;
+  const passedRaw = t(raw.passed);
+  const testedBy = t(raw.testedBy) || null;
+
+  if (!(TEST_TYPES as readonly string[]).includes(testType)) {
+    errors.push(`Test type must be one of: ${TEST_TYPES.join(', ')}.`);
+  }
+  if (!method) errors.push('Method is required (e.g. "RP-HPLC, 220 nm").');
+  if (!result) errors.push('Result is required.');
+  if (method.length > 200 || result.length > 200 || (specification ?? '').length > 200) {
+    errors.push('Method, result and specification must each be 200 characters or fewer.');
+  }
+  if ((testType === 'heavy_metal' || testType === 'residual_solvent') && !analyte) {
+    errors.push('Name the analyte for a heavy-metal or residual-solvent test.');
+  }
+  let passed: boolean | null = null;
+  if (passedRaw === 'pass') passed = true;
+  else if (passedRaw === 'fail') passed = false;
+  else if (passedRaw !== '') errors.push('Outcome must be pass, fail, or left unassessed.');
+  if (passed !== null && !specification) {
+    errors.push('Give the specification the result was judged against.');
+  }
+
+  const testedAtDate = parseDate(raw.testedAt, 'Date tested', errors);
+  if (testedAtDate && testedAtDate.getTime() > now.getTime() + 24 * 3600 * 1000) {
+    errors.push('Date tested cannot be in the future.');
+  }
+
+  const scanned: [string, string | null][] = [
+    ['analyte', analyte],
+    ['method', method],
+    ['result', result],
+    ['specification', specification],
+    ['testedBy', testedBy],
+  ];
+  for (const [field, text] of scanned) violations.push(...scanText(field, text));
+
+  if (errors.length || violations.length) return { ok: false, errors, violations };
+  return {
+    ok: true,
+    value: { testType: testType as TestType, analyte, method, result, specification, passed, testedBy, testedAtDate },
+  };
+}
+
 export function parseQuantity(value: string): { amount: number; unit: QuantityUnit } | null {
   const m = value.trim().match(QUANTITY_PATTERN);
   if (!m) return null;

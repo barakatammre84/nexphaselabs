@@ -27,9 +27,11 @@ async function sameOriginAction(): Promise<boolean> {
 }
 
 /**
- * Create or update a product. `mode` is bound by the page; the code for an
- * update comes from the bound argument, never from the form, so a form
- * cannot be pointed at a different product.
+ * Create or update a product. `mode` is bound by the page. Bound arguments
+ * are serialised into the form for progressive enhancement and are therefore
+ * client-editable; nothing here treats them as an authorisation decision.
+ * Authorisation is per user (canEditCatalog), and the update path re-reads
+ * the product by code and refuses to change the code.
  */
 export async function saveProductAction(
   mode: { kind: 'create' } | { kind: 'update'; code: string },

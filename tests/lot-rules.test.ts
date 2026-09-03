@@ -1,5 +1,43 @@
 import { describe, expect, it } from 'vitest';
-import { formatQuantity, lotNumberFromParam, parseQuantity, validateLotIntake, type LotIntakeInput } from '@/lib/lot-rules';
+import {
+  formatQuantity,
+  lotNumberFromParam,
+  parseQuantity,
+  validateLotIntake,
+  validateLotTest,
+  type LotIntakeInput,
+} from '@/lib/lot-rules';
+
+describe('validateLotTest', () => {
+  const good = { testType: 'purity', method: 'RP-HPLC, 220 nm', result: '98.7%', specification: '>= 95%', passed: 'pass', testedAt: '2026-09-01' };
+
+  it('accepts a complete purity result', () => {
+    const r = validateLotTest(good, new Date('2026-09-02'));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value).toMatchObject({ testType: 'purity', passed: true, analyte: null });
+  });
+
+  it('requires method, result, a known type, and a spec when judged', () => {
+    expect(validateLotTest({ ...good, method: '' }).ok).toBe(false);
+    expect(validateLotTest({ ...good, result: '' }).ok).toBe(false);
+    expect(validateLotTest({ ...good, testType: 'potency' }).ok).toBe(false);
+    expect(validateLotTest({ ...good, specification: '' }).ok).toBe(false);
+    expect(validateLotTest({ ...good, specification: '', passed: '' }).ok).toBe(true);
+    expect(validateLotTest({ ...good, passed: 'maybe' }).ok).toBe(false);
+  });
+
+  it('requires an analyte for heavy metals and residual solvents', () => {
+    expect(validateLotTest({ ...good, testType: 'heavy_metal' }).ok).toBe(false);
+    expect(validateLotTest({ ...good, testType: 'heavy_metal', analyte: 'Lead', result: '< 0.5 ppm', specification: '<= 10 ppm' }).ok).toBe(true);
+  });
+
+  it('rejects future dates and forbidden language', () => {
+    expect(validateLotTest({ ...good, testedAt: '2030-01-01' }, new Date('2026-09-02')).ok).toBe(false);
+    const r = validateLotTest({ ...good, result: 'Effective for weight loss' });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.violations[0]?.field).toBe('result');
+  });
+});
 
 describe('lotNumberFromParam', () => {
   it('normalises well-formed values and rejects the rest', () => {

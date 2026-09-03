@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
+import type { SQLiteUpdateSetSource } from 'drizzle-orm/sqlite-core';
 import { getDb } from '@/db';
 import {
   lotDocuments,
@@ -12,7 +13,7 @@ import {
 } from '@/db/schema';
 import { getProductByCode } from '@/lib/catalog-data';
 import type { DocumentType, StoredDocument } from '@/lib/documents';
-import type { LotIntakeValidation } from '@/lib/lot-rules';
+import type { LotIntakeValidation, LotTestValidation } from '@/lib/lot-rules';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 
 /**
@@ -136,6 +137,69 @@ export async function getLotDetail(lotNumber: string): Promise<LotDetail | null>
     db.select().from(lotDocuments).where(eq(lotDocuments.lotId, lot.id)).orderBy(desc(lotDocuments.uploadedAt)),
   ]);
   return { lot, tests, movements, documents };
+}
+
+/**
+ * Record one test result and refresh the lot's analytical summary from it.
+ * The summary columns are what the public lookup shows; they are derived,
+ * never typed in directly:
+ *   identity     → identityConfirmed (pass only), identityMethod
+ *   purity       → purityResult, purityMethod
+ *   water        → waterContent
+ *   heavy_metal  → heavyMetalsSummary, rebuilt from every heavy-metal row
+ * A test can be recorded in any status; it does not change the status.
+ */
+export async function addLotTest(
+  lot: Lot,
+  value: Extract<LotTestValidation, { ok: true }>['value'],
+  staff: StaffPrincipal,
+): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  const row = {
+    id: `tst_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
+    lotId: lot.id,
+    testType: value.testType,
+    analyte: value.analyte,
+    method: value.method,
+    result: value.result,
+    specification: value.specification,
+    passed: value.passed,
+    testedBy: value.testedBy ?? recordedBy(staff),
+    testedAt: value.testedAtDate,
+    createdAt: now,
+  };
+
+  const summary: SQLiteUpdateSetSource<typeof lots> = { updatedAt: now };
+  switch (value.testType) {
+    case 'identity':
+      summary.identityConfirmed = value.passed === true;
+      summary.identityMethod = value.method;
+      break;
+    case 'purity':
+      summary.purityResult = value.result;
+      summary.purityMethod = value.method;
+      break;
+    case 'water':
+      summary.waterContent = value.result;
+      break;
+    case 'heavy_metal':
+      // Rebuilt in SQL after the insert, inside the same batch, so concurrent
+      // submissions cannot each snapshot a stale list and drop the other's row.
+      summary.heavyMetalsSummary = sql`(
+        SELECT group_concat(entry, '; ') FROM (
+          SELECT COALESCE(${lotTests.analyte}, 'Heavy metals') || ': ' || ${lotTests.result} AS entry
+          FROM ${lotTests}
+          WHERE ${lotTests.lotId} = ${lot.id} AND ${lotTests.testType} = 'heavy_metal'
+          ORDER BY ${lotTests.createdAt}, ${lotTests.id}
+        )
+      )`;
+      break;
+    default:
+      break;
+  }
+
+  await db.batch([db.insert(lotTests).values(row), db.update(lots).set(summary).where(eq(lots.id, lot.id))]);
 }
 
 const KEY_COLUMN: Record<DocumentType, 'coaKey' | 'chromatogramKey' | 'massSpecKey' | 'sdsKey'> = {

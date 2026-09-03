@@ -2,17 +2,19 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AlertCircle, ArrowLeft, CircleCheck, Download } from 'lucide-react';
+import { LotTestForm } from '@/components/manage/lot-test-form';
 import { DOCUMENT_LABEL, DOCUMENT_TYPES, isDocumentType } from '@/lib/documents';
-import { lotNumberFromParam } from '@/lib/lot-rules';
+import { TEST_TYPE_LABEL, lotNumberFromParam, type TestType } from '@/lib/lot-rules';
 import { LOT_STATUS_LABEL, currentDocumentKey, getLotDetail, type LotStatus } from '@/lib/lots-admin';
-import { requireStaff } from '@/lib/staff-auth';
+import { canRecordResults, requireStaff } from '@/lib/staff-auth';
+import { addLotTestAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Lot', robots: { index: false, follow: false } };
 
 type Props = {
   params: Promise<{ lotNumber: string }>;
-  searchParams: Promise<{ received?: string; uploaded?: string; error?: string }>;
+  searchParams: Promise<{ received?: string; uploaded?: string; error?: string; tested?: string }>;
 };
 
 const UPLOAD_ERROR: Record<string, string> = {
@@ -52,8 +54,8 @@ const MOVEMENT_LABEL: Record<string, string> = {
 
 export default async function LotDetailPage({ params, searchParams }: Props) {
   const { lotNumber } = await params;
-  const { received, uploaded, error } = await searchParams;
-  await requireStaff(`/manage/lots/${encodeURIComponent(lotNumber)}`);
+  const { received, uploaded, error, tested } = await searchParams;
+  const staff = await requireStaff(`/manage/lots/${encodeURIComponent(lotNumber)}`);
 
   const normalised = lotNumberFromParam(lotNumber);
   if (!normalised) notFound();
@@ -72,6 +74,11 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
         {received && (
           <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
             <CircleCheck className="size-4 text-primary" /> Receipt recorded. The lot is in quarantine.
+          </p>
+        )}
+        {tested && (
+          <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
+            <CircleCheck className="size-4 text-primary" /> Test result recorded.
           </p>
         )}
         {uploaded && isDocumentType(uploaded) && (
@@ -232,7 +239,7 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
               <tbody>
                 {tests.map((t) => (
                   <tr key={t.id} className="border-b border-border last:border-b-0">
-                    <td className="p-3">{t.testType}</td>
+                    <td className="p-3">{TEST_TYPE_LABEL[t.testType as TestType] ?? t.testType}</td>
                     <td className="p-3">{t.analyte ?? '—'}</td>
                     <td className="p-3 font-mono text-xs">{t.method}</td>
                     <td className="p-3 font-mono text-xs">{t.result}</td>
@@ -243,6 +250,12 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {canRecordResults(staff) && (
+          <div className="mt-6">
+            <LotTestForm today={new Date().toISOString().slice(0, 10)} action={addLotTestAction.bind(null, lot.lotNumber)} />
           </div>
         )}
 

@@ -181,6 +181,11 @@ export function canEditCatalog(staff: StaffPrincipal): boolean {
   return staff.role === 'admin' || staff.role === 'qc';
 }
 
+/** Roles allowed to record analytical results and decide lot disposition. */
+export function canRecordResults(staff: StaffPrincipal): boolean {
+  return staff.role === 'admin' || staff.role === 'qc';
+}
+
 export function requireRole(staff: StaffPrincipal, ...roles: StaffRole[]): void {
   if (!roles.includes(staff.role)) {
     throw new Error(`This action requires role ${roles.join(' or ')}.`);
