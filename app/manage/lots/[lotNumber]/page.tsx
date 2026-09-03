@@ -7,7 +7,7 @@ import { LotTestForm } from '@/components/manage/lot-test-form';
 import { DOCUMENT_LABEL, DOCUMENT_TYPES, isDocumentType } from '@/lib/documents';
 import { ALLOWED_TRANSITIONS, TEST_TYPE_LABEL, lotNumberFromParam, releaseBlockers, type TestType } from '@/lib/lot-rules';
 import { LOT_STATUS_LABEL, currentDocumentKey, getLotDetail, type LotStatus } from '@/lib/lots-admin';
-import { canRecordResults, requireStaff } from '@/lib/staff-auth';
+import { canRecordResults, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
 import { addLotTestAction, setLotDispositionAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
@@ -15,10 +15,11 @@ export const metadata: Metadata = { title: 'Lot', robots: { index: false, follow
 
 type Props = {
   params: Promise<{ lotNumber: string }>;
-  searchParams: Promise<{ received?: string; uploaded?: string; error?: string; tested?: string; decided?: string }>;
+  searchParams: Promise<{ received?: string; uploaded?: string; error?: string; tested?: string; decided?: string; cost?: string }>;
 };
 
 const UPLOAD_ERROR: Record<string, string> = {
+  cost: 'Landed cost must be a dollar amount such as 1250 or 1250.00.',
   type: 'Choose a document type.',
   nofile: 'Choose a file to upload.',
   size: 'The file is larger than 25 MB.',
@@ -55,7 +56,7 @@ const MOVEMENT_LABEL: Record<string, string> = {
 
 export default async function LotDetailPage({ params, searchParams }: Props) {
   const { lotNumber } = await params;
-  const { received, uploaded, error, tested, decided } = await searchParams;
+  const { received, uploaded, error, tested, decided, cost } = await searchParams;
   const staff = await requireStaff(`/manage/lots/${encodeURIComponent(lotNumber)}`);
 
   const normalised = lotNumberFromParam(lotNumber);
@@ -82,6 +83,11 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
         {tested && (
           <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
             <CircleCheck className="size-4 text-primary" /> Test result recorded.
+          </p>
+        )}
+        {cost && (
+          <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
+            <CircleCheck className="size-4 text-primary" /> Landed cost recorded.
           </p>
         )}
         {decided && (
@@ -128,7 +134,23 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
               <Row label="Retest date" value={day(lot.retestDate)} />
               <Row label="Storage location" value={lot.storageLocation} />
               <Row label="Storage condition" value={lot.storageCondition} />
+              <Row label="Landed cost" value={lot.costCents === null ? null : `$${(lot.costCents / 100).toFixed(2)}${lot.costNote ? ` — ${lot.costNote}` : ''}`} />
             </dl>
+            {canVerifyAccounts(staff) && (
+              <form method="post" action={`/api/manage/lots/${encodeURIComponent(lot.lotNumber)}/cost`} className="mt-4 flex flex-wrap items-end gap-3 text-sm">
+                <label className="flex flex-col gap-1">
+                  Landed cost (USD)
+                  <input name="cost" defaultValue={lot.costCents === null ? '' : (lot.costCents / 100).toFixed(2)} className="h-10 w-36 border border-foreground/20 bg-background px-3 font-mono text-sm" />
+                </label>
+                <label className="flex flex-col gap-1">
+                  Note
+                  <input name="costNote" defaultValue={lot.costNote ?? ''} maxLength={200} className="h-10 w-56 border border-foreground/20 bg-background px-3 text-sm" />
+                </label>
+                <button type="submit" className="h-10 border border-foreground/20 px-4 font-semibold hover:border-primary hover:text-primary">
+                  Record cost
+                </button>
+              </form>
+            )}
           </div>
           <div>
             <h2 className="utility-label text-primary">Analytical record</h2>
@@ -288,11 +310,11 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
           )}
           <div>
             <p className="text-sm font-semibold">Decision history</p>
-            {statusEvents.length === 0 ? (
+            {statusEvents.filter((e) => e.kind !== 'cost').length === 0 ? (
               <p className="mt-2 text-sm text-muted-foreground">No decisions recorded yet.</p>
             ) : (
               <ul className="mt-2 divide-y divide-border border border-border text-sm">
-                {statusEvents.map((e) => (
+                {statusEvents.filter((e) => e.kind !== 'cost').map((e) => (
                   <li key={e.id} className="p-3">
                     <span className="font-mono text-xs">{day(e.createdAt)}</span> &middot; {e.fromStatus} &rarr;{' '}
                     <span className="font-semibold">{e.toStatus}</span> &middot; {e.decidedBy}
@@ -300,6 +322,19 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
                   </li>
                 ))}
               </ul>
+            )}
+            {statusEvents.some((e) => e.kind === 'cost') && (
+              <>
+                <p className="mt-6 text-sm font-semibold">Cost history</p>
+                <ul className="mt-2 divide-y divide-border border border-border text-sm">
+                  {statusEvents.filter((e) => e.kind === 'cost').map((e) => (
+                    <li key={e.id} className="p-3">
+                      <span className="font-mono text-xs">{day(e.createdAt)}</span> &middot; {e.decidedBy}
+                      {e.reason && <p className="mt-1 text-muted-foreground">{e.reason}</p>}
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </div>
         </div>

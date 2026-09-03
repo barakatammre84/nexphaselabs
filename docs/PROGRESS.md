@@ -66,7 +66,9 @@ Phase 5 ships: a real order, paid, picked from a released lot, shipped, and reco
 
 ## Phase 6 — Books, reporting, launch checks
 
-- [ ] 6.1 Accounting export (QuickBooks-ready CSV/IIF) of orders, cost per lot, shipments
+- [x] 6.1 Accounting export — landed cost per lot (at intake or set by an admin, recorded as a `kind = 'cost'` lot event); `lib/reports.ts` derives allocated cost and margin per order line from lot cost ÷ quantity received; admin-only CSV exports at `/manage/reports` for orders (QuickBooks sales import shape), the movement ledger and inventory by lot; `lib/csv.ts` RFC 4180 quoting, formula-injection guard that leaves numbers intact, business-day dates for timestamps (America/Los_Angeles) and stored dates as-is. Migrations 0013–0014 in all envs (0014 also carries the accession/analytical-lab lot columns added by a concurrent session, which had no migration and was breaking lot queries). Audit: three findings (events table misuse, negative-number guard, UTC dates) fixed; re-audit CLEAN. No general ledger, by design.
+
+**Concurrent work noticed 2026-09-03:** another session added `lots.accessionNumber/analyticalLab/netPeptideContent/appearance/testingStandard`, a public `/api/lots/search` endpoint, search UI in `components/site/lot-lookup.tsx`, and a competitor-teardown section in CLAUDE.md. Left uncommitted for that session; only the schema columns are committed here so migrations stay consistent.
 - [ ] 6.2 Reports: inventory on hand by lot, movement history by consignee, revenue by product
 - [ ] 6.3 Launch list: terms, privacy, shipping, returns pages; SDS library; entity details on /about
 - [ ] 6.4 Final end-to-end verification and no-open-bugs sign-off

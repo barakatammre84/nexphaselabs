@@ -94,6 +94,8 @@ export async function createLot(
         receivedAt: validated.receivedAtDate,
         quantityReceived: validated.quantityReceived,
         quantityRemaining: validated.quantityReceived,
+        costCents: validated.costCents,
+        costNote: validated.costNote ?? null,
         storageLocation: validated.storageLocation ?? null,
         storageCondition: validated.storageCondition ?? null,
         retestDate: validated.retestDateValue,
@@ -326,5 +328,25 @@ export async function attachLotDocument(
       .update(lots)
       .set({ [KEY_COLUMN[type]]: stored.key, updatedAt: now })
       .where(eq(lots.id, lot.id)),
+  ]);
+}
+
+/** Admin records or corrects the landed cost of a lot; the change is an event on the lot. */
+export async function setLotCost(lot: Lot, costCents: number, costNote: string | null, staff: StaffPrincipal): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  const was = lot.costCents === null ? 'not recorded' : `$${(lot.costCents / 100).toFixed(2)}`;
+  await db.batch([
+    db.update(lots).set({ costCents, costNote, updatedAt: now }).where(eq(lots.id, lot.id)),
+    db.insert(lotStatusEvents).values({
+      id: `evt_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
+      lotId: lot.id,
+      fromStatus: lot.status,
+      toStatus: lot.status,
+      reason: `Landed cost recorded: $${(costCents / 100).toFixed(2)}${costNote ? ` (${costNote})` : ''}; was ${was}.`,
+      decidedBy: recordedBy(staff),
+      kind: 'cost',
+      createdAt: now,
+    }),
   ]);
 }

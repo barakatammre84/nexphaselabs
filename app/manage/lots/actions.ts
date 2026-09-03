@@ -35,6 +35,8 @@ const FIELDS = [
   'storageCondition',
   'retestDate',
   'note',
+  'cost',
+  'costNote',
 ] as const;
 
 async function sameOriginAction(): Promise<boolean> {

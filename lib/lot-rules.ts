@@ -30,10 +30,21 @@ export type LotIntakeInput = {
   storageCondition?: string | null;
   retestDate?: string | null; // YYYY-MM-DD
   note?: string | null;
+  /** Landed cost in dollars as typed, optional. */
+  cost?: string | null;
+  costNote?: string | null;
 };
 
 export type LotIntakeValidation =
-  | { ok: true; value: LotIntakeInput & { receivedAtDate: Date; manufactureDateValue: Date | null; retestDateValue: Date | null } }
+  | {
+      ok: true;
+      value: LotIntakeInput & {
+        receivedAtDate: Date;
+        manufactureDateValue: Date | null;
+        retestDateValue: Date | null;
+        costCents: number | null;
+      };
+    }
   | { ok: false; errors: string[]; violations: Violation[] };
 
 /**
@@ -289,7 +300,12 @@ export function validateLotIntake(raw: LotIntakeInput, now = new Date()): LotInt
     storageCondition: t(raw.storageCondition) || null,
     retestDate: t(raw.retestDate) || null,
     note: t(raw.note) || null,
+    cost: t(raw.cost) || null,
+    costNote: t(raw.costNote) || null,
   };
+
+  const costCents = parseCostCents(value.cost);
+  if (costCents !== null && Number.isNaN(costCents)) errors.push('Landed cost must be a dollar amount such as 1250 or 1250.00.');
 
   if (!LOT_NUMBER_PATTERN.test(value.lotNumber)) {
     errors.push('Lot number must be 3–32 characters: letters, digits and hyphens.');
@@ -338,5 +354,13 @@ export function validateLotIntake(raw: LotIntakeInput, now = new Date()): LotInt
   for (const [field, text] of scanned) violations.push(...scanText(field, text));
 
   if (errors.length || violations.length) return { ok: false, errors, violations };
-  return { ok: true, value: { ...value, receivedAtDate: receivedAtDate!, manufactureDateValue, retestDateValue } };
+  return { ok: true, value: { ...value, receivedAtDate: receivedAtDate!, manufactureDateValue, retestDateValue, costCents } };
+}
+
+/** "1250" | "$1,250.50" → cents; null for blank; NaN for malformed. */
+export function parseCostCents(value: string | null | undefined): number | null {
+  const t = (value ?? '').trim().replace(/^\$/, '').replace(/,/g, '');
+  if (!t) return null;
+  if (!/^\d{1,9}(?:\.\d{1,2})?$/.test(t)) return Number.NaN;
+  return Math.round(Number(t) * 100);
 }

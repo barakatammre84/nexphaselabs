@@ -50,6 +50,28 @@ export const lots = sqliteTable(
     waterContent: text('water_content'),
     heavyMetalsSummary: text('heavy_metals_summary'),
 
+    // ---- Independent verification -------------------------------------
+    // Added 2026-09-03 after a teardown of the category's highest-traffic
+    // site. Their COA archive is searchable by accession number — the
+    // ANALYTICAL LAB's own reference for the sample. That is what lets a
+    // customer verify a certificate with the lab instead of taking our word
+    // for it, and it is the single practice in this category most worth
+    // copying. They do not name their lab anywhere in site copy; we do.
+    /** The testing laboratory's own reference for the submitted sample. */
+    accessionNumber: text('accession_number'),
+    /** Named publicly. An unnamed lab is an unverifiable claim. */
+    analyticalLab: text('analytical_lab'),
+    /** Measured net peptide content, distinct from chromatographic purity. */
+    netPeptideContent: text('net_peptide_content'),
+    /** Appearance as reported by the lab, e.g. "white lyophilised solid". */
+    appearance: text('appearance'),
+    /**
+     * Which testing panel was in force when this lot was certified. Records
+     * issued under an earlier panel say so rather than being quietly
+     * back-filled — the honest version of a standards change.
+     */
+    testingStandard: text('testing_standard'),
+
     // Documents — object storage keys, never public URLs
     coaKey: text('coa_key'),
     chromatogramKey: text('chromatogram_key'),
@@ -65,6 +87,9 @@ export const lots = sqliteTable(
 
     quantityReceived: text('quantity_received'),
     quantityRemaining: text('quantity_remaining'),
+    /** Landed cost of the whole lot in cents (material + freight + duty), for margin per order. */
+    costCents: integer('cost_cents'),
+    costNote: text('cost_note'),
     storageLocation: text('storage_location'),
     storageCondition: text('storage_condition'),
     retestDate: integer('retest_date', { mode: 'timestamp' }),
@@ -80,6 +105,7 @@ export const lots = sqliteTable(
     lotNumberIdx: uniqueIndex('lots_lot_number_idx').on(table.lotNumber),
     productIdx: index('lots_product_idx').on(table.productCode),
     statusIdx: index('lots_status_idx').on(table.status),
+    accessionIdx: index('lots_accession_idx').on(table.accessionNumber),
   }),
 );
 
@@ -119,6 +145,8 @@ export const lotStatusEvents = sqliteTable(
     toStatus: text('to_status').notNull(),
     reason: text('reason'),
     decidedBy: text('decided_by').notNull(),
+    /** disposition (a status decision) | cost (landed-cost record) — the UI lists them separately. */
+    kind: text('kind').notNull().default('disposition'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   },
   (table) => ({

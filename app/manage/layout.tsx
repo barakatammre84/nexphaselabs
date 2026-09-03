@@ -33,6 +33,9 @@ export default async function ManageLayout({ children }: { children: React.React
             <Link href="/manage/orders" className="hover:text-primary">
               Orders
             </Link>
+            <Link href="/manage/reports" className="hover:text-primary">
+              Reports
+            </Link>
           </nav>
           <form method="post" action="/api/staff/sign-out" className="flex items-center gap-4">
             <span className="text-muted-foreground">

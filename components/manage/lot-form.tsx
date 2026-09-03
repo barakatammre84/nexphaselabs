@@ -119,6 +119,12 @@ export function LotForm({ products, today, action }: Props) {
         <Field name="note" title="Receiving note" values={v} multiline hint="Condition on arrival, seal integrity, discrepancies. Goes on the receipt movement." />
       </section>
 
+      <section className="grid gap-6 lg:grid-cols-2">
+        <h2 className="utility-label text-primary lg:col-span-2">Cost</h2>
+        <Field name="cost" title="Landed cost (USD)" values={v} hint="Material, freight and duty for the whole lot. Feeds margin per order. Can be set later by an admin." />
+        <Field name="costNote" title="Cost note" values={v} hint='e.g. "Invoice INV-2201, freight included".' />
+      </section>
+
       <div className="flex items-center gap-4 border-t border-border pt-6">
         <button
           type="submit"
