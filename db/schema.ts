@@ -104,6 +104,36 @@ export const lotTests = sqliteTable(
 );
 
 /**
+ * Analytical documents attached to a lot, one row per upload. The lot row's
+ * `coaKey` / `chromatogramKey` / `massSpecKey` / `sdsKey` point at the row
+ * currently in force; earlier uploads are marked superseded and stay in R2,
+ * so a replaced certificate can still be produced on request.
+ */
+export const lotDocuments = sqliteTable(
+  'lot_documents',
+  {
+    id: text('id').primaryKey(),
+    lotId: text('lot_id').notNull(),
+    /** coa | chromatogram | mass_spec | sds */
+    documentType: text('document_type').notNull(),
+    objectKey: text('object_key').notNull(),
+    contentType: text('content_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    originalName: text('original_name'),
+    uploadedBy: text('uploaded_by').notNull(),
+    uploadedAt: integer('uploaded_at', { mode: 'timestamp' }).notNull(),
+    supersededAt: integer('superseded_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    lotIdx: index('lot_documents_lot_idx').on(table.lotId),
+    keyIdx: uniqueIndex('lot_documents_key_idx').on(table.objectKey),
+  }),
+);
+
+export type LotDocument = typeof lotDocuments.$inferSelect;
+
+/**
  * Movement ledger. Append-only.
  *
  * A complete, current record of each substance received, shipped, returned or

@@ -39,7 +39,7 @@ Audit (Phase 1): independent review CLEAN. Acted on one sub-threshold note by dr
 ## Phase 3 — Lot intake and release
 
 - [x] 3.1 Lot intake — `/manage/lots` (list), `/manage/lots/new` (intake form), `/manage/lots/[lot]` (staff detail: provenance, analytical record, documents, tests, movement ledger). `createLot` writes the lot (status left to its quarantine default; no status parameter exists) and the receipt movement (actual received date, "Name (staff id)") in one D1 batch. `validateLotIntake`: lot-number pattern, unit-bearing quantities, real-date checks, manufacturer name+address as a pair, forbidden-language scan on public-facing text. Verified in the browser; public lookup returns 404 for the quarantined lot. Audit CLEAN (retest-after-receipt check added on a sub-threshold note).
-- [ ] 3.2 Document upload to R2 (COA, chromatogram, mass spec, SDS) keyed by lot
+- [x] 3.2 Document upload to R2 keyed by lot — `lot_documents` history table (migration 0004, all envs), upload form on the lot page, staff upload handler (same-origin + session, PDF/PNG/JPEG ≤ 25 MB), `attachLotDocument` batch (supersede previous → insert → point lot key), staff-only download in any status with private no-store headers. No public document route yet (3.5). Verified by curl: 401/403 gates, upload, wrong type refused, replacement supersedes, download serves the new file. Audit CLEAN; hardened route-param decoding on a sub-threshold note.
 - [ ] 3.3 Test result capture, one row per test
 - [ ] 3.4 Named release / hold / reject with reason; manufacturer name+address enforced before release
 - [ ] 3.5 Public lot lookup serves released lots with document download (signed, released-only)

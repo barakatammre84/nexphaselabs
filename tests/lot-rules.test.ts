@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { formatQuantity, parseQuantity, validateLotIntake, type LotIntakeInput } from '@/lib/lot-rules';
+import { formatQuantity, lotNumberFromParam, parseQuantity, validateLotIntake, type LotIntakeInput } from '@/lib/lot-rules';
+
+describe('lotNumberFromParam', () => {
+  it('normalises well-formed values and rejects the rest', () => {
+    expect(lotNumberFromParam('npl1-260902-b')).toBe('NPL1-260902-B');
+    expect(lotNumberFromParam('NPL1%2D260902%2DB')).toBe('NPL1-260902-B');
+    expect(lotNumberFromParam('%E0%A4%A')).toBeNull();
+    expect(lotNumberFromParam('a b')).toBeNull();
+    expect(lotNumberFromParam('../etc')).toBeNull();
+  });
+});
 
 const base: LotIntakeInput = {
   lotNumber: 'npl1-260901-a',

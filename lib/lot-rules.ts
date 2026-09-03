@@ -36,6 +36,21 @@ export type LotIntakeValidation =
   | { ok: true; value: LotIntakeInput & { receivedAtDate: Date; manufactureDateValue: Date | null; retestDateValue: Date | null } }
   | { ok: false; errors: string[]; violations: Violation[] };
 
+/**
+ * Normalise a lot number from a route segment. Returns null for anything
+ * that is not a well-formed lot number, including malformed percent-encoding.
+ */
+export function lotNumberFromParam(value: string): string | null {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+  const normalised = decoded.trim().toUpperCase();
+  return LOT_NUMBER_PATTERN.test(normalised) ? normalised : null;
+}
+
 export function parseQuantity(value: string): { amount: number; unit: QuantityUnit } | null {
   const m = value.trim().match(QUANTITY_PATTERN);
   if (!m) return null;

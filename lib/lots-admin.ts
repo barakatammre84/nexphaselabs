@@ -1,7 +1,17 @@
-import { asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { lotMovements, lotTests, lots, type Lot, type LotMovement, type LotTest } from '@/db/schema';
+import {
+  lotDocuments,
+  lotMovements,
+  lotTests,
+  lots,
+  type Lot,
+  type LotDocument,
+  type LotMovement,
+  type LotTest,
+} from '@/db/schema';
 import { getProductByCode } from '@/lib/catalog-data';
+import type { DocumentType, StoredDocument } from '@/lib/documents';
 import type { LotIntakeValidation } from '@/lib/lot-rules';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 
@@ -108,15 +118,73 @@ export async function listLots(): Promise<Lot[]> {
   return db.select().from(lots).orderBy(desc(lots.receivedAt), asc(lots.lotNumber));
 }
 
-export type LotDetail = { lot: Lot; tests: LotTest[]; movements: LotMovement[] };
+export type LotDetail = { lot: Lot; tests: LotTest[]; movements: LotMovement[]; documents: LotDocument[] };
+
+export async function getLot(lotNumber: string): Promise<Lot | null> {
+  const db = getDb();
+  const [lot] = await db.select().from(lots).where(eq(lots.lotNumber, lotNumber.toUpperCase())).limit(1);
+  return lot ?? null;
+}
 
 export async function getLotDetail(lotNumber: string): Promise<LotDetail | null> {
   const db = getDb();
-  const [lot] = await db.select().from(lots).where(eq(lots.lotNumber, lotNumber.toUpperCase())).limit(1);
+  const lot = await getLot(lotNumber);
   if (!lot) return null;
-  const [tests, movements] = await Promise.all([
+  const [tests, movements, documents] = await Promise.all([
     db.select().from(lotTests).where(eq(lotTests.lotId, lot.id)).orderBy(asc(lotTests.createdAt)),
     db.select().from(lotMovements).where(eq(lotMovements.lotId, lot.id)).orderBy(asc(lotMovements.occurredAt)),
+    db.select().from(lotDocuments).where(eq(lotDocuments.lotId, lot.id)).orderBy(desc(lotDocuments.uploadedAt)),
   ]);
-  return { lot, tests, movements };
+  return { lot, tests, movements, documents };
+}
+
+const KEY_COLUMN: Record<DocumentType, 'coaKey' | 'chromatogramKey' | 'massSpecKey' | 'sdsKey'> = {
+  coa: 'coaKey',
+  chromatogram: 'chromatogramKey',
+  mass_spec: 'massSpecKey',
+  sds: 'sdsKey',
+};
+
+/** The object key currently in force for a document type, from the lot row. */
+export function currentDocumentKey(lot: Lot, type: DocumentType): string | null {
+  return lot[KEY_COLUMN[type]];
+}
+
+/**
+ * Record an uploaded document against a lot: supersede the previous current
+ * row of the same type, insert the new row, and point the lot at it. One
+ * batch. Allowed in any lot status — a released lot can receive a corrected
+ * SDS, and the superseded file stays available.
+ */
+export async function attachLotDocument(
+  lot: Lot,
+  type: DocumentType,
+  stored: StoredDocument,
+  originalName: string | null,
+  staff: StaffPrincipal,
+): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  await db.batch([
+    db
+      .update(lotDocuments)
+      .set({ supersededAt: now })
+      .where(and(eq(lotDocuments.lotId, lot.id), eq(lotDocuments.documentType, type), isNull(lotDocuments.supersededAt))),
+    db.insert(lotDocuments).values({
+      id: `doc_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
+      lotId: lot.id,
+      documentType: type,
+      objectKey: stored.key,
+      contentType: stored.contentType,
+      sizeBytes: stored.size,
+      originalName,
+      uploadedBy: recordedBy(staff),
+      uploadedAt: stored.uploadedAt,
+      createdAt: now,
+    }),
+    db
+      .update(lots)
+      .set({ [KEY_COLUMN[type]]: stored.key, updatedAt: now })
+      .where(eq(lots.id, lot.id)),
+  ]);
 }
