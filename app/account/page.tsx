@@ -35,6 +35,10 @@ const VERIFICATION_TEXT: Record<string, { title: string; body: string }> = {
     title: 'Verification declined',
     body: 'This organisation could not be verified under our research-use policy.',
   },
+  revoked: {
+    title: 'Verification withdrawn',
+    body: 'Verification of this organisation has been withdrawn. Pricing, availability and ordering are no longer available. Check your email for the reason.',
+  },
 };
 
 export default async function AccountPage({ searchParams }: Props) {

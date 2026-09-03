@@ -134,10 +134,14 @@ export default async function OrganizationPage({ searchParams }: Props) {
             <CircleCheck className="size-4 text-primary" /> Verified. Pricing and lot availability are visible to you.
           </p>
         )}
-        {organization && (organization.verificationStatus === 'more_info' || organization.verificationStatus === 'declined') && organization.reviewNote && (
+        {organization && ['more_info', 'declined', 'revoked'].includes(organization.verificationStatus) && organization.reviewNote && (
           <div className="mt-6 border border-border bg-secondary p-4 text-sm">
             <p className="font-semibold">
-              {organization.verificationStatus === 'more_info' ? 'We need a little more:' : 'Verification was declined:'}
+              {organization.verificationStatus === 'more_info'
+                ? 'We need a little more:'
+                : organization.verificationStatus === 'revoked'
+                  ? 'Verification was withdrawn:'
+                  : 'Verification was declined:'}
             </p>
             <p className="mt-2 leading-6">{organization.reviewNote}</p>
           </div>

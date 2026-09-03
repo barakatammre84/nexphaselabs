@@ -1,7 +1,7 @@
 import { DOCUMENT_LABEL, MAX_DOCUMENT_BYTES, isDocumentType, putLotDocument } from '@/lib/documents';
 import { lotNumberFromParam } from '@/lib/lot-rules';
 import { attachLotDocument, getLot } from '@/lib/lots-admin';
-import { getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
+import { canRecordResults, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
 
 /**
  * Staff document upload. multipart/form-data with `type` and `file`.
@@ -11,6 +11,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ lot
   if (!sameOrigin(request)) return new Response('Forbidden', { status: 403 });
   const staff = await getStaffFromRequest(request);
   if (!staff) return new Response('Unauthorized', { status: 401 });
+  // COA, chromatogram, mass spec and SDS are the analytical record: QC and admin only, like test results.
+  if (!canRecordResults(staff)) return new Response('Forbidden', { status: 403 });
 
   const { lotNumber } = await params;
   const normalised = lotNumberFromParam(lotNumber);

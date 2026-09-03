@@ -317,6 +317,8 @@ export function validateLotIntake(raw: LotIntakeInput, now = new Date()): LotInt
     errors.push(`Quantity received must be a number with unit (${QUANTITY_UNITS.join(', ')}), e.g. "25 g" or "40 vials".`);
   } else if (quantity.amount <= 0) {
     errors.push('Quantity received must be greater than zero.');
+  } else if (Math.round(quantity.amount * 1_000_000) % (quantity.unit === 'ug' ? 1_000_000 : quantity.unit === 'mg' ? 1_000 : 1) !== 0 && ['ug', 'mg', 'g', 'kg'].includes(quantity.unit)) {
+    errors.push('Quantity received cannot be finer than one microgram (the ledger resolution).');
   } else {
     value.quantityReceived = formatQuantity(quantity.amount, quantity.unit);
   }

@@ -2,7 +2,7 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { accounts, lotMovements, lotStatusEvents, lots, orderEvents, orderItems, orders, type Lot } from '@/db/schema';
 import { sendEmail } from '@/lib/email';
-import { pickFromLot } from '@/lib/lot-quantities';
+import { pickFromLot, sumQuantities } from '@/lib/lot-quantities';
 import { parseQuantity } from '@/lib/lot-rules';
 import { recordedBy } from '@/lib/lots-admin';
 import { scanText } from '@/lib/catalog-rules';
@@ -97,7 +97,11 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
     const pick = pickFromLot(plan.remaining, it.packSize, it.quantity);
     if (!pick.ok) return { ok: false, error: `Lot ${lot.lotNumber}: ${pick.error}` };
     plan.remaining = pick.remaining;
-    plan.shipped = plan.shipped ? addQuantities(plan.shipped, pick.shipped) : pick.shipped;
+    // One lot may supply several lines; the ledger row carries the lot's total. Summed in
+    // micrograms so a unit step-down on one pick cannot drop another from the record.
+    const shipped = sumQuantities(plan.shipped ? [plan.shipped, pick.shipped] : [pick.shipped]);
+    if (!shipped) return { ok: false, error: `Lot ${lot.lotNumber}: shipped quantities could not be reconciled (${plan.shipped} + ${pick.shipped}).` };
+    plan.shipped = shipped;
     plan.lines.push({ itemId: it.id, packs: it.quantity });
     plans.set(lot.id, plan);
   }
@@ -254,9 +258,3 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
   return { ok: true };
 }
 
-function addQuantities(a: string, b: string): string {
-  const qa = parseQuantity(a);
-  const qb = parseQuantity(b);
-  if (!qa || !qb || qa.unit !== qb.unit) return a;
-  return `${Math.round((qa.amount + qb.amount) * 1000) / 1000} ${qa.unit}`;
-}

@@ -12,7 +12,7 @@ import {
 } from '@/lib/lot-rules';
 import { addLotTest, createLot, getLot, setLotDisposition } from '@/lib/lots-admin';
 import type { Violation } from '@/lib/catalog-rules';
-import { canRecordResults, getStaff } from '@/lib/staff-auth';
+import { canRecordResults, canVerifyAccounts, getStaff } from '@/lib/staff-auth';
 
 export type LotFormState = {
   values: Record<string, string>;
@@ -65,6 +65,9 @@ export async function receiveLotAction(_prev: LotFormState, data: FormData): Pro
 
   const result = validateLotIntake(values as unknown as LotIntakeInput);
   if (!result.ok) return { values, errors: result.errors, violations: result.violations };
+  if ((result.value.costCents !== null || result.value.costNote) && !canVerifyAccounts(staff)) {
+    return fail('Only an admin can record landed cost. Leave the cost fields blank; an admin can set it from the lot page.');
+  }
 
   let outcome;
   try {

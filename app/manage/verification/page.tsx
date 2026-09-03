@@ -14,6 +14,7 @@ const STATUS_LABEL: Record<string, string> = {
   more_info: 'More info requested',
   approved: 'Approved',
   declined: 'Declined',
+  revoked: 'Revoked',
 };
 
 export default async function VerificationQueuePage() {

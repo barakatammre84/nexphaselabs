@@ -3,6 +3,7 @@ import {
   registrableDomain,
   validateOrganization,
   validateVerificationDecision,
+  decisionsFor,
   websiteHost,
   type OrganizationInput,
 } from '@/lib/organization-rules';
@@ -105,5 +106,14 @@ describe('validateVerificationDecision', () => {
     expect(validateVerificationDecision({ decision: 'decline', note: 'Website does not resolve.' }).ok).toBe(true);
     expect(validateVerificationDecision({ decision: 'more_info', note: 'Please attach a purchase order.' }).ok).toBe(true);
     expect(validateVerificationDecision({ decision: 'delete' }).ok).toBe(false);
+    expect(validateVerificationDecision({ decision: 'revoke' }).ok).toBe(false);
+    expect(validateVerificationDecision({ decision: 'revoke', note: 'Material found offered for human use.' }).ok).toBe(true);
+  });
+  it('offers revocation only for an approved organisation', () => {
+    expect(decisionsFor('submitted')).toEqual(['approve', 'more_info', 'decline']);
+    expect(decisionsFor('more_info')).toEqual(['approve', 'more_info', 'decline']);
+    expect(decisionsFor('approved')).toEqual(['revoke']);
+    expect(decisionsFor('declined')).toEqual([]);
+    expect(decisionsFor('revoked')).toEqual([]);
   });
 });

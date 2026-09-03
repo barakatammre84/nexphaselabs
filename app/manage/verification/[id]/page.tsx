@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, CircleCheck, Download, Flag } from 'lucide-react';
 import { VerificationDecisionForm } from '@/components/manage/verification-decision-form';
-import { DOCUMENT_KIND_LABEL, ORGANIZATION_TYPE_LABEL, type OrganizationDocumentKind, type OrganizationType } from '@/lib/organization-rules';
+import { DOCUMENT_KIND_LABEL, ORGANIZATION_TYPE_LABEL, type OrganizationDocumentKind, type OrganizationType, decisionsFor } from '@/lib/organization-rules';
 import { getOrganizationDetail } from '@/lib/organizations';
 import { canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
 import { decideVerificationAction } from '../actions';
@@ -30,7 +30,8 @@ export default async function VerificationDetailPage({ params, searchParams }: P
   const detail = await getOrganizationDetail(id);
   if (!detail) notFound();
   const { organization: org, account, documents, events } = detail;
-  const decidable = org.verificationStatus === 'submitted' || org.verificationStatus === 'more_info';
+  const decisions = decisionsFor(org.verificationStatus);
+  const decidable = decisions.length > 0;
 
   return (
     <main className="bg-background text-foreground">
@@ -109,10 +110,11 @@ export default async function VerificationDetailPage({ params, searchParams }: P
               {!canVerifyAccounts(staff) ? (
                 <p className="border border-border bg-secondary p-4 text-sm text-muted-foreground">Only an admin can decide verification.</p>
               ) : decidable ? (
-                <VerificationDecisionForm action={decideVerificationAction.bind(null, org.id)} />
+                <VerificationDecisionForm action={decideVerificationAction.bind(null, org.id)} decisions={decisions} />
               ) : (
                 <p className="border border-border bg-secondary p-4 text-sm">
-                  This organisation is <span className="font-mono">{org.verificationStatus}</span>. The applicant must resubmit before another decision.
+                  This organisation is <span className="font-mono">{org.verificationStatus}</span>.{' '}
+                  {org.verificationStatus === 'revoked' ? 'The applicant must contact us before resubmitting.' : 'The applicant must resubmit before another decision.'}
                 </p>
               )}
             </div>

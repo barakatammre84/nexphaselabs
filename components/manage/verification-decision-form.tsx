@@ -5,15 +5,21 @@ import { AlertCircle } from 'lucide-react';
 import type { LotFormState } from '@/app/manage/lots/actions';
 import type { VerificationDecision } from '@/lib/organization-rules';
 
-type Props = { action: (prev: LotFormState, data: FormData) => Promise<LotFormState> };
+type Props = { action: (prev: LotFormState, data: FormData) => Promise<LotFormState>; decisions: VerificationDecision[] };
 
-const OPTIONS: { value: VerificationDecision; label: string; description: string }[] = [
+const ALL_OPTIONS: { value: VerificationDecision; label: string; description: string }[] = [
   { value: 'approve', label: 'Approve', description: 'The organisation is verified. Pricing and availability become visible to the account.' },
   { value: 'more_info', label: 'Ask for more information', description: 'The applicant is emailed your note and can resubmit.' },
   { value: 'decline', label: 'Decline', description: 'The applicant is emailed your note. They may resubmit with different details.' },
+  {
+    value: 'revoke',
+    label: 'Revoke verification',
+    description: 'Pricing, availability and ordering are withdrawn from the account immediately. The applicant is emailed your reason and must contact us before resubmitting.',
+  },
 ];
 
-export function VerificationDecisionForm({ action }: Props) {
+export function VerificationDecisionForm({ action, decisions }: Props) {
+  const OPTIONS = ALL_OPTIONS.filter((o) => decisions.includes(o.value));
   const [state, formAction, pending] = useActionState(action, { values: {}, errors: [], violations: [] });
   const [decision, setDecision] = useState<VerificationDecision | ''>('');
 

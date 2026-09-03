@@ -13,7 +13,7 @@ import {
 import type { AccountPrincipal } from '@/lib/account-auth';
 import type { StoredDocument } from '@/lib/documents';
 import { sendEmail } from '@/lib/email';
-import { DECISION_TARGET, type OrganizationValidation, type VerificationDecision } from '@/lib/organization-rules';
+import { DECISION_TARGET, decisionsFor, type OrganizationValidation, type VerificationDecision } from '@/lib/organization-rules';
 import { publicOrigin } from '@/lib/site-config';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 import { recordedBy } from '@/lib/lots-admin';
@@ -52,6 +52,9 @@ export async function submitOrganization(
   const existing = await getOrganizationForAccount(account.id);
   if (existing && existing.verificationStatus === 'approved') {
     return { ok: false, error: 'This organisation is already verified. Email research@nexphaselabs.net to change its details.' };
+  }
+  if (existing && existing.verificationStatus === 'revoked') {
+    return { ok: false, error: 'Verification for this organisation was withdrawn. Email research@nexphaselabs.net before resubmitting.' };
   }
   if (existing && existing.verificationStatus === 'submitted') {
     return { ok: false, error: 'Your submission is under review. You will hear from us by email.' };
@@ -166,7 +169,7 @@ export async function getOrganizationDocumentById(organizationId: string, docume
 }
 
 /**
- * The only path that approves, declines or asks for more. One batch:
+ * The only path that approves, declines, asks for more, or revokes. One batch:
  *   1. conditional status update, stamped with a fresh decision id;
  *   2. event row inserted only where the organisation now carries that id
  *      (so a decision that lost a race leaves no record claiming it won);
@@ -182,8 +185,14 @@ export async function decideVerification(
   const db = getDb();
   const now = new Date();
   const from = detail.organization.verificationStatus;
-  if (from !== 'submitted' && from !== 'more_info') {
-    return { ok: false, error: `A ${from} organisation cannot be decided again; the applicant must resubmit.` };
+  if (!decisionsFor(from).includes(decision)) {
+    return {
+      ok: false,
+      error:
+        from === 'approved'
+          ? 'An approved organisation can only be revoked.'
+          : `A ${from} organisation cannot be decided again; the applicant must resubmit.`,
+    };
   }
   const target = DECISION_TARGET[decision];
   const by = recordedBy(staff);
@@ -232,7 +241,17 @@ export async function decideVerification(
           `${detail.organization.legalName} is now a verified research organisation with NexPhase Labs.`,
           `Pricing and lot availability are visible when you sign in: ${origin}/account/sign-in`,
         ]
-      : decision === 'more_info'
+      : decision === 'revoke'
+        ? [
+            `Hello ${detail.account.name},`,
+            '',
+            `Verification of ${detail.organization.legalName} has been withdrawn. Pricing, lot availability and ordering are no longer available on this account.`,
+            '',
+            note ?? '',
+            '',
+            'Orders already shipped are unaffected. Any order paid but not yet shipped will be reviewed by a person and either fulfilled or refunded; you will hear from us either way. Reply to this email if you have questions.',
+          ]
+        : decision === 'more_info'
         ? [
             `Hello ${detail.account.name},`,
             '',
@@ -258,7 +277,9 @@ export async function decideVerification(
         ? 'Your organisation is verified — NexPhase Labs'
         : decision === 'more_info'
           ? 'More information needed for verification — NexPhase Labs'
-          : 'Verification decision — NexPhase Labs',
+          : decision === 'revoke'
+            ? 'Your verification has been withdrawn — NexPhase Labs'
+            : 'Verification decision — NexPhase Labs',
     text: [...body, '', 'NexPhase Labs · 8486 Ventures LLC · Oakland, CA'].join('\n'),
   });
 

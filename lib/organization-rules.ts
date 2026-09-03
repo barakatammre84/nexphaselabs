@@ -197,13 +197,20 @@ export function validateOrganization(raw: OrganizationInput, accountEmail: strin
   };
 }
 
-export const VERIFICATION_DECISIONS = ['approve', 'decline', 'more_info'] as const;
+export const VERIFICATION_DECISIONS = ['approve', 'decline', 'more_info', 'revoke'] as const;
 export type VerificationDecision = (typeof VERIFICATION_DECISIONS)[number];
 export const DECISION_TARGET: Record<VerificationDecision, string> = {
   approve: 'approved',
   decline: 'declined',
   more_info: 'more_info',
+  revoke: 'revoked',
 };
+/** Which decisions apply to an organisation in a given status. Revocation is the only decision on an approved one. */
+export function decisionsFor(status: string): VerificationDecision[] {
+  if (status === 'submitted' || status === 'more_info') return ['approve', 'more_info', 'decline'];
+  if (status === 'approved') return ['revoke'];
+  return [];
+}
 
 export function validateVerificationDecision(raw: { decision: string; note?: string | null }): {
   ok: true;

@@ -115,6 +115,21 @@ export async function createLot(
         note: validated.note ?? null,
         createdAt: now,
       }),
+      // Landed cost entered at intake is attributed the same way a later correction is.
+      ...(validated.costCents !== null
+        ? [
+            db.insert(lotStatusEvents).values({
+              id: `evt_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
+              lotId: id,
+              fromStatus: 'quarantine',
+              toStatus: 'quarantine',
+              reason: `Landed cost recorded at intake: $${(validated.costCents / 100).toFixed(2)}${validated.costNote ? ` (${validated.costNote})` : ''}.`,
+              decidedBy: recordedBy(staff),
+              kind: 'cost',
+              createdAt: now,
+            }),
+          ]
+        : []),
     ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
