@@ -1,0 +1,127 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { AlertCircle, ArrowLeft, CircleCheck } from 'lucide-react';
+import { ORDER_STATUS_LABEL, orderNumberFromParam, type OrderStatus } from '@/lib/order-rules';
+import { getOrderByNumber } from '@/lib/orders';
+import { canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
+import { formatCents } from '@/lib/visibility-rules';
+
+export const dynamic = 'force-dynamic';
+export const metadata: Metadata = { title: 'Order', robots: { index: false, follow: false } };
+
+type Props = { params: Promise<{ orderNumber: string }>; searchParams: Promise<{ paid?: string; error?: string; shipped?: string }> };
+
+function Row({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div className="grid gap-1 border-b border-border py-3 sm:grid-cols-[200px_1fr] sm:gap-6">
+      <dt className="text-sm font-semibold text-muted-foreground">{label}</dt>
+      <dd className="break-words text-sm leading-6">{value || <span className="text-muted-foreground">—</span>}</dd>
+    </div>
+  );
+}
+
+export default async function ManageOrderPage({ params, searchParams }: Props) {
+  const { orderNumber } = await params;
+  const { paid, error } = await searchParams;
+  const staff = await requireStaff(`/manage/orders/${orderNumber}`);
+  const number = orderNumberFromParam(orderNumber);
+  if (!number) notFound();
+  const detail = await getOrderByNumber(number);
+  if (!detail) notFound();
+  const { order, items, events } = detail;
+
+  return (
+    <main className="bg-background text-foreground">
+      <section className="mx-auto max-w-[1200px] px-5 py-12 sm:px-8 lg:px-12">
+        <Link href="/manage/orders" className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-primary">
+          <ArrowLeft className="size-4" /> Orders
+        </Link>
+        {paid && (
+          <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
+            <CircleCheck className="size-4 text-primary" /> Payment recorded. The customer has been emailed.
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="mt-6 flex items-center gap-2 border border-destructive/40 bg-secondary p-4 text-sm">
+            <AlertCircle className="size-4 text-destructive" /> {error === 'unavailable' ? 'That could not be recorded. Try again shortly.' : error}
+          </p>
+        )}
+        <p className="mt-6 font-mono text-xs text-muted-foreground">
+          {ORDER_STATUS_LABEL[order.status as OrderStatus] ?? order.status} &middot; submitted {order.submittedAt.toISOString().slice(0, 10)} &middot; {order.channel}
+        </p>
+        <h1 className="mt-2 font-display text-4xl font-extrabold tracking-[-0.05em]">{order.orderNumber}</h1>
+
+        <div className="mt-10 grid gap-12 lg:grid-cols-2">
+          <div>
+            <h2 className="utility-label text-primary">Lines</h2>
+            <ul className="mt-4 divide-y divide-border border border-border">
+              {items.map((it) => (
+                <li key={it.id} className="grid gap-1 p-4 text-sm sm:grid-cols-[1fr_auto]">
+                  <div>
+                    <p className="font-semibold">
+                      {it.productName} <span className="font-mono text-xs text-muted-foreground">{it.sku}</span>
+                    </p>
+                    <p className="font-mono text-xs text-muted-foreground">
+                      {it.quantity} × {it.packSize} &middot; {it.presentation}
+                      {it.lotNumber ? ` · lot ${it.lotNumber}` : ' · lot not yet assigned'}
+                    </p>
+                  </div>
+                  <span className="font-mono">{formatCents(it.lineTotalCents)}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-right font-mono text-sm">
+              Total <span className="font-semibold">{formatCents(order.totalCents)}</span> &middot; {order.priceTier} pricing
+            </p>
+
+            <h2 className="mt-10 utility-label text-primary">Ship to</h2>
+            <dl className="mt-4 border-t border-border">
+              <Row label="Consignee" value={order.consigneeName} />
+              <Row label="Institution" value={order.consigneeInstitution} />
+              <Row label="Address" value={[order.shipToLine1, order.shipToLine2, order.shipToCity, order.shipToRegion, order.shipToPostalCode, order.shipToCountry].filter(Boolean).join(', ')} />
+              <Row label="Phone" value={order.shipToPhone} />
+              <Row label="Customer note" value={order.customerNote} />
+            </dl>
+          </div>
+          <div>
+            <h2 className="utility-label text-primary">Payment</h2>
+            <dl className="mt-4 border-t border-border">
+              <Row label="Method" value={order.paymentMethod} />
+              <Row label="Reference" value={order.paymentRef} />
+              <Row label="Status" value={order.paymentStatus} />
+              <Row label="Paid at" value={order.paidAt ? order.paidAt.toISOString().slice(0, 10) : null} />
+            </dl>
+            {order.status === 'awaiting_payment' && (
+              canVerifyAccounts(staff) ? (
+                <form method="post" action={`/api/manage/orders/${order.orderNumber}/paid`} className="mt-5 flex flex-col gap-3 border border-border bg-secondary p-5">
+                  <p className="text-sm font-semibold">Record payment received</p>
+                  <label className="flex flex-col gap-1.5 text-sm">
+                    Bank or provider reference
+                    <input name="reference" className="h-11 border border-foreground/20 bg-background px-3 font-mono text-sm" />
+                  </label>
+                  <button type="submit" className="inline-flex h-11 w-fit items-center bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90">
+                    Mark paid
+                  </button>
+                  <p className="text-xs text-muted-foreground">Only after the funds have cleared. This moves the order to paid and emails the customer.</p>
+                </form>
+              ) : (
+                <p className="mt-5 border border-border bg-secondary p-4 text-sm text-muted-foreground">Only an admin can record a payment.</p>
+              )
+            )}
+
+            <h2 className="mt-10 utility-label text-primary">History</h2>
+            <ul className="mt-4 divide-y divide-border border border-border text-sm">
+              {events.map((e) => (
+                <li key={e.id} className="p-3">
+                  <span className="font-mono text-xs">{e.createdAt.toISOString().slice(0, 10)}</span> &middot; {e.fromStatus} &rarr; <span className="font-semibold">{e.toStatus}</span> &middot; {e.actor}
+                  {e.note && <p className="mt-1 text-muted-foreground">{e.note}</p>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}

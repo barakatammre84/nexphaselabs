@@ -4,6 +4,9 @@ import { cartItems, lots, orderEvents, orderItems, orders, type Order, type Orde
 import type { AccountPrincipal } from '@/lib/account-auth';
 import { getCart, type Cart } from '@/lib/cart';
 import { RUO_VERSION } from '@/lib/policy';
+import { sendEmail } from '@/lib/email';
+import { btcpayCheckoutUrl, getPaymentMethod, invalidateBtcpayInvoice, type PaymentInstructions } from '@/lib/payments';
+import { publicOrigin } from '@/lib/site-config';
 import { canTransition, formatOrderNumber, orderTotals, type OrderStatus } from '@/lib/order-rules';
 import type { Visibility } from '@/lib/visibility-rules';
 
@@ -271,4 +274,131 @@ export async function transitionOrder(
     return { ok: false, error: 'The order changed while you were working. Reload and try again.' };
   }
   return { ok: true };
+}
+
+/* ------------------------------------------------------------------------ */
+/* Payment                                                                   */
+/* ------------------------------------------------------------------------ */
+
+export type BeginPaymentResult = { ok: true; instructions: PaymentInstructions } | { ok: false; error: string };
+
+/**
+ * Customer chooses a payment method for a submitted order. Moves the order
+ * to awaiting_payment with the method and provider reference recorded, and
+ * emails the instructions. Re-choosing is allowed only while still submitted.
+ */
+export async function beginPayment(detail: OrderDetail, methodId: string, accountEmail: string, actor: string): Promise<BeginPaymentResult> {
+  const method = getPaymentMethod(methodId);
+  if (!method) return { ok: false, error: 'That payment method is not available.' };
+  if (detail.order.status !== 'submitted') return { ok: false, error: 'Payment has already been set up for this order.' };
+
+  let instructions: PaymentInstructions;
+  try {
+    instructions = await method.begin(detail.order);
+  } catch (error) {
+    console.error('[payments] begin failed', error instanceof Error ? error.message : error);
+    return { ok: false, error: 'The payment could not be set up. Try again shortly or choose another method.' };
+  }
+
+  const moved = await transitionOrder(detail.order, 'awaiting_payment', 'system', actor, `Payment method: ${method.label}.`, {
+    paymentMethod: method.id,
+    paymentRef: instructions.reference,
+    paymentStatus: 'pending',
+  });
+  if (!moved.ok) return { ok: false, error: moved.error };
+
+  await sendEmail({
+    to: accountEmail,
+    subject: `Payment for order ${detail.order.orderNumber} — NexPhase Labs`,
+    text: [
+      `Order ${detail.order.orderNumber}`,
+      '',
+      instructions.title,
+      ...instructions.lines,
+      ...(instructions.url ? ['', instructions.url] : []),
+      '',
+      `Order details: ${publicOrigin()}/account/orders/${detail.order.orderNumber}`,
+      '',
+      'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
+    ].join('\n'),
+  });
+  return { ok: true, instructions };
+}
+
+/** Rebuild the instructions for display from what is stored on the order. */
+export async function paymentInstructionsFor(order: Order): Promise<PaymentInstructions | null> {
+  if (!order.paymentMethod) return null;
+  const method = getPaymentMethod(order.paymentMethod);
+  if (!method) {
+    return {
+      method: order.paymentMethod as PaymentInstructions['method'],
+      title: 'Payment instructions were emailed to you',
+      lines: [`Reference: ${order.paymentRef ?? order.orderNumber}`],
+      url: null,
+      reference: order.paymentRef,
+    };
+  }
+  if (method.id === 'btcpay') {
+    // Never re-create the invoice; rebuild the checkout link from configuration.
+    return {
+      method: 'btcpay',
+      title: 'Bitcoin invoice',
+      lines: [
+        `Amount: ${(order.totalCents / 100).toFixed(2)} ${order.currency}`,
+        `Invoice: ${order.paymentRef ?? '—'}`,
+        'Open the payment page to pay. The order is marked paid automatically once the payment settles.',
+      ],
+      url: order.paymentRef ? btcpayCheckoutUrl(order.paymentRef) : null,
+      reference: order.paymentRef,
+    };
+  }
+  return method.begin(order);
+}
+
+/** A staff member records that payment arrived (bank transfer, or any manual rail). Admin only, enforced by the caller. */
+export async function markOrderPaid(detail: OrderDetail, actor: string, reference: string | null, accountEmail: string) {
+  const now = new Date();
+  const moved = await transitionOrder(detail.order, 'paid', 'staff', actor, reference ? `Payment received. Reference: ${reference}.` : 'Payment received.', {
+    paymentStatus: 'paid',
+    paidAt: now,
+    ...(reference ? { paymentRef: reference } : {}),
+  });
+  if (!moved.ok) return moved;
+  await sendEmail({
+    to: accountEmail,
+    subject: `Payment received for order ${detail.order.orderNumber} — NexPhase Labs`,
+    text: [
+      `Order ${detail.order.orderNumber}`,
+      '',
+      'Your payment has been recorded. Material will be picked from a released lot and shipped with its certificate of analysis.',
+      `Order details: ${publicOrigin()}/account/orders/${detail.order.orderNumber}`,
+      '',
+      'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
+    ].join('\n'),
+  });
+  return moved;
+}
+
+/** A settled BTCPay invoice marks its order paid. Idempotent: an already-paid order is left alone. */
+export async function settleBtcpayInvoice(orderNumber: string, invoiceId: string): Promise<{ ok: boolean; note: string }> {
+  const detail = await getOrderByNumber(orderNumber);
+  if (!detail) return { ok: false, note: 'unknown order' };
+  if (detail.order.paymentMethod !== 'btcpay' || detail.order.paymentRef !== invoiceId) return { ok: false, note: 'invoice does not match order' };
+  if (detail.order.status === 'paid' || detail.order.paymentStatus === 'paid') return { ok: true, note: 'already paid' };
+  const moved = await transitionOrder(detail.order, 'paid', 'system', 'BTCPay Server', `Invoice ${invoiceId} settled.`, {
+    paymentStatus: 'paid',
+    paidAt: new Date(),
+  });
+  return moved.ok ? { ok: true, note: 'paid' } : { ok: false, note: moved.error };
+}
+
+/** Customer cancels an unpaid order. A pending BTCPay invoice is invalidated so a late payment is not accepted. */
+export async function cancelOrderByCustomer(detail: OrderDetail, actor: string, reason: string | null) {
+  const moved = await transitionOrder(detail.order, 'cancelled', 'customer', actor, reason ?? 'Cancelled by the customer.', {
+    paymentStatus: detail.order.paymentStatus === 'pending' ? 'failed' : detail.order.paymentStatus,
+  });
+  if (moved.ok && detail.order.paymentMethod === 'btcpay' && detail.order.paymentRef) {
+    await invalidateBtcpayInvoice(detail.order.paymentRef);
+  }
+  return moved;
 }

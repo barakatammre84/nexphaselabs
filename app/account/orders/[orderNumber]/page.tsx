@@ -4,23 +4,30 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft, CircleCheck } from 'lucide-react';
 import { requireAccount } from '@/lib/account-auth';
 import { ORDER_STATUS_LABEL, orderNumberFromParam, type OrderStatus } from '@/lib/order-rules';
-import { getOrderForAccount } from '@/lib/orders';
+import { getOrderForAccount, paymentInstructionsFor } from '@/lib/orders';
+import { availablePaymentMethods } from '@/lib/payments';
 import { formatCents } from '@/lib/visibility-rules';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Order', robots: { index: false, follow: false } };
 
-type Props = { params: Promise<{ orderNumber: string }>; searchParams: Promise<{ submitted?: string }> };
+type Props = {
+  params: Promise<{ orderNumber: string }>;
+  searchParams: Promise<{ submitted?: string; payment?: string; error?: string; cancelled?: string; paid?: string }>;
+};
 
 export default async function OrderPage({ params, searchParams }: Props) {
   const { orderNumber } = await params;
-  const { submitted } = await searchParams;
+  const { submitted, payment, error, cancelled } = await searchParams;
   const account = await requireAccount(`/account/orders/${orderNumber}`);
   const number = orderNumberFromParam(orderNumber);
   if (!number) notFound();
   const detail = await getOrderForAccount(account.id, number);
   if (!detail) notFound();
   const { order, items, events } = detail;
+  const methods = order.status === 'submitted' ? availablePaymentMethods() : [];
+  const instructions = order.status === 'awaiting_payment' ? await paymentInstructionsFor(order) : null;
+  const cancellable = order.status === 'submitted' || order.status === 'awaiting_payment';
 
   return (
     <main className="bg-background text-foreground">
@@ -31,7 +38,20 @@ export default async function OrderPage({ params, searchParams }: Props) {
         {submitted && (
           <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
             <CircleCheck className="size-4 text-primary" />
-            {submitted === 'already' ? 'This order was already submitted.' : 'Order submitted. Payment instructions follow in the next stage of the build.'}
+            {submitted === 'already' ? 'This order was already submitted.' : 'Order submitted. Choose how you will pay below.'}
+          </p>
+        )}
+        {payment === 'set' && (
+          <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
+            <CircleCheck className="size-4 text-primary" /> Payment instructions are below and have been emailed to you.
+          </p>
+        )}
+        {cancelled && (
+          <p role="status" className="mt-6 border border-border bg-secondary p-4 text-sm">This order has been cancelled.</p>
+        )}
+        {error && (
+          <p role="alert" className="mt-6 border border-destructive/40 bg-secondary p-4 text-sm">
+            {error === 'unavailable' ? 'That could not be completed. Try again shortly.' : error}
           </p>
         )}
         <p className="mt-6 font-mono text-xs text-muted-foreground">
@@ -59,6 +79,54 @@ export default async function OrderPage({ params, searchParams }: Props) {
         <p className="mt-4 text-right font-mono text-sm">
           Total <span className="font-semibold">{formatCents(order.totalCents)}</span>
         </p>
+
+        {order.status === 'submitted' && (
+          <form method="post" action={`/api/orders/${order.orderNumber}/pay`} className="mt-10 border border-border bg-secondary p-6">
+            <h2 className="font-display text-xl font-bold tracking-tight">How will you pay?</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Card processors do not serve research-materials suppliers, so payment is by bank transfer or Bitcoin.
+            </p>
+            <div className="mt-4 flex flex-col gap-3">
+              {methods.map((m, i) => (
+                <label key={m.id} className="flex items-start gap-3 text-sm">
+                  <input type="radio" name="method" value={m.id} defaultChecked={i === 0} className="mt-1" />
+                  <span>
+                    <span className="font-semibold">{m.label}</span>
+                    <span className="block text-muted-foreground">{m.description}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <button type="submit" className="mt-5 inline-flex h-11 items-center bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90">
+              Continue
+            </button>
+          </form>
+        )}
+
+        {instructions && (
+          <div className="mt-10 border border-border bg-secondary p-6">
+            <h2 className="font-display text-xl font-bold tracking-tight">{instructions.title}</h2>
+            <ul className="mt-3 space-y-1 font-mono text-sm">
+              {instructions.lines.map((l) => (
+                <li key={l}>{l}</li>
+              ))}
+            </ul>
+            {instructions.url && (
+              <a href={instructions.url} className="mt-4 inline-flex h-11 items-center bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90" rel="noreferrer">
+                Open payment page
+              </a>
+            )}
+          </div>
+        )}
+
+        {cancellable && (
+          <form method="post" action={`/api/orders/${order.orderNumber}/cancel`} className="mt-6 flex flex-wrap items-center gap-3 text-sm">
+            <input name="reason" placeholder="Reason (optional)" maxLength={300} className="h-10 border border-foreground/20 bg-background px-3 text-sm" />
+            <button type="submit" className="h-10 border border-foreground/20 px-4 font-semibold hover:border-destructive hover:text-destructive">
+              Cancel order
+            </button>
+          </form>
+        )}
 
         <div className="mt-10 grid gap-8 sm:grid-cols-2">
           <div>

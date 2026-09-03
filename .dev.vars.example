@@ -6,3 +6,9 @@ CONSUMER_TIER_ENABLED=false
 EMAIL_FROM=NexPhase Labs <research@nexphaselabs.net>
 # Leave unset locally: verification emails are logged to the console instead.
 # RESEND_API_KEY=
+# Payment rails (owner decision). Leave unset to fall back to invoice-by-email + staff recording.
+# PAYMENT_BANK_INSTRUCTIONS=Bank: Example Bank\nAccount name: 8486 Ventures LLC\nRouting: 000000000\nAccount: 000000000
+# BTCPAY_HOST=https://btcpay.example.com
+# BTCPAY_STORE_ID=
+# BTCPAY_API_KEY=
+# BTCPAY_WEBHOOK_SECRET=
