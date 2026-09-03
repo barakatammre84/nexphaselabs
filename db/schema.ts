@@ -569,8 +569,10 @@ export const accounts = sqliteTable(
     termsVersion: text('terms_version'),
     ruoAcceptedAt: integer('ruo_accepted_at', { mode: 'timestamp' }),
     ruoVersion: text('ruo_version'),
-    /** none | submitted | approved | declined | more_info — mirrors organizations.verificationStatus */
+    /** none | submitted | approved | declined | more_info | revoked — mirrors organizations.verificationStatus */
     verificationStatus: text('verification_status').notNull().default('none'),
+    /** Fresh id stamped by every staff service change; the event row is written only where it matches. */
+    lastChangeId: text('last_change_id'),
     failedAttempts: integer('failed_attempts').notNull().default(0),
     lockedUntil: integer('locked_until', { mode: 'timestamp' }),
     lastLoginAt: integer('last_login_at', { mode: 'timestamp' }),
@@ -586,6 +588,40 @@ export const accounts = sqliteTable(
     statusIdx: index('accounts_status_idx').on(table.status),
   }),
 );
+
+/**
+ * Customer account history: password resets, suspensions, staff-triggered
+ * emails, session revocations. Append-only; the actor is 'self', 'system' or
+ * "Name (stf_id)".
+ */
+export const accountEvents = sqliteTable(
+  'account_events',
+  {
+    id: text('id').primaryKey(),
+    accountId: text('account_id').notNull(),
+    /** password_reset_requested | password_reset | suspended | reinstated | verification_resent | sessions_revoked | reset_sent */
+    action: text('action').notNull(),
+    detail: text('detail'),
+    actor: text('actor').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    accountIdx: index('account_events_account_idx').on(table.accountId),
+  }),
+);
+
+export type AccountEvent = typeof accountEvents.$inferSelect;
+
+/**
+ * Fixed-window counters for unauthenticated endpoints that send mail
+ * (password reset, sign-up). One row per key; the window rolls forward in the
+ * upsert itself so the check is a single atomic statement.
+ */
+export const rateLimits = sqliteTable('rate_limits', {
+  key: text('key').primaryKey(),
+  windowStart: integer('window_start').notNull(),
+  count: integer('count').notNull().default(0),
+});
 
 export const accountSessions = sqliteTable(
   'account_sessions',

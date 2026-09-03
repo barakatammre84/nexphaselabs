@@ -201,7 +201,7 @@ export async function verifyEmailToken(token: string): Promise<VerifyResult> {
 
 export type AccountSignInResult =
   | { ok: true; token: string; expiresAt: Date; account: Account }
-  | { ok: false; reason: 'invalid' | 'locked' | 'unverified' };
+  | { ok: false; reason: 'invalid' | 'locked' | 'unverified' | 'suspended' };
 
 export async function accountSignIn(email: string, password: string, userAgent: string | null): Promise<AccountSignInResult> {
   const db = getDb();
@@ -230,6 +230,7 @@ export async function accountSignIn(email: string, password: string, userAgent: 
   // Only after a correct password: an unverified or suspended account is told
   // it cannot sign in yet, which reveals nothing to someone without the password.
   if (account.status === 'pending_email') return { ok: false, reason: 'unverified' };
+  if (account.status === 'suspended') return { ok: false, reason: 'suspended' };
   if (account.status !== 'active') return { ok: false, reason: 'invalid' };
 
   const token = randomToken();

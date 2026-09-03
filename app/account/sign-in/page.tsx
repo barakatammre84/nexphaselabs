@@ -7,9 +7,10 @@ import { getAccount, safeAccountReturnPath } from '@/lib/account-auth';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Sign in', robots: { index: false, follow: false } };
 
-type Props = { searchParams: Promise<{ error?: string; return_to?: string; signed_out?: string; verify?: string }> };
+type Props = { searchParams: Promise<{ error?: string; return_to?: string; signed_out?: string; verify?: string; reset?: string }> };
 
 const ERROR_TEXT: Record<string, string> = {
+  suspended: 'This account is suspended. Contact research@nexphaselabs.net and a person will help.',
   missing: 'Enter your email address and password.',
   invalid: 'That email address and password do not match.',
   locked: 'This account is locked after repeated failed attempts. Try again in 15 minutes.',
@@ -32,8 +33,8 @@ export default async function AccountSignInPage({ searchParams }: Props) {
   const returnTo = safeAccountReturnPath(params.return_to);
   if (await getAccount()) redirect(returnTo);
 
-  const error = params.error ? (ERROR_TEXT[params.error] ?? ERROR_TEXT.invalid) : null;
-  const verify = params.verify ? (VERIFY_TEXT[params.verify] ?? null) : null;
+  const error = params.error ? (Object.hasOwn(ERROR_TEXT, params.error) ? ERROR_TEXT[params.error] : ERROR_TEXT.invalid) : null;
+  const verify = params.verify ? (Object.hasOwn(VERIFY_TEXT, params.verify) ? VERIFY_TEXT[params.verify] : null) : params.reset === 'done' ? 'Your password has been changed. Sign in with the new one.' : null;
 
   return (
     <main className="bg-background text-foreground">
@@ -73,6 +74,9 @@ export default async function AccountSignInPage({ searchParams }: Props) {
           >
             Sign in
           </button>
+          <Link href="/account/forgot" className="text-sm font-semibold text-muted-foreground hover:text-primary">
+            Forgot your password?
+          </Link>
         </form>
         <p className="mt-6 text-sm text-muted-foreground">
           No account yet?{' '}

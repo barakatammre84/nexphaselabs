@@ -1,6 +1,7 @@
 import { signUp } from '@/lib/account-auth';
 import { validateSignUp } from '@/lib/account-rules';
 import { consumerTierEnabled } from '@/lib/site-config';
+import { allow, clientAddress, rateLimitKey } from '@/lib/rate-limit';
 import { sameOrigin } from '@/lib/staff-auth';
 
 /**
@@ -48,6 +49,17 @@ export async function POST(request: Request) {
   }
 
   try {
+    // Flood control per address (5/hour) and per IP (10/hour). Behind Cloudflare the IP is
+    // cf-connecting-ip; in local dev every caller shares the 'unknown' bucket. When exceeded the
+    // same "check your email" page is shown and nothing is created or sent.
+    const [byAddress, byIp] = await Promise.all([
+      allow(rateLimitKey('signup:email', validated.value.email), 5, 3600),
+      allow(rateLimitKey('signup:ip', clientAddress(request)), 10, 3600),
+    ]);
+    if (!byAddress || !byIp) {
+      console.warn('[account] sign-up rate-limited');
+      return Response.redirect(new URL(`/account/check-email?email=${encodeURIComponent(validated.value.email)}`, request.url), 303);
+    }
     const result = await signUp(validated.value, request.headers.get('user-agent'));
     if (!result.ok && result.reason === 'email') return back({ error: 'email' });
     // 'exists' falls through to the same success page deliberately.
