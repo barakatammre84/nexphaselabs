@@ -181,6 +181,11 @@ export function canEditCatalog(staff: StaffPrincipal): boolean {
   return staff.role === 'admin' || staff.role === 'qc';
 }
 
+/** Roles allowed to pick, pack and ship: warehouse and admin, not QC. */
+export function canFulfil(staff: StaffPrincipal): boolean {
+  return staff.role === 'admin' || staff.role === 'ops';
+}
+
 /** Roles allowed to verify customer organisations. */
 export function canVerifyAccounts(staff: StaffPrincipal): boolean {
   return staff.role === 'admin';

@@ -1,0 +1,1 @@
+ALTER TABLE `lots` ADD `last_movement_id` text;

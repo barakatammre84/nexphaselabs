@@ -11,9 +11,9 @@ import { scanText, type Violation } from '@/lib/catalog-rules';
  */
 
 export const LOT_NUMBER_PATTERN = /^[A-Z0-9-]{3,32}$/;
-export const QUANTITY_UNITS = ['mg', 'g', 'kg', 'vials', 'units'] as const;
+export const QUANTITY_UNITS = ['ug', 'mg', 'g', 'kg', 'vials', 'units'] as const;
 export type QuantityUnit = (typeof QUANTITY_UNITS)[number];
-const QUANTITY_PATTERN = /^(\d+(?:\.\d+)?)\s?(mg|g|kg|vials|units)$/;
+const QUANTITY_PATTERN = /^(\d+(?:\.\d+)?)\s?(ug|mg|g|kg|vials|units)$/;
 
 export type LotIntakeInput = {
   lotNumber: string;
@@ -241,7 +241,7 @@ export function validateDisposition(
 }
 
 export function parseQuantity(value: string): { amount: number; unit: QuantityUnit } | null {
-  const m = value.trim().match(QUANTITY_PATTERN);
+  const m = value.trim().replace(/µg|μg/g, 'ug').match(QUANTITY_PATTERN);
   if (!m) return null;
   return { amount: Number(m[1]), unit: m[2] as QuantityUnit };
 }

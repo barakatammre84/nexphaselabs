@@ -3,14 +3,18 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AlertCircle, ArrowLeft, CircleCheck } from 'lucide-react';
 import { ORDER_STATUS_LABEL, orderNumberFromParam, type OrderStatus } from '@/lib/order-rules';
+import { pickableLots, type PickableLot } from '@/lib/fulfilment';
 import { getOrderByNumber } from '@/lib/orders';
-import { canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
+import { canFulfil, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
 import { formatCents } from '@/lib/visibility-rules';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Order', robots: { index: false, follow: false } };
 
-type Props = { params: Promise<{ orderNumber: string }>; searchParams: Promise<{ paid?: string; error?: string; shipped?: string }> };
+type Props = {
+  params: Promise<{ orderNumber: string }>;
+  searchParams: Promise<{ paid?: string; error?: string; shipped?: string; fulfilling?: string }>;
+};
 
 function Row({ label, value }: { label: string; value: string | null | undefined }) {
   return (
@@ -23,13 +27,17 @@ function Row({ label, value }: { label: string; value: string | null | undefined
 
 export default async function ManageOrderPage({ params, searchParams }: Props) {
   const { orderNumber } = await params;
-  const { paid, error } = await searchParams;
+  const { paid, error, shipped, fulfilling } = await searchParams;
   const staff = await requireStaff(`/manage/orders/${orderNumber}`);
   const number = orderNumberFromParam(orderNumber);
   if (!number) notFound();
   const detail = await getOrderByNumber(number);
   if (!detail) notFound();
   const { order, items, events } = detail;
+  const lotsByProduct = new Map<string, PickableLot[]>();
+  if (order.status === 'fulfilling') {
+    for (const code of new Set(items.map((it) => it.productCode))) lotsByProduct.set(code, await pickableLots(code));
+  }
 
   return (
     <main className="bg-background text-foreground">
@@ -40,6 +48,16 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
         {paid && (
           <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
             <CircleCheck className="size-4 text-primary" /> Payment recorded. The customer has been emailed.
+          </p>
+        )}
+        {fulfilling && (
+          <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
+            <CircleCheck className="size-4 text-primary" /> Fulfilment started. Choose a released lot for each line and record the shipment.
+          </p>
+        )}
+        {shipped && (
+          <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
+            <CircleCheck className="size-4 text-primary" /> Shipment recorded in the movement ledger. The customer has been emailed the tracking number and lot links.
           </p>
         )}
         {error && (
@@ -108,6 +126,74 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
               ) : (
                 <p className="mt-5 border border-border bg-secondary p-4 text-sm text-muted-foreground">Only an admin can record a payment.</p>
               )
+            )}
+
+            <h2 className="mt-10 utility-label text-primary">Fulfilment</h2>
+            {order.status === 'paid' && (
+              canFulfil(staff) ? (
+                <form method="post" action={`/api/manage/orders/${order.orderNumber}/fulfil`} className="mt-4">
+                  <button type="submit" className="inline-flex h-11 items-center bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90">
+                    Start fulfilment
+                  </button>
+                </form>
+              ) : (
+                <p className="mt-4 border border-border bg-secondary p-4 text-sm text-muted-foreground">Only admin and ops roles pick and ship.</p>
+              )
+            )}
+            {order.status === 'fulfilling' && canFulfil(staff) && (
+              <form method="post" action={`/api/manage/orders/${order.orderNumber}/ship`} className="mt-4 flex flex-col gap-4 border border-border bg-secondary p-5">
+                <p className="text-sm font-semibold">Record shipment</p>
+                {items.map((it) => {
+                  const options = lotsByProduct.get(it.productCode) ?? [];
+                  return (
+                    <label key={it.id} className="flex flex-col gap-1.5 text-sm">
+                      <span>
+                        {it.productName} &middot; {it.quantity} × {it.packSize} <span className="font-mono text-xs text-muted-foreground">{it.sku}</span>
+                      </span>
+                      <select name={`lot_${it.id}`} required className="h-11 border border-foreground/20 bg-background px-3 font-mono text-sm">
+                        <option value="">Choose a released lot…</option>
+                        {options.map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.lotNumber} — {l.quantityRemaining} on hand{l.retestDate ? ` · retest ${l.retestDate.toISOString().slice(0, 10)}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {options.length === 0 && <span className="text-xs text-destructive">No released lot with quantity on hand for {it.productCode}.</span>}
+                    </label>
+                  );
+                })}
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <label className="flex flex-col gap-1.5 text-sm">
+                    Carrier
+                    <input name="carrier" required className="h-11 border border-foreground/20 bg-background px-3 text-sm" />
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-sm">
+                    Tracking number
+                    <input name="tracking" required className="h-11 border border-foreground/20 bg-background px-3 font-mono text-sm" />
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-sm">
+                    Actual ship date
+                    <input name="shippedOn" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} className="h-11 border border-foreground/20 bg-background px-3 font-mono text-sm" />
+                  </label>
+                </div>
+                <label className="flex flex-col gap-1.5 text-sm">
+                  Note (optional)
+                  <input name="note" maxLength={300} className="h-11 border border-foreground/20 bg-background px-3 text-sm" />
+                </label>
+                <button type="submit" className="inline-flex h-11 w-fit items-center bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90">
+                  Record shipment
+                </button>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Writes one movement per lot with the consignee and this ship date, decrements each lot, and emails the customer.
+                </p>
+              </form>
+            )}
+            {order.status === 'shipped' && (
+              <dl className="mt-4 border-t border-border">
+                <Row label="Carrier" value={order.carrier} />
+                <Row label="Tracking" value={order.trackingNumber} />
+                <Row label="Shipped on" value={order.shippedAt ? order.shippedAt.toISOString().slice(0, 10) : null} />
+              </dl>
             )}
 
             <h2 className="mt-10 utility-label text-primary">History</h2>

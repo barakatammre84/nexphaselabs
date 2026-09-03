@@ -68,7 +68,14 @@ export default async function OrderPage({ params, searchParams }: Props) {
                 </p>
                 <p className="font-mono text-xs text-muted-foreground">
                   {it.packSize} &middot; {it.presentation}
-                  {it.lotNumber ? ` · lot ${it.lotNumber}` : ''}
+                  {it.lotNumber ? (
+                    <>
+                      {' · lot '}
+                      <Link href={`/lots/${encodeURIComponent(it.lotNumber)}`} className="font-semibold text-primary">
+                        {it.lotNumber}
+                      </Link>
+                    </>
+                  ) : null}
                 </p>
               </div>
               <span className="font-mono text-xs">{it.quantity} × {formatCents(it.unitPriceCents)}</span>

@@ -70,6 +70,8 @@ export const lots = sqliteTable(
     retestDate: integer('retest_date', { mode: 'timestamp' }),
 
     supersededById: text('superseded_by_id'),
+    /** Marker of the shipment that last drew on this lot; every ledger write for that shipment is conditional on it. */
+    lastMovementId: text('last_movement_id'),
 
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
