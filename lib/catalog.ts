@@ -25,16 +25,47 @@
  * product inserts of Cayman Chemical, MedChemExpress and MilliporeSigma.
  */
 
-export type ChemicalClass =
-  | 'Peptides'
-  | 'Metal-peptide complexes'
-  | 'Nucleotides & cofactors';
+/**
+ * Chemical classes live in the `chemical_classes` table and are managed in the
+ * catalog manager. The type is a plain string: the set of classes is data.
+ * SEED_CLASSES below is the seed only.
+ */
+export type ChemicalClass = string;
 
-export const CHEMICAL_CLASSES: ChemicalClass[] = [
-  'Peptides',
-  'Metal-peptide complexes',
-  'Nucleotides & cofactors',
+export type SeedClass = {
+  id: string;
+  name: string;
+  blurb: string;
+  sortOrder: number;
+};
+
+/** Seed rows for `chemical_classes`. Blurbs describe chemistry only, never what a compound does in an organism. */
+export const SEED_CLASSES: SeedClass[] = [
+  {
+    id: 'peptides',
+    name: 'Peptides',
+    blurb:
+      'Synthetic peptides supplied lyophilised, with sequence and lot-specific analytical data.',
+    sortOrder: 10,
+  },
+  {
+    id: 'metal-peptide',
+    name: 'Metal-peptide complexes',
+    blurb:
+      'Peptide coordination complexes, supplied with lot-specific analytical data.',
+    sortOrder: 20,
+  },
+  {
+    id: 'nucleotides',
+    name: 'Nucleotides & cofactors',
+    blurb:
+      'Nucleotide cofactors and coenzymes used as substrates and redox couples in enzymatic assay work.',
+    sortOrder: 30,
+  },
 ];
+
+/** Class names in the seed; used only to validate the seed file. */
+export const CHEMICAL_CLASSES: string[] = SEED_CLASSES.map((c) => c.name);
 
 export type ProductStatus = 'available' | 'limited' | 'enquire';
 
@@ -121,7 +152,11 @@ export const seedProducts: Product[] = [
     name: 'BPC-157',
     formalName:
       'glycyl-L-alpha-glutamyl-L-prolyl-L-prolyl-L-prolylglycyl-L-lysyl-L-prolyl-L-alanyl-L-alpha-aspartyl-L-alpha-aspartyl-L-alanylglycyl-L-leucyl-L-valine',
-    synonyms: ['Body Protection Compound-157', 'PL 14736', 'Pentadecapeptide BPC 157'],
+    synonyms: [
+      'Body Protection Compound-157',
+      'PL 14736',
+      'Pentadecapeptide BPC 157',
+    ],
     chemicalClass: 'Peptides',
     casNumber: '137525-51-0',
     relatedCas: [
@@ -129,7 +164,8 @@ export const seedProducts: Product[] = [
       { form: 'Acetate salt (alternate registry)', cas: '216441-37-1' },
     ],
     sequenceOneLetter: 'GEPPPGKPADDAGLV',
-    sequenceThreeLetter: 'Gly-Glu-Pro-Pro-Pro-Gly-Lys-Pro-Ala-Asp-Asp-Ala-Gly-Leu-Val',
+    sequenceThreeLetter:
+      'Gly-Glu-Pro-Pro-Pro-Gly-Lys-Pro-Ala-Asp-Asp-Ala-Gly-Leu-Val',
     molecularFormula: 'C62H98N16O22',
     molecularWeight: '1419.5 g/mol',
     inchiKey: 'HEEWEZGQMLZMFE-RKGINYAYSA-N',
@@ -140,7 +176,8 @@ export const seedProducts: Product[] = [
       'Supplied as the acetate salt (C64H102N16O24, 1479.6 g/mol) unless otherwise stated on the lot certificate',
     solubility: [],
     storageSolid: 'Minus 20 C',
-    storageStock: 'Prepare fresh; store aliquots at minus 20 C and avoid repeated freeze-thaw',
+    storageStock:
+      'Prepare fresh; store aliquots at minus 20 C and avoid repeated freeze-thaw',
     stability: 'At least 4 years when stored as supplied at minus 20 C',
     shipping: 'Ambient',
     packSizes: [
@@ -169,7 +206,13 @@ export const seedProducts: Product[] = [
     slug: 'nad',
     name: 'beta-NAD+',
     formalName: 'beta-Nicotinamide adenine dinucleotide, oxidised form',
-    synonyms: ['NAD+', 'beta-NAD', 'Nicotinamide adenine dinucleotide', 'Coenzyme I', 'DPN'],
+    synonyms: [
+      'NAD+',
+      'beta-NAD',
+      'Nicotinamide adenine dinucleotide',
+      'Coenzyme I',
+      'DPN',
+    ],
     chemicalClass: 'Nucleotides & cofactors',
     casNumber: '53-84-9',
     relatedCas: [{ form: 'Monosodium salt', cas: '20111-18-6' }],
@@ -178,9 +221,14 @@ export const seedProducts: Product[] = [
     pubchemCid: '5892',
     purity: 'Greater than or equal to 95% by HPLC',
     form: 'Solid',
-    saltForm: 'Free acid. Hydrate forms are supplied under the same registry number',
+    saltForm:
+      'Free acid. Hydrate forms are supplied under the same registry number',
     solubility: [
-      { solvent: 'PBS (pH 7.2)', concentration: '10 mg/mL', source: 'Cayman Chemical 16077' },
+      {
+        solvent: 'PBS (pH 7.2)',
+        concentration: '10 mg/mL',
+        source: 'Cayman Chemical 16077',
+      },
       {
         solvent: 'PBS (pH 7.2)',
         concentration: '100 mg/mL',
@@ -189,7 +237,8 @@ export const seedProducts: Product[] = [
       },
     ],
     storageSolid: 'Minus 20 C, protected from moisture',
-    storageStock: 'Prepare fresh in aqueous buffer; do not store aqueous stocks long term',
+    storageStock:
+      'Prepare fresh in aqueous buffer; do not store aqueous stocks long term',
     stability:
       'Hygroscopic. Hydrolyses in aqueous solution; stability is pH and temperature dependent',
     shipping: 'Not published by suppliers - confirm at order',
@@ -211,7 +260,6 @@ export const seedProducts: Product[] = [
       'USP-NF reagent entry USPNF_R2223_01_01. A reagent specification, not a monograph.',
     ],
     hasSds: true,
-    image: '/products/nad-plus.png',
     featured: true,
   },
   {
@@ -230,13 +278,18 @@ export const seedProducts: Product[] = [
     pubchemCid: '73587',
     purity: 'Greater than or equal to 95% by HPLC',
     form: 'Solid',
-    saltForm: 'Free peptide. Acetate salt (400.43 g/mol) supplied under CAS 72957-37-0',
+    saltForm:
+      'Free peptide. Acetate salt (400.43 g/mol) supplied under CAS 72957-37-0',
     solubility: [],
     storageSolid: 'Minus 20 C',
     storageStock: 'Prepare fresh; store aliquots at minus 20 C',
     stability: 'Refer to the lot certificate',
     shipping: 'Ambient',
-    packSizes: [{ quantity: '5 mg' }, { quantity: '25 mg' }, { quantity: '100 mg' }],
+    packSizes: [
+      { quantity: '5 mg' },
+      { quantity: '25 mg' },
+      { quantity: '100 mg' },
+    ],
     status: 'available',
     description:
       'A tripeptide of sequence Gly-His-Lys. Supplied as the free peptide; the acetate salt is available under a separate registry number. Identity confirmed by mass spectrometry, purity by reversed-phase HPLC. Distinct from the copper(II) complex, listed separately as NPL-004.',
@@ -270,7 +323,11 @@ export const seedProducts: Product[] = [
     storageStock: 'Prepare fresh in aqueous buffer',
     stability: 'Refer to the lot certificate',
     shipping: 'Ambient',
-    packSizes: [{ quantity: '5 mg' }, { quantity: '25 mg' }, { quantity: '100 mg' }],
+    packSizes: [
+      { quantity: '5 mg' },
+      { quantity: '25 mg' },
+      { quantity: '100 mg' },
+    ],
     status: 'available',
     description:
       'The 1:1 copper(II) coordination complex of the tripeptide Gly-His-Lys. Supplied as a blue to purple solid. Molecular formulae in circulation for this complex differ by ligand protonation state; the value shown is the commercial consensus used by Cayman Chemical and MedChemExpress.',
@@ -290,7 +347,8 @@ export const seedProducts: Product[] = [
     code: 'NPL-005',
     slug: 'selank',
     name: 'Selank',
-    formalName: 'L-threonyl-L-lysyl-L-prolyl-L-arginyl-L-prolylglycyl-L-proline',
+    formalName:
+      'L-threonyl-L-lysyl-L-prolyl-L-arginyl-L-prolylglycyl-L-proline',
     synonyms: ['TP-7'],
     chemicalClass: 'Peptides',
     casNumber: '129954-34-3',
@@ -340,18 +398,3 @@ export const seedProducts: Product[] = [
  *    since Section 3 requires composition disclosure. FDA issued seven warning
  *    letters on 31 March 2026 against this exact naming pattern.
  * ------------------------------------------------------------------------- */
-
-/** Anchor ids used by the catalog index and the class links on the home page. */
-export const CLASS_ANCHORS: Record<ChemicalClass, string> = {
-  Peptides: 'peptides',
-  'Metal-peptide complexes': 'metal-peptide',
-  'Nucleotides & cofactors': 'nucleotides',
-};
-
-/** Chemical-class descriptions only. Never what a compound does in an organism. */
-export const CLASS_BLURBS: Record<ChemicalClass, string> = {
-  Peptides: 'Synthetic peptides supplied lyophilised, with sequence and lot-specific analytical data.',
-  'Metal-peptide complexes': 'Peptide coordination complexes, supplied with lot-specific analytical data.',
-  'Nucleotides & cofactors':
-    'Nucleotide cofactors and coenzymes used as substrates and redox couples in enzymatic assay work.',
-};

@@ -1,11 +1,22 @@
-import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight, ClipboardCheck, FileText, FlaskConical, PackageCheck, ShieldCheck, Thermometer } from 'lucide-react';
+import {
+  ArrowRight,
+  ClipboardCheck,
+  FileText,
+  FlaskConical,
+  PackageCheck,
+  ShieldCheck,
+  Thermometer,
+} from 'lucide-react';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { ProductImage } from '@/components/site/product-image';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
-import { CHEMICAL_CLASSES, CLASS_ANCHORS } from '@/lib/catalog';
-import { groupByClass, listPublishedProducts, loadCatalog } from '@/lib/catalog-data';
+import {
+  groupByClass,
+  listPublishedProducts,
+  loadCatalog,
+} from '@/lib/catalog-data';
+import { listActiveClasses } from '@/lib/classes';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,15 +60,32 @@ const accessSteps = [
 ];
 
 const documentationHighlights = [
-  { icon: FileText, label: 'Certificate of analysis', detail: 'Issued per lot, not per product line.' },
-  { icon: FlaskConical, label: 'HPLC chromatogram', detail: 'The actual trace for the lot you receive.' },
-  { icon: Thermometer, label: 'Storage and handling sheet', detail: 'Written for the receiving laboratory.' },
+  {
+    icon: FileText,
+    label: 'Certificate of analysis',
+    detail: 'Issued per lot, not per product line.',
+  },
+  {
+    icon: FlaskConical,
+    label: 'HPLC chromatogram',
+    detail: 'The actual trace for the lot you receive.',
+  },
+  {
+    icon: Thermometer,
+    label: 'Storage and handling sheet',
+    detail: 'Written for the receiving laboratory.',
+  },
 ];
 
 export default async function Home() {
-  const catalog = await loadCatalog(listPublishedProducts);
-  const all = catalog.data ?? [];
+  const catalog = await loadCatalog(async () => ({
+    products: await listPublishedProducts(),
+    classes: await listActiveClasses(),
+  }));
+  const all = catalog.data?.products ?? [];
+  const classes = catalog.data?.classes ?? [];
   const featured = all.filter((p) => p.featured);
+  const hero = featured[0] ?? null;
   const byClass = groupByClass(all);
 
   return (
@@ -75,8 +103,8 @@ export default async function Home() {
               Clarity at every stage of research.
             </h1>
             <p className="mt-9 max-w-xl text-lg leading-8 text-muted-foreground sm:text-xl">
-              A cleaner research catalog built around batch visibility, useful documentation, and qualified
-              institutional access.
+              A cleaner research catalog built around batch visibility, useful
+              documentation, and qualified institutional access.
             </p>
           </div>
           <div className="mt-12 flex flex-col gap-4 sm:flex-row">
@@ -96,32 +124,51 @@ export default async function Home() {
         </div>
 
         <div className="relative min-h-[440px] bg-secondary lg:min-h-[660px]">
-          <div className="absolute inset-0 lab-grid opacity-50" aria-hidden="true" />
+          <div
+            className="absolute inset-0 lab-grid opacity-50"
+            aria-hidden="true"
+          />
           <div className="absolute left-5 top-6 z-10 flex gap-2 sm:left-8 lg:left-10 lg:top-10">
             <span className="spec-pill">COA</span>
             <span className="spec-pill">HPLC</span>
             <span className="spec-pill">Batch ID</span>
           </div>
-          <Image
-            src="/products/bpc-157.png"
-            alt="NexPhase Labs BPC-157 research vial"
-            fill
-            priority
-            className="object-cover object-center mix-blend-multiply"
-            sizes="(max-width: 1024px) 100vw, 46vw"
-          />
-          <div className="absolute bottom-0 left-0 right-0 z-10 grid grid-cols-[1fr_auto] border-t border-border bg-background/92 p-5 backdrop-blur sm:p-7">
-            <div>
-              <p className="utility-label text-muted-foreground">Featured material</p>
-              <p className="mt-1 font-display text-2xl font-bold tracking-tight">BPC-157 &middot; 5 mg</p>
-            </div>
-            <span className="self-end font-mono text-xs text-primary">NPL&mdash;001</span>
-          </div>
+          {hero && (
+            <>
+              <ProductImage
+                code={hero.code}
+                name={hero.name}
+                image={hero.image}
+                priority
+                imageClassName="object-center"
+                sizes="(max-width: 1024px) 100vw, 46vw"
+              />
+              <div className="absolute bottom-0 left-0 right-0 z-10 grid grid-cols-[1fr_auto] border-t border-border bg-background/92 p-5 backdrop-blur sm:p-7">
+                <div>
+                  <p className="utility-label text-muted-foreground">
+                    Featured material
+                  </p>
+                  <p className="mt-1 font-display text-2xl font-bold tracking-tight">
+                    {hero.name}
+                    {hero.packSizes[0] ? (
+                      <> &middot; {hero.packSizes[0].quantity}</>
+                    ) : null}
+                  </p>
+                </div>
+                <span className="self-end font-mono text-xs text-primary">
+                  {hero.code.replace('-', '\u2014')}
+                </span>
+              </div>
+            </>
+          )}
         </div>
       </section>
 
       {/* Standards */}
-      <section id="standards" className="mx-auto grid max-w-[1500px] border-b border-border sm:grid-cols-3">
+      <section
+        id="standards"
+        className="mx-auto grid max-w-[1500px] border-b border-border sm:grid-cols-3"
+      >
         {standards.map(({ title, copy, icon: Icon }, index) => (
           <article
             key={title}
@@ -129,16 +176,23 @@ export default async function Home() {
           >
             <div className="mb-10 flex items-center justify-between">
               <Icon className="size-5 text-primary" />
-              <span className="font-mono text-[11px] text-muted-foreground">0{index + 1}</span>
+              <span className="font-mono text-[11px] text-muted-foreground">
+                0{index + 1}
+              </span>
             </div>
             <h2 className="font-display text-xl font-bold">{title}</h2>
-            <p className="mt-3 max-w-sm leading-7 text-muted-foreground">{copy}</p>
+            <p className="mt-3 max-w-sm leading-7 text-muted-foreground">
+              {copy}
+            </p>
           </article>
         ))}
       </section>
 
       {/* Featured catalog */}
-      <section id="catalog" className="mx-auto max-w-[1500px] px-5 py-16 sm:px-8 lg:px-12 lg:py-24">
+      <section
+        id="catalog"
+        className="mx-auto max-w-[1500px] px-5 py-16 sm:px-8 lg:px-12 lg:py-24"
+      >
         <div className="mb-10 flex flex-wrap items-end justify-between gap-6">
           <div>
             <p className="utility-label text-primary">Selected catalog</p>
@@ -146,14 +200,21 @@ export default async function Home() {
               Research materials, clearly indexed.
             </h2>
           </div>
-          <Link href="/catalog" className="flex items-center gap-2 text-sm font-bold text-primary">
+          <Link
+            href="/catalog"
+            className="flex items-center gap-2 text-sm font-bold text-primary"
+          >
             View the full catalog <ArrowRight className="size-4" />
           </Link>
         </div>
         {catalog.unavailable && <CatalogUnavailable compact />}
         <div className="grid gap-px bg-border sm:grid-cols-3">
           {featured.map((product) => (
-            <Link key={product.code} href={`/catalog/${product.slug}`} className="group bg-background">
+            <Link
+              key={product.code}
+              href={`/catalog/${product.slug}`}
+              className="group bg-background"
+            >
               <div className="relative aspect-[1.18] overflow-hidden bg-secondary">
                 <ProductImage
                   code={product.code}
@@ -168,7 +229,9 @@ export default async function Home() {
               </div>
               <div className="flex items-end justify-between gap-4 border-t border-border p-5 lg:p-7">
                 <div>
-                  <h3 className="font-display text-2xl font-bold tracking-tight">{product.name}</h3>
+                  <h3 className="font-display text-2xl font-bold tracking-tight">
+                    {product.name}
+                  </h3>
                   <p className="mt-1 text-sm text-muted-foreground">
                     CAS {product.casNumber} &middot; {product.form}
                   </p>
@@ -188,19 +251,21 @@ export default async function Home() {
             Organized by what the material is, not what it is studied for.
           </h2>
           <div className="mt-10 grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
-            {CHEMICAL_CLASSES.map((area) => {
-              const count = byClass.get(area)?.length ?? 0;
+            {classes.map((area) => {
+              const count = byClass.get(area.name)?.length ?? 0;
               return (
                 <Link
-                  key={area}
-                  href={`/catalog#${CLASS_ANCHORS[area]}`}
+                  key={area.id}
+                  href={`/catalog#${area.id}`}
                   className="group flex flex-col justify-between gap-8 bg-background p-7 transition-colors hover:bg-accent"
                 >
                   <span className="font-mono text-[11px] text-muted-foreground">
                     {count} {count === 1 ? 'material' : 'materials'}
                   </span>
                   <span className="flex items-end justify-between gap-3">
-                    <span className="font-display text-xl font-bold leading-tight tracking-tight">{area}</span>
+                    <span className="font-display text-xl font-bold leading-tight tracking-tight">
+                      {area.name}
+                    </span>
                     <ArrowRight className="size-5 shrink-0 text-primary transition-transform group-hover:translate-x-1" />
                   </span>
                 </Link>
@@ -218,8 +283,8 @@ export default async function Home() {
             Three steps, reviewed by a person.
           </h2>
           <p className="mt-5 leading-8 text-muted-foreground">
-            NexPhase Labs does not sell to the general public. Ordering is opened to organizations that qualify under
-            our research-use policy.
+            NexPhase Labs does not sell to the general public. Ordering is
+            opened to organizations that qualify under our research-use policy.
           </p>
         </div>
         <ol className="grid gap-px bg-border lg:grid-cols-3">
@@ -227,7 +292,9 @@ export default async function Home() {
             <li key={step} className="bg-background p-7 lg:p-9">
               <div className="mb-10 flex items-center justify-between">
                 <Icon className="size-5 text-primary" />
-                <span className="font-mono text-[11px] text-muted-foreground">{step}</span>
+                <span className="font-mono text-[11px] text-muted-foreground">
+                  {step}
+                </span>
               </div>
               <h3 className="font-display text-xl font-bold">{title}</h3>
               <p className="mt-3 leading-7 text-muted-foreground">{copy}</p>
@@ -246,25 +313,38 @@ export default async function Home() {
       <section className="border-t border-border px-5 py-16 sm:px-8 lg:px-12 lg:py-20">
         <div className="mx-auto grid max-w-[1404px] gap-12 lg:grid-cols-[1fr_1fr] lg:items-center">
           <div>
-            <p className="utility-label text-primary">What ships with every lot</p>
+            <p className="utility-label text-primary">
+              What ships with every lot
+            </p>
             <h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
               Documentation that matches the vial in your hand.
             </h2>
             <p className="mt-5 leading-8 text-muted-foreground">
-              A certificate that describes a product line tells you very little. Ours describes the lot. If the
-              paperwork and the label do not agree, we would rather you find out from us first.
+              A certificate that describes a product line tells you very little.
+              Ours describes the lot. If the paperwork and the label do not
+              agree, we would rather you find out from us first.
             </p>
-            <Link href="/documentation" className="mt-7 inline-flex items-center gap-2 text-sm font-bold text-primary">
+            <Link
+              href="/documentation"
+              className="mt-7 inline-flex items-center gap-2 text-sm font-bold text-primary"
+            >
               See what a COA includes <ArrowRight className="size-4" />
             </Link>
           </div>
           <ul className="grid gap-px bg-border">
             {documentationHighlights.map(({ icon: Icon, label, detail }) => (
-              <li key={label} className="flex items-start gap-5 bg-background p-6">
+              <li
+                key={label}
+                className="flex items-start gap-5 bg-background p-6"
+              >
                 <Icon className="mt-0.5 size-5 shrink-0 text-primary" />
                 <div>
-                  <p className="font-display text-lg font-bold tracking-tight">{label}</p>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">{detail}</p>
+                  <p className="font-display text-lg font-bold tracking-tight">
+                    {label}
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {detail}
+                  </p>
                 </div>
               </li>
             ))}

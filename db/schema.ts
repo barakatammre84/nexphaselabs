@@ -1,5 +1,11 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+  index,
+  integer,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
 
 /**
  * The lot is the unit of truth. Every analytical document, every shipment and
@@ -45,7 +51,9 @@ export const lots = sqliteTable(
     // Analytical
     purityResult: text('purity_result'),
     purityMethod: text('purity_method'),
-    identityConfirmed: integer('identity_confirmed', { mode: 'boolean' }).notNull().default(false),
+    identityConfirmed: integer('identity_confirmed', { mode: 'boolean' })
+      .notNull()
+      .default(false),
     identityMethod: text('identity_method'),
     waterContent: text('water_content'),
     heavyMetalsSummary: text('heavy_metals_summary'),
@@ -98,8 +106,12 @@ export const lots = sqliteTable(
     /** Marker of the shipment that last drew on this lot; every ledger write for that shipment is conditional on it. */
     lastMovementId: text('last_movement_id'),
 
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     lotNumberIdx: uniqueIndex('lots_lot_number_idx').on(table.lotNumber),
@@ -124,7 +136,9 @@ export const lotTests = sqliteTable(
     passed: integer('passed', { mode: 'boolean' }),
     testedBy: text('tested_by'),
     testedAt: integer('tested_at', { mode: 'timestamp' }),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     lotIdx: index('lot_tests_lot_idx').on(table.lotId),
@@ -147,7 +161,9 @@ export const lotStatusEvents = sqliteTable(
     decidedBy: text('decided_by').notNull(),
     /** disposition (a status decision) | cost (landed-cost record) — the UI lists them separately. */
     kind: text('kind').notNull().default('disposition'),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     lotIdx: index('lot_status_events_lot_idx').on(table.lotId),
@@ -176,7 +192,9 @@ export const lotDocuments = sqliteTable(
     uploadedBy: text('uploaded_by').notNull(),
     uploadedAt: integer('uploaded_at', { mode: 'timestamp' }).notNull(),
     supersededAt: integer('superseded_at', { mode: 'timestamp' }),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     lotIdx: index('lot_documents_lot_idx').on(table.lotId),
@@ -219,7 +237,9 @@ export const lotMovements = sqliteTable(
     occurredAt: integer('occurred_at', { mode: 'timestamp' }).notNull(),
     recordedBy: text('recorded_by').notNull(),
     note: text('note'),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     lotIdx: index('lot_movements_lot_idx').on(table.lotId),
@@ -249,7 +269,10 @@ export const products = sqliteTable(
     slug: text('slug').notNull(),
     name: text('name').notNull(),
     formalName: text('formal_name').notNull(),
-    synonyms: text('synonyms', { mode: 'json' }).$type<string[]>().notNull().default([]),
+    synonyms: text('synonyms', { mode: 'json' })
+      .$type<string[]>()
+      .notNull()
+      .default([]),
     chemicalClass: text('chemical_class').notNull(),
 
     // Chemical identity
@@ -273,7 +296,14 @@ export const products = sqliteTable(
     saltForm: text('salt_form').notNull(),
     /** Laboratory solvents only. Each entry carries its own source. */
     solubility: text('solubility', { mode: 'json' })
-      .$type<{ solvent: string; concentration: string; note?: string; source: string }[]>()
+      .$type<
+        {
+          solvent: string;
+          concentration: string;
+          note?: string;
+          source: string;
+        }[]
+      >()
       .notNull()
       .default([]),
     storageSolid: text('storage_solid').notNull(),
@@ -285,7 +315,10 @@ export const products = sqliteTable(
     status: text('status').notNull().default('enquire'),
     description: text('description').notNull(),
     /** Provenance for every published figure. Required, never empty. */
-    sourceNotes: text('source_notes', { mode: 'json' }).$type<string[]>().notNull().default([]),
+    sourceNotes: text('source_notes', { mode: 'json' })
+      .$type<string[]>()
+      .notNull()
+      .default([]),
     hasSds: integer('has_sds', { mode: 'boolean' }).notNull().default(false),
     /** Path under /public, or null where no photograph of this material exists. */
     image: text('image'),
@@ -296,8 +329,12 @@ export const products = sqliteTable(
     withdrawnReason: text('withdrawn_reason'),
     sortOrder: integer('sort_order').notNull().default(0),
 
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
     updatedBy: text('updated_by'),
   },
   (table) => ({
@@ -332,8 +369,12 @@ export const productVariants = sqliteTable(
     institutionalPriceCents: integer('institutional_price_cents'),
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
     sortOrder: integer('sort_order').notNull().default(0),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     skuIdx: uniqueIndex('product_variants_sku_idx').on(table.sku),
@@ -355,11 +396,15 @@ export const productRevisions = sqliteTable(
     productCode: text('product_code').notNull(),
     /** create | update | withdraw | restore */
     action: text('action').notNull(),
-    snapshot: text('snapshot', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    snapshot: text('snapshot', { mode: 'json' })
+      .$type<Record<string, unknown>>()
+      .notNull(),
     changedBy: text('changed_by').notNull(),
     changedByName: text('changed_by_name').notNull(),
     note: text('note'),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     productIdx: index('product_revisions_product_idx').on(table.productId),
@@ -367,6 +412,51 @@ export const productRevisions = sqliteTable(
 );
 
 export type ProductRevision = typeof productRevisions.$inferSelect;
+
+/**
+ * Chemical classes — the only classification axis (CLAUDE.md rule 2), held as
+ * data so staff manage them in the catalog manager. `id` is the URL anchor;
+ * `name` is what products store in `chemical_class`. Never deleted; a class
+ * with no products can be made inactive.
+ */
+export const chemicalClasses = sqliteTable('chemical_classes', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull().unique(),
+  /** Describes the chemistry of the class. Never what a compound does in an organism. */
+  blurb: text('blurb').notNull().default(''),
+  sortOrder: integer('sort_order').notNull().default(0),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedBy: text('updated_by'),
+});
+
+export const chemicalClassRevisions = sqliteTable(
+  'chemical_class_revisions',
+  {
+    id: text('id').primaryKey(),
+    classId: text('class_id').notNull(),
+    /** create | update | deactivate | reactivate */
+    action: text('action').notNull(),
+    snapshot: text('snapshot', { mode: 'json' })
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    changedBy: text('changed_by').notNull(),
+    note: text('note'),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    classIdx: index('chemical_class_revisions_class_idx').on(table.classId),
+  }),
+);
+
+export type ChemicalClassRow = typeof chemicalClasses.$inferSelect;
 
 /**
  * Staff. The people who can edit the catalog, receive lots, and release them.
@@ -389,8 +479,12 @@ export const staffUsers = sqliteTable(
     failedAttempts: integer('failed_attempts').notNull().default(0),
     lockedUntil: integer('locked_until', { mode: 'timestamp' }),
     lastLoginAt: integer('last_login_at', { mode: 'timestamp' }),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     emailIdx: uniqueIndex('staff_users_email_idx').on(table.email),
@@ -407,7 +501,9 @@ export const staffSessions = sqliteTable(
     expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
     revokedAt: integer('revoked_at', { mode: 'timestamp' }),
     userAgent: text('user_agent'),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     tokenIdx: uniqueIndex('staff_sessions_token_idx').on(table.tokenHash),
@@ -447,8 +543,12 @@ export const accounts = sqliteTable(
     failedAttempts: integer('failed_attempts').notNull().default(0),
     lockedUntil: integer('locked_until', { mode: 'timestamp' }),
     lastLoginAt: integer('last_login_at', { mode: 'timestamp' }),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     emailIdx: uniqueIndex('accounts_email_idx').on(table.email),
@@ -465,7 +565,9 @@ export const accountSessions = sqliteTable(
     expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
     revokedAt: integer('revoked_at', { mode: 'timestamp' }),
     userAgent: text('user_agent'),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     tokenIdx: uniqueIndex('account_sessions_token_idx').on(table.tokenHash),
@@ -484,7 +586,9 @@ export const emailTokens = sqliteTable(
     tokenHash: text('token_hash').notNull(),
     expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
     usedAt: integer('used_at', { mode: 'timestamp' }),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     tokenIdx: uniqueIndex('email_tokens_token_idx').on(table.tokenHash),
@@ -507,10 +611,14 @@ export const accountAcknowledgements = sqliteTable(
     version: text('version').notNull(),
     acceptedAt: integer('accepted_at', { mode: 'timestamp' }).notNull(),
     userAgent: text('user_agent'),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
-    accountIdx: index('account_acknowledgements_account_idx').on(table.accountId),
+    accountIdx: index('account_acknowledgements_account_idx').on(
+      table.accountId,
+    ),
   }),
 );
 
@@ -539,7 +647,9 @@ export const productDocuments = sqliteTable(
     uploadedBy: text('uploaded_by').notNull(),
     uploadedAt: integer('uploaded_at', { mode: 'timestamp' }).notNull(),
     supersededAt: integer('superseded_at', { mode: 'timestamp' }),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     productIdx: index('product_documents_product_idx').on(table.productId),
@@ -584,17 +694,26 @@ export const organizations = sqliteTable(
     researchContext: text('research_context').notNull(),
     receivingParty: text('receiving_party').notNull(),
     /** Automatic checks that did not pass outright, for the reviewer. JSON array of strings. */
-    reviewFlags: text('review_flags', { mode: 'json' }).$type<string[]>().notNull().default([]),
+    reviewFlags: text('review_flags', { mode: 'json' })
+      .$type<string[]>()
+      .notNull()
+      .default([]),
     /** submitted | approved | declined | more_info */
-    verificationStatus: text('verification_status').notNull().default('submitted'),
+    verificationStatus: text('verification_status')
+      .notNull()
+      .default('submitted'),
     submittedAt: integer('submitted_at', { mode: 'timestamp' }).notNull(),
     reviewedBy: text('reviewed_by'),
     reviewedAt: integer('reviewed_at', { mode: 'timestamp' }),
     reviewNote: text('review_note'),
     /** Id of the decision that produced the current status; lets the event insert be conditional on it. */
     lastDecisionId: text('last_decision_id'),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     accountIdx: uniqueIndex('organizations_account_idx').on(table.accountId),
@@ -614,7 +733,9 @@ export const organizationDocuments = sqliteTable(
     sizeBytes: integer('size_bytes').notNull(),
     originalName: text('original_name'),
     uploadedAt: integer('uploaded_at', { mode: 'timestamp' }).notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     orgIdx: index('organization_documents_org_idx').on(table.organizationId),
@@ -632,7 +753,9 @@ export const verificationEvents = sqliteTable(
     toStatus: text('to_status').notNull(),
     note: text('note'),
     decidedBy: text('decided_by').notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     orgIdx: index('verification_events_org_idx').on(table.organizationId),
@@ -654,11 +777,18 @@ export const cartItems = sqliteTable(
     accountId: text('account_id').notNull(),
     variantId: text('variant_id').notNull(),
     quantity: integer('quantity').notNull().default(1),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
-    accountVariantIdx: uniqueIndex('cart_items_account_variant_idx').on(table.accountId, table.variantId),
+    accountVariantIdx: uniqueIndex('cart_items_account_variant_idx').on(
+      table.accountId,
+      table.variantId,
+    ),
   }),
 );
 
@@ -720,12 +850,18 @@ export const orders = sqliteTable(
     lastTransitionId: text('last_transition_id'),
     /** Random token from the rendered cart form; unique, so a double submit cannot create two orders. */
     submissionToken: text('submission_token'),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     numberIdx: uniqueIndex('orders_number_idx').on(table.orderNumber),
-    tokenIdx: uniqueIndex('orders_submission_token_idx').on(table.submissionToken),
+    tokenIdx: uniqueIndex('orders_submission_token_idx').on(
+      table.submissionToken,
+    ),
     accountIdx: index('orders_account_idx').on(table.accountId),
     statusIdx: index('orders_status_idx').on(table.status),
   }),
@@ -749,7 +885,9 @@ export const orderItems = sqliteTable(
     /** Assigned at fulfilment from a RELEASED lot. */
     lotId: text('lot_id'),
     lotNumber: text('lot_number'),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     orderIdx: index('order_items_order_idx').on(table.orderId),
@@ -766,7 +904,9 @@ export const orderEvents = sqliteTable(
     toStatus: text('to_status').notNull(),
     note: text('note'),
     actor: text('actor').notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     orderIdx: index('order_events_order_idx').on(table.orderId),

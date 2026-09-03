@@ -16,7 +16,9 @@ import type { StaffPrincipal } from '@/lib/staff-auth';
  * product_revisions.
  */
 
-export type WriteResult = { ok: true; code: string } | { ok: false; error: string };
+export type WriteResult =
+  | { ok: true; code: string }
+  | { ok: false; error: string };
 
 function productId(code: string): string {
   return `prd_${code.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
@@ -62,15 +64,25 @@ function productColumns(v: ProductInput, staff: StaffPrincipal, now: Date) {
     hasSds: v.hasSds,
     image: v.image ?? null,
     featured: v.featured,
+    ...(v.sortOrder === null || v.sortOrder === undefined
+      ? {}
+      : { sortOrder: v.sortOrder }),
     visibility: v.visibility,
-    withdrawnReason: v.visibility === 'withdrawn' ? (v.withdrawnReason ?? null) : null,
+    withdrawnReason:
+      v.visibility === 'withdrawn' ? (v.withdrawnReason ?? null) : null,
     updatedAt: now,
     updatedBy: staff.id,
   };
 }
 
 function snapshotOf(v: ProductInput): Record<string, unknown> {
-  return { ...v, variants: v.variants.map((x) => ({ ...x, sku: x.sku ?? skuFor(v.code, x.quantity) })) };
+  return {
+    ...v,
+    variants: v.variants.map((x) => ({
+      ...x,
+      sku: x.sku ?? skuFor(v.code, x.quantity),
+    })),
+  };
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -78,17 +90,29 @@ function isUniqueViolation(error: unknown): boolean {
   return /UNIQUE constraint failed/i.test(message);
 }
 
-export async function createProduct(v: ProductInput, staff: StaffPrincipal, note: string | null): Promise<WriteResult> {
+export async function createProduct(
+  v: ProductInput,
+  staff: StaffPrincipal,
+  note: string | null,
+): Promise<WriteResult> {
   const db = getDb();
   const now = new Date();
   const id = productId(v.code);
 
   const existing = await getProductByCode(v.code);
-  if (existing) return { ok: false, error: `Code ${v.code} is already in the catalog.` };
+  if (existing)
+    return { ok: false, error: `Code ${v.code} is already in the catalog.` };
 
   try {
     await db.batch([
-      db.insert(products).values({ id, ...productColumns(v, staff, now), sortOrder: 0, createdAt: now }),
+      db
+        .insert(products)
+        .values({
+          id,
+          sortOrder: 0,
+          ...productColumns(v, staff, now),
+          createdAt: now,
+        }),
       ...v.variants.map((x, i) =>
         db.insert(productVariants).values({
           id: variantId(x.sku!),
@@ -117,7 +141,8 @@ export async function createProduct(v: ProductInput, staff: StaffPrincipal, note
       }),
     ]);
   } catch (error) {
-    if (isUniqueViolation(error)) return { ok: false, error: 'Code, slug or SKU is already in use.' };
+    if (isUniqueViolation(error))
+      return { ok: false, error: 'Code, slug or SKU is already in use.' };
     throw error;
   }
   return { ok: true, code: v.code };
@@ -129,7 +154,11 @@ export async function updateProduct(
   staff: StaffPrincipal,
   note: string | null,
 ): Promise<WriteResult> {
-  if (v.code !== current.code) return { ok: false, error: 'The product code cannot change; lot records reference it.' };
+  if (v.code !== current.code)
+    return {
+      ok: false,
+      error: 'The product code cannot change; lot records reference it.',
+    };
 
   const db = getDb();
   const now = new Date();
@@ -137,7 +166,10 @@ export async function updateProduct(
   const incoming = new Map(v.variants.map((x) => [x.sku!, x]));
 
   const statements = [
-    db.update(products).set(productColumns(v, staff, now)).where(eq(products.id, current.id)),
+    db
+      .update(products)
+      .set(productColumns(v, staff, now))
+      .where(eq(products.id, current.id)),
   ] as unknown[];
 
   for (const [sku, x] of incoming) {
@@ -179,7 +211,10 @@ export async function updateProduct(
   for (const [sku, existing] of bySku) {
     if (!incoming.has(sku) && existing.active) {
       statements.push(
-        db.update(productVariants).set({ active: false, updatedAt: now }).where(eq(productVariants.id, existing.id)),
+        db
+          .update(productVariants)
+          .set({ active: false, updatedAt: now })
+          .where(eq(productVariants.id, existing.id)),
       );
     }
   }
@@ -209,7 +244,11 @@ export async function updateProduct(
     // drizzle's batch type wants a non-empty tuple; we always have ≥2 statements.
     await db.batch(statements as unknown as Parameters<typeof db.batch>[0]);
   } catch (error) {
-    if (isUniqueViolation(error)) return { ok: false, error: 'Slug or SKU is already in use by another product.' };
+    if (isUniqueViolation(error))
+      return {
+        ok: false,
+        error: 'Slug or SKU is already in use by another product.',
+      };
     throw error;
   }
   return { ok: true, code: current.code };

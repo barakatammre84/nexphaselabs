@@ -42,6 +42,7 @@ export const FORM_FIELDS = [
   'hasSds',
   'image',
   'featured',
+  'displayOrder',
   'visibility',
   'withdrawnReason',
   'variants',
@@ -98,7 +99,8 @@ export function valuesToInput(v: FormValues): ProductInput {
     form: v.form ?? '',
     saltForm: v.saltForm ?? '',
     solubility: lines(v.solubility ?? '').map((line) => {
-      const [solvent = '', concentration = '', source = '', note = ''] = cells(line);
+      const [solvent = '', concentration = '', source = '', note = ''] =
+        cells(line);
       return { solvent, concentration, source, note: note || undefined };
     }),
     storageSolid: v.storageSolid ?? '',
@@ -111,10 +113,17 @@ export function valuesToInput(v: FormValues): ProductInput {
     hasSds: v.hasSds === 'on' || v.hasSds === 'true',
     image: v.image || null,
     featured: v.featured === 'on' || v.featured === 'true',
+    sortOrder:
+      (v.displayOrder ?? '').trim() === '' ? null : Number(v.displayOrder),
     visibility: v.visibility || 'draft',
     withdrawnReason: v.withdrawnReason || null,
     variants: lines(v.variants ?? '').map((line, i) => {
-      const [quantity = '', presentation = '', listPrice = '', institutionalPrice = ''] = cells(line);
+      const [
+        quantity = '',
+        presentation = '',
+        listPrice = '',
+        institutionalPrice = '',
+      ] = cells(line);
       return {
         quantity,
         presentation: presentation || DEFAULT_PRESENTATION,
@@ -136,7 +145,9 @@ export function productToValues(p: CatalogProduct): FormValues {
     synonyms: p.synonyms.join(', '),
     chemicalClass: p.chemicalClass,
     casNumber: p.casNumber,
-    relatedCas: (p.relatedCas ?? []).map((r) => `${r.form} | ${r.cas}`).join('\n'),
+    relatedCas: (p.relatedCas ?? [])
+      .map((r) => `${r.form} | ${r.cas}`)
+      .join('\n'),
     sequenceOneLetter: p.sequenceOneLetter ?? '',
     sequenceThreeLetter: p.sequenceThreeLetter ?? '',
     molecularFormula: p.molecularFormula,
@@ -149,7 +160,11 @@ export function productToValues(p: CatalogProduct): FormValues {
     form: p.form,
     saltForm: p.saltForm,
     solubility: p.solubility
-      .map((s) => [s.solvent, s.concentration, s.source, s.note ?? ''].join(' | ').replace(/ \| $/, ''))
+      .map((s) =>
+        [s.solvent, s.concentration, s.source, s.note ?? '']
+          .join(' | ')
+          .replace(/ \| $/, ''),
+      )
       .join('\n'),
     storageSolid: p.storageSolid,
     storageStock: p.storageStock,
@@ -161,13 +176,20 @@ export function productToValues(p: CatalogProduct): FormValues {
     hasSds: p.hasSds ? 'on' : '',
     image: p.image ?? '',
     featured: p.featured ? 'on' : '',
+    displayOrder: String(p.sortOrder),
     visibility: p.visibility,
     withdrawnReason: p.withdrawnReason ?? '',
     variants: p.variants
       .filter((v) => v.active)
       .map((v) => {
-        const dollars = (c: number | null) => (c === null ? '' : (c / 100).toFixed(2));
-        const cells = [v.quantity, v.presentation, dollars(v.listPriceCents), dollars(v.institutionalPriceCents)];
+        const dollars = (c: number | null) =>
+          c === null ? '' : (c / 100).toFixed(2);
+        const cells = [
+          v.quantity,
+          v.presentation,
+          dollars(v.listPriceCents),
+          dollars(v.institutionalPriceCents),
+        ];
         while (cells.length > 2 && cells[cells.length - 1] === '') cells.pop();
         return cells.join(' | ');
       })
@@ -176,4 +198,6 @@ export function productToValues(p: CatalogProduct): FormValues {
   };
 }
 
-export const EMPTY_VALUES: FormValues = Object.fromEntries(FORM_FIELDS.map((f) => [f, ''])) as FormValues;
+export const EMPTY_VALUES: FormValues = Object.fromEntries(
+  FORM_FIELDS.map((f) => [f, '']),
+) as FormValues;

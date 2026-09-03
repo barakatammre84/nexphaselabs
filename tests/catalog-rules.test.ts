@@ -43,7 +43,10 @@ function toInput(p: Product): ProductInput {
     image: p.image,
     featured: p.featured,
     visibility: 'published',
-    variants: p.packSizes.map((s) => ({ quantity: s.quantity, presentation: DEFAULT_PRESENTATION })),
+    variants: p.packSizes.map((s) => ({
+      quantity: s.quantity,
+      presentation: DEFAULT_PRESENTATION,
+    })),
   };
 }
 
@@ -52,16 +55,31 @@ describe('seed catalog passes the schema rules', () => {
     it(`${p.code} ${p.name}`, () => {
       const result = validateProductInput(toInput(p));
       if (!result.ok) {
-        throw new Error(JSON.stringify({ errors: result.errors, violations: result.violations }, null, 2));
+        throw new Error(
+          JSON.stringify(
+            { errors: result.errors, violations: result.violations },
+            null,
+            2,
+          ),
+        );
       }
-      expect(result.value.variants.every((v) => v.sku?.startsWith(p.code))).toBe(true);
+      expect(
+        result.value.variants.every((v) => v.sku?.startsWith(p.code)),
+      ).toBe(true);
     });
   }
 });
 
 describe('CAS check digit', () => {
   it('accepts real registry numbers', () => {
-    for (const cas of ['137525-51-0', '53-84-9', '49557-75-7', '89030-95-5', '129954-34-3', '7732-18-5']) {
+    for (const cas of [
+      '137525-51-0',
+      '53-84-9',
+      '49557-75-7',
+      '89030-95-5',
+      '129954-34-3',
+      '7732-18-5',
+    ]) {
       expect(isValidCas(cas), cas).toBe(true);
     }
   });
@@ -140,10 +158,20 @@ describe('validateProductInput', () => {
   it('rejects a reconstitution volume hidden in a solubility note', () => {
     const r = validateProductInput({
       ...base,
-      solubility: [{ solvent: 'Water', concentration: '1 mg/mL', note: 'reconstitute the 5 mg vial with 2 mL', source: 'x' }],
+      solubility: [
+        {
+          solvent: 'Water',
+          concentration: '1 mg/mL',
+          note: 'reconstitute the 5 mg vial with 2 mL',
+          source: 'x',
+        },
+      ],
     });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.violations.some((v) => v.reason.includes('reconstitution'))).toBe(true);
+    if (!r.ok)
+      expect(
+        r.violations.some((v) => v.reason.includes('reconstitution')),
+      ).toBe(true);
   });
 
   it('rejects a withdrawn product with no reason', () => {
@@ -165,19 +193,33 @@ describe('validateProductInput', () => {
       const r = validateProductInput({ ...base, name });
       expect(r.ok, name).toBe(false);
     }
-    expect(validateProductInput({ ...base, formalName: 'Proprietary blend' }).ok).toBe(false);
+    expect(
+      validateProductInput({ ...base, formalName: 'Proprietary blend' }).ok,
+    ).toBe(false);
     expect(validateProductInput({ ...base, casNumber: '' }).ok).toBe(false);
     // Synonyms are displayed, so they are held to the same rule.
-    const viaSynonym = validateProductInput({ ...base, synonyms: ['PL 14736', 'NexPhase-2T'] });
+    const viaSynonym = validateProductInput({
+      ...base,
+      synonyms: ['PL 14736', 'NexPhase-2T'],
+    });
     expect(viaSynonym.ok).toBe(false);
-    if (!viaSynonym.ok) expect(viaSynonym.errors.join(' ')).toMatch(/Synonym "NexPhase-2T"/);
+    if (!viaSynonym.ok)
+      expect(viaSynonym.errors.join(' ')).toMatch(/Synonym "NexPhase-2T"/);
     // Real chemical identities still pass, including names with numbers.
-    for (const p of products) expect(validateProductInput(toInput(p)).ok, p.name).toBe(true);
-    expect(validateProductInput({ ...base, synonyms: ['GLP-1 receptor ligand', 'NPL-001'] }).ok).toBe(true);
+    for (const p of products)
+      expect(validateProductInput(toInput(p)).ok, p.name).toBe(true);
+    expect(
+      validateProductInput({
+        ...base,
+        synonyms: ['GLP-1 receptor ligand', 'NPL-001'],
+      }).ok,
+    ).toBe(true);
   });
 
   it('catches dilution phrasing without "with" or "in"', () => {
-    expect(scanText('t', 'dilute to a final volume of 2 mL').length).toBeGreaterThan(0);
+    expect(
+      scanText('t', 'dilute to a final volume of 2 mL').length,
+    ).toBeGreaterThan(0);
     expect(scanText('t', 'Add 1 mL to the vial').length).toBeGreaterThan(0);
   });
 
@@ -189,7 +231,9 @@ describe('validateProductInput', () => {
     ]) {
       expect(scanText('t', text), text).toEqual([]);
     }
-    expect(scanText('t', 'Supports lean muscle and boosts energy').length).toBeGreaterThan(0);
+    expect(
+      scanText('t', 'Supports lean muscle and boosts energy').length,
+    ).toBeGreaterThan(0);
   });
 
   it('rejects prose or dosing hidden in numeric-looking fields', () => {
@@ -198,21 +242,51 @@ describe('validateProductInput', () => {
       { molecularWeight: 'about 1419 give or take' },
       { smiles: 'inject 2 mL' },
       { molecularFormula: 'C62H98N16O22 (reconstitute in 2 mL)' },
-      { solubility: [{ solvent: 'Water', concentration: '2 mL per 5 mg vial', source: 'x' }] },
-      { solubility: [{ solvent: 'Water', concentration: '250 mcg daily', source: 'x' }] },
+      {
+        solubility: [
+          {
+            solvent: 'Water',
+            concentration: '2 mL per 5 mg vial',
+            source: 'x',
+          },
+        ],
+      },
+      {
+        solubility: [
+          { solvent: 'Water', concentration: '250 mcg daily', source: 'x' },
+        ],
+      },
     ];
     for (const patch of bad) {
-      expect(validateProductInput({ ...base, ...patch }).ok, JSON.stringify(patch)).toBe(false);
+      expect(
+        validateProductInput({ ...base, ...patch }).ok,
+        JSON.stringify(patch),
+      ).toBe(false);
     }
     const good = [
       { exactMass: '1418.7 Da' },
       { molecularWeight: '1419.5 g/mol' },
       { smiles: 'CC(=O)O' },
-      { solubility: [{ solvent: 'DMSO', concentration: '10 mg/mL', source: 'Cayman 1' }] },
-      { solubility: [{ solvent: 'PBS (pH 7.2)', concentration: '5 mM', source: 'Cayman 1' }] },
+      {
+        solubility: [
+          { solvent: 'DMSO', concentration: '10 mg/mL', source: 'Cayman 1' },
+        ],
+      },
+      {
+        solubility: [
+          {
+            solvent: 'PBS (pH 7.2)',
+            concentration: '5 mM',
+            source: 'Cayman 1',
+          },
+        ],
+      },
     ];
     for (const patch of good) {
-      expect(validateProductInput({ ...base, ...patch }).ok, JSON.stringify(patch)).toBe(true);
+      expect(
+        validateProductInput({ ...base, ...patch }).ok,
+        JSON.stringify(patch),
+      ).toBe(true);
     }
   });
 
@@ -220,5 +294,37 @@ describe('validateProductInput', () => {
     expect(skuFor('NPL-001', '5 mg')).toBe('NPL-001-5MG');
     expect(skuFor('NPL-002', '1 g')).toBe('NPL-002-1G');
     expect(skuFor('NPL-002', '500 ug')).toBe('NPL-002-500UG');
+  });
+});
+
+describe('photograph and display order', () => {
+  it('accepts a repository asset carrying this slug, or an uploaded key carrying this code', () => {
+    const base = toInput(products[0]);
+    const ok = (image: string | null) =>
+      validateProductInput({ ...base, image }).ok;
+    expect(ok(null)).toBe(true);
+    expect(ok(`/products/${base.slug}.png`)).toBe(true);
+    expect(ok(`/products/${base.slug}.jpeg`)).toBe(true);
+    expect(ok(`products/${base.code}/image/${'a'.repeat(32)}.png`)).toBe(true);
+    expect(ok('/products/other-compound.png')).toBe(false);
+    expect(ok(`products/NPL-999/image/${'a'.repeat(32)}.png`)).toBe(false);
+    expect(ok('https://example.com/vial.png')).toBe(false);
+    expect(ok('/products/../secret.png')).toBe(false);
+  });
+  it('bounds the display order', () => {
+    const base = toInput(products[0]);
+    for (const [so, expected] of [
+      [0, true],
+      [9999, true],
+      [10000, false],
+      [-1, false],
+      [1.5, false],
+      [null, true],
+    ] as const) {
+      expect(
+        validateProductInput({ ...base, sortOrder: so }).ok,
+        String(so),
+      ).toBe(expected);
+    }
   });
 });

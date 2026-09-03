@@ -11,7 +11,7 @@
  * it either. If a rule here is loosened, it must be loosened knowingly.
  */
 
-import { CHEMICAL_CLASSES, type ChemicalClass, type ProductStatus } from '@/lib/catalog';
+import type { ChemicalClass, ProductStatus } from '@/lib/catalog';
 
 /* ------------------------------------------------------------------------ */
 /* Whitelists                                                                */
@@ -61,7 +61,8 @@ const SOLVENT_PATTERN = new RegExp(
 );
 
 /** Solvents that are explicitly dosing vehicles, not laboratory solvents. */
-const FORBIDDEN_SOLVENT = /bacteriostatic|sterile\s+water\s+for\s+injection|saline/i;
+const FORBIDDEN_SOLVENT =
+  /bacteriostatic|sterile\s+water\s+for\s+injection|saline/i;
 
 /* ------------------------------------------------------------------------ */
 /* Forbidden language                                                        */
@@ -87,7 +88,8 @@ const FORBIDDEN: Rule[] = [
     reason: 'reconstitution instruction',
   },
   {
-    pattern: /\b(stack(ed|ing)?|cycl(e|es|ing)|protocol|regimen|how\s+to\s+use|directions\s+for\s+use)\b/i,
+    pattern:
+      /\b(stack(ed|ing)?|cycl(e|es|ing)|protocol|regimen|how\s+to\s+use|directions\s+for\s+use)\b/i,
     reason: 'stacking, cycling or protocol content',
   },
   // Structure/function claims.
@@ -110,12 +112,14 @@ const FORBIDDEN: Rule[] = [
   },
   // Human or animal use.
   {
-    pattern: /\b(human\s+use|for\s+humans?|in\s+humans?|human\s+consumption|consum(e|ed|ption)|ingest\w*|supplement\w*|nutraceutical|cosmetic|skin\s*care|anti[\s-]?wrinkle|hair\s+growth|bodybuild\w*|athlet\w*)\b/i,
+    pattern:
+      /\b(human\s+use|for\s+humans?|in\s+humans?|human\s+consumption|consum(e|ed|ption)|ingest\w*|supplement\w*|nutraceutical|cosmetic|skin\s*care|anti[\s-]?wrinkle|hair\s+growth|bodybuild\w*|athlet\w*)\b/i,
     reason: 'human use, consumption or cosmetic framing',
   },
   // Testimonials and review framing.
   {
-    pattern: /\b(testimonial\w*|review(s|ed)?\b|before\s+and\s+after|customers?\s+(say|report)|results?\s+(in|after)\s+\d)/i,
+    pattern:
+      /\b(testimonial\w*|review(s|ed)?\b|before\s+and\s+after|customers?\s+(say|report)|results?\s+(in|after)\s+\d)/i,
     reason: 'testimonial or results framing',
   },
 ];
@@ -147,7 +151,10 @@ function stripAllowed(text: string): string {
 export type Violation = { field: string; reason: string; match: string };
 
 /** Scan one free-text field. Returns every violation found. */
-export function scanText(field: string, text: string | null | undefined): Violation[] {
+export function scanText(
+  field: string,
+  text: string | null | undefined,
+): Violation[] {
   if (!text) return [];
   const cleaned = stripAllowed(text);
   const found: Violation[] = [];
@@ -162,7 +169,12 @@ export function scanText(field: string, text: string | null | undefined): Violat
 /* Input shape and validation                                                */
 /* ------------------------------------------------------------------------ */
 
-export type SolubilityInput = { solvent: string; concentration: string; note?: string; source: string };
+export type SolubilityInput = {
+  solvent: string;
+  concentration: string;
+  note?: string;
+  source: string;
+};
 export type RelatedCasInput = { form: string; cas: string };
 export type VariantInput = {
   sku?: string;
@@ -181,7 +193,9 @@ export type VariantInput = {
 const PRICE_PATTERN = /^\d{1,6}(?:\.\d{1,2})?$/;
 
 /** "45" | "45.5" | "45.00" → cents; null for blank; NaN for malformed. */
-export function parsePriceCents(value: string | null | undefined): number | null {
+export function parsePriceCents(
+  value: string | null | undefined,
+): number | null {
   const t = (value ?? '').trim().replace(/^\$/, '');
   if (!t) return null;
   if (!PRICE_PATTERN.test(t)) return Number.NaN;
@@ -217,14 +231,30 @@ export type ProductInput = {
   description: string;
   sourceNotes: string[];
   hasSds: boolean;
+  /** null, a repository asset `/products/<slug>.<ext>`, or an R2 key `products/<CODE>/image/<id>.<ext>` set by the upload tool. */
   image?: string | null;
   featured: boolean;
+  /** Display order on the catalog index and home page (lower first). */
+  sortOrder?: number | null;
   visibility: string;
   withdrawnReason?: string | null;
   variants: VariantInput[];
 };
 
-export const PRODUCT_STATUSES: ProductStatus[] = ['available', 'limited', 'enquire'];
+export type ValidateOptions = {
+  /** Active chemical-class names from the database. When given, the product's class must be one of them. */
+  classes?: string[];
+};
+
+const STATIC_IMAGE = /^\/products\/([a-z0-9-]+)\.(png|jpe?g|webp)$/;
+const R2_IMAGE =
+  /^products\/(NPL-\d{3,4})\/image\/[a-f0-9]{32}\.(png|jpg|webp)$/;
+
+export const PRODUCT_STATUSES: ProductStatus[] = [
+  'available',
+  'limited',
+  'enquire',
+];
 export const VISIBILITIES = ['draft', 'published', 'withdrawn'] as const;
 export type Visibility = (typeof VISIBILITIES)[number];
 
@@ -235,7 +265,8 @@ const QUANTITY_PATTERN = /^\d+(?:\.\d+)?\s?(?:mg|g|ug|µg)$/;
 /** "1419.5 g/mol", "663.43 g/mol", "1418.7 Da" */
 const MASS_PATTERN = /^\d+(?:\.\d+)?\s?(?:g\/mol|Da)$/;
 /** "10 mg/mL", "100 mg/mL", "5 mM", "50 µM" — a concentration, never a volume. */
-const CONCENTRATION_PATTERN = /^(?:~|≥|>=|up to )?\d+(?:\.\d+)?\s?(?:mg|ug|µg|g)\/mL$|^(?:~|≥|>=|up to )?\d+(?:\.\d+)?\s?(?:mM|µM|uM|nM|M)$/;
+const CONCENTRATION_PATTERN =
+  /^(?:~|≥|>=|up to )?\d+(?:\.\d+)?\s?(?:mg|ug|µg|g)\/mL$|^(?:~|≥|>=|up to )?\d+(?:\.\d+)?\s?(?:mM|µM|uM|nM|M)$/;
 /** Hill-style formula: element symbols with optional counts, optional charge. */
 const FORMULA_PATTERN = /^(?:[A-Z][a-z]?\d*)+(?:[+-]\d*)?$/;
 const SMILES_PATTERN = /^[A-Za-z0-9@+\-[\]()=#$%.\\/:*]+$/;
@@ -246,8 +277,10 @@ const SKU_PATTERN = /^NPL-\d{3,4}-[A-Z0-9.]{1,12}$/;
  * "Research NexPhase-2T" are caught too. "GLP-1" alone (no letter suffix) and
  * catalog codes like "NPL-001" do not match.
  */
-const INVENTED_NAME_PATTERN = /\b(?:nexphase|npl|glp)[\s-]*\d+[\s-]*[a-z]{1,2}\b/i;
-const BLEND_PATTERN = /\b(blend|blends|proprietary|undisclosed|complex\s+formula|matrix|stack)\b/i;
+const INVENTED_NAME_PATTERN =
+  /\b(?:nexphase|npl|glp)[\s-]*\d+[\s-]*[a-z]{1,2}\b/i;
+const BLEND_PATTERN =
+  /\b(blend|blends|proprietary|undisclosed|complex\s+formula|matrix|stack)\b/i;
 
 /** True when a displayed name is a brand code or a blend rather than a chemical identity. */
 export function isInventedName(text: string): boolean {
@@ -274,7 +307,9 @@ export function skuFor(code: string, quantity: string): string {
 }
 
 export function isLabSolvent(solvent: string): boolean {
-  return SOLVENT_PATTERN.test(solvent.trim()) && !FORBIDDEN_SOLVENT.test(solvent);
+  return (
+    SOLVENT_PATTERN.test(solvent.trim()) && !FORBIDDEN_SOLVENT.test(solvent)
+  );
 }
 
 export function isPresentation(value: string): value is Presentation {
@@ -289,7 +324,10 @@ export type ValidationResult =
  * Validate a product before it is written. Returns either the normalised
  * value or every problem found, so the form can show them all at once.
  */
-export function validateProductInput(raw: ProductInput): ValidationResult {
+export function validateProductInput(
+  raw: ProductInput,
+  options: ValidateOptions = {},
+): ValidationResult {
   const errors: string[] = [];
   const violations: Violation[] = [];
   const t = (s: string | null | undefined) => (s ?? '').trim();
@@ -303,7 +341,10 @@ export function validateProductInput(raw: ProductInput): ValidationResult {
     synonyms: (raw.synonyms ?? []).map(t).filter(Boolean),
     chemicalClass: t(raw.chemicalClass),
     casNumber: t(raw.casNumber),
-    relatedCas: (raw.relatedCas ?? []).map((r) => ({ form: t(r.form), cas: t(r.cas) })),
+    relatedCas: (raw.relatedCas ?? []).map((r) => ({
+      form: t(r.form),
+      cas: t(r.cas),
+    })),
     sequenceOneLetter: t(raw.sequenceOneLetter) || null,
     sequenceThreeLetter: t(raw.sequenceThreeLetter) || null,
     molecularFormula: t(raw.molecularFormula),
@@ -331,6 +372,12 @@ export function validateProductInput(raw: ProductInput): ValidationResult {
     hasSds: Boolean(raw.hasSds),
     image: t(raw.image) || null,
     featured: Boolean(raw.featured),
+    sortOrder:
+      raw.sortOrder === undefined ||
+      raw.sortOrder === null ||
+      (raw.sortOrder as unknown) === ''
+        ? null
+        : Number(raw.sortOrder),
     visibility: t(raw.visibility) || 'draft',
     withdrawnReason: t(raw.withdrawnReason) || null,
     variants: (raw.variants ?? []).map((v, i) => ({
@@ -347,38 +394,87 @@ export function validateProductInput(raw: ProductInput): ValidationResult {
   };
 
   // Identity
-  if (!CODE_PATTERN.test(value.code)) errors.push('Code must look like NPL-001.');
-  if (!SLUG_PATTERN.test(value.slug)) errors.push('Slug must be lowercase letters, digits and hyphens.');
+  if (!CODE_PATTERN.test(value.code))
+    errors.push('Code must look like NPL-001.');
+  if (!SLUG_PATTERN.test(value.slug))
+    errors.push('Slug must be lowercase letters, digits and hyphens.');
   if (!value.name) errors.push('Name is required.');
   // Invented brand-code names ("NexPhase-2T", "GLP-1-S") and undisclosed blends
   // are not chemical identities. FDA issued seven letters in one day against
   // exactly this pattern; the withdrawn NexPhase-2T/-3R entries are in lib/catalog.ts.
   if (isInventedName(value.name)) {
-    errors.push('Product name must be a chemical identity, not an invented brand code or a blend.');
+    errors.push(
+      'Product name must be a chemical identity, not an invented brand code or a blend.',
+    );
   }
   if (isInventedName(value.formalName)) {
-    errors.push('Formal name must be an IUPAC or peptide name; a blend has no chemical identity.');
+    errors.push(
+      'Formal name must be an IUPAC or peptide name; a blend has no chemical identity.',
+    );
   }
   for (const s of value.synonyms) {
-    if (isInventedName(s)) errors.push(`Synonym "${s}" is an invented brand code or blend name, not a chemical identity.`);
+    if (isInventedName(s))
+      errors.push(
+        `Synonym "${s}" is an invented brand code or blend name, not a chemical identity.`,
+      );
   }
-  if (!value.formalName) errors.push('Formal (IUPAC or peptide) name is required.');
-  if (!(CHEMICAL_CLASSES as string[]).includes(value.chemicalClass)) {
-    errors.push(`Chemical class must be one of: ${CHEMICAL_CLASSES.join(', ')}.`);
+  if (!value.formalName)
+    errors.push('Formal (IUPAC or peptide) name is required.');
+  if (!value.chemicalClass) {
+    errors.push('Chemical class is required.');
+  } else if (
+    options.classes &&
+    !options.classes.includes(value.chemicalClass)
+  ) {
+    errors.push(
+      `Chemical class must be one of the active classes: ${options.classes.join(', ')}.`,
+    );
   }
-  if (!isValidCas(value.casNumber)) errors.push('CAS number is malformed or fails its check digit.');
+  if (value.image) {
+    // Rule 5: a photograph belongs to exactly one product. A repository asset must carry this
+    // product's slug; an uploaded key must carry this product's code.
+    const r2 = value.image.match(R2_IMAGE);
+    const staticMatch = value.image.match(STATIC_IMAGE);
+    if (
+      !(staticMatch && staticMatch[1] === value.slug) &&
+      !(r2 && r2[1] === value.code)
+    ) {
+      errors.push(
+        'Photograph must be uploaded through the product page; the path is not a photograph of this product.',
+      );
+    }
+  }
+  if (
+    value.sortOrder !== null &&
+    value.sortOrder !== undefined &&
+    (!Number.isInteger(value.sortOrder) ||
+      value.sortOrder < 0 ||
+      value.sortOrder > 9999)
+  ) {
+    errors.push('Display order must be a whole number from 0 to 9999.');
+  }
+  if (!isValidCas(value.casNumber))
+    errors.push('CAS number is malformed or fails its check digit.');
   for (const r of value.relatedCas) {
-    if (!r.form) errors.push('Each related CAS entry needs a form (e.g. "Acetate salt").');
-    if (!isValidCas(r.cas)) errors.push(`Related CAS ${r.cas || '(empty)'} is malformed or fails its check digit.`);
+    if (!r.form)
+      errors.push('Each related CAS entry needs a form (e.g. "Acetate salt").');
+    if (!isValidCas(r.cas))
+      errors.push(
+        `Related CAS ${r.cas || '(empty)'} is malformed or fails its check digit.`,
+      );
   }
   if (value.sequenceOneLetter && !/^[A-Z]{2,}$/.test(value.sequenceOneLetter)) {
     errors.push('One-letter sequence must be uppercase letters only.');
   }
   if (!FORMULA_PATTERN.test(value.molecularFormula)) {
-    errors.push('Molecular formula must be a Hill-style formula such as C62H98N16O22.');
+    errors.push(
+      'Molecular formula must be a Hill-style formula such as C62H98N16O22.',
+    );
   }
   if (!MASS_PATTERN.test(value.molecularWeight)) {
-    errors.push('Molecular weight must be a number with unit, e.g. "1419.5 g/mol".');
+    errors.push(
+      'Molecular weight must be a number with unit, e.g. "1419.5 g/mol".',
+    );
   }
   if (value.exactMass && !MASS_PATTERN.test(value.exactMass)) {
     errors.push('Exact mass must be a number with unit, e.g. "1418.7 Da".');
@@ -389,24 +485,32 @@ export function validateProductInput(raw: ProductInput): ValidationResult {
   if (value.inchiKey && !/^[A-Z]{14}-[A-Z]{10}-[A-Z]$/.test(value.inchiKey)) {
     errors.push('InChI Key format is invalid.');
   }
-  if (value.pubchemCid && !/^\d+$/.test(value.pubchemCid)) errors.push('PubChem CID must be numeric.');
+  if (value.pubchemCid && !/^\d+$/.test(value.pubchemCid))
+    errors.push('PubChem CID must be numeric.');
 
   // Specification
-  if (!value.purity) errors.push('Purity is required and must state the analytical method.');
+  if (!value.purity)
+    errors.push('Purity is required and must state the analytical method.');
   else if (!/hplc|lc-ms|uplc|nmr|gc/i.test(value.purity)) {
     errors.push('Purity must state the analytical method (e.g. "by HPLC").');
   }
   if (!value.form) errors.push('Physical form is required.');
   if (!value.saltForm) errors.push('Salt / counter-ion is required.');
   for (const s of value.solubility) {
-    if (!s.solvent || !s.concentration) errors.push('Each solubility entry needs a solvent and a concentration.');
+    if (!s.solvent || !s.concentration)
+      errors.push('Each solubility entry needs a solvent and a concentration.');
     if (s.concentration && !CONCENTRATION_PATTERN.test(s.concentration)) {
-      errors.push(`Solubility "${s.concentration}" must be a concentration such as "10 mg/mL" or "5 mM".`);
+      errors.push(
+        `Solubility "${s.concentration}" must be a concentration such as "10 mg/mL" or "5 mM".`,
+      );
     }
     if (s.solvent && !isLabSolvent(s.solvent)) {
-      errors.push(`"${s.solvent}" is not an accepted laboratory solvent. Accepted: ${LAB_SOLVENTS.join(', ')}.`);
+      errors.push(
+        `"${s.solvent}" is not an accepted laboratory solvent. Accepted: ${LAB_SOLVENTS.join(', ')}.`,
+      );
     }
-    if (!s.source) errors.push(`Solubility in ${s.solvent || '(solvent)'} needs a source.`);
+    if (!s.source)
+      errors.push(`Solubility in ${s.solvent || '(solvent)'} needs a source.`);
   }
   if (!value.storageSolid) errors.push('Storage (solid) is required.');
   if (!value.storageStock) errors.push('Storage (stock solution) is required.');
@@ -418,7 +522,8 @@ export function validateProductInput(raw: ProductInput): ValidationResult {
   if (!value.description) errors.push('Description is required.');
 
   // Provenance — every published figure needs a source (CLAUDE.md rule 4).
-  if (value.sourceNotes.length === 0) errors.push('At least one source note is required before saving.');
+  if (value.sourceNotes.length === 0)
+    errors.push('At least one source note is required before saving.');
 
   // Visibility
   if (!(VISIBILITIES as readonly string[]).includes(value.visibility)) {
@@ -427,19 +532,21 @@ export function validateProductInput(raw: ProductInput): ValidationResult {
   if (value.visibility === 'withdrawn' && !value.withdrawnReason) {
     errors.push('A withdrawn product must record the reason.');
   }
-  if (value.image && !/^\/products\/[a-z0-9-]+\.(png|jpg|webp)$/.test(value.image)) {
-    errors.push('Image must be a path under /products/.');
-  }
 
   // Variants
-  if (value.variants.length === 0) errors.push('At least one pack size is required.');
+  if (value.variants.length === 0)
+    errors.push('At least one pack size is required.');
   const skus = new Set<string>();
   for (const v of value.variants) {
     if (!QUANTITY_PATTERN.test(v.quantity)) {
-      errors.push(`Pack size "${v.quantity}" must be a mass such as "5 mg", "1 g" or "500 ug".`);
+      errors.push(
+        `Pack size "${v.quantity}" must be a mass such as "5 mg", "1 g" or "500 ug".`,
+      );
     }
     if (!isPresentation(v.presentation)) {
-      errors.push(`Presentation "${v.presentation}" is not a laboratory presentation. Accepted: ${PRESENTATIONS.join('; ')}.`);
+      errors.push(
+        `Presentation "${v.presentation}" is not a laboratory presentation. Accepted: ${PRESENTATIONS.join('; ')}.`,
+      );
     }
     const sku = v.sku ?? skuFor(value.code, v.quantity);
     if (!SKU_PATTERN.test(sku)) errors.push(`SKU "${sku}" is malformed.`);
@@ -450,8 +557,12 @@ export function validateProductInput(raw: ProductInput): ValidationResult {
       ['List price', 'listPrice', 'listPriceCents'],
       ['Institutional price', 'institutionalPrice', 'institutionalPriceCents'],
     ] as const) {
-      const cents = v[key] != null ? parsePriceCents(v[key]) : (v[target] ?? null);
-      if (cents !== null && Number.isNaN(cents)) errors.push(`${label} for ${v.quantity} must be a dollar amount such as 45 or 45.00.`);
+      const cents =
+        v[key] != null ? parsePriceCents(v[key]) : (v[target] ?? null);
+      if (cents !== null && Number.isNaN(cents))
+        errors.push(
+          `${label} for ${v.quantity} must be a dollar amount such as 45 or 45.00.`,
+        );
       else v[target] = cents;
     }
   }
@@ -477,18 +588,32 @@ export function validateProductInput(raw: ProductInput): ValidationResult {
     ['shipping', value.shipping],
     ['withdrawnReason', value.withdrawnReason],
     ...value.synonyms.map((s, i): [string, string] => [`synonyms[${i}]`, s]),
-    ...value.sourceNotes.map((s, i): [string, string] => [`sourceNotes[${i}]`, s]),
+    ...value.sourceNotes.map((s, i): [string, string] => [
+      `sourceNotes[${i}]`,
+      s,
+    ]),
     ...value.solubility.flatMap((s, i): [string, string | undefined][] => [
       [`solubility[${i}].solvent`, s.solvent],
       [`solubility[${i}].concentration`, s.concentration],
       [`solubility[${i}].note`, s.note],
       [`solubility[${i}].source`, s.source],
     ]),
-    ...value.relatedCas.map((r, i): [string, string] => [`relatedCas[${i}].form`, r.form]),
-    ...value.variants.map((v, i): [string, string] => [`variants[${i}].presentation`, v.presentation]),
+    ...value.relatedCas.map((r, i): [string, string] => [
+      `relatedCas[${i}].form`,
+      r.form,
+    ]),
+    ...value.variants.map((v, i): [string, string] => [
+      `variants[${i}].presentation`,
+      v.presentation,
+    ]),
   ];
-  for (const [field, text] of textFields) violations.push(...scanText(field, text));
+  for (const [field, text] of textFields)
+    violations.push(...scanText(field, text));
 
-  if (errors.length || violations.length) return { ok: false, errors, violations };
-  return { ok: true, value: { ...value, chemicalClass: value.chemicalClass as ChemicalClass } };
+  if (errors.length || violations.length)
+    return { ok: false, errors, violations };
+  return {
+    ok: true,
+    value: { ...value, chemicalClass: value.chemicalClass as ChemicalClass },
+  };
 }

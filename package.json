@@ -20,9 +20,9 @@
     "db:migrate:prod": "wrangler d1 migrations apply nexphase-labs --remote",
     "staff:create": "tsx scripts/staff-create.ts",
     "db:seed:generate": "tsx scripts/seed-catalog.ts",
-    "db:seed:local": "npm run db:seed:generate && wrangler d1 execute nexphase-labs --local --persist-to .wrangler/state --file drizzle/seed/catalog.sql",
-    "db:seed:staging": "npm run db:seed:generate && wrangler d1 execute nexphase-labs-staging --remote --env staging --file drizzle/seed/catalog.sql",
-    "db:seed:prod": "npm run db:seed:generate && wrangler d1 execute nexphase-labs --remote --file drizzle/seed/catalog.sql",
+    "db:seed:local": "npm run db:seed:generate && wrangler d1 execute nexphase-labs --local --persist-to .wrangler/state --file drizzle/seed/classes.sql && wrangler d1 execute nexphase-labs --local --persist-to .wrangler/state --file drizzle/seed/catalog.sql",
+    "db:seed:staging": "npm run db:seed:generate && wrangler d1 execute nexphase-labs-staging --remote --env staging --file drizzle/seed/classes.sql && wrangler d1 execute nexphase-labs-staging --remote --env staging --file drizzle/seed/catalog.sql",
+    "db:seed:prod": "npm run db:seed:generate && wrangler d1 execute nexphase-labs --remote --file drizzle/seed/classes.sql && wrangler d1 execute nexphase-labs --remote --file drizzle/seed/catalog.sql",
     "deploy:staging": "CLOUDFLARE_ENV=staging vinext build && wrangler deploy --config dist/server/wrangler.json",
     "deploy": "vinext build && wrangler deploy --config dist/server/wrangler.json"
   },

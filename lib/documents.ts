@@ -16,7 +16,12 @@ import { env } from 'cloudflare:workers';
  * record, matching the never-delete rule for lot rows.
  */
 
-export const DOCUMENT_TYPES = ['coa', 'chromatogram', 'mass_spec', 'sds'] as const;
+export const DOCUMENT_TYPES = [
+  'coa',
+  'chromatogram',
+  'mass_spec',
+  'sds',
+] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
 export const DOCUMENT_LABEL: Record<DocumentType, string> = {
@@ -43,7 +48,9 @@ export function isDocumentType(value: string): value is DocumentType {
 
 function bucket(): R2Bucket {
   if (!env.DOCS) {
-    throw new Error('Cloudflare R2 binding `DOCS` is unavailable. Check `r2_buckets` in wrangler.jsonc.');
+    throw new Error(
+      'Cloudflare R2 binding `DOCS` is unavailable. Check `r2_buckets` in wrangler.jsonc.',
+    );
   }
   return env.DOCS;
 }
@@ -56,7 +63,12 @@ function assertLotNumber(lotNumber: string): string {
   return normalised;
 }
 
-export function documentKey(lotNumber: string, type: DocumentType, uploadId: string, ext: string): string {
+export function documentKey(
+  lotNumber: string,
+  type: DocumentType,
+  uploadId: string,
+  ext: string,
+): string {
   const lot = assertLotNumber(lotNumber);
   if (!/^[a-z0-9]{8,64}$/.test(uploadId) || !/^[a-z0-9]{2,5}$/.test(ext)) {
     throw new Error('Invalid document key component.');
@@ -84,9 +96,11 @@ export async function putLotDocument(
 ): Promise<StoredDocument> {
   const contentType = file.type;
   const ext = ALLOWED_CONTENT_TYPES[contentType];
-  if (!ext) throw new Error(`Unsupported document type: ${contentType || 'unknown'}.`);
+  if (!ext)
+    throw new Error(`Unsupported document type: ${contentType || 'unknown'}.`);
   if (file.size === 0) throw new Error('Empty file.');
-  if (file.size > MAX_DOCUMENT_BYTES) throw new Error('File exceeds the 25 MB limit.');
+  if (file.size > MAX_DOCUMENT_BYTES)
+    throw new Error('File exceeds the 25 MB limit.');
 
   const uploadId = crypto.randomUUID().replace(/-/g, '');
   const key = documentKey(lotNumber, type, uploadId, ext);
@@ -99,7 +113,9 @@ export async function putLotDocument(
       documentType: type,
       uploadedBy: meta.uploadedBy,
       uploadedAt: uploadedAt.toISOString(),
-      ...(meta.originalName ? { originalName: meta.originalName.slice(0, 200) } : {}),
+      ...(meta.originalName
+        ? { originalName: meta.originalName.slice(0, 200) }
+        : {}),
     },
   });
 
@@ -110,7 +126,9 @@ export async function putLotDocument(
  * Fetch a stored object by key. The caller is responsible for having already
  * checked that the requester is allowed to see this lot's documents.
  */
-export async function getLotDocument(key: string): Promise<R2ObjectBody | null> {
+export async function getLotDocument(
+  key: string,
+): Promise<R2ObjectBody | null> {
   if (!key.startsWith('lots/')) return null;
   return bucket().get(key);
 }
@@ -134,14 +152,19 @@ export async function putOrganizationDocument(
   file: File | Blob,
   meta: { uploadedBy: string; originalName?: string },
 ): Promise<StoredDocument> {
-  if (!/^org_[a-z0-9]{8,32}$/.test(organizationId) || !/^[a-z_]{3,20}$/.test(kind)) {
+  if (
+    !/^org_[a-z0-9]{8,32}$/.test(organizationId) ||
+    !/^[a-z_]{3,20}$/.test(kind)
+  ) {
     throw new Error('Invalid document key component.');
   }
   const contentType = file.type;
   const ext = ALLOWED_CONTENT_TYPES[contentType];
-  if (!ext) throw new Error(`Unsupported document type: ${contentType || 'unknown'}.`);
+  if (!ext)
+    throw new Error(`Unsupported document type: ${contentType || 'unknown'}.`);
   if (file.size === 0) throw new Error('Empty file.');
-  if (file.size > MAX_DOCUMENT_BYTES) throw new Error('File exceeds the 25 MB limit.');
+  if (file.size > MAX_DOCUMENT_BYTES)
+    throw new Error('File exceeds the 25 MB limit.');
 
   const uploadId = crypto.randomUUID().replace(/-/g, '');
   const key = `organizations/${organizationId}/${kind}/${uploadId}.${ext}`;
@@ -153,13 +176,17 @@ export async function putOrganizationDocument(
       kind,
       uploadedBy: meta.uploadedBy,
       uploadedAt: uploadedAt.toISOString(),
-      ...(meta.originalName ? { originalName: meta.originalName.slice(0, 200) } : {}),
+      ...(meta.originalName
+        ? { originalName: meta.originalName.slice(0, 200) }
+        : {}),
     },
   });
   return { key, contentType, size: file.size, uploadedAt };
 }
 
-export async function getOrganizationDocument(key: string): Promise<R2ObjectBody | null> {
+export async function getOrganizationDocument(
+  key: string,
+): Promise<R2ObjectBody | null> {
   if (!key.startsWith('organizations/')) return null;
   return bucket().get(key);
 }
@@ -177,11 +204,14 @@ export async function putProductDocument(
 ): Promise<StoredDocument> {
   const code = productCode.trim().toUpperCase();
   if (!/^NPL-\d{3,4}$/.test(code)) throw new Error('Invalid product code.');
-  if (file.type !== 'application/pdf') throw new Error(`Unsupported document type: ${file.type || 'unknown'}.`);
+  if (file.type !== 'application/pdf')
+    throw new Error(`Unsupported document type: ${file.type || 'unknown'}.`);
   if (file.size === 0) throw new Error('Empty file.');
-  if (file.size > MAX_DOCUMENT_BYTES) throw new Error('File exceeds the 25 MB limit.');
+  if (file.size > MAX_DOCUMENT_BYTES)
+    throw new Error('File exceeds the 25 MB limit.');
   // The declared type is client-supplied; check the file really starts as a PDF.
-  if ((await file.slice(0, 5).text()) !== '%PDF-') throw new Error('Unsupported document type: not a PDF.');
+  if ((await file.slice(0, 5).text()) !== '%PDF-')
+    throw new Error('Unsupported document type: not a PDF.');
   const uploadId = crypto.randomUUID().replace(/-/g, '');
   const key = `products/${code}/${kind}/${uploadId}.pdf`;
   const uploadedAt = new Date();
@@ -192,25 +222,104 @@ export async function putProductDocument(
       kind,
       uploadedBy: meta.uploadedBy,
       uploadedAt: uploadedAt.toISOString(),
-      ...(meta.originalName ? { originalName: meta.originalName.slice(0, 200) } : {}),
+      ...(meta.originalName
+        ? { originalName: meta.originalName.slice(0, 200) }
+        : {}),
     },
   });
   return { key, contentType: 'application/pdf', size: file.size, uploadedAt };
 }
 
-export async function getProductDocument(key: string): Promise<R2ObjectBody | null> {
+const IMAGE_TYPES: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+};
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+function sniffImage(bytes: Uint8Array): string | null {
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  )
+    return 'image/png';
+  if (
+    bytes.length >= 3 &&
+    bytes[0] === 0xff &&
+    bytes[1] === 0xd8 &&
+    bytes[2] === 0xff
+  )
+    return 'image/jpeg';
+  if (
+    bytes.length >= 12 &&
+    String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' &&
+    String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP'
+  )
+    return 'image/webp';
+  return null;
+}
+
+/** Product photograph. PNG, JPEG or WebP, checked by magic bytes. Key: products/<CODE>/image/<uploadId>.<ext> */
+export async function putProductImage(
+  productCode: string,
+  file: File | Blob,
+  meta: { uploadedBy: string; originalName?: string },
+): Promise<StoredDocument> {
+  const code = productCode.trim().toUpperCase();
+  if (!/^NPL-\d{3,4}$/.test(code)) throw new Error('Invalid product code.');
+  if (file.size === 0) throw new Error('Empty file.');
+  if (file.size > MAX_IMAGE_BYTES)
+    throw new Error('File exceeds the 10 MB limit.');
+  const sniffed = sniffImage(
+    new Uint8Array(await file.slice(0, 12).arrayBuffer()),
+  );
+  if (!sniffed || !(sniffed in IMAGE_TYPES))
+    throw new Error(
+      'Unsupported document type: not a PNG, JPEG or WebP image.',
+    );
+  const uploadId = crypto.randomUUID().replace(/-/g, '');
+  const key = `products/${code}/image/${uploadId}.${IMAGE_TYPES[sniffed]}`;
+  const uploadedAt = new Date();
+  await bucket().put(key, file.stream(), {
+    httpMetadata: { contentType: sniffed },
+    customMetadata: {
+      productCode: code,
+      kind: 'image',
+      uploadedBy: meta.uploadedBy,
+      uploadedAt: uploadedAt.toISOString(),
+      ...(meta.originalName
+        ? { originalName: meta.originalName.slice(0, 200) }
+        : {}),
+    },
+  });
+  return { key, contentType: sniffed, size: file.size, uploadedAt };
+}
+
+export async function getProductDocument(
+  key: string,
+): Promise<R2ObjectBody | null> {
   if (!key.startsWith('products/')) return null;
   return bucket().get(key);
 }
 
 /** Build a download response for a stored object, with a safe filename. */
-export function documentResponse(object: R2ObjectBody, filename: string, inline = false): Response {
+export function documentResponse(
+  object: R2ObjectBody,
+  filename: string,
+  inline = false,
+): Response {
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set('etag', object.httpEtag);
   headers.set('Cache-Control', 'private, no-store');
   headers.set('X-Content-Type-Options', 'nosniff');
   const safeName = filename.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120);
-  headers.set('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${safeName}"`);
+  headers.set(
+    'Content-Disposition',
+    `${inline ? 'inline' : 'attachment'}; filename="${safeName}"`,
+  );
   return new Response(object.body, { headers });
 }

@@ -6,6 +6,7 @@ import { createProduct, updateProduct } from '@/lib/catalog-admin';
 import { getProductByCode } from '@/lib/catalog-data';
 import { formValues, valuesToInput, type FormValues } from '@/lib/catalog-form';
 import { validateProductInput, type Violation } from '@/lib/catalog-rules';
+import { listActiveClasses } from '@/lib/classes';
 import { canEditCatalog, getStaff } from '@/lib/staff-auth';
 
 export type ProductFormState = {
@@ -39,15 +40,33 @@ export async function saveProductAction(
   data: FormData,
 ): Promise<ProductFormState> {
   const values = formValues(data);
-  const fail = (message: string): ProductFormState => ({ values, errors: [message], violations: [] });
+  const fail = (message: string): ProductFormState => ({
+    values,
+    errors: [message],
+    violations: [],
+  });
 
-  if (!(await sameOriginAction())) return fail('Request rejected: cross-origin.');
+  if (!(await sameOriginAction()))
+    return fail('Request rejected: cross-origin.');
   const staff = await getStaff();
   if (!staff) redirect('/staff/sign-in?return_to=%2Fmanage');
   if (!canEditCatalog(staff)) return fail('Your role cannot edit the catalog.');
 
-  const result = validateProductInput(valuesToInput(values));
-  if (!result.ok) return { values, errors: result.errors, violations: result.violations };
+  let classNames: string[];
+  try {
+    classNames = (await listActiveClasses()).map((c) => c.name);
+  } catch (error) {
+    console.error(
+      '[catalog] classes unavailable',
+      error instanceof Error ? error.message : error,
+    );
+    return fail('The catalog could not be saved. Try again shortly.');
+  }
+  const result = validateProductInput(valuesToInput(values), {
+    classes: classNames,
+  });
+  if (!result.ok)
+    return { values, errors: result.errors, violations: result.violations };
 
   const note = values.note?.trim() || null;
   let outcome;
@@ -57,10 +76,18 @@ export async function saveProductAction(
     } else {
       const current = await getProductByCode(mode.code);
       if (!current) return fail('That product no longer exists.');
-      outcome = await updateProduct(current, { ...result.value, code: current.code }, staff, note);
+      outcome = await updateProduct(
+        current,
+        { ...result.value, code: current.code },
+        staff,
+        note,
+      );
     }
   } catch (error) {
-    console.error('[catalog] write failed', error instanceof Error ? error.message : error);
+    console.error(
+      '[catalog] write failed',
+      error instanceof Error ? error.message : error,
+    );
     return fail('The catalog could not be saved. Try again shortly.');
   }
 
