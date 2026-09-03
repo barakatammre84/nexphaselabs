@@ -1,10 +1,14 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Building2, CircleCheck, Clock, Lock } from 'lucide-react';
+import { AcknowledgementForm } from '@/components/site/acknowledgement-form';
 import { requireAccount } from '@/lib/account-auth';
+import { acknowledgementsCurrent } from '@/lib/account-rules';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Your account', robots: { index: false, follow: false } };
+
+type Props = { searchParams: Promise<{ ack?: string }> };
 
 const VERIFICATION_TEXT: Record<string, { title: string; body: string }> = {
   none: {
@@ -29,10 +33,13 @@ const VERIFICATION_TEXT: Record<string, { title: string; body: string }> = {
   },
 };
 
-export default async function AccountPage() {
+export default async function AccountPage({ searchParams }: Props) {
   const account = await requireAccount('/account');
+  const { ack } = await searchParams;
+  const current = acknowledgementsCurrent(account);
   const verification = VERIFICATION_TEXT[account.verificationStatus] ?? VERIFICATION_TEXT.none;
   const approved = account.verificationStatus === 'approved';
+  const consumer = account.tier === 'consumer';
 
   return (
     <main className="bg-background text-foreground">
@@ -50,29 +57,52 @@ export default async function AccountPage() {
           </form>
         </div>
 
-        <div className="mt-10 border border-border bg-secondary p-6">
-          <div className="flex items-center gap-3">
-            {approved ? (
-              <CircleCheck className="size-5 text-primary" />
-            ) : account.verificationStatus === 'submitted' ? (
-              <Clock className="size-5 text-primary" />
-            ) : (
-              <Lock className="size-5 text-primary" />
-            )}
-            <h2 className="font-display text-xl font-bold tracking-tight">{verification.title}</h2>
+        {!current ? (
+          <div className="mt-10">
+            <AcknowledgementForm returnTo="/account" error={ack} />
           </div>
-          <p className="mt-3 leading-7 text-muted-foreground">{verification.body}</p>
-          {account.tier === 'institutional' && (account.verificationStatus === 'none' || account.verificationStatus === 'more_info') && (
-            <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-              <Building2 className="size-4" /> Organisation submission opens in the next stage of the build.
+        ) : consumer ? (
+          <div className="mt-10 border border-border bg-secondary p-6">
+            <div className="flex items-center gap-3">
+              <CircleCheck className="size-5 text-primary" />
+              <h2 className="font-display text-xl font-bold tracking-tight">Individual researcher account</h2>
+            </div>
+            <p className="mt-3 leading-7 text-muted-foreground">
+              Materials are supplied for laboratory research use only, under the acknowledgement you confirmed at
+              sign-up. Shipping is to a laboratory or business address.
             </p>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="mt-10 border border-border bg-secondary p-6">
+            <div className="flex items-center gap-3">
+              {approved ? (
+                <CircleCheck className="size-5 text-primary" />
+              ) : account.verificationStatus === 'submitted' ? (
+                <Clock className="size-5 text-primary" />
+              ) : (
+                <Lock className="size-5 text-primary" />
+              )}
+              <h2 className="font-display text-xl font-bold tracking-tight">{verification.title}</h2>
+            </div>
+            <p className="mt-3 leading-7 text-muted-foreground">{verification.body}</p>
+            {(account.verificationStatus === 'none' || account.verificationStatus === 'more_info') && (
+              <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+                <Building2 className="size-4" /> Organisation submission opens in the next stage of the build.
+              </p>
+            )}
+          </div>
+        )}
 
         <dl className="mt-10 border-t border-border">
           <div className="grid gap-1 border-b border-border py-4 sm:grid-cols-[220px_1fr] sm:gap-6">
             <dt className="text-sm font-semibold text-muted-foreground">Account type</dt>
-            <dd className="text-sm">{account.tier === 'institutional' ? 'Research organisation' : 'Individual researcher'}</dd>
+            <dd className="text-sm">{consumer ? 'Individual researcher' : 'Research organisation'}</dd>
+          </div>
+          <div className="grid gap-1 border-b border-border py-4 sm:grid-cols-[220px_1fr] sm:gap-6">
+            <dt className="text-sm font-semibold text-muted-foreground">Terms accepted</dt>
+            <dd className="font-mono text-sm">
+              terms {account.termsVersion ?? '—'} &middot; research-use {account.ruoVersion ?? '—'}
+            </dd>
           </div>
           <div className="grid gap-1 border-b border-border py-4 sm:grid-cols-[220px_1fr] sm:gap-6">
             <dt className="text-sm font-semibold text-muted-foreground">Catalog</dt>

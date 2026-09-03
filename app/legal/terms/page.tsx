@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { LegalPage, LegalSection } from '@/components/site/legal-layout';
+import { RUO_ACKNOWLEDGEMENT, RUO_VERSION, TERMS_VERSION } from '@/lib/policy';
 
 export const metadata: Metadata = {
   title: 'Terms of sale',
@@ -10,7 +11,7 @@ export default function TermsPage() {
   return (
     <LegalPage
       title="Terms of sale"
-      updated="Pending review"
+      updated={`Version ${TERMS_VERSION} — pending counsel review`}
       intro="These terms govern the supply of research materials by NexPhase Labs to approved organizations. Opening an account or placing an order means the organization accepts them."
     >
       <LegalSection id="research-use" heading="1. Research-use policy">
@@ -28,15 +29,29 @@ export default function TermsPage() {
           NexPhase Labs does not provide dosing guidance, administration protocols, or medical advice of any kind,
           and no request for such guidance will be answered.
         </p>
+        <p className="border-l-2 border-primary bg-secondary px-4 py-3 text-foreground">
+          <span className="block font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+            Research-use acknowledgement, version {RUO_VERSION}
+          </span>
+          <span className="mt-2 block">{RUO_ACKNOWLEDGEMENT}</span>
+        </p>
+        <p>
+          Every account records the version of this acknowledgement and of these terms that it accepted, and when.
+          If either changes, the account must accept the new version before pricing or ordering is available.
+        </p>
       </LegalSection>
 
       <LegalSection heading="2. Eligibility and account review">
         <p>
-          Accounts are opened only for organizations that qualify under the research access criteria published on
-          this site. NexPhase Labs may request additional verification, and may decline or close any account at its
-          discretion.
+          Accounts are opened for organizations that qualify under the research access criteria published on this
+          site and, only where NexPhase Labs has enabled it, for individual researchers who have confirmed the
+          research-use acknowledgement. NexPhase Labs may request additional verification, and may decline or close
+          any account at its discretion.
         </p>
-        <p>Orders are shipped to verified business addresses only. Residential shipping addresses are not accepted.</p>
+        <p>
+          Orders are shipped to verified laboratory or business addresses only. Residential shipping addresses are
+          not accepted for any account type.
+        </p>
       </LegalSection>
 
       <LegalSection heading="3. Specifications and documentation">

@@ -2,11 +2,12 @@ import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getDb } from '@/db';
-import { accountSessions, accounts, emailTokens, type Account } from '@/db/schema';
+import { accountAcknowledgements, accountSessions, accounts, emailTokens, type Account } from '@/db/schema';
 import { sendEmail } from '@/lib/email';
 import { hashPassword, randomToken, sha256Hex, verifyPassword } from '@/lib/staff-auth-core';
 import type { AccountTier } from '@/lib/account-rules';
-import { RUO_VERSION, TERMS_VERSION, publicOrigin } from '@/lib/site-config';
+import { RUO_VERSION, TERMS_VERSION } from '@/lib/policy';
+import { publicOrigin } from '@/lib/site-config';
 
 /**
  * Customer account authentication. Same primitives and the same posture as
@@ -30,8 +31,39 @@ export type AccountPrincipal = {
   tier: AccountTier;
   status: string;
   verificationStatus: string;
+  termsVersion: string | null;
+  ruoVersion: string | null;
   sessionId: string;
 };
+
+/** Append-only acceptance rows for both documents at their current versions. */
+function acknowledgementRows(accountId: string, at: Date, userAgent: string | null) {
+  return (['terms', 'ruo'] as const).map((document) => ({
+    id: id('ack'),
+    accountId,
+    document,
+    version: document === 'terms' ? TERMS_VERSION : RUO_VERSION,
+    acceptedAt: at,
+    userAgent: userAgent?.slice(0, 200) ?? null,
+    createdAt: at,
+  }));
+}
+
+/**
+ * Record acceptance of the current terms and research-use acknowledgement:
+ * two history rows plus the cached versions on the account, in one batch.
+ */
+export async function recordAcknowledgements(accountId: string, userAgent: string | null): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  await db.batch([
+    db.insert(accountAcknowledgements).values(acknowledgementRows(accountId, now, userAgent)),
+    db
+      .update(accounts)
+      .set({ termsAcceptedAt: now, termsVersion: TERMS_VERSION, ruoAcceptedAt: now, ruoVersion: RUO_VERSION, updatedAt: now })
+      .where(eq(accounts.id, accountId)),
+  ]);
+}
 
 function id(prefix: string): string {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`;
@@ -43,12 +75,10 @@ function id(prefix: string): string {
 
 export type SignUpResult = { ok: true; accountId: string; emailSent: boolean } | { ok: false; reason: 'exists' | 'email' };
 
-export async function signUp(input: {
-  name: string;
-  email: string;
-  password: string;
-  tier: AccountTier;
-}): Promise<SignUpResult> {
+export async function signUp(
+  input: { name: string; email: string; password: string; tier: AccountTier },
+  userAgent: string | null,
+): Promise<SignUpResult> {
   const db = getDb();
   const now = new Date();
 
@@ -74,20 +104,23 @@ export async function signUp(input: {
 
   const accountId = id('acc');
   try {
-    await db.insert(accounts).values({
-      id: accountId,
-      email: input.email,
-      name: input.name,
-      passwordHash,
-      tier: input.tier,
-      status: 'pending_email',
-      termsAcceptedAt: now,
-      termsVersion: TERMS_VERSION,
-      ruoAcceptedAt: now,
-      ruoVersion: RUO_VERSION,
-      createdAt: now,
-      updatedAt: now,
-    });
+    await db.batch([
+      db.insert(accounts).values({
+        id: accountId,
+        email: input.email,
+        name: input.name,
+        passwordHash,
+        tier: input.tier,
+        status: 'pending_email',
+        termsAcceptedAt: now,
+        termsVersion: TERMS_VERSION,
+        ruoAcceptedAt: now,
+        ruoVersion: RUO_VERSION,
+        createdAt: now,
+        updatedAt: now,
+      }),
+      db.insert(accountAcknowledgements).values(acknowledgementRows(accountId, now, userAgent)),
+    ]);
   } catch (error) {
     if (/UNIQUE constraint failed/i.test(error instanceof Error ? error.message : String(error))) {
       return { ok: false, reason: 'exists' };
@@ -266,6 +299,8 @@ async function principalForToken(token: string | undefined): Promise<AccountPrin
     tier: row.account.tier as AccountTier,
     status: row.account.status,
     verificationStatus: row.account.verificationStatus,
+    termsVersion: row.account.termsVersion,
+    ruoVersion: row.account.ruoVersion,
     sessionId: row.session.id,
   };
 }

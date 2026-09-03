@@ -462,6 +462,28 @@ export const emailTokens = sqliteTable(
   }),
 );
 
+/**
+ * Acceptance history. Append-only: one row per document per acceptance, so
+ * the record shows every version an account ever agreed to and when. The
+ * scalar columns on `accounts` are only a cache of the latest row.
+ */
+export const accountAcknowledgements = sqliteTable(
+  'account_acknowledgements',
+  {
+    id: text('id').primaryKey(),
+    accountId: text('account_id').notNull(),
+    /** terms | ruo */
+    document: text('document').notNull(),
+    version: text('version').notNull(),
+    acceptedAt: integer('accepted_at', { mode: 'timestamp' }).notNull(),
+    userAgent: text('user_agent'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    accountIdx: index('account_acknowledgements_account_idx').on(table.accountId),
+  }),
+);
+
 export type Account = typeof accounts.$inferSelect;
 export type StaffUser = typeof staffUsers.$inferSelect;
 export type StaffSession = typeof staffSessions.$inferSelect;

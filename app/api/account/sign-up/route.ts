@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await signUp(validated.value);
+    const result = await signUp(validated.value, request.headers.get('user-agent'));
     if (!result.ok && result.reason === 'email') return back({ error: 'email' });
     // 'exists' falls through to the same success page deliberately.
     const done = new URL('/account/check-email', request.url);

@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { AlertCircle } from 'lucide-react';
 import { getAccount } from '@/lib/account-auth';
-import { RUO_ACKNOWLEDGEMENT, consumerTierEnabled } from '@/lib/site-config';
+import { RUO_ACKNOWLEDGEMENT } from '@/lib/policy';
+import { consumerTierEnabled } from '@/lib/site-config';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {

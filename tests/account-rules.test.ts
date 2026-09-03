@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { isFreeMailDomain, normaliseEmail, validateSignIn, validateSignUp } from '@/lib/account-rules';
+import { acknowledgementsCurrent, isFreeMailDomain, normaliseEmail, validateSignIn, validateSignUp } from '@/lib/account-rules';
+import { RUO_VERSION, TERMS_VERSION } from '@/lib/policy';
+
+describe('acknowledgementsCurrent', () => {
+  it('is true only when both versions match the current ones', () => {
+    expect(acknowledgementsCurrent({ termsVersion: TERMS_VERSION, ruoVersion: RUO_VERSION })).toBe(true);
+    expect(acknowledgementsCurrent({ termsVersion: '2020-01-01', ruoVersion: RUO_VERSION })).toBe(false);
+    expect(acknowledgementsCurrent({ termsVersion: TERMS_VERSION, ruoVersion: null })).toBe(false);
+  });
+});
 
 const good = {
   name: 'Dr Ada Lovelace',

@@ -1,4 +1,13 @@
+import { RUO_VERSION, TERMS_VERSION } from '@/lib/policy';
 import { passwordPolicyError } from '@/lib/staff-auth-core';
+
+/**
+ * True when the account has accepted the current versions of both documents.
+ * A stale account must re-accept before pricing, ordering or verification.
+ */
+export function acknowledgementsCurrent(account: { termsVersion: string | null; ruoVersion: string | null }): boolean {
+  return account.termsVersion === TERMS_VERSION && account.ruoVersion === RUO_VERSION;
+}
 
 /**
  * Pure validation for account forms. No database, no framework, so it runs
