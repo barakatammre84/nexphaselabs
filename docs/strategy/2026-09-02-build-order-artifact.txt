@@ -1,0 +1,295 @@
+NexPhase Build Order
+- 
+- 
+- 
+
+      NexPhase Labs
+      Operating plan
+      2 September 2026
+
+# You haven't launched yet. That is the best news in this entire engagement.
+
+    One commit, dated yesterday. No checkout, no payment processor, no entity formed, no evidence of a single sale. Everything in the last two briefs describes exposure you have not yet taken on. You are choosing a starting point, not cleaning up a mess — and that is a completely different and much cheaper problem.
+
+    I'm not your lawyer and nothing here is privileged — that matters in a business with criminal exposure, so §4 is about hiring a real one and getting your money's worth. Everything else is strategy and sequencing, which is a thing I can actually help with.
+
+        Observed
+
+          - 1 commit · 2026-09-01
+
+          - no checkout code
+
+          - no processor
+
+          - entity: TODO
+
+## 01 — Where you actually areDay zero, with three things already right
+
+          Position
+          Nothing has shipped. No customer has paid you. The two briefs I wrote describe a business you were about to start, not one you're running.
+
+          Every path below is available at full cost. Nothing has to be unwound. This is the cheapest moment this decision will ever be, and it will not stay this cheap once the first order ships.
+
+        Three things you've already built that are genuinely good and worth keeping through any pivot:
+
+          - The access page is the right gate. Institutions only, organization email domain required, no residential addresses, and an explicit exclusion of individuals, consumers, resellers, and clinics or pharmacies intending human administration. That is Bachem's standard, which is the strongest published position in the industry. You built the correct door. The problem was never the door.
+
+          - "The lot is the unit of truth." That line on your about page is the right operating philosophy and it should survive into whatever you build.
+
+          - The site itself. It's well-made and the positioning discipline in the copy is real. Product decisions change; this work doesn't get thrown away.
+
+          One sentence to delete today
+          Both blend pages say the product is "prepared in-house." That sentence, published, makes you a drug manufacturer — it triggers FDA establishment registration within five days, an NDC labeler code, drug listing, full cGMP, and a California CDPH drug manufacturing license. It is the single most expensive sentence on the site and it is not yet true of anything you've sold. Delete it, or decide deliberately to become that company.
+
+### And one gap that's bigger than it looks
+
+        Your about page has a TODO to fill in "registered entity name, state of incorporation, year founded." Read plainly: there is no entity. Right now every obligation, every contract, every lease and every liability runs to you personally, and to your personal balance sheet. Form the entity before you sign anything else. It won't shield you from FDCA officer liability — nothing does — but it separates everything else, and it costs about $900.
+
+        Correction
+
+          - Fagron FY25
+
+          - €952M rev
+
+          - 21 CFR 207.17
+
+## 02 — Correcting myselfThe reagent-supplier path I recommended is worse than I said
+
+        On Monday I told you "become an actual reagent supplier" was the buildable path. I went and pressure-tested that this morning and it doesn't hold up. You should know why before you spend anything on it.
+
+          - The business requires cGMP registration, which I didn't account for. Compounding pharmacies buy API in 25g–1kg packs. Manufacturers ship 25kg drums. Breaking a drum is repacking, which triggers FDA establishment registration, cGMP, and routine inspection. There is no warehouse-and-paperwork version. You are either a regulated repackager or you're not in the market.
+
+          - The incumbent is a €952M consolidator. Fagron did 19.7% EBITDA margins in North America last year and has spent a decade acquiring exactly the kind of entrant you'd be. That's not a competitor, that's an exit — and it's one that doesn't need you.
+
+          - The moat is documentation, not chemicals. PCCA charges $895/month and pharmacists openly say its ingredients cost more than Fagron's — they pay anyway, for the beyond-use-date library they show their state board. You would be competing against a documentation product priced as a chemical, and you can't buy the documentation.
+
+          - The interesting products are the illegal ones. The actual codified 503A bulks list is six niche dermatology items. Everything else compounders buy qualifies through having a USP monograph or being a component of an approved drug — which is a commodity. The peptides are the only interesting category and they're the ones that can't be compounded.
+
+        Buyers also don't switch. Pharmacy vendor-validation practice requires re-testing when a supplier changes, so trying you costs your prospect money. Conservative buyers in a liability-heavy field don't do that for a new entrant with no history.
+
+        Scratch it. Minimum viable scale is roughly $3–8M before meaningful revenue, into a commodity market with an entrenched consolidator. That's a bad use of your capital.
+
+        Do now
+
+          - Week 1
+
+## 03 — Week oneSix things that are right regardless of which path you pick
+
+        Do these before the strategic decision. None of them commits you to anything, all of them get cheaper the earlier you do them, and two of them can change what's possible.
+
+          01
+
+          Form the entityA California LLC or Delaware C-corp depending on whether you'll raise. If there's any chance of outside capital, Delaware C-corp. Get the EIN, open a business bank account, and stop transacting personally. Do this first because everything else should be signed by the entity.
+
+          ~$900
+
+          02
+
+          Take the four SKUs downRemove tesamorelin, BPC-157, selank, and both proprietary blends from the site and from any sourcing plan. Keep the pages in version control — don't scrub history, archives exist and a clean deletion record is better than an apparent cover-up. Nothing has shipped, so this costs you nothing but the images.
+
+          free
+
+          03
+
+          Pull your parcel's zoning designationOne lookup at Oakland Planning. If your lease is in a zone where hazardous materials storage is prohibited rather than permitted, the remedy is relocation and you want to know that before you sign anything longer. This is the only item whose worst case is "move."
+
+          free
+
+          04
+
+          Inventory the inventoryWrite down exactly what is physically in the Oakland space — compound, quantity, lot, supplier, country of origin, what documentation came with it, and what you paid. You need this for counsel, for any disposition decision, and for your own accounting. Do not destroy anything yet and do not sell anything. Quarantine it and label it quarantined.
+
+          a day
+
+          05
+
+          Send the counsel briefThree firms, same brief, fixed-fee scoping call. §4 below is the email. Do this in week one because their answer shapes everything in §5, and because you want the conversation privileged before you file or apply for anything.
+
+          $0 to ask
+
+          06
+
+          Calendar the OSHA dateWritten hazard communication program, GHS labels, safety data sheets and trained staff by 20 November 2026. True for any business storing chemicals in a warehouse with employees, whatever you decide to sell. It's about eleven weeks out and it's a consultant engagement, not a legal one.
+
+          $3–8K
+
+        Counsel
+
+          - FDA regulatory
+
+          - CA-admitted
+
+          - enforcement defense
+
+## 04 — Hiring the lawyerWhat to ask for, and what it should cost
+
+        You don't want a general business attorney and you don't want to pay a big firm to educate itself on your facts. You want an FDA regulatory lawyer, California-admitted, who has defended enforcement matters in the compounding or supplement space. Firms doing real work here: Frier Levitt (the deepest compounding-and-peptides practice in the country), Health Law Alliance, Hyman Phelps & McNamara (the FDA specialist boutique), Nelson Hardiman (California health care boutique), and Hooper Lundy.
+
+        Ask for a fixed-fee scoping engagement, not an open hourly retainer. You're buying an answer to five questions, not a relationship yet. Expect $7,500–$20,000 for a proper written scoping memo, and expect a free 30-minute intake call before that. If a firm won't quote a fixed fee for a defined scope, that tells you something.
+
+        Send the same brief to three firms. Compare not just the price but what they push back on — the good ones will tell you something in the intake call that isn't in this document.
+
+#### Copy this — engagement brief
+
+        Subject: Fixed-fee regulatory scoping — pre-launch research materials / longevity venture, Oakland CA
+
+        I'm the founder of a pre-launch venture in Oakland, California. I have a leased commercial space, inventory on hand, and a built but unlaunched e-commerce site. I have not sold anything and have not formed the operating entity yet. I'm engaging counsel before launch rather than after, and I'd like a fixed-fee scoping engagement.
+
+        Where I am: the original plan was to distribute research peptides and small-molecule reagents on a research-use-only basis to institutional buyers, with a roadmap to filling vials in-house. I've since done enough reading to believe that model has serious unapproved-new-drug and misbranding exposure, and I want a professional read before I commit capital. I'm also evaluating a pivot to a telehealth-prescriber model on the AgelessRx pattern.
+
+        The five questions I want answered in writing:
+
+          - Given that I have not launched, what is the cleanest lawful configuration of this business? Specifically — is there a version of institutional research-reagent distribution that works from California, and what would the product list and customer controls have to look like?
+
+          - What is my exposure for inventory currently on hand that I now believe I cannot lawfully sell, and what is the correct disposition — return to supplier, destruction, or sale to a licensed buyer? What records should I keep?
+
+          - Do I need a California Board of Pharmacy wholesaler license, a CDPH drug manufacturing license, or FDA establishment registration under any of the configurations above? My reading is that this turns on whether anything is opened, aliquoted or relabeled on site.
+
+          - If I pivot to a telehealth model: given the Attorney General's position in Art Center Holdings, how would you structure an MSO and professional corporation today, and would you domicile it in California at all? I am not a licensed clinician.
+
+          - What is your fixed fee for a written memo answering the above, and what would ongoing regulatory support cost once I've picked a direction?
+
+        What I'll provide: the site as built, the full product list with sourcing and supplier documentation, the lease and zoning designation, a complete inventory schedule, and my supplier correspondence. I have research notes on the applicable federal and California authorities that I'm happy to share as a starting point — I'd rather pay you to correct and confirm them than to reproduce them.
+
+        I'd like this conversation to be privileged and I have not made any regulatory filing, license application, or public disclosure. Available for an intake call this week.
+
+      One note on the last paragraph: it's true and it matters. Filing a hazardous materials business plan, applying for a license, or registering with FDA all create public records. Sequence the legal conversation before any of them.
+
+        Decide
+
+          - 30–60 days
+
+## 05 — The strategic choiceThree real options, honestly priced
+
+        With the reagent-supply path scratched, here is what's actually left. I'll give you my recommendation after the table, but the reasoning matters more than the conclusion.
+
+           |  | Option | What you'd be | Capital to first revenue | Time | Honest read
+
+               | Partner-model longevity brand
+               | A consumer brand and customer-acquisition engine on top of a licensed telehealth network and pharmacy
+               | $75–150K
+               | 3–4 mo
+               | Your commercial skills apply directly. The clinical and pharmacy licensure risk sits with your partner. Product list must stay boring — LDN, rapamycin, metformin, oral NAD+ — because the exciting products are the ones under enforcement.
+
+               | Build your own medical group
+               | An MSO with a captive professional corporation, the full AgelessRx structure
+               | $300–600K
+               | 9–14 mo
+               | Right long-term shape, wrong first move. You have no clinician, California is the hardest state, and the structure's load-bearing wall is in front of an appellate court right now. Do this after you have revenue and a physician who wants in.
+
+               | Don't build this one
+               | Wind down the venture, keep the entity and the lease or exit both
+               | ~$25K
+               | 6–8 wk
+               | A live option and not a defeat. Your sunk cost is a lease, some inventory and a website nobody has seen. Your comparative advantage is credit, deal structure and capital — none of which this business uses.
+
+        Recommend
+
+### What I'd do
+
+        The partner-model brand, with a hard rule about the product list.
+
+        The reasoning is about your edge, not the category. You are not a chemist and you are not a physician. You are a commercial banker who has spent twelve years underwriting, structuring and selling deals. In a partner model, your job is negotiating a white-label agreement, diligencing a counterparty, and acquiring customers — all three are things you're already good at. In a manufacturing or distribution model, your job is quality systems and regulatory affairs, where you'd be hiring every bit of the competence and competing with people who've done it for thirty years.
+
+        The hard rule: no compounded GLP-1s. It is the highest-margin, highest-demand line in the category and it is the reason to walk away from any partner who leads with it. FDA has issued warning letters to 55+ telehealth companies over it in the last twelve months, the Fifth Circuit affirmed FDA's position last week, Lilly and Novo are suing platforms directly, and an import alert is choking the ingredient supply. Building your customer acquisition on a product that may be gone in six months is building on sand.
+
+        What's left is genuinely a business: low-dose naltrexone is the most legally durable compounded product in the entire longevity category, rapamycin and metformin are approved generics prescribed off-label, and oral NAD+ is a supplement. Boring, defensible, and nobody has built a trusted brand on top of them yet — because everyone chased the GLP-1 money instead.
+
+          The asset nobody else in this category has
+          You're fluent in Arabic, you already run a venture targeting the GCC, and Gulf longevity and wellness is one of the fastest-growing private healthcare segments in the world under an entirely different regulatory regime. That's a real differentiator and it's worth thinking about as a phase-two market rather than a distraction — but it's a separate diligence exercise and I'd want to do it properly rather than assert it. Say the word.
+
+        Build
+
+          - Mo 1 · foundation
+
+          - Mo 2 · partner
+
+          - Mo 3 · launch
+
+          - Mo 4–12 · scale
+
+## 06 — The buildIf you take the recommendation
+
+### Month 1 — foundation
+
+        Week one items above, plus: decide what the brand actually is. The current positioning — supplier of research materials with rigorous documentation — does not transfer to a consumer health brand and shouldn't be forced to. This is a rename-or-reposition decision and it's worth doing deliberately while nothing is public.
+
+        Also resolve the Oakland space. In a partner model you don't need a warehouse — your partner's pharmacy ships. That lease is now a cost with no function, and dealing with it early is worth real money.
+
+### Month 2 — the partner deal
+
+        This is the month that matters and it's the part you're best at. Shortlist three or four telehealth-and-pharmacy networks that white-label. Diligence each one on: state licensure coverage and how they gate patients in states they can't serve; their pharmacy's nonresident licenses; whether the pharmacy is 503A or 503B and what that means for your product list; their prescribing modality by state, given that asynchronous prescribing is what drew three board actions against AgelessRx's own physician; their FDA warning letter history; and their product list, which is where you find out whether they're a GLP-1 shop.
+
+        Negotiate for: your brand on the front end, their name and license visible on the label and in the terms as the law requires, clear allocation of liability, an exit that lets you take your customer list, and a term short enough that you're not married to them if they get a warning letter.
+
+### Month 3 — launch small
+
+        One or two states, one or two products, a real medical intake, and a marketing budget you'd be comfortable losing. You're testing whether you can acquire a customer profitably, not whether the market exists — it plainly does. Get LegitScript certification early; your own domain needs its own certification, not just your pharmacy partner's, and without it you cannot advertise on Google or Meta at all.
+
+### Months 4–12 — expand, in this order
+
+          - States, not products. Adding a state costs you almost nothing in a partner model and multiplies the addressable market. Adding a product adds regulatory surface. Expand along the free axis first.
+
+          - Then retention. These are subscription products. The unit economics live or die on months three through twelve, not on acquisition cost. Build the follow-up care and the lab-monitoring cadence that makes people stay — and that also happens to be what the standard of care requires for rapamycin and metformin, so it's compliance and retention in the same spend.
+
+          - Then, and only then, your own structure. Once you have revenue, retention data and a physician who has seen the business work, you can recruit a real medical director rather than a nominee — which is the difference between a structure that survives scrutiny and one that doesn't. That's the moment to spend the $300–600K, not now.
+
+### What to stop doing
+
+          - Building the inventory management system. It was the right instinct for the wrong business — in a partner model your pharmacy holds the inventory and the traceability obligation.
+
+          - Sourcing conversations with overseas peptide suppliers. Every one of them is a future exhibit and none of them serves any path above.
+
+          - Adding catalog SKUs. Your product list should get shorter for the next six months, not longer.
+
+        Open
+
+## 07 — What I still don't knowFour things that would change this advice
+
+          - What you've already spent, and on what. The lease term, the inventory outlay, and whether either is recoverable. If the inventory is a large number, the disposition question in the counsel brief moves up the priority list.
+
+          - Whether you have supplier commitments. Purchase orders or minimums with an overseas manufacturer change the sequencing and may need unwinding before anything else.
+
+          - What you're optimizing for. A business that returns capital in eighteen months and one you'd run for a decade point to different answers here, and I've assumed the second.
+
+          - Whether you actually want to be in healthcare. Worth asking plainly. This category is going to be under regulatory pressure for years, and that is a tax on every decision you'll make. It's a fine business to be in if you want it. It's a punishing one if you landed here because a peptide catalog looked like an easy margin.
+
+        Tell me the first three and I'll tighten this into something with real numbers in it. The fourth one is yours.
+
+### Market & incumbents
+
+          - Fagron FY2025 results
+
+          - PCCA membership model
+
+          - A4PC — how pharmacies validate suppliers
+
+          - US compounding market size
+
+### Registration & compounding
+
+          - 21 CFR 207 — establishment registration
+
+          - 21 CFR 216.23 — the 503A bulks list
+
+          - 21 U.S.C. § 353a — section 503A
+
+          - FDA — know your API supplier
+
+### Enforcement posture
+
+          - FDA — 30 telehealth letters
+
+          - Import Alert 66-80
+
+          - FDA moves to close GLP-1 compounding
+
+### Operating
+
+          - OSHA HazCom compliance dates
+
+          - LegitScript certification
+
+          - California entity formation
+
+    Prepared 2 September 2026 for NexPhase Labs. Third in a series with the 1 September regulatory position and the AgelessRx model comparison. Strategy and sequencing, not legal advice — §4 is how to get the legal advice.
