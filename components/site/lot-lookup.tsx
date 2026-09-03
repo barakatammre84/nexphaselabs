@@ -1,7 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertCircle, Loader2, Search } from 'lucide-react';
+import { AlertCircle, Download, Loader2, Search } from 'lucide-react';
+
+const DOCUMENT_LABEL: Record<string, string> = {
+  coa: 'Certificate of analysis',
+  chromatogram: 'HPLC chromatogram',
+  mass_spec: 'Mass spectrum',
+  sds: 'Safety data sheet',
+};
 
 type LotTest = {
   testType: string;
@@ -29,7 +36,8 @@ type LotRecord = {
   heavyMetalsSummary: string | null;
   retestDate: string | null;
   storageCondition: string | null;
-  documents: { coa: boolean; chromatogram: boolean; massSpec: boolean; sds: boolean };
+  releasedOn: string | null;
+  documents: Record<string, boolean>;
   tests: LotTest[];
 };
 
@@ -156,8 +164,40 @@ export function LotLookup() {
             <Field label="Water content" value={record.waterContent} />
             <Field label="Heavy metals" value={record.heavyMetalsSummary} />
             <Field label="Storage condition" value={record.storageCondition} />
+            <Field label="Released on" value={record.releasedOn} />
             <Field label="Retest date" value={record.retestDate} />
           </dl>
+
+          <div className="mt-10">
+            <h3 className="utility-label text-primary">Documents for this lot</h3>
+            {Object.values(record.documents).some(Boolean) ? (
+              <ul className="mt-5 max-w-xl divide-y divide-border border border-border">
+                {Object.entries(record.documents)
+                  .filter(([, present]) => present)
+                  .map(([type]) => (
+                    <li key={type} className="flex items-center justify-between gap-4 p-4 text-sm">
+                      <span>{DOCUMENT_LABEL[type] ?? type}</span>
+                      <a
+                        href={`/api/lots/${encodeURIComponent(record.lotNumber)}/documents/${type}`}
+                        className="inline-flex items-center gap-1.5 font-semibold text-primary"
+                      >
+                        <Download className="size-3.5" /> Download
+                      </a>
+                    </li>
+                  ))}
+              </ul>
+            ) : (
+              <p className="mt-5 max-w-2xl leading-7 text-muted-foreground">
+                Files for this lot are available on request at research@nexphaselabs.net, quoting the lot number.
+              </p>
+            )}
+            <p className="mt-4 text-sm text-muted-foreground">
+              Permanent record:{' '}
+              <a href={`/lots/${encodeURIComponent(record.lotNumber)}`} className="font-semibold text-primary">
+                nexphaselabs.net/lots/{record.lotNumber}
+              </a>
+            </p>
+          </div>
 
           {record.tests.length > 0 && (
             <div className="mt-12">
@@ -204,11 +244,6 @@ export function LotLookup() {
             </div>
           )}
 
-          <p className="mt-8 max-w-2xl leading-7 text-muted-foreground">
-            Analytical files for this lot — the certificate of analysis, the HPLC chromatogram, the
-            mass spectrum and the safety data sheet — are issued with the shipment and are available
-            on request at research@nexphaselabs.net, quoting the lot number above.
-          </p>
         </div>
       )}
     </div>
