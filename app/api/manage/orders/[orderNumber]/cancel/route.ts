@@ -35,6 +35,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
     const result = await transitionOrder(detail.order, 'cancelled', 'staff', recordedBy(staff), reason, {
       // 'refund_due' records the obligation; 'refunded' is written only when money has actually moved.
       paymentStatus: detail.order.paymentStatus === 'paid' ? 'refund_due' : detail.order.paymentStatus === 'pending' ? 'failed' : detail.order.paymentStatus,
+      ...(detail.order.paymentStatus === 'paid' ? { refundDueCents: detail.order.totalCents } : {}),
     });
     if (!result.ok) return back(`error=${encodeURIComponent(result.error)}`);
     if (detail.order.paymentMethod === 'btcpay' && detail.order.paymentRef) await invalidateBtcpayInvoice(detail.order.paymentRef);

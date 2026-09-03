@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AlertCircle, ArrowLeft, CircleCheck } from 'lucide-react';
-import { ORDER_STATUS_LABEL, orderNumberFromParam, type OrderStatus } from '@/lib/order-rules';
+import { ORDER_STATUS_LABEL, orderNumberFromParam, type OrderStatus, PAYMENT_STATUS_LABEL, refundAllowed, refundDue, returnAllowed } from '@/lib/order-rules';
 import { pickableLots, type PickableLot } from '@/lib/fulfilment';
 import { getOrderByNumber } from '@/lib/orders';
 import { canFulfil, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: 'Order', robots: { index: false, foll
 
 type Props = {
   params: Promise<{ orderNumber: string }>;
-  searchParams: Promise<{ paid?: string; error?: string; shipped?: string; fulfilling?: string; cancelled?: string }>;
+  searchParams: Promise<{ paid?: string; error?: string; shipped?: string; fulfilling?: string; cancelled?: string; refunded?: string; returned?: string }>;
 };
 
 function Row({ label, value }: { label: string; value: string | null | undefined }) {
@@ -28,7 +28,7 @@ function Row({ label, value }: { label: string; value: string | null | undefined
 
 export default async function ManageOrderPage({ params, searchParams }: Props) {
   const { orderNumber } = await params;
-  const { paid, error, shipped, fulfilling, cancelled } = await searchParams;
+  const { paid, error, shipped, fulfilling, cancelled, refunded, returned } = await searchParams;
   const staff = await requireStaff(`/manage/orders/${orderNumber}`);
   const number = orderNumberFromParam(orderNumber);
   if (!number) notFound();
@@ -62,6 +62,16 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
         {shipped && (
           <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
             <CircleCheck className="size-4 text-primary" /> Shipment recorded in the movement ledger. The customer has been emailed the tracking number and lot links.
+          </p>
+        )}
+        {refunded && (
+          <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
+            <CircleCheck className="size-4 text-primary" /> Refund recorded and the customer emailed.
+          </p>
+        )}
+        {returned && (
+          <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
+            <CircleCheck className="size-4 text-primary" /> Return received and recorded in the movement ledger as quarantined material.
           </p>
         )}
         {error && (
@@ -111,9 +121,40 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
             <dl className="mt-4 border-t border-border">
               <Row label="Method" value={order.paymentMethod} />
               <Row label="Reference" value={order.paymentRef} />
-              <Row label="Status" value={order.paymentStatus === 'refund_due' ? 'Refund due (not yet returned)' : order.paymentStatus} />
+              <Row label="Status" value={PAYMENT_STATUS_LABEL[order.paymentStatus] ?? order.paymentStatus} />
               <Row label="Paid at" value={order.paidAt ? order.paidAt.toISOString().slice(0, 10) : null} />
+              <Row
+                label="Refund"
+                value={
+                  order.paymentStatus === 'refund_due' || order.paymentStatus === 'refunded'
+                    ? `$${((order.refundCents ?? 0) / 100).toFixed(2)} sent of $${(refundDue(order) / 100).toFixed(2)} owed${order.refundedAt ? ` · first ${order.refundedAt.toISOString().slice(0, 10)}` : ''}${order.refundRef ? ` · ${order.refundRef}` : ''}`
+                    : null
+                }
+              />
             </dl>
+            {refundAllowed(order) && (
+              canVerifyAccounts(staff) ? (
+                <form method="post" action={`/api/manage/orders/${order.orderNumber}/refund`} className="mt-5 flex flex-col gap-3 border border-border bg-secondary p-5">
+                  <p className="text-sm font-semibold">Record refund sent</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="flex flex-col gap-1.5 text-sm">
+                      Amount (USD)
+                      <input name="amount" defaultValue={((refundDue(order) - (order.refundCents ?? 0)) / 100).toFixed(2)} inputMode="decimal" className="h-11 border border-foreground/20 bg-background px-3 font-mono text-sm" />
+                    </label>
+                    <label className="flex flex-col gap-1.5 text-sm">
+                      Bank or provider reference
+                      <input name="reference" required maxLength={120} className="h-11 border border-foreground/20 bg-background px-3 font-mono text-sm" />
+                    </label>
+                  </div>
+                  <button type="submit" className="inline-flex h-11 w-fit items-center bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90">
+                    Mark refunded
+                  </button>
+                  <p className="text-xs text-muted-foreground">Only after the money has actually been sent. The amount owed is the returned lines&rsquo; value (or the order total on a cancellation); a partial refund can be topped up later with its own reference. Emailed to the customer and carried into the accounting export.</p>
+                </form>
+              ) : (
+                <p className="mt-5 border border-border bg-secondary p-4 text-sm text-muted-foreground">A refund is due. Only an admin can record it.</p>
+              )
+            )}
             {order.status === 'awaiting_payment' && (
               canVerifyAccounts(staff) ? (
                 <form method="post" action={`/api/manage/orders/${order.orderNumber}/paid`} className="mt-5 flex flex-col gap-3 border border-border bg-secondary p-5">
@@ -213,6 +254,44 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                   Cancel order
                 </button>
               </form>
+            )}
+
+            {returnAllowed(order) && canFulfil(staff) && (
+              <form method="post" action={`/api/manage/orders/${order.orderNumber}/return`} className="mt-6 flex flex-col gap-4 border border-border bg-secondary p-5">
+                <p className="text-sm font-semibold">Receive returned material</p>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Each returned line is written to the movement ledger against the lot it shipped from and tagged quarantined. Returned material is never
+                  added back to sellable stock. If the order was paid, a refund becomes due.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {items.map((it) => (
+                    <label key={it.id} className="flex flex-col gap-1.5 text-sm">
+                      {it.sku} — packs returned (of {it.quantity})
+                      <input name={`packs_${it.id}`} inputMode="numeric" defaultValue="0" className="h-11 border border-foreground/20 bg-background px-3 font-mono text-sm" />
+                    </label>
+                  ))}
+                  <label className="flex flex-col gap-1.5 text-sm">
+                    Date received back
+                    <input name="receivedOn" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} className="h-11 border border-foreground/20 bg-background px-3 font-mono text-sm" />
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-sm">
+                    Condition on receipt
+                    <input name="condition" required maxLength={200} placeholder="Sealed, label intact, shipped on wet ice" className="h-11 border border-foreground/20 bg-background px-3 text-sm" />
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
+                    Note
+                    <input name="note" maxLength={300} className="h-11 border border-foreground/20 bg-background px-3 text-sm" />
+                  </label>
+                </div>
+                <button type="submit" className="inline-flex h-11 w-fit items-center border border-foreground/20 px-5 text-sm font-semibold hover:border-primary hover:text-primary">
+                  Record return
+                </button>
+              </form>
+            )}
+            {order.returnedAt && (
+              <p className="mt-6 border border-border bg-secondary p-4 text-sm">
+                Return received {order.returnedAt.toISOString().slice(0, 10)}; see the history and the lot ledger.
+              </p>
             )}
 
             <h2 className="mt-10 utility-label text-primary">History</h2>

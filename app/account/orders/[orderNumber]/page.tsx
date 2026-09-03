@@ -87,6 +87,15 @@ export default async function OrderPage({ params, searchParams }: Props) {
         <p className="mt-4 text-right font-mono text-sm">
           Total <span className="font-semibold">{formatCents(order.totalCents)}</span>
         </p>
+        {order.returnedAt && (
+          <p className="mt-3 text-sm text-muted-foreground">Returned material received {order.returnedAt.toISOString().slice(0, 10)}.</p>
+        )}
+        {(order.paymentStatus === 'refund_due' || order.paymentStatus === 'refunded') && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Refund: {formatCents(order.refundCents ?? 0)} sent{order.refundedAt ? ` (first on ${order.refundedAt.toISOString().slice(0, 10)})` : ''}
+            {order.paymentStatus === 'refund_due' ? ' — the remainder is being processed.' : '.'}
+          </p>
+        )}
 
         {order.status === 'submitted' && (
           <form method="post" action={`/api/orders/${order.orderNumber}/pay`} className="mt-10 border border-border bg-secondary p-6">

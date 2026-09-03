@@ -58,7 +58,10 @@ export default async function ManageOrdersPage() {
                     <td className="p-4 text-muted-foreground">
                       {o.paymentMethod ?? '—'} &middot; {o.paymentStatus === 'refund_due' ? 'refund due' : o.paymentStatus}
                     </td>
-                    <td className="p-4">{ORDER_STATUS_LABEL[o.status as OrderStatus] ?? o.status}</td>
+                    <td className="p-4">
+                      {ORDER_STATUS_LABEL[o.status as OrderStatus] ?? o.status}
+                      {o.returnedAt && <span className="ml-2 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">returned</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

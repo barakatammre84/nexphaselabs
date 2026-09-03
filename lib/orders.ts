@@ -7,7 +7,7 @@ import { RUO_VERSION } from '@/lib/policy';
 import { sendEmail } from '@/lib/email';
 import { btcpayCheckoutUrl, getPaymentMethod, invalidateBtcpayInvoice, type PaymentInstructions } from '@/lib/payments';
 import { publicOrigin } from '@/lib/site-config';
-import { canTransition, formatOrderNumber, orderTotals, type OrderStatus } from '@/lib/order-rules';
+import { canTransition, formatOrderNumber, orderTotals, refundAllowed, refundDue, type OrderStatus } from '@/lib/order-rules';
 import type { Visibility } from '@/lib/visibility-rules';
 
 function id(prefix: string): string {
@@ -235,7 +235,7 @@ export async function transitionOrder(
   by: 'staff' | 'customer' | 'system',
   actor: string,
   note: string | null,
-  extra: Partial<Pick<typeof orders.$inferInsert, 'paymentMethod' | 'paymentRef' | 'paymentStatus' | 'paidAt' | 'carrier' | 'trackingNumber' | 'shippedAt'>> = {},
+  extra: Partial<Pick<typeof orders.$inferInsert, 'paymentMethod' | 'paymentRef' | 'paymentStatus' | 'paidAt' | 'carrier' | 'trackingNumber' | 'shippedAt' | 'refundDueCents'>> = {},
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!canTransition(order.status, to, by)) {
     return { ok: false, error: `An order that is ${order.status} cannot be moved to ${to} by ${by}.` };
@@ -401,4 +401,79 @@ export async function cancelOrderByCustomer(detail: OrderDetail, actor: string, 
     await invalidateBtcpayInvoice(detail.order.paymentRef);
   }
   return moved;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Refunds                                                                   */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Record that money went back to the customer. Payment-only: the order status
+ * is unchanged (cancelled or shipped-and-returned). Guarded by a fresh
+ * transition marker so two admins cannot both record it, and the event row is
+ * written only where the marker landed.
+ */
+export async function recordRefund(
+  detail: OrderDetail,
+  amountCents: number,
+  reference: string,
+  actor: string,
+  accountEmail: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const order = detail.order;
+  if (!refundAllowed(order)) return { ok: false, error: `No refund is due on an order whose payment is ${order.paymentStatus}.` };
+  const due = refundDue(order);
+  const already = order.refundCents ?? 0;
+  if (amountCents > due - already) return { ok: false, error: `The refund cannot exceed the $${((due - already) / 100).toFixed(2)} still owed.` };
+  const db = getDb();
+  const now = new Date();
+  const marker = id('otr');
+  const complete = already + amountCents >= due;
+  const note = `Refund of $${(amountCents / 100).toFixed(2)} recorded (${((already + amountCents) / 100).toFixed(2)} of ${(due / 100).toFixed(2)} owed). Reference: ${reference}.`;
+  const [changed] = await db.batch([
+    db
+      .update(orders)
+      .set({
+        // Cumulative: an under-refund can be topped up with a further reference; the first date is kept.
+        paymentStatus: complete ? 'refunded' : 'refund_due',
+        refundCents: sql`COALESCE(${orders.refundCents}, 0) + ${amountCents}`,
+        refundRef: reference,
+        refundedAt: sql`COALESCE(${orders.refundedAt}, ${Math.floor(now.getTime() / 1000)})`,
+        lastTransitionId: marker,
+        updatedAt: now,
+      })
+      .where(and(eq(orders.id, order.id), eq(orders.paymentStatus, 'refund_due'), sql`COALESCE(${orders.refundCents}, 0) = ${already}`))
+      .returning({ id: orders.id }),
+    db.insert(orderEvents).select(
+      db
+        .select({
+          id: sql<string>`${id('oev')}`.as('id'),
+          orderId: orders.id,
+          fromStatus: orders.status,
+          toStatus: orders.status,
+          note: sql<string>`${note}`.as('note'),
+          actor: sql<string>`${actor}`.as('actor'),
+          createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
+        })
+        .from(orders)
+        .where(and(eq(orders.id, order.id), eq(orders.lastTransitionId, marker))),
+    ),
+  ]);
+  if (!changed || changed.length === 0) return { ok: false, error: 'The order changed while you were working. Reload and try again.' };
+  if (accountEmail) {
+    await sendEmail({
+      to: accountEmail,
+      subject: `Refund for order ${order.orderNumber} — NexPhase Labs`,
+      text: [
+        `Order ${order.orderNumber}`,
+        '',
+        `A refund of $${(amountCents / 100).toFixed(2)} has been sent to the payment account the order was paid from. Reference: ${reference}.`,
+        'Depending on the bank or provider it can take several business days to appear.',
+        `Order details: ${publicOrigin()}/account/orders/${order.orderNumber}`,
+        '',
+        'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
+      ].join('\n'),
+    });
+  }
+  return { ok: true };
 }

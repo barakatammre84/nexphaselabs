@@ -100,7 +100,10 @@ export default async function ReportsPage({ searchParams }: Props) {
             </div>
 
             <h2 className="mt-14 utility-label text-primary">Revenue by product</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Orders that are paid, being prepared or shipped. Cost is allocated from each lot&rsquo;s landed cost.</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Orders that are paid, being prepared or shipped. Refunds are netted against the lines that came back (pro rata on a cancellation). Cost is allocated
+              from each lot&rsquo;s landed cost.
+            </p>
             <div className="mt-4 overflow-x-auto border border-border">
               <table className="w-full min-w-[720px] border-collapse text-sm">
                 <thead>
@@ -109,14 +112,15 @@ export default async function ReportsPage({ searchParams }: Props) {
                     <th className={th}>Lines</th>
                     <th className={th}>Packs</th>
                     <th className={th}>Revenue</th>
+                    <th className={th}>Refunded</th>
                     <th className={th}>Allocated cost</th>
-                    <th className={th}>Margin</th>
+                    <th className={th}>Net margin</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(revenue?.data ?? []).length === 0 ? (
                     <tr>
-                      <td className={td} colSpan={6}>
+                      <td className={td} colSpan={7}>
                         No paid orders yet.
                       </td>
                     </tr>
@@ -129,8 +133,9 @@ export default async function ReportsPage({ searchParams }: Props) {
                         <td className={`${td} font-mono text-xs`}>{r.lines}</td>
                         <td className={`${td} font-mono text-xs`}>{r.packs}</td>
                         <td className={`${td} font-mono text-xs`}>${dollars(r.revenueCents)}</td>
+                        <td className={`${td} font-mono text-xs`}>{r.refundedCents ? `−$${dollars(r.refundedCents)}` : '—'}</td>
                         <td className={`${td} font-mono text-xs`}>{r.costCents === null ? 'incomplete' : `$${dollars(r.costCents)}`}</td>
-                        <td className={`${td} font-mono text-xs`}>{r.costCents === null ? '—' : `$${dollars(r.revenueCents - r.costCents)}`}</td>
+                        <td className={`${td} font-mono text-xs`}>{r.costCents === null ? '—' : `$${dollars(r.revenueCents - r.refundedCents - r.costCents)}`}</td>
                       </tr>
                     ))
                   )}

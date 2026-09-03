@@ -1,0 +1,1 @@
+ALTER TABLE `orders` ADD `refund_due_cents` integer;

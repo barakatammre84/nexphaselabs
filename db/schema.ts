@@ -917,6 +917,14 @@ export const orders = sqliteTable(
     shippedAt: integer('shipped_at', { mode: 'timestamp' }),
     cancelledAt: integer('cancelled_at', { mode: 'timestamp' }),
     cancelReason: text('cancel_reason'),
+    /** What is owed back: the order total on a cancelled paid order, the value of the returned lines on a return. */
+    refundDueCents: integer('refund_due_cents'),
+    /** Refund actually made (cumulative), latest reference, first refund date. paymentStatus becomes 'refunded' once the due amount is fully sent. */
+    refundCents: integer('refund_cents'),
+    refundRef: text('refund_ref'),
+    refundedAt: integer('refunded_at', { mode: 'timestamp' }),
+    /** When returned material was received back (ledger has the movement). */
+    returnedAt: integer('returned_at', { mode: 'timestamp' }),
     /** Id of the transition that produced the current status; guards the event row. */
     lastTransitionId: text('last_transition_id'),
     /** Random token from the rendered cart form; unique, so a double submit cannot create two orders. */
@@ -955,6 +963,8 @@ export const orderItems = sqliteTable(
     lineTotalCents: integer('line_total_cents').notNull(),
     /** Assigned at fulfilment from a RELEASED lot. */
     lotId: text('lot_id'),
+    /** Packs received back on this line (written by the return batch; null until a return). */
+    returnedPacks: integer('returned_packs'),
     lotNumber: text('lot_number'),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .notNull()

@@ -1,5 +1,6 @@
 import { asc, desc, eq, isNull } from 'drizzle-orm';
 import { getDb } from '@/db';
+import { refundShares } from '@/lib/refund-shares';
 import { accounts, lotMovements, lots, orderItems, orders, organizations } from '@/db/schema';
 import { parseQuantity } from '@/lib/lot-rules';
 
@@ -32,6 +33,15 @@ export type OrderLineRow = {
   lineTotalCents: number;
   lotNumber: string | null;
   costCents: number | null;
+  /** Order-level figures, repeated on every line of the order; exports print them once. */
+  orderTotalCents: number;
+  refundCents: number | null;
+  refundedOn: Date | null;
+  refundRef: string | null;
+  returnedOn: Date | null;
+  returnedPacks: number | null;
+  /** This line's share of the order's refund: by returned value after a return, pro rata by line total otherwise. */
+  refundShareCents: number;
 };
 
 export async function orderLines(): Promise<OrderLineRow[]> {
@@ -44,6 +54,7 @@ export async function orderLines(): Promise<OrderLineRow[]> {
     .leftJoin(organizations, eq(orders.organizationId, organizations.id))
     .orderBy(desc(orders.submittedAt), asc(orderItems.createdAt));
   const lotCosts = await lotUnitCosts();
+  const shares = refundShares(rows.map(({ o, it }) => ({ orderId: o.id, itemId: it.id, refundCents: o.refundCents, returnedAt: o.returnedAt, lineTotalCents: it.lineTotalCents, returnedPacks: it.returnedPacks, unitPriceCents: it.unitPriceCents })));
   return rows.map(({ o, it, a, org }) => ({
     orderNumber: o.orderNumber,
     submittedOn: o.submittedAt,
@@ -66,6 +77,13 @@ export async function orderLines(): Promise<OrderLineRow[]> {
     lineTotalCents: it.lineTotalCents,
     lotNumber: it.lotNumber,
     costCents: it.lotId ? allocatedCost(lotCosts.get(it.lotId), it.packSize, it.quantity) : null,
+    orderTotalCents: o.totalCents,
+    refundCents: o.refundCents,
+    refundedOn: o.refundedAt,
+    refundRef: o.refundRef,
+    returnedOn: o.returnedAt,
+    returnedPacks: it.returnedPacks,
+    refundShareCents: shares.get(it.id) ?? 0,
   }));
 }
 
@@ -173,15 +191,19 @@ export async function lotInventory(): Promise<LotRow[]> {
 }
 
 /** Revenue by product from orders that are paid or beyond (fulfilling, shipped). */
-export async function revenueByProduct(): Promise<{ productCode: string; productName: string; lines: number; packs: number; revenueCents: number; costCents: number | null }[]> {
+export type RevenueRow = { productCode: string; productName: string; lines: number; packs: number; revenueCents: number; refundedCents: number; costCents: number | null };
+
+/** Paid, preparing and shipped orders; refunds are netted against the lines that came back (pro rata for cancellations). */
+export async function revenueByProduct(): Promise<RevenueRow[]> {
   const lines = await orderLines();
   const counted = lines.filter((l) => l.status === 'paid' || l.status === 'fulfilling' || l.status === 'shipped');
-  const map = new Map<string, { productCode: string; productName: string; lines: number; packs: number; revenueCents: number; costCents: number | null }>();
+  const map = new Map<string, RevenueRow>();
   for (const l of counted) {
-    const row = map.get(l.productCode) ?? { productCode: l.productCode, productName: l.productName, lines: 0, packs: 0, revenueCents: 0, costCents: 0 };
+    const row = map.get(l.productCode) ?? { productCode: l.productCode, productName: l.productName, lines: 0, packs: 0, revenueCents: 0, refundedCents: 0, costCents: 0 };
     row.lines += 1;
     row.packs += l.quantity;
     row.revenueCents += l.lineTotalCents;
+    row.refundedCents += l.refundShareCents;
     row.costCents = row.costCents === null || l.costCents === null ? null : row.costCents + l.costCents;
     map.set(l.productCode, row);
   }

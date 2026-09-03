@@ -1,9 +1,10 @@
 import { and, asc, eq, sql, isNull } from 'drizzle-orm';
 import { getDb } from '@/db';
+import { returnAllowed, validateReturn } from '@/lib/order-rules';
 import { accounts, lotMovements, lotStatusEvents, lots, orderEvents, orderItems, orders, type Lot } from '@/db/schema';
 import { sendEmail } from '@/lib/email';
-import { pickFromLot, sumQuantities } from '@/lib/lot-quantities';
-import { parseQuantity } from '@/lib/lot-rules';
+import { isMassUnit, pickFromLot, sumQuantities } from '@/lib/lot-quantities';
+import { formatQuantity, parseQuantity } from '@/lib/lot-rules';
 import { recordedBy } from '@/lib/lots-admin';
 import { scanText } from '@/lib/catalog-rules';
 import { transitionOrder, type OrderDetail } from '@/lib/orders';
@@ -258,3 +259,121 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
   return { ok: true };
 }
 
+/* ------------------------------------------------------------------------ */
+/* Returns                                                                   */
+/* ------------------------------------------------------------------------ */
+
+export type ReturnInput = {
+  /** Packs received back per order line (item id → packs). Lines omitted or 0 are not returned. */
+  packs: Record<string, number>;
+  receivedOn: string; // YYYY-MM-DD
+  condition: string;
+  note: string;
+};
+
+/**
+ * Receive material back from a shipped order. Each returned line becomes a
+ * 'return' movement on the lot it shipped from, tagged as quarantined:
+ * returned material is NEVER added back to the lot's sellable quantity, so
+ * nothing this records can make material available again without a named
+ * decision. The order stays 'shipped'; its payment becomes 'refund_due' if it
+ * was paid, so the refund step follows. All-or-nothing behind an order marker.
+ */
+export async function recordReturn(detail: OrderDetail, input: ReturnInput, staff: StaffPrincipal): Promise<ShipmentResult> {
+  const { order, items } = detail;
+  if (!returnAllowed(order)) return { ok: false, error: order.returnedAt ? 'A return has already been received for this order.' : 'Only a shipped order can have material returned.' };
+  const validated = validateReturn(
+    items.map((it) => ({ id: it.id, sku: it.sku, quantity: it.quantity, lotId: it.lotId, unitPriceCents: it.unitPriceCents })),
+    input,
+    order.shippedAt,
+  );
+  if (!validated.ok) return validated;
+  const { receivedOn, condition, note } = validated;
+  const violation = scanText('note', `${condition} ${note}`)[0];
+  if (violation) return { ok: false, error: `Note contains ${violation.reason} ("${violation.match}").` };
+  const lines = validated.lines.map((l) => ({ it: items.find((it) => it.id === l.itemId)!, packs: l.packs }));
+
+  const db = getDb();
+  // The ledger quantity must be in the unit the lot is tracked in: mass lots return packs × pack size,
+  // count-tracked lots return a number of containers — the same rule pickFromLot applies on the way out.
+  const lotIds = [...new Set(lines.map((l) => l.it.lotId as string))];
+  const lotRows = await db.select({ id: lots.id, received: lots.quantityReceived, remaining: lots.quantityRemaining }).from(lots).where(sql`${lots.id} IN ${lotIds}`);
+  const unitOf = new Map(lotRows.map((r) => [r.id, parseQuantity(r.remaining ?? r.received ?? '')?.unit]));
+  const quantities = new Map<string, string>();
+  for (const l of lines) {
+    const unit = unitOf.get(l.it.lotId as string);
+    const quantity = unit && !isMassUnit(unit) ? formatQuantity(l.packs, unit) : sumQuantities(Array.from({ length: l.packs }, () => l.it.packSize));
+    if (!quantity) return { ok: false, error: `${l.it.sku}: the pack size could not be converted to a quantity.` };
+    quantities.set(l.it.id, quantity);
+  }
+
+  const now = new Date();
+  const marker = id('otr');
+  const by = recordedBy(staff);
+  const wasPaid = order.paymentStatus === 'paid';
+  const noteText = `Return received ${input.receivedOn}: ${lines.map((l) => `${l.packs} × ${l.it.sku}`).join(', ')}. Condition: ${condition}.${note ? ` ${note}` : ''} Material quarantined; not returned to stock.${wasPaid ? ` Refund due: $${(validated.refundDueCents / 100).toFixed(2)}.` : ''}`;
+  const statements = [
+    db
+      .update(orders)
+      .set({
+        returnedAt: receivedOn,
+        lastTransitionId: marker,
+        updatedAt: now,
+        ...(wasPaid ? { paymentStatus: 'refund_due', refundDueCents: validated.refundDueCents } : {}),
+      })
+      .where(and(eq(orders.id, order.id), eq(orders.status, 'shipped'), isNull(orders.returnedAt), eq(orders.paymentStatus, order.paymentStatus)))
+      .returning({ id: orders.id }),
+  ] as unknown[];
+  for (const l of lines) {
+    statements.push(
+      db
+        .update(orderItems)
+        .set({ returnedPacks: l.packs })
+        .where(and(eq(orderItems.id, l.it.id), sql`EXISTS (SELECT 1 FROM ${orders} WHERE ${orders.id} = ${order.id} AND ${orders.lastTransitionId} = ${marker})`)),
+    );
+    statements.push(
+      db.insert(lotMovements).select(
+        db
+          .select({
+            id: sql<string>`${id('mov')}`.as('id'),
+            lotId: sql<string>`${l.it.lotId}`.as('lot_id'),
+            movementType: sql<string>`'return'`.as('movement_type'),
+            quantity: sql<string>`${quantities.get(l.it.id)}`.as('quantity'),
+            accountId: sql<string>`${order.accountId}`.as('account_id'),
+            consigneeName: sql<string | null>`${order.consigneeName}`.as('consignee_name'),
+            consigneeInstitution: sql<string | null>`${order.consigneeInstitution}`.as('consignee_institution'),
+            shipToAddress: sql<string>`${[order.shipToLine1, order.shipToLine2, order.shipToCity, order.shipToRegion, order.shipToPostalCode, order.shipToCountry].filter(Boolean).join(', ')}`.as('ship_to_address'),
+            carrier: sql<string | null>`NULL`.as('carrier'),
+            trackingNumber: sql<string | null>`NULL`.as('tracking_number'),
+            witnessOne: sql<string | null>`NULL`.as('witness_one'),
+            witnessTwo: sql<string | null>`NULL`.as('witness_two'),
+            occurredAt: sql<number>`${Math.floor(receivedOn.getTime() / 1000)}`.as('occurred_at'),
+            recordedBy: sql<string>`${by}`.as('recorded_by'),
+            note: sql<string>`${`Order ${order.orderNumber}: ${l.packs} × ${l.it.packSize} returned; QUARANTINED, not added to stock. Condition: ${condition}.`}`.as('note'),
+            createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
+          })
+          .from(orders)
+          .where(and(eq(orders.id, order.id), eq(orders.lastTransitionId, marker))),
+      ),
+    );
+  }
+  statements.push(
+    db.insert(orderEvents).select(
+      db
+        .select({
+          id: sql<string>`${id('oev')}`.as('id'),
+          orderId: orders.id,
+          fromStatus: orders.status,
+          toStatus: orders.status,
+          note: sql<string>`${noteText}`.as('note'),
+          actor: sql<string>`${by}`.as('actor'),
+          createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
+        })
+        .from(orders)
+        .where(and(eq(orders.id, order.id), eq(orders.lastTransitionId, marker))),
+    ),
+  );
+  const [changed] = await db.batch(statements as unknown as Parameters<typeof db.batch>[0]);
+  if (!changed || (changed as unknown[]).length === 0) return { ok: false, error: 'The order changed while you were working. Reload and try again.' };
+  return { ok: true };
+}
