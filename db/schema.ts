@@ -581,3 +581,138 @@ export const verificationEvents = sqliteTable(
 export type Organization = typeof organizations.$inferSelect;
 export type OrganizationDocument = typeof organizationDocuments.$inferSelect;
 export type VerificationEvent = typeof verificationEvents.$inferSelect;
+
+/**
+ * Cart. Server-side, per account, so a price is never trusted from the
+ * browser: the line is a variant reference and a quantity, nothing more.
+ */
+export const cartItems = sqliteTable(
+  'cart_items',
+  {
+    id: text('id').primaryKey(),
+    accountId: text('account_id').notNull(),
+    variantId: text('variant_id').notNull(),
+    quantity: integer('quantity').notNull().default(1),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    accountVariantIdx: uniqueIndex('cart_items_account_variant_idx').on(table.accountId, table.variantId),
+  }),
+);
+
+/**
+ * Orders.
+ *
+ * `channel` and `authorizationRef` exist from the first order even though
+ * today every order is 'research_direct' and the reference is always null:
+ * a future prescribing model is an authorisation layer between the order and
+ * fulfilment, and the order model must not assume authorisation is automatic.
+ *
+ * Prices, the ship-to address and the consignee are snapshotted at
+ * submission. Status only moves through lib/orders.ts and every move is an
+ * `order_events` row. Nothing is deleted; a cancelled order stays.
+ */
+export const orders = sqliteTable(
+  'orders',
+  {
+    id: text('id').primaryKey(),
+    orderNumber: text('order_number').notNull(),
+    accountId: text('account_id').notNull(),
+    organizationId: text('organization_id'),
+    /** research_direct | (future) prescribed */
+    channel: text('channel').notNull().default('research_direct'),
+    authorizationRef: text('authorization_ref'),
+    /** submitted | awaiting_payment | paid | fulfilling | shipped | cancelled */
+    status: text('status').notNull().default('submitted'),
+    currency: text('currency').notNull().default('USD'),
+    subtotalCents: integer('subtotal_cents').notNull(),
+    shippingCents: integer('shipping_cents').notNull().default(0),
+    totalCents: integer('total_cents').notNull(),
+    /** Tier the prices were taken from: institutional | consumer */
+    priceTier: text('price_tier').notNull(),
+    // Ship-to snapshot
+    consigneeName: text('consignee_name').notNull(),
+    consigneeInstitution: text('consignee_institution'),
+    shipToLine1: text('ship_to_line1').notNull(),
+    shipToLine2: text('ship_to_line2'),
+    shipToCity: text('ship_to_city').notNull(),
+    shipToRegion: text('ship_to_region').notNull(),
+    shipToPostalCode: text('ship_to_postal_code').notNull(),
+    shipToCountry: text('ship_to_country').notNull(),
+    shipToPhone: text('ship_to_phone'),
+    // Payment (Phase 5.2)
+    paymentMethod: text('payment_method'),
+    paymentRef: text('payment_ref'),
+    /** unpaid | pending | paid | failed | refunded */
+    paymentStatus: text('payment_status').notNull().default('unpaid'),
+    // Shipment (Phase 5.3)
+    carrier: text('carrier'),
+    trackingNumber: text('tracking_number'),
+    customerNote: text('customer_note'),
+    submittedAt: integer('submitted_at', { mode: 'timestamp' }).notNull(),
+    paidAt: integer('paid_at', { mode: 'timestamp' }),
+    shippedAt: integer('shipped_at', { mode: 'timestamp' }),
+    cancelledAt: integer('cancelled_at', { mode: 'timestamp' }),
+    cancelReason: text('cancel_reason'),
+    /** Id of the transition that produced the current status; guards the event row. */
+    lastTransitionId: text('last_transition_id'),
+    /** Random token from the rendered cart form; unique, so a double submit cannot create two orders. */
+    submissionToken: text('submission_token'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    numberIdx: uniqueIndex('orders_number_idx').on(table.orderNumber),
+    tokenIdx: uniqueIndex('orders_submission_token_idx').on(table.submissionToken),
+    accountIdx: index('orders_account_idx').on(table.accountId),
+    statusIdx: index('orders_status_idx').on(table.status),
+  }),
+);
+
+export const orderItems = sqliteTable(
+  'order_items',
+  {
+    id: text('id').primaryKey(),
+    orderId: text('order_id').notNull(),
+    productId: text('product_id').notNull(),
+    productCode: text('product_code').notNull(),
+    productName: text('product_name').notNull(),
+    variantId: text('variant_id').notNull(),
+    sku: text('sku').notNull(),
+    packSize: text('pack_size').notNull(),
+    presentation: text('presentation').notNull(),
+    quantity: integer('quantity').notNull(),
+    unitPriceCents: integer('unit_price_cents').notNull(),
+    lineTotalCents: integer('line_total_cents').notNull(),
+    /** Assigned at fulfilment from a RELEASED lot. */
+    lotId: text('lot_id'),
+    lotNumber: text('lot_number'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    orderIdx: index('order_items_order_idx').on(table.orderId),
+  }),
+);
+
+/** Append-only order history with the actor (account or staff) and a note. */
+export const orderEvents = sqliteTable(
+  'order_events',
+  {
+    id: text('id').primaryKey(),
+    orderId: text('order_id').notNull(),
+    fromStatus: text('from_status').notNull(),
+    toStatus: text('to_status').notNull(),
+    note: text('note'),
+    actor: text('actor').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    orderIdx: index('order_events_order_idx').on(table.orderId),
+  }),
+);
+
+export type CartItem = typeof cartItems.$inferSelect;
+export type Order = typeof orders.$inferSelect;
+export type OrderItem = typeof orderItems.$inferSelect;
+export type OrderEvent = typeof orderEvents.$inferSelect;

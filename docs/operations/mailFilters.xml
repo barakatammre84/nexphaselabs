@@ -1,0 +1,63 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns='http://www.w3.org/2005/Atom' xmlns:apps='http://schemas.google.com/apps/2006'>
+  <title>NexPhase Labs / 8486 Ventures - Mail Filters</title>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Quality COA - testing lab</title>
+    <content></content>
+    <apps:property name='from' value='ils-lab.com'/>
+    <apps:property name='label' value='Quality COA'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+    <apps:property name='shouldAlwaysMarkAsImportant' value='true'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Purchasing - suppliers and sourcing platforms</title>
+    <content></content>
+    <apps:property name='from' value='alibaba.com OR enogen.com.cn OR chromate.org'/>
+    <apps:property name='label' value='Purchasing'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Orders - customer mail to the company mailboxes</title>
+    <content></content>
+    <apps:property name='hasTheWord' value='to:(orders@nexphaselabs.net OR support@nexphaselabs.net) -from:(wpmailsmtp.com OR namecheap.com OR globalsources.com)'/>
+    <apps:property name='label' value='Orders'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+    <apps:property name='shouldAlwaysMarkAsImportant' value='true'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Money - payments, cards, tax, processors</title>
+    <content></content>
+    <apps:property name='from' value='paypal.com OR americanexpress.com OR cdtfa.ca.gov OR docusign.net OR merchantcashback.net OR valorach.com OR startmerchantservices.com OR intuit.com OR quickbooks.com'/>
+    <apps:property name='label' value='Money'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+    <apps:property name='shouldAlwaysMarkAsImportant' value='true'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Shipping - carriers and label hardware</title>
+    <content></content>
+    <apps:property name='from' value='ups.com OR usps.com OR niimbot.com OR fedex.com OR shipstation.com'/>
+    <apps:property name='label' value='Shipping'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <entry>
+    <category term='filter'></category>
+    <title>Noise - marketing and cold outreach, skips the inbox</title>
+    <content></content>
+    <apps:property name='from' value='globalsources.com OR wpmailsmtp.com OR slackhq.com OR dailyjournal.com OR gatewayscoutgrow.com'/>
+    <apps:property name='label' value='Noise'/>
+    <apps:property name='shouldArchive' value='true'/>
+    <apps:property name='shouldNeverMarkAsImportant' value='true'/>
+  </entry>
+
+</feed>

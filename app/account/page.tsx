@@ -110,9 +110,15 @@ export default async function AccountPage({ searchParams }: Props) {
           </div>
           <div className="grid gap-1 border-b border-border py-4 sm:grid-cols-[220px_1fr] sm:gap-6">
             <dt className="text-sm font-semibold text-muted-foreground">Catalog</dt>
-            <dd className="text-sm">
+            <dd className="flex gap-6 text-sm">
               <Link href="/catalog" className="font-semibold text-primary">
                 Browse materials
+              </Link>
+              <Link href="/account/cart" className="font-semibold text-primary">
+                Cart
+              </Link>
+              <Link href="/account/orders" className="font-semibold text-primary">
+                Orders
               </Link>
             </dd>
           </div>

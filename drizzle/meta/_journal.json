@@ -71,6 +71,20 @@
       "when": 1788412014849,
       "tag": "0009_tricky_carlie_cooper",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1788412929103,
+      "tag": "0010_bouncy_spirit",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1788414465860,
+      "tag": "0011_worried_thor_girl",
+      "breakpoints": true
     }
   ]
 }

@@ -57,7 +57,7 @@ Phase 4 ships: someone signs up, verifies their email, submits their organisatio
 
 ## Phase 5 — Orders, checkout, payments
 
-- [ ] 5.1 Cart and order schema with `channel` and `authorizationRef` fields
+- [x] 5.1 Cart and order schema — `cart_items`, `orders` (with `channel` = research_direct and `authorization_ref` null from the first order, price tier and ship-to snapshot, `last_transition_id`, `submission_token`), `order_items`, `order_events` (migrations 0010–0011, all envs). Server-side cart re-derives price and eligibility on every read; only priced, active, published pack sizes for viewers the visibility rule allows. Submission requires a verified organisation (its address is the only ship-to), a per-order research-use confirmation (recorded with its version in the event note), at least one released lot per product, and is idempotent via a unique per-form token with the cart cleared in the same transaction. `transitionOrder` is the single status path (conditional update + guarded event row). Verified by curl including three concurrent submits → one order. Audit CLEAN; both sub-threshold notes acted on and re-audited CLEAN.
 - [ ] 5.2 Checkout with payment-method abstraction (ACH / BTCPay adapters; provider TBD by owner)
 - [ ] 5.3 Fulfilment: pick from released lot, decrement, write `lot_movements` shipment row with actual consignee and ship date
 - [ ] 5.4 Tracking and order status for the account

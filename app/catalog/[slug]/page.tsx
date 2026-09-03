@@ -31,7 +31,7 @@ export const dynamic = 'force-dynamic';
  *     No dose, no route, no reconstitution volume, no benefit, no indication.
  */
 
-type PageProps = { params: Promise<{ slug: string }> };
+type PageProps = { params: Promise<{ slug: string }>; searchParams: Promise<{ cart?: string; why?: string }> };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
@@ -54,8 +54,9 @@ function SpecRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default async function ProductPage({ params }: PageProps) {
+export default async function ProductPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
+  const { cart: cartFlag, why } = await searchParams;
   const loaded = await loadCatalog(() => getPublishedProduct(slug));
 
   if (loaded.unavailable) {
@@ -259,6 +260,11 @@ export default async function ProductPage({ params }: PageProps) {
             <span className="utility-label text-muted-foreground">Status</span>
             {visibility.pricing !== 'none' && <span className="utility-label text-muted-foreground">Price</span>}
           </div>
+          {cartFlag && (
+            <p role="alert" className="border-b border-border bg-secondary px-6 py-3 text-sm">
+              {cartFlag === 'error' && why ? why.slice(0, 200) : cartFlag === 'invalid' ? 'That pack size is not valid.' : 'The cart is temporarily unavailable.'}
+            </p>
+          )}
           {activeVariants.map((variant) => {
             const cents = priceFor(variant, visibility.pricing);
             return (
@@ -272,7 +278,23 @@ export default async function ProductPage({ params }: PageProps) {
                 </span>
                 <span className="text-sm text-muted-foreground">{STATUS_LABEL[product.status]}</span>
                 {visibility.pricing !== 'none' && (
-                  <span className="text-right font-mono text-sm">{cents === null ? 'Price on request' : formatCents(cents)}</span>
+                  <span className="flex items-center justify-end gap-3 text-right font-mono text-sm">
+                    {cents === null ? (
+                      'Price on request'
+                    ) : (
+                      <>
+                        {formatCents(cents)}
+                        <form method="post" action="/api/cart" className="flex items-center gap-2">
+                          <input type="hidden" name="sku" value={variant.sku} />
+                          <input type="hidden" name="return_to" value={`/catalog/${product.slug}`} />
+                          <input name="quantity" type="number" min={1} max={50} defaultValue={1} aria-label="Quantity" className="h-9 w-16 border border-foreground/20 bg-background px-2 font-mono text-xs" />
+                          <button type="submit" className="h-9 bg-primary px-3 text-xs font-bold text-primary-foreground hover:bg-primary/90">
+                            Add
+                          </button>
+                        </form>
+                      </>
+                    )}
+                  </span>
                 )}
               </div>
             );
@@ -282,8 +304,11 @@ export default async function ProductPage({ params }: PageProps) {
         {visibility.pricing !== 'none' ? (
           <div className="mt-9 max-w-2xl">
             <p className="text-sm leading-6 text-muted-foreground">
-              Prices shown for your {visibility.pricing === 'institutional' ? 'verified research organisation' : 'account'}.
-              Ordering opens in the next stage of the build; until then, email research@nexphaselabs.net quoting the SKU.
+              Prices shown for your {visibility.pricing === 'institutional' ? 'verified research organisation' : 'account'}.{' '}
+              <Link href="/account/cart" className="font-semibold text-primary">
+                View cart
+              </Link>
+              .
             </p>
             <h3 className="mt-8 utility-label text-primary">Released lots</h3>
             {releasedLots.length === 0 ? (
