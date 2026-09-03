@@ -17,10 +17,10 @@ export default function LotLookupPage() {
           Documentation
         </p>
         <h1 className="mt-7 max-w-3xl font-display text-[clamp(2.4rem,5vw,4.2rem)] font-extrabold leading-[0.94] tracking-[-0.055em]">
-          Look up any lot we have shipped.
+          Look up any lot we have released.
         </h1>
         <p className="mt-7 max-w-2xl text-lg leading-8 text-muted-foreground">
-          Enter the lot number printed on the vial. The record returned is the one issued for that
+          Search by the lot number printed on the vial, by the accession number on the certificate, or by material. The record returned is the one issued for that
           lot: the measured purity and the method used, the identity confirmation, the manufacturer
           of record, and the analytical files. No account is required to read it.
         </p>

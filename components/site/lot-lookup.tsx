@@ -19,6 +19,17 @@ type LotTest = {
   passed: boolean | null;
 };
 
+type LotSearchHit = {
+  lotNumber: string;
+  productCode: string;
+  productName: string;
+  casNumber: string;
+  accessionNumber: string | null;
+  analyticalLab: string | null;
+  purityResult: string | null;
+  releasedOn: string | null;
+};
+
 type LotRecord = {
   lotNumber: string;
   productCode: string;
@@ -34,6 +45,11 @@ type LotRecord = {
   identityMethod: string | null;
   waterContent: string | null;
   heavyMetalsSummary: string | null;
+  accessionNumber: string | null;
+  analyticalLab: string | null;
+  netPeptideContent: string | null;
+  appearance: string | null;
+  testingStandard: string | null;
   retestDate: string | null;
   storageCondition: string | null;
   releasedOn: string | null;
@@ -62,47 +78,87 @@ function Field({ label, value }: { label: string; value: string | null }) {
 
 export function LotLookup() {
   const [query, setQuery] = useState('');
-  const [state, setState] = useState<'idle' | 'loading' | 'found' | 'missing' | 'error'>('idle');
+  const [state, setState] = useState<'idle' | 'loading' | 'found' | 'hits' | 'missing' | 'error'>(
+    'idle',
+  );
   const [record, setRecord] = useState<LotRecord | null>(null);
+  const [hits, setHits] = useState<LotSearchHit[]>([]);
   const [message, setMessage] = useState('');
 
-  async function onSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    const lot = query.trim();
-    if (!lot) return;
-
+  /**
+   * One box, three axes: lot number, accession number, or product.
+   *
+   * Try an exact lot match first, because that is what someone holding a vial
+   * types. Fall back to search so an accession number from a certificate, or a
+   * product name, also resolves. Anything unreleased 404s at both steps.
+   */
+  async function lookup(term: string) {
     setState('loading');
     setRecord(null);
+    setHits([]);
     setMessage('');
 
     try {
-      const response = await fetch(`/api/lots/${encodeURIComponent(lot)}`);
-      if (response.ok) {
-        setRecord((await response.json()) as LotRecord);
+      const exact = await fetch(`/api/lots/${encodeURIComponent(term)}`);
+      if (exact.ok) {
+        setRecord((await exact.json()) as LotRecord);
         setState('found');
         return;
       }
-      const body = (await response.json().catch(() => ({}))) as { error?: string };
-      setMessage(body.error ?? 'That lot could not be retrieved.');
-      setState(response.status === 404 ? 'missing' : 'error');
+      if (exact.status === 503) {
+        const body = (await exact.json().catch(() => ({}))) as { error?: string };
+        setMessage(body.error ?? 'Lot records are temporarily unavailable.');
+        setState('error');
+        return;
+      }
+
+      const search = await fetch(`/api/lots/search?q=${encodeURIComponent(term)}`);
+      if (search.ok) {
+        const body = (await search.json()) as { results: LotSearchHit[] };
+        if (body.results.length === 1) {
+          const only = await fetch(`/api/lots/${encodeURIComponent(body.results[0].lotNumber)}`);
+          if (only.ok) {
+            setRecord((await only.json()) as LotRecord);
+            setState('found');
+            return;
+          }
+        }
+        if (body.results.length > 0) {
+          setHits(body.results);
+          setState('hits');
+          return;
+        }
+      }
+
+      setMessage('No released lot matches that lot number, accession number, or product.');
+      setState('missing');
     } catch {
-      setMessage('The lot service could not be reached. Try again, or email research@nexphaselabs.net.');
+      setMessage(
+        'The lot service could not be reached. Try again, or email research@nexphaselabs.net.',
+      );
       setState('error');
     }
+  }
+
+  async function onSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    const term = query.trim();
+    if (term.length < 2) return;
+    await lookup(term);
   }
 
   return (
     <div>
       <form onSubmit={onSubmit} className="flex max-w-xl flex-col gap-3 sm:flex-row">
         <label htmlFor="lot" className="sr-only">
-          Lot number
+          Lot number, accession number, or product
         </label>
         <input
           id="lot"
           name="lot"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="e.g. NPL1-260714-A"
+          placeholder="Lot number, accession number, or product"
           autoComplete="off"
           spellCheck={false}
           className="h-12 flex-1 border border-foreground/20 bg-background px-4 font-mono text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
@@ -125,6 +181,68 @@ export function LotLookup() {
         <div className="mt-8 flex max-w-xl items-start gap-3 border border-border bg-secondary p-5">
           <AlertCircle className="mt-0.5 size-4 shrink-0 text-primary" />
           <p className="text-sm leading-6">{message}</p>
+        </div>
+      )}
+
+      {state === 'hits' && hits.length > 0 && (
+        <div className="mt-10">
+          <p className="utility-label text-primary">
+            {hits.length} released {hits.length === 1 ? 'lot' : 'lots'}
+          </p>
+          <div className="mt-5 overflow-x-auto border border-border">
+            <table className="w-full min-w-[44rem] text-left text-sm">
+              <thead>
+                <tr className="border-b border-border bg-secondary">
+                  <th className="p-4 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+                    Lot
+                  </th>
+                  <th className="p-4 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+                    Material
+                  </th>
+                  <th className="p-4 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+                    Accession
+                  </th>
+                  <th className="p-4 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+                    Purity
+                  </th>
+                  <th className="p-4 font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+                    Released
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {hits.map((hit) => (
+                  <tr key={hit.lotNumber} className="border-b border-border last:border-b-0">
+                    <td className="p-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuery(hit.lotNumber);
+                          void lookup(hit.lotNumber);
+                        }}
+                        className="font-mono text-sm font-semibold text-primary underline underline-offset-2"
+                      >
+                        {hit.lotNumber}
+                      </button>
+                    </td>
+                    <td className="p-4">
+                      {hit.productName}
+                      <span className="block font-mono text-[11px] text-muted-foreground">
+                        {hit.productCode} &middot; CAS {hit.casNumber}
+                      </span>
+                    </td>
+                    <td className="p-4 font-mono text-xs text-muted-foreground">
+                      {hit.accessionNumber ?? '\u2014'}
+                    </td>
+                    <td className="p-4 font-mono text-xs">{hit.purityResult ?? '\u2014'}</td>
+                    <td className="p-4 font-mono text-xs text-muted-foreground">
+                      {hit.releasedOn ?? '\u2014'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -161,9 +279,14 @@ export function LotLookup() {
                   : 'Not confirmed'
               }
             />
+            <Field label="Appearance" value={record.appearance} />
+            <Field label="Net peptide content" value={record.netPeptideContent} />
             <Field label="Water content" value={record.waterContent} />
             <Field label="Heavy metals" value={record.heavyMetalsSummary} />
             <Field label="Storage condition" value={record.storageCondition} />
+            <Field label="Testing laboratory" value={record.analyticalLab} />
+            <Field label="Accession number" value={record.accessionNumber} />
+            <Field label="Testing standard" value={record.testingStandard} />
             <Field label="Released on" value={record.releasedOn} />
             <Field label="Retest date" value={record.retestDate} />
           </dl>

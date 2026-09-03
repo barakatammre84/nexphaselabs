@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, or, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { lotTests, lots, type Lot } from '@/db/schema';
 import type { DocumentType } from '@/lib/documents';
@@ -30,6 +30,11 @@ export type PublicLot = {
   identityMethod: string | null;
   waterContent: string | null;
   heavyMetalsSummary: string | null;
+  accessionNumber: string | null;
+  analyticalLab: string | null;
+  netPeptideContent: string | null;
+  appearance: string | null;
+  testingStandard: string | null;
   retestDate: string | null;
   storageCondition: string | null;
   releasedOn: string | null;
@@ -77,6 +82,11 @@ export async function getPublicLot(lotNumber: string): Promise<PublicLot | null>
     identityMethod: lot.identityMethod,
     waterContent: lot.waterContent,
     heavyMetalsSummary: lot.heavyMetalsSummary,
+    accessionNumber: lot.accessionNumber,
+    analyticalLab: lot.analyticalLab,
+    netPeptideContent: lot.netPeptideContent,
+    appearance: lot.appearance,
+    testingStandard: lot.testingStandard,
     retestDate: iso(lot.retestDate),
     storageCondition: lot.storageCondition,
     releasedOn: iso(lot.releasedAt),
@@ -129,4 +139,76 @@ export async function listReleasedLotsForProduct(productCode: string): Promise<R
     .where(and(eq(lots.productCode, productCode), eq(lots.status, 'released')))
     .orderBy(desc(lots.releasedAt));
   return rows.map((r) => ({ lotNumber: r.lotNumber, releasedOn: iso(r.releasedAt), retestDate: iso(r.retestDate), manufacturerName: r.manufacturerName }));
+}
+
+
+/**
+ * Public lot search — product name, lot number, or accession number.
+ *
+ * Three axes, matching what the best archive in this category offers. The
+ * accession axis is the important one: it is the analytical lab's reference,
+ * so a customer holding a certificate can confirm it resolves here, and can
+ * take that same number to the lab.
+ *
+ * Released lots only, and the same fields the single-lot lookup returns —
+ * never quantities, never movements, never who released it.
+ */
+export type LotSearchHit = {
+  lotNumber: string;
+  productCode: string;
+  productName: string;
+  casNumber: string;
+  accessionNumber: string | null;
+  analyticalLab: string | null;
+  purityResult: string | null;
+  releasedOn: string | null;
+};
+
+export const LOT_SEARCH_LIMIT = 25;
+
+export async function searchReleasedLots(query: string): Promise<LotSearchHit[]> {
+  const term = query.trim();
+  if (term.length < 2) return [];
+
+  // Escape LIKE wildcards so a user cannot turn the box into a full scan.
+  const escaped = term.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const pattern = `%${escaped}%`;
+  const db = getDb();
+
+  const rows = await db
+    .select({
+      lotNumber: lots.lotNumber,
+      productCode: lots.productCode,
+      productName: lots.productName,
+      casNumber: lots.casNumber,
+      accessionNumber: lots.accessionNumber,
+      analyticalLab: lots.analyticalLab,
+      purityResult: lots.purityResult,
+      releasedAt: lots.releasedAt,
+    })
+    .from(lots)
+    .where(
+      and(
+        eq(lots.status, 'released'),
+        or(
+          sql`upper(${lots.lotNumber}) LIKE upper(${pattern}) ESCAPE '\\'`,
+          sql`upper(${lots.productName}) LIKE upper(${pattern}) ESCAPE '\\'`,
+          sql`upper(${lots.productCode}) LIKE upper(${pattern}) ESCAPE '\\'`,
+          sql`upper(${lots.accessionNumber}) LIKE upper(${pattern}) ESCAPE '\\'`,
+        ),
+      ),
+    )
+    .orderBy(desc(lots.releasedAt))
+    .limit(LOT_SEARCH_LIMIT);
+
+  return rows.map((r) => ({
+    lotNumber: r.lotNumber,
+    productCode: r.productCode,
+    productName: r.productName,
+    casNumber: r.casNumber,
+    accessionNumber: r.accessionNumber,
+    analyticalLab: r.analyticalLab,
+    purityResult: r.purityResult,
+    releasedOn: iso(r.releasedAt),
+  }));
 }
