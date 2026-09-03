@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Lock } from 'lucide-react';
-import { requireStaff } from '@/lib/staff-auth';
+import { canManageStaff, requireStaff } from '@/lib/staff-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,12 +46,20 @@ export default async function ManageLayout({
             <Link href="/manage/reports" className="hover:text-primary">
               Reports
             </Link>
+            {canManageStaff(staff) && (
+              <Link href="/manage/staff" className="hover:text-primary">
+                Staff
+              </Link>
+            )}
           </nav>
           <form
             method="post"
             action="/api/staff/sign-out"
             className="flex items-center gap-4"
           >
+            <Link href="/staff/password" className="text-muted-foreground hover:text-primary">
+              Password
+            </Link>
             <span className="text-muted-foreground">
               {staff.name} &middot; {staff.role}
             </span>

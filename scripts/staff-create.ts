@@ -38,7 +38,7 @@ const id = `stf_${[...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.to
 const q = (s: string) => `'${s.replace(/'/g, "''")}'`;
 
 const hash = await hashPassword(password);
-const sql = `INSERT INTO staff_users (id, email, name, password_hash, role, active) VALUES (${q(id)}, ${q(email)}, ${q(name)}, ${q(hash)}, ${q(role)}, 1);\n`;
+const sql = `INSERT INTO staff_users (id, email, name, password_hash, role, active, must_change_password) VALUES (${q(id)}, ${q(email)}, ${q(name)}, ${q(hash)}, ${q(role)}, 1, 1);\n`;
 
 mkdirSync('drizzle/seed', { recursive: true });
 const file = `drizzle/seed/staff-${id}.sql`;

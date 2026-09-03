@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Lock } from 'lucide-react';
-import { getStaff, safeReturnPath } from '@/lib/staff-auth';
+import { getStaffIncludingPasswordChange, safeReturnPath } from '@/lib/staff-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,10 +23,10 @@ export default async function StaffSignInPage({ searchParams }: Props) {
   const params = await searchParams;
   const returnTo = safeReturnPath(params.return_to);
 
-  const staff = await getStaff();
-  if (staff) redirect(returnTo);
+  const staff = await getStaffIncludingPasswordChange();
+  if (staff) redirect(staff.mustChangePassword ? `/staff/password?required=1&return_to=${encodeURIComponent(returnTo)}` : returnTo);
 
-  const error = params.error ? (ERROR_TEXT[params.error] ?? ERROR_TEXT.invalid) : null;
+  const error = params.error ? (Object.hasOwn(ERROR_TEXT, params.error) ? ERROR_TEXT[params.error] : ERROR_TEXT.invalid) : null;
 
   return (
     <main className="bg-background text-foreground">

@@ -2,7 +2,7 @@ import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getDb } from '@/db';
-import { staffSessions, staffUsers, type StaffUser } from '@/db/schema';
+import { staffEvents, staffSessions, staffUsers, type StaffUser } from '@/db/schema';
 import { hashPassword, randomToken, sha256Hex, verifyPassword } from '@/lib/staff-auth-core';
 
 /**
@@ -25,8 +25,8 @@ const LOCKOUT_SECONDS = 15 * 60;
 
 export { hashPassword, passwordPolicyError, sha256Hex, verifyPassword } from '@/lib/staff-auth-core';
 
-export type StaffRole = 'admin' | 'qc' | 'ops';
-export const STAFF_ROLES: StaffRole[] = ['admin', 'qc', 'ops'];
+export { STAFF_ROLES, type StaffRole } from '@/lib/staff-roles';
+import type { StaffRole } from '@/lib/staff-roles';
 
 export type StaffPrincipal = {
   id: string;
@@ -34,7 +34,13 @@ export type StaffPrincipal = {
   name: string;
   role: StaffRole;
   sessionId: string;
+  /** True until the person replaces a one-time password with their own. */
+  mustChangePassword: boolean;
 };
+
+function eventId(): string {
+  return `sev_${randomToken().slice(0, 24)}`;
+}
 
 /* ------------------------------------------------------------------------ */
 /* Sign in / out                                                             */
@@ -60,10 +66,14 @@ export async function signIn(email: string, password: string, userAgent: string 
     await hashPassword(password); // burn the same time as a real check
     return { ok: false, reason: 'invalid' };
   }
+  const ua = userAgent?.slice(0, 200) ?? null;
   if (user.lockedUntil && user.lockedUntil > now) return { ok: false, reason: 'locked' };
 
   const valid = await verifyPassword(password, user.passwordHash);
-  if (!user.active) return { ok: false, reason: 'invalid' };
+  if (!user.active) {
+    await db.insert(staffEvents).values({ id: eventId(), userId: user.id, action: 'sign_in_failed', detail: 'inactive account', actor: 'system', userAgent: ua, createdAt: now });
+    return { ok: false, reason: 'invalid' };
+  }
 
   if (!valid) {
     // Atomic increment: concurrent guesses cannot read the same count and
@@ -79,22 +89,26 @@ export async function signIn(email: string, password: string, userAgent: string 
       .where(eq(staffUsers.id, user.id))
       .returning({ lockedUntil: staffUsers.lockedUntil });
     const locked = Boolean(after?.lockedUntil && after.lockedUntil > now);
+    await db.insert(staffEvents).values({
+      id: eventId(),
+      userId: user.id,
+      action: locked ? 'locked' : 'sign_in_failed',
+      detail: locked ? `wrong password; locked for ${LOCKOUT_SECONDS / 60} minutes` : 'wrong password',
+      actor: 'system',
+      userAgent: ua,
+      createdAt: now,
+    });
     return { ok: false, reason: locked ? 'locked' : 'invalid' };
   }
 
   const token = randomToken();
   const expiresAt = new Date(now.getTime() + SESSION_TTL_SECONDS * 1000);
-  await db.insert(staffSessions).values({
-    id: `ses_${randomToken().slice(0, 24)}`,
-    tokenHash: await sha256Hex(token),
-    userId: user.id,
-    expiresAt,
-    userAgent: userAgent?.slice(0, 200) ?? null,
-  });
-  await db
-    .update(staffUsers)
-    .set({ failedAttempts: 0, lockedUntil: null, lastLoginAt: now, updatedAt: now })
-    .where(eq(staffUsers.id, user.id));
+  const sessionId = `ses_${randomToken().slice(0, 24)}`;
+  await db.batch([
+    db.insert(staffSessions).values({ id: sessionId, tokenHash: await sha256Hex(token), userId: user.id, expiresAt, userAgent: ua }),
+    db.update(staffUsers).set({ failedAttempts: 0, lockedUntil: null, lastLoginAt: now, updatedAt: now }).where(eq(staffUsers.id, user.id)),
+    db.insert(staffEvents).values({ id: eventId(), userId: user.id, action: 'sign_in', detail: `session ${sessionId}`, actor: 'self', userAgent: ua, createdAt: now }),
+  ]);
 
   return { ok: true, token, expiresAt, user };
 }
@@ -153,27 +167,55 @@ async function principalForToken(token: string | undefined): Promise<StaffPrinci
     name: row.user.name,
     role: row.user.role as StaffRole,
     sessionId: row.session.id,
+    mustChangePassword: row.user.mustChangePassword,
   };
 }
 
-/** For server components and server actions. */
-export async function getStaff(): Promise<StaffPrincipal | null> {
+/**
+ * The session holder regardless of password state. Only the password page,
+ * the password route and sign-out use this; everything else goes through
+ * getStaff / getStaffFromRequest, which treat a one-time password as no
+ * session at all so no data can be read or written with a password an admin
+ * has seen.
+ */
+export async function getStaffIncludingPasswordChange(): Promise<StaffPrincipal | null> {
   const jar = await cookies();
   return principalForToken(jar.get(SESSION_COOKIE)?.value);
 }
 
-/** For route handlers, which receive the Request directly. */
-export async function getStaffFromRequest(request: Request): Promise<StaffPrincipal | null> {
+export async function getStaffFromRequestIncludingPasswordChange(request: Request): Promise<StaffPrincipal | null> {
   const cookie = request.headers.get('cookie') ?? '';
   const match = cookie.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([a-f0-9]{64})`));
   return principalForToken(match?.[1]);
 }
 
-/** Redirects to sign-in when there is no valid staff session. */
+/** For server components and server actions. Null while a one-time password is in force. */
+export async function getStaff(): Promise<StaffPrincipal | null> {
+  const staff = await getStaffIncludingPasswordChange();
+  return staff && !staff.mustChangePassword ? staff : null;
+}
+
+/** For route handlers, which receive the Request directly. Null while a one-time password is in force. */
+export async function getStaffFromRequest(request: Request): Promise<StaffPrincipal | null> {
+  const staff = await getStaffFromRequestIncludingPasswordChange(request);
+  return staff && !staff.mustChangePassword ? staff : null;
+}
+
+/**
+ * Redirects to sign-in when there is no valid staff session, and to the
+ * password page while a one-time password is still in force — a person
+ * signed in with a password an admin has seen can look at nothing else first.
+ */
 export async function requireStaff(returnTo = '/manage'): Promise<StaffPrincipal> {
-  const staff = await getStaff();
-  if (staff) return staff;
-  redirect(`/staff/sign-in?return_to=${encodeURIComponent(safeReturnPath(returnTo))}`);
+  const staff = await getStaffIncludingPasswordChange();
+  if (!staff) redirect(`/staff/sign-in?return_to=${encodeURIComponent(safeReturnPath(returnTo))}`);
+  if (staff.mustChangePassword) redirect(`/staff/password?return_to=${encodeURIComponent(safeReturnPath(returnTo))}&required=1`);
+  return staff;
+}
+
+/** Only admins manage staff accounts. */
+export function canManageStaff(staff: StaffPrincipal): boolean {
+  return staff.role === 'admin';
 }
 
 /** Roles allowed to create and edit catalog products. */

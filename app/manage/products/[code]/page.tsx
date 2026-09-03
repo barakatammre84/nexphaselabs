@@ -63,7 +63,7 @@ export default async function EditProductPage({ params, searchParams }: Props) {
     productDocumentHistory(product.id, 'image'),
     listActiveClasses(),
   ]);
-  const sdsMessage = sds ? (SDS_MESSAGE[sds] ?? SDS_MESSAGE.store) : null;
+  const sdsMessage = sds ? (Object.hasOwn(SDS_MESSAGE, sds) ? SDS_MESSAGE[sds] : SDS_MESSAGE.store) : null;
   const imageMessage = image
     ? (IMAGE_MESSAGE[image] ?? IMAGE_MESSAGE.store)
     : null;

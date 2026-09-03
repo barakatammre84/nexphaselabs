@@ -6,6 +6,8 @@
 
 export const PBKDF2_ITERATIONS = 100_000;
 
+export { STAFF_ROLES, type StaffRole } from '@/lib/staff-roles';
+
 const enc = new TextEncoder();
 
 function toBase64(bytes: Uint8Array): string {

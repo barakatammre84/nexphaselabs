@@ -479,6 +479,12 @@ export const staffUsers = sqliteTable(
     failedAttempts: integer('failed_attempts').notNull().default(0),
     lockedUntil: integer('locked_until', { mode: 'timestamp' }),
     lastLoginAt: integer('last_login_at', { mode: 'timestamp' }),
+    /** Set on creation and on an admin reset; cleared when the person sets their own password. */
+    mustChangePassword: integer('must_change_password', { mode: 'boolean' }).notNull().default(false),
+    passwordChangedAt: integer('password_changed_at', { mode: 'timestamp' }),
+    createdBy: text('created_by'),
+    /** Fresh id stamped by every admin change; the event row is written only where it matches. */
+    lastChangeId: text('last_change_id'),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .notNull()
       .default(sql`(unixepoch())`),
@@ -492,6 +498,31 @@ export const staffUsers = sqliteTable(
 );
 
 /** Server-side sessions. The cookie carries a random token; only its SHA-256 is stored. */
+/**
+ * Staff account history: who created, changed, reset or deactivated whom, and
+ * every sign-in attempt. Append-only.
+ */
+export const staffEvents = sqliteTable(
+  'staff_events',
+  {
+    id: text('id').primaryKey(),
+    /** The staff user the event is about. */
+    userId: text('user_id').notNull(),
+    /** create | role | deactivate | reactivate | password_reset | password_changed | sessions_revoked | sign_in | sign_in_failed | locked */
+    action: text('action').notNull(),
+    detail: text('detail'),
+    /** "Name (stf_id)" of the actor, or "self" / "system". */
+    actor: text('actor').notNull(),
+    userAgent: text('user_agent'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    userIdx: index('staff_events_user_idx').on(table.userId),
+  }),
+);
+
+export type StaffEvent = typeof staffEvents.$inferSelect;
+
 export const staffSessions = sqliteTable(
   'staff_sessions',
   {

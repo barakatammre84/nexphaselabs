@@ -113,6 +113,27 @@
       "when": 1788417920339,
       "tag": "0015_round_whiplash",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1788417921339,
+      "tag": "0016_sloppy_ted_forrester",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1788455566517,
+      "tag": "0017_giant_aaron_stack",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1788456458124,
+      "tag": "0018_sweet_nextwave",
+      "breakpoints": true
     }
   ]
 }
