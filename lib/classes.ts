@@ -187,6 +187,7 @@ export async function updateClass(
     // Deactivation is guarded inside the statement itself, so a publish that lands between a
     // check and the update cannot leave a published product in an inactive class.
     const stamp = Math.floor(now.getTime() / 1000);
+    const marker = `chg_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`;
     let updated: { id: string }[] | undefined;
     try {
       [updated] = await db.batch([
@@ -199,6 +200,7 @@ export async function updateClass(
             active: false,
             updatedAt: now,
             updatedBy: staff.id,
+            lastChangeId: marker,
           })
           .where(
             and(
@@ -215,10 +217,11 @@ export async function updateClass(
           .where(
             and(
               eq(products.chemicalClass, current.name),
-              sql`EXISTS (SELECT 1 FROM chemical_classes WHERE id = ${current.id} AND active = 0 AND updated_at = ${stamp})`,
+              sql`EXISTS (SELECT 1 FROM chemical_classes WHERE id = ${current.id} AND last_change_id = ${marker})`,
             ),
           ),
-        // Revision row exists only if the update above applied (row now inactive with our stamp).
+        // Revision row exists only where this batch's own marker landed — a concurrent identical
+        // change cannot reproduce it.
         db.insert(chemicalClassRevisions).select(
           db
             .select({
@@ -234,13 +237,7 @@ export async function updateClass(
               createdAt: sql<number>`${stamp}`.as('created_at'),
             })
             .from(chemicalClasses)
-            .where(
-              and(
-                eq(chemicalClasses.id, current.id),
-                eq(chemicalClasses.active, false),
-                eq(chemicalClasses.updatedAt, now),
-              ),
-            ),
+            .where(and(eq(chemicalClasses.id, current.id), eq(chemicalClasses.lastChangeId, marker))),
         ),
       ]);
     } catch (error) {
@@ -263,6 +260,7 @@ export async function updateClass(
     return { ok: true, id: current.id };
   }
 
+  const marker = `chg_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`;
   const action = !current.active && v.active ? 'reactivate' : 'update';
   const statements = [
     db
@@ -273,6 +271,7 @@ export async function updateClass(
         sortOrder: v.sortOrder,
         active: v.active,
         updatedAt: now,
+        lastChangeId: marker,
         updatedBy: staff.id,
       })
       .where(eq(chemicalClasses.id, current.id)),

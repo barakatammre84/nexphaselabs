@@ -1,6 +1,6 @@
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { productDocuments, products, type ProductDocument } from '@/db/schema';
+import { productDocuments, productRevisions, products, type ProductDocument } from '@/db/schema';
 import type { StoredDocument } from '@/lib/documents';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 
@@ -76,6 +76,7 @@ export const sdsHistory = (productId: string) =>
  */
 export async function attachProductImage(
   productId: string,
+  productCode: string,
   stored: StoredDocument,
   originalName: string | null,
   staff: StaffPrincipal,
@@ -110,12 +111,25 @@ export async function attachProductImage(
       .update(products)
       .set({ image: stored.key, updatedAt: now, updatedBy: staff.id })
       .where(eq(products.id, productId)),
+    // A photograph appearing on a public product page is a catalog change, attributed like any other.
+    db.insert(productRevisions).values({
+      id: id('rev'),
+      productId,
+      productCode: productCode,
+      action: 'image',
+      snapshot: { image: stored.key, originalName },
+      changedBy: staff.id,
+      changedByName: staff.name,
+      note: `Photograph uploaded: ${originalName ?? stored.key}`,
+      createdAt: now,
+    }),
   ]);
 }
 
 /** Stop showing the photograph. The upload and its history row are kept. */
 export async function clearProductImage(
   productId: string,
+  productCode: string,
   staff: StaffPrincipal,
 ): Promise<void> {
   const db = getDb();
@@ -135,6 +149,17 @@ export async function clearProductImage(
       .update(products)
       .set({ image: null, updatedAt: now, updatedBy: staff.id })
       .where(eq(products.id, productId)),
+    db.insert(productRevisions).values({
+      id: id('rev'),
+      productId,
+      productCode: productCode,
+      action: 'image_removed',
+      snapshot: { image: null },
+      changedBy: staff.id,
+      changedByName: staff.name,
+      note: 'Photograph removed; the page now says no photograph is on file',
+      createdAt: now,
+    }),
   ]);
 }
 

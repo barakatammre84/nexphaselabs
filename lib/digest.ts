@@ -13,7 +13,7 @@ import { publicOrigin } from '@/lib/site-config';
  */
 export async function composeDigest(now = new Date()): Promise<{ subject: string; text: string }> {
   const since = new Date(now.getTime() - 24 * 3600 * 1000);
-  const [counts, alerts, activity] = await Promise.all([queueCounts(), lotAlerts(now), activityTimeline(ALL_DOMAINS, 200, 80)]);
+  const [counts, alerts, activity] = await Promise.all([queueCounts(), lotAlerts(now), activityTimeline(ALL_DOMAINS, 1000, 200)]);
   const recent = activity.filter((a) => a.at >= since);
   const origin = publicOrigin();
   const line = (label: string, n: number, path: string) => (n > 0 ? `  ${String(n).padStart(3)}  ${label}  ${origin}${path}` : null);

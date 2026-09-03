@@ -13,6 +13,8 @@ type Props = {
   /** Open purchase-order lines. Choosing one carries the supplier, ordered quantity and landed cost onto the lot. */
   expected?: ExpectedOption[];
   today: string;
+  /** Only admins may record landed cost at intake; others set it later from the lot page (an admin). */
+  canRecordCost?: boolean;
   action: (prev: LotFormState, data: FormData) => Promise<LotFormState>;
 };
 
@@ -54,7 +56,7 @@ function Field({
   );
 }
 
-export function LotForm({ products, expected = [], today, action }: Props) {
+export function LotForm({ products, expected = [], today, canRecordCost = false, action }: Props) {
   const [state, formAction, pending] = useActionState(action, {
     values: { receivedAt: today },
     errors: [],
@@ -146,11 +148,13 @@ export function LotForm({ products, expected = [], today, action }: Props) {
         <Field name="note" title="Receiving note" values={v} multiline hint="Condition on arrival, seal integrity, discrepancies. Goes on the receipt movement." />
       </section>
 
+      {canRecordCost && (
       <section className="grid gap-6 lg:grid-cols-2">
         <h2 className="utility-label text-primary lg:col-span-2">Cost</h2>
         <Field name="cost" title="Landed cost (USD)" values={v} hint="Material, freight and duty for the whole lot. Feeds margin per order. Can be set later by an admin." />
         <Field name="costNote" title="Cost note" values={v} hint='e.g. "Invoice INV-2201, freight included".' />
       </section>
+      )}
 
       <div className="flex items-center gap-4 border-t border-border pt-6">
         <button

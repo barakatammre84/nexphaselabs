@@ -7,7 +7,9 @@ import {
   lotStatusEvents,
   lotTests,
   lots,
+  purchaseOrderEvents,
   purchaseOrderLines,
+  purchaseOrders,
   type Lot,
   type LotDocument,
   type LotMovement,
@@ -30,7 +32,7 @@ import type { StaffPrincipal } from '@/lib/staff-auth';
 import { randomToken } from '@/lib/staff-auth-core';
 import { lotFamilyIds } from '@/lib/lot-family';
 import { receiptStatements, type ExpectedReceipt } from '@/lib/procurement';
-import { quantitiesComparable, quantityRatio, receiptCostCents } from '@/lib/procurement-quantities';
+import { adjustQuantity, compareQuantities, quantitiesComparable, quantityRatio, receiptCostCents } from '@/lib/procurement-quantities';
 import { sumQuantities } from '@/lib/lot-quantities';
 
 export { lotFamilyIds, lotVersions } from '@/lib/lot-family';
@@ -549,6 +551,60 @@ export async function correctLot(
     }),
   ) as unknown as typeof columns; // runtime: aliased SQL for overridden columns, the column itself otherwise
   const quantityChanging = validated.changes.some((c) => c.field === 'quantityReceived');
+  // A corrected received quantity must reach the purchase-order line the lot arrived against,
+  // or the two records diverge: the line total, its closure and the order status are recomputed
+  // in the same batch, guarded on the claim.
+  const lineStatements: unknown[] = [];
+  let lineGuard: SQL = sql`1 = 1`;
+  if (quantityChanging && current.purchaseOrderLineId) {
+    const [line] = await db
+      .select({ l: purchaseOrderLines, poId: purchaseOrders.id, poStatus: purchaseOrders.status })
+      .from(purchaseOrderLines)
+      .innerJoin(purchaseOrders, eq(purchaseOrderLines.purchaseOrderId, purchaseOrders.id))
+      .where(eq(purchaseOrderLines.id, current.purchaseOrderLineId))
+      .limit(1);
+    if (line) {
+      const newTotal = adjustQuantity(line.l.receivedQuantity, current.quantityReceived ?? '', v.quantityReceived);
+      if (!newTotal) {
+        return { ok: false, error: `The corrected quantity cannot be reconciled with purchase order line ${line.l.productCode} ${line.l.quantity} (${line.l.receivedQuantity ?? 'nothing'} received).` };
+      }
+      if (line.poStatus !== 'partially_received' && line.poStatus !== 'received') {
+        return { ok: false, error: `Purchase order ${line.l.productCode} line is on an order that is ${line.poStatus}; the received quantity cannot be corrected against it.` };
+      }
+      const complete = compareQuantities(newTotal, line.l.quantity) >= 0;
+      // The lot claim (below) also requires the line to be exactly as read, so a receipt landing
+      // between the read and this batch makes the whole correction a no-op instead of half-applying.
+      lineGuard = sql`EXISTS (SELECT 1 FROM ${purchaseOrderLines} WHERE ${purchaseOrderLines.id} = ${line.l.id} AND ${purchaseOrderLines.receivedCount} = ${line.l.receivedCount} AND ${purchaseOrderLines.receivedQuantity} IS ${line.l.receivedQuantity})`;
+      const claimed = sql`EXISTS (SELECT 1 FROM ${lots} WHERE ${lots.id} = ${current.id} AND ${lots.supersededById} = ${newId})`;
+      lineStatements.push(
+        db
+          .update(purchaseOrderLines)
+          .set({ receivedQuantity: newTotal, closedAt: complete ? (line.l.closedAt ?? now) : null })
+          .where(and(eq(purchaseOrderLines.id, line.l.id), claimed)),
+        db
+          .update(purchaseOrders)
+          .set({
+            status: sql`CASE WHEN (SELECT count(*) FROM purchase_order_lines l WHERE l.purchase_order_id = purchase_orders.id AND l.closed_at IS NULL) = 0 THEN 'received' ELSE 'partially_received' END`,
+            updatedAt: now,
+          })
+          .where(and(eq(purchaseOrders.id, line.poId), sql`${purchaseOrders.status} IN ('partially_received', 'received')`, claimed)),
+        db.insert(purchaseOrderEvents).select(
+          db
+            .select({
+              id: sql<string>`${`poe_${randomToken().slice(0, 24)}`}`.as('id'),
+              purchaseOrderId: purchaseOrders.id,
+              fromStatus: sql<string>`'correction'`.as('from_status'),
+              toStatus: purchaseOrders.status,
+              note: sql<string>`${`Lot ${current.lotNumber} corrected: ${current.quantityReceived} → ${v.quantityReceived}; line total now ${newTotal}${complete ? ' (line complete)' : ' (line reopened)'}`}`.as('note'),
+              actor: sql<string>`${recordedBy(staff)}`.as('actor'),
+              createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
+            })
+            .from(purchaseOrders)
+            .where(and(eq(purchaseOrders.id, line.poId), claimed)),
+        ),
+      );
+    }
+  }
   const [claimed] = await db.batch([
     db
       .update(lots)
@@ -559,6 +615,7 @@ export async function correctLot(
           isNull(lots.supersededById),
           // The nothing-shipped rule re-checked at write time, not from the earlier read.
           quantityChanging ? sql`${lots.quantityRemaining} = ${lots.quantityReceived}` : sql`1 = 1`,
+          lineGuard,
         ),
       )
       .returning({ id: lots.id }),
@@ -583,7 +640,8 @@ export async function correctLot(
         .from(lots)
         .where(eq(lots.id, newId)),
     ),
-  ]);
-  if (!claimed || claimed.length === 0) return { ok: false, error: 'This lot record changed while you were editing (corrected, or material shipped). Reload and check the current record.' };
+    ...lineStatements,
+  ] as unknown as Parameters<typeof db.batch>[0]);
+  if (!claimed || (claimed as unknown[]).length === 0) return { ok: false, error: 'This lot record changed while you were editing (corrected, or material shipped). Reload and check the current record.' };
   return { ok: true, lotNumber: current.lotNumber, newId };
 }

@@ -13,7 +13,7 @@ const quiet = 'inline-flex h-11 items-center justify-center border border-foregr
 const ROLE_HELP: Record<string, string> = {
   admin: 'Everything, including verification decisions, payments, reports and staff accounts.',
   qc: 'Catalog, lot intake, test results, documents and lot release.',
-  ops: 'Lot intake, fulfilment and shipping.',
+  ops: 'Lot intake, fulfilment and shipping, suppliers and purchase orders.',
 };
 
 function Problems({ state }: { state: StaffFormState }) {

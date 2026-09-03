@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareQuantities, quantitiesComparable, quantityRatio, receiptCostCents } from '@/lib/procurement-quantities';
+import { adjustQuantity, compareQuantities, quantitiesComparable, quantityRatio, receiptCostCents } from '@/lib/procurement-quantities';
 
 describe('procurement quantities', () => {
   it('compares mass and count quantities', () => {
@@ -35,5 +35,15 @@ describe('procurement quantities', () => {
     expect(a + b).toBe(100001);
     // an early receipt can never exceed what remains
     expect(receiptCostCents(1000, 900, 0.5, false)).toBe(100);
+  });
+
+  it('adjusts a line total when a receipt is corrected', () => {
+    expect(adjustQuantity('10 g', '10 g', '5 g')).toBe('5 g');
+    expect(adjustQuantity('25 g', '10 g', '10.5 g')).toBe('25.5 g');
+    expect(adjustQuantity('1000.1 mg', '100 mg', '50 mg')).toBe('950.1 mg');
+    expect(adjustQuantity(null, '5 g', '7 g')).toBe('7 g');
+    expect(adjustQuantity('40 vials', '10 vials', '8 vials')).toBe('38 vials');
+    expect(adjustQuantity('10 g', '10 g', '5 vials')).toBeNull();
+    expect(adjustQuantity('5 g', '10 g', '1 g')).toBeNull();
   });
 });

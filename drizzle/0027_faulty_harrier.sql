@@ -1,0 +1,1 @@
+ALTER TABLE `chemical_classes` ADD `last_change_id` text;

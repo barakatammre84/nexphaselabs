@@ -10,7 +10,8 @@ export async function POST(request: Request) {
   const back = (query: string) => Response.redirect(new URL(`/manage?${query}`, request.url), 303);
   try {
     const result = await sendDigest(staff.email);
-    return back(result.ok ? 'digest=sent' : `digest=failed&why=${encodeURIComponent(result.error ?? '')}`);
+    if (!result.ok) console.error('[digest] send failed', result.error);
+    return back(result.ok ? 'digest=sent' : 'digest=failed');
   } catch (error) {
     console.error('[digest] failed', error instanceof Error ? error.message : error);
     return back('digest=failed');

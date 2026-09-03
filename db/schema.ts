@@ -432,6 +432,8 @@ export const chemicalClasses = sqliteTable('chemical_classes', {
   blurb: text('blurb').notNull().default(''),
   sortOrder: integer('sort_order').notNull().default(0),
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  /** Fresh id stamped by every change; dependent rows are written only where it matches. */
+  lastChangeId: text('last_change_id'),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),

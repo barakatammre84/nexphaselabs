@@ -35,7 +35,7 @@ export async function POST(
   }
   if (form.get('action') === 'remove') {
     try {
-      await clearProductImage(product.id, staff);
+      await clearProductImage(product.id, product.code, staff);
     } catch (error) {
       console.error(
         '[products] image remove failed',
@@ -55,6 +55,7 @@ export async function POST(
     });
     await attachProductImage(
       product.id,
+      product.code,
       stored,
       file.name.slice(0, 200) || null,
       staff,

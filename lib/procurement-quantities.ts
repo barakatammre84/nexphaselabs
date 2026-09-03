@@ -45,3 +45,36 @@ export function quantityRatio(received: string, ordered: string): number {
   if (pa.unit === pb.unit) return Math.min(1, pa.amount / pb.amount);
   return 1;
 }
+
+/**
+ * Line total after one receipt's quantity changes from `oldQ` to `newQ`
+ * (a lot correction). Mass in whole micrograms, counts in their unit; null
+ * when the parts cannot be reconciled, which the caller must refuse.
+ */
+export function adjustQuantity(total: string | null, oldQ: string, newQ: string): string | null {
+  const pt = total ? parseQuantity(total) : null;
+  const po = parseQuantity(oldQ);
+  const pn = parseQuantity(newQ);
+  if (!po || !pn || (total && !pt)) return null;
+  const mass = isMassUnit(po.unit) && isMassUnit(pn.unit) && (!pt || isMassUnit(pt.unit));
+  // A line with no recorded total is treated as having received exactly the old quantity.
+  if (mass) {
+    const base = pt ? Math.round(pt.amount * TO_UG[pt.unit]) : Math.round(po.amount * TO_UG[po.unit]);
+    const ug = base - Math.round(po.amount * TO_UG[po.unit]) + Math.round(pn.amount * TO_UG[pn.unit]);
+    if (ug < 0) return null;
+    // Keep the unit the line total (or the corrected quantity) was stated in when it is exact to
+    // three decimals; otherwise step down, as normalizeQuantity does.
+    const order = ['kg', 'g', 'mg', 'ug'] as const;
+    const start = (pt ? pt.unit : pn.unit) as (typeof order)[number];
+    for (const u of order.slice(order.indexOf(start))) {
+      const per = TO_UG[u] / 1000;
+      if (per < 1 || ug % per === 0) return `${Number.isInteger(ug / TO_UG[u]) ? ug / TO_UG[u] : (ug / TO_UG[u]).toFixed(3).replace(/0+$/, '').replace(/\.$/, '')} ${u}`;
+    }
+    return `${ug} ug`;
+  }
+  if (po.unit === pn.unit && (!pt || pt.unit === po.unit)) {
+    const n = (pt ? pt.amount : po.amount) - po.amount + pn.amount;
+    return n < 0 ? null : `${n} ${po.unit}`;
+  }
+  return null;
+}

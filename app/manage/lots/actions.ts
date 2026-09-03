@@ -190,6 +190,9 @@ export async function correctLotAction(lotNumber: string, _prev: LotFormState, d
   const proposed = Object.fromEntries(CORRECTABLE_FIELDS.map((f) => [f, values[f]])) as Partial<Record<(typeof CORRECTABLE_FIELDS)[number], string>>;
   const validated = validateLotCorrection(lotToIntakeInput(current), proposed, values.reason);
   if (!validated.ok) return { values, errors: validated.errors, violations: validated.violations };
+  if (validated.changes.some((c) => c.field === 'quantityReceived') && current.purchaseOrderLineId && !canFulfil(staff)) {
+    return fail('This lot was received against a purchase order; correcting its quantity changes that order, which only ops and admin roles may do.');
+  }
   let outcome;
   try {
     outcome = await correctLot(current, validated, staff);
