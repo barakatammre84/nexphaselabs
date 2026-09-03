@@ -4,16 +4,24 @@ import { getDb } from '@/db';
 import {
   lotDocuments,
   lotMovements,
+  lotStatusEvents,
   lotTests,
   lots,
   type Lot,
   type LotDocument,
   type LotMovement,
+  type LotStatusEvent,
   type LotTest,
 } from '@/db/schema';
 import { getProductByCode } from '@/lib/catalog-data';
 import type { DocumentType, StoredDocument } from '@/lib/documents';
-import type { LotIntakeValidation, LotTestValidation } from '@/lib/lot-rules';
+import {
+  DISPOSITION_TARGET,
+  releaseBlockers,
+  type Disposition,
+  type LotIntakeValidation,
+  type LotTestValidation,
+} from '@/lib/lot-rules';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 
 /**
@@ -119,7 +127,13 @@ export async function listLots(): Promise<Lot[]> {
   return db.select().from(lots).orderBy(desc(lots.receivedAt), asc(lots.lotNumber));
 }
 
-export type LotDetail = { lot: Lot; tests: LotTest[]; movements: LotMovement[]; documents: LotDocument[] };
+export type LotDetail = {
+  lot: Lot;
+  tests: LotTest[];
+  movements: LotMovement[];
+  documents: LotDocument[];
+  statusEvents: LotStatusEvent[];
+};
 
 export async function getLot(lotNumber: string): Promise<Lot | null> {
   const db = getDb();
@@ -131,12 +145,74 @@ export async function getLotDetail(lotNumber: string): Promise<LotDetail | null>
   const db = getDb();
   const lot = await getLot(lotNumber);
   if (!lot) return null;
-  const [tests, movements, documents] = await Promise.all([
+  const [tests, movements, documents, statusEvents] = await Promise.all([
     db.select().from(lotTests).where(eq(lotTests.lotId, lot.id)).orderBy(asc(lotTests.createdAt)),
     db.select().from(lotMovements).where(eq(lotMovements.lotId, lot.id)).orderBy(asc(lotMovements.occurredAt)),
     db.select().from(lotDocuments).where(eq(lotDocuments.lotId, lot.id)).orderBy(desc(lotDocuments.uploadedAt)),
+    db.select().from(lotStatusEvents).where(eq(lotStatusEvents.lotId, lot.id)).orderBy(asc(lotStatusEvents.createdAt)),
   ]);
-  return { lot, tests, movements, documents };
+  return { lot, tests, movements, documents, statusEvents };
+}
+
+export type DispositionResult = { ok: true; status: string } | { ok: false; error: string };
+
+/**
+ * The only code path that changes a lot's status. Release re-checks every
+ * blocker against the database at the moment of the decision — the form's
+ * checklist is advisory. The status update is conditional on the status the
+ * decision was made against, so two people acting at once cannot both win.
+ */
+export async function setLotDisposition(
+  lot: Lot,
+  decision: Disposition,
+  reason: string | null,
+  staff: StaffPrincipal,
+): Promise<DispositionResult> {
+  const db = getDb();
+  const now = new Date();
+  const target = DISPOSITION_TARGET[decision];
+  const by = recordedBy(staff);
+  const stale = { ok: false as const, error: 'The lot changed while you were deciding. Reload and review again.' };
+
+  // Decide against the row as it is now, not as the page rendered it.
+  const fresh = await getLot(lot.lotNumber);
+  if (!fresh || fresh.status !== lot.status) return stale;
+
+  if (decision === 'release') {
+    const tests = await db
+      .select({ testType: lotTests.testType, passed: lotTests.passed })
+      .from(lotTests)
+      .where(eq(lotTests.lotId, fresh.id));
+    const blockers = releaseBlockers(fresh, tests);
+    if (blockers.length) return { ok: false, error: `Cannot release: ${blockers.join(' ')}` };
+  }
+
+  const update =
+    decision === 'release'
+      ? { status: target, releasedBy: by, releasedAt: now, statusReason: null, updatedAt: now }
+      : { status: target, statusReason: reason, updatedAt: now };
+
+  // Conditional on the status the decision was made against, so two people
+  // acting at once cannot both win. The event is written only after the
+  // update is known to have applied; a decision that did not happen leaves
+  // no record claiming that it did.
+  const [changed] = await db
+    .update(lots)
+    .set(update)
+    .where(and(eq(lots.id, fresh.id), eq(lots.status, fresh.status)))
+    .returning({ id: lots.id });
+  if (!changed) return stale;
+
+  await db.insert(lotStatusEvents).values({
+    id: `evt_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
+    lotId: fresh.id,
+    fromStatus: fresh.status,
+    toStatus: target,
+    reason,
+    decidedBy: by,
+    createdAt: now,
+  });
+  return { ok: true, status: target };
 }
 
 /**

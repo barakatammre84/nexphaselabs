@@ -152,6 +152,94 @@ export function validateLotTest(raw: LotTestInput, now = new Date()): LotTestVal
   };
 }
 
+/* ------------------------------------------------------------------------ */
+/* Disposition                                                               */
+/* ------------------------------------------------------------------------ */
+
+export const DISPOSITIONS = ['release', 'hold', 'reject', 'withdraw'] as const;
+export type Disposition = (typeof DISPOSITIONS)[number];
+
+export const DISPOSITION_TARGET: Record<Disposition, string> = {
+  release: 'released',
+  hold: 'on_hold',
+  reject: 'rejected',
+  withdraw: 'withdrawn',
+};
+
+/** Which decisions are allowed from which current status. */
+export const ALLOWED_TRANSITIONS: Record<string, Disposition[]> = {
+  quarantine: ['release', 'hold', 'reject'],
+  on_hold: ['release', 'reject', 'withdraw'],
+  released: ['hold', 'withdraw'],
+  rejected: [],
+  withdrawn: [],
+  exhausted: [],
+};
+
+export type ReleaseSubject = {
+  status: string;
+  manufacturerName: string | null;
+  manufacturerAddress: string | null;
+  coaKey: string | null;
+  identityConfirmed: boolean;
+  purityResult: string | null;
+  quantityRemaining: string | null;
+};
+
+export type ReleaseTest = { testType: string; passed: boolean | null };
+
+/**
+ * Everything that must be true before a named person may release a lot.
+ * Recomputed server-side at the moment of release; the UI shows the same list.
+ */
+export function releaseBlockers(lot: ReleaseSubject, tests: ReleaseTest[]): string[] {
+  const blockers: string[] = [];
+  if (!lot.manufacturerName || !lot.manufacturerAddress) {
+    blockers.push('Manufacturer name and address are not recorded (16 CCR 1736.9(d)).');
+  }
+  if (!lot.coaKey) blockers.push('No certificate of analysis on file.');
+  if (!tests.some((t) => t.testType === 'identity' && t.passed === true) || !lot.identityConfirmed) {
+    blockers.push('Identity has not been confirmed by a passing identity test.');
+  }
+  if (!tests.some((t) => t.testType === 'purity') || !lot.purityResult) {
+    blockers.push('No purity result recorded.');
+  }
+  const failed = tests.filter((t) => t.passed === false);
+  if (failed.length) blockers.push(`${failed.length} test${failed.length === 1 ? '' : 's'} failed specification.`);
+  const remaining = lot.quantityRemaining ? parseQuantity(lot.quantityRemaining) : null;
+  if (!remaining || remaining.amount <= 0) blockers.push('No quantity remaining.');
+  return blockers;
+}
+
+export type DispositionValidation =
+  | { ok: true; value: { decision: Disposition; reason: string | null } }
+  | { ok: false; errors: string[]; violations: Violation[] };
+
+export function validateDisposition(
+  raw: { decision: string; reason?: string | null },
+  currentStatus: string,
+): DispositionValidation {
+  const errors: string[] = [];
+  const violations: Violation[] = [];
+  const decision = (raw.decision ?? '').trim();
+  const reason = (raw.reason ?? '').trim() || null;
+
+  if (!(DISPOSITIONS as readonly string[]).includes(decision)) {
+    errors.push('Choose a decision.');
+    return { ok: false, errors, violations };
+  }
+  const allowed = ALLOWED_TRANSITIONS[currentStatus] ?? [];
+  if (!allowed.includes(decision as Disposition)) {
+    errors.push(`A lot in status "${currentStatus}" cannot be ${decision === 'release' ? 'released' : decision === 'hold' ? 'put on hold' : decision + 'ed'}.`);
+  }
+  if (decision !== 'release' && !reason) errors.push('A reason is required for a hold, rejection or withdrawal.');
+  if (reason && reason.length > 500) errors.push('Reason must be 500 characters or fewer.');
+  violations.push(...scanText('reason', reason));
+
+  if (errors.length || violations.length) return { ok: false, errors, violations };
+  return { ok: true, value: { decision: decision as Disposition, reason } };
+}
+
 export function parseQuantity(value: string): { amount: number; unit: QuantityUnit } | null {
   const m = value.trim().match(QUANTITY_PATTERN);
   if (!m) return null;

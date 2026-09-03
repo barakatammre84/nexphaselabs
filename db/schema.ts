@@ -104,6 +104,29 @@ export const lotTests = sqliteTable(
 );
 
 /**
+ * Disposition history. One row per decision — release, hold, reject,
+ * withdraw — with the named person and the reason. The lot row carries the
+ * current status; this table carries how it got there.
+ */
+export const lotStatusEvents = sqliteTable(
+  'lot_status_events',
+  {
+    id: text('id').primaryKey(),
+    lotId: text('lot_id').notNull(),
+    fromStatus: text('from_status').notNull(),
+    toStatus: text('to_status').notNull(),
+    reason: text('reason'),
+    decidedBy: text('decided_by').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    lotIdx: index('lot_status_events_lot_idx').on(table.lotId),
+  }),
+);
+
+export type LotStatusEvent = typeof lotStatusEvents.$inferSelect;
+
+/**
  * Analytical documents attached to a lot, one row per upload. The lot row's
  * `coaKey` / `chromatogramKey` / `massSpecKey` / `sdsKey` point at the row
  * currently in force; earlier uploads are marked superseded and stay in R2,

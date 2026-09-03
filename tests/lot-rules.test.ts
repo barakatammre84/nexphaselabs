@@ -3,10 +3,56 @@ import {
   formatQuantity,
   lotNumberFromParam,
   parseQuantity,
+  releaseBlockers,
+  validateDisposition,
   validateLotIntake,
   validateLotTest,
   type LotIntakeInput,
+  type ReleaseSubject,
 } from '@/lib/lot-rules';
+
+describe('release gate', () => {
+  const ready: ReleaseSubject = {
+    status: 'quarantine',
+    manufacturerName: 'Maker',
+    manufacturerAddress: '1 Road',
+    coaKey: 'lots/X/coa/a.pdf',
+    identityConfirmed: true,
+    purityResult: '98.7%',
+    quantityRemaining: '10 g',
+  };
+  const tests = [
+    { testType: 'identity', passed: true },
+    { testType: 'purity', passed: true },
+  ];
+
+  it('has no blockers when everything is in place', () => {
+    expect(releaseBlockers(ready, tests)).toEqual([]);
+  });
+
+  it('blocks on each missing condition', () => {
+    expect(releaseBlockers({ ...ready, manufacturerAddress: null }, tests)[0]).toMatch(/Manufacturer/);
+    expect(releaseBlockers({ ...ready, coaKey: null }, tests)[0]).toMatch(/certificate/);
+    expect(releaseBlockers({ ...ready, identityConfirmed: false }, tests)[0]).toMatch(/Identity/);
+    expect(releaseBlockers(ready, [{ testType: 'purity', passed: true }])[0]).toMatch(/Identity/);
+    expect(releaseBlockers({ ...ready, purityResult: null }, tests)[0]).toMatch(/purity/);
+    expect(releaseBlockers(ready, [...tests, { testType: 'water', passed: false }])[0]).toMatch(/failed/);
+    expect(releaseBlockers({ ...ready, quantityRemaining: '0 g' }, tests)[0]).toMatch(/quantity/);
+    expect(releaseBlockers({ ...ready, quantityRemaining: null }, tests)[0]).toMatch(/quantity/);
+  });
+
+  it('validates decisions against the current status', () => {
+    expect(validateDisposition({ decision: 'release' }, 'quarantine').ok).toBe(true);
+    expect(validateDisposition({ decision: 'release' }, 'released').ok).toBe(false);
+    expect(validateDisposition({ decision: 'hold' }, 'quarantine').ok).toBe(false); // reason required
+    expect(validateDisposition({ decision: 'hold', reason: 'Awaiting retest' }, 'released').ok).toBe(true);
+    expect(validateDisposition({ decision: 'withdraw', reason: 'Recall' }, 'quarantine').ok).toBe(false);
+    expect(validateDisposition({ decision: 'withdraw', reason: 'Recall' }, 'released').ok).toBe(true);
+    expect(validateDisposition({ decision: 'release' }, 'rejected').ok).toBe(false);
+    expect(validateDisposition({ decision: 'destroy' }, 'quarantine').ok).toBe(false);
+    expect(validateDisposition({ decision: 'reject', reason: 'Not effective for weight loss' }, 'quarantine').ok).toBe(false);
+  });
+});
 
 describe('validateLotTest', () => {
   const good = { testType: 'purity', method: 'RP-HPLC, 220 nm', result: '98.7%', specification: '>= 95%', passed: 'pass', testedAt: '2026-09-01' };

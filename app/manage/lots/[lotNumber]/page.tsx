@@ -2,19 +2,20 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AlertCircle, ArrowLeft, CircleCheck, Download } from 'lucide-react';
+import { LotDispositionForm } from '@/components/manage/lot-disposition-form';
 import { LotTestForm } from '@/components/manage/lot-test-form';
 import { DOCUMENT_LABEL, DOCUMENT_TYPES, isDocumentType } from '@/lib/documents';
-import { TEST_TYPE_LABEL, lotNumberFromParam, type TestType } from '@/lib/lot-rules';
+import { ALLOWED_TRANSITIONS, TEST_TYPE_LABEL, lotNumberFromParam, releaseBlockers, type TestType } from '@/lib/lot-rules';
 import { LOT_STATUS_LABEL, currentDocumentKey, getLotDetail, type LotStatus } from '@/lib/lots-admin';
 import { canRecordResults, requireStaff } from '@/lib/staff-auth';
-import { addLotTestAction } from '../actions';
+import { addLotTestAction, setLotDispositionAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Lot', robots: { index: false, follow: false } };
 
 type Props = {
   params: Promise<{ lotNumber: string }>;
-  searchParams: Promise<{ received?: string; uploaded?: string; error?: string; tested?: string }>;
+  searchParams: Promise<{ received?: string; uploaded?: string; error?: string; tested?: string; decided?: string }>;
 };
 
 const UPLOAD_ERROR: Record<string, string> = {
@@ -54,14 +55,16 @@ const MOVEMENT_LABEL: Record<string, string> = {
 
 export default async function LotDetailPage({ params, searchParams }: Props) {
   const { lotNumber } = await params;
-  const { received, uploaded, error, tested } = await searchParams;
+  const { received, uploaded, error, tested, decided } = await searchParams;
   const staff = await requireStaff(`/manage/lots/${encodeURIComponent(lotNumber)}`);
 
   const normalised = lotNumberFromParam(lotNumber);
   if (!normalised) notFound();
   const detail = await getLotDetail(normalised);
   if (!detail) notFound();
-  const { lot, tests, movements, documents } = detail;
+  const { lot, tests, movements, documents, statusEvents } = detail;
+  const blockers = releaseBlockers(lot, tests);
+  const allowed = ALLOWED_TRANSITIONS[lot.status] ?? [];
   const uploadError = error ? (UPLOAD_ERROR[error] ?? UPLOAD_ERROR.store) : null;
 
   return (
@@ -79,6 +82,12 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
         {tested && (
           <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
             <CircleCheck className="size-4 text-primary" /> Test result recorded.
+          </p>
+        )}
+        {decided && (
+          <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
+            <CircleCheck className="size-4 text-primary" /> Decision recorded. Status is now{' '}
+            {LOT_STATUS_LABEL[lot.status as LotStatus] ?? lot.status}.
           </p>
         )}
         {uploaded && isDocumentType(uploaded) && (
@@ -258,6 +267,42 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
             <LotTestForm today={new Date().toISOString().slice(0, 10)} action={addLotTestAction.bind(null, lot.lotNumber)} />
           </div>
         )}
+
+        <h2 className="mt-12 utility-label text-primary">Disposition</h2>
+        <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_1fr]">
+          {canRecordResults(staff) ? (
+            <LotDispositionForm
+              currentStatus={lot.status}
+              allowed={allowed}
+              blockers={blockers}
+              action={setLotDispositionAction.bind(null, lot.lotNumber)}
+            />
+          ) : (
+            <div className="border border-border bg-secondary p-5 text-sm">
+              <p className="font-semibold">Release checklist</p>
+              <ul className="mt-2 space-y-1">
+                {blockers.length === 0 ? <li>All release conditions are met.</li> : blockers.map((b) => <li key={b}>{b}</li>)}
+              </ul>
+              <p className="mt-3 text-muted-foreground">Only QC and admin roles can record a decision.</p>
+            </div>
+          )}
+          <div>
+            <p className="text-sm font-semibold">Decision history</p>
+            {statusEvents.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">No decisions recorded yet.</p>
+            ) : (
+              <ul className="mt-2 divide-y divide-border border border-border text-sm">
+                {statusEvents.map((e) => (
+                  <li key={e.id} className="p-3">
+                    <span className="font-mono text-xs">{day(e.createdAt)}</span> &middot; {e.fromStatus} &rarr;{' '}
+                    <span className="font-semibold">{e.toStatus}</span> &middot; {e.decidedBy}
+                    {e.reason && <p className="mt-1 text-muted-foreground">{e.reason}</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
 
         <h2 className="mt-12 utility-label text-primary">Movement ledger ({movements.length})</h2>
         <div className="mt-4 overflow-x-auto border border-border">
