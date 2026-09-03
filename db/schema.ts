@@ -517,6 +517,37 @@ export const accountAcknowledgements = sqliteTable(
 export type Account = typeof accounts.$inferSelect;
 export type StaffUser = typeof staffUsers.$inferSelect;
 export type StaffSession = typeof staffSessions.$inferSelect;
+/**
+ * Product-level documents — today the safety data sheet. One row per upload;
+ * the current SDS is the latest row not superseded. Public download for
+ * published products: an SDS is safety documentation, not a claim, and OSHA
+ * hazard communication expects it to travel with the material.
+ */
+export const productDocuments = sqliteTable(
+  'product_documents',
+  {
+    id: text('id').primaryKey(),
+    productId: text('product_id').notNull(),
+    /** sds */
+    kind: text('kind').notNull(),
+    objectKey: text('object_key').notNull(),
+    contentType: text('content_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    originalName: text('original_name'),
+    /** Revision label as printed on the sheet, e.g. "Rev 2, 2026-08-14". */
+    revision: text('revision'),
+    uploadedBy: text('uploaded_by').notNull(),
+    uploadedAt: integer('uploaded_at', { mode: 'timestamp' }).notNull(),
+    supersededAt: integer('superseded_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    productIdx: index('product_documents_product_idx').on(table.productId),
+    keyIdx: uniqueIndex('product_documents_key_idx').on(table.objectKey),
+  }),
+);
+
+export type ProductDocument = typeof productDocuments.$inferSelect;
 export type ProductRow = typeof products.$inferSelect;
 export type ProductVariantRow = typeof productVariants.$inferSelect;
 export type Lot = typeof lots.$inferSelect;

@@ -70,7 +70,7 @@ Phase 5 ships: a real order, paid, picked from a released lot, shipped, and reco
 
 **Concurrent work noticed 2026-09-03:** another session added `lots.accessionNumber/analyticalLab/netPeptideContent/appearance/testingStandard`, a public `/api/lots/search` endpoint, search UI in `components/site/lot-lookup.tsx`, and a competitor-teardown section in CLAUDE.md. Left uncommitted for that session; only the schema columns are committed here so migrations stay consistent.
 - [x] 6.2 Reports — `/manage/reports` (admin) shows inventory on hand by lot, revenue and margin by product (paid/preparing/shipped orders, cost allocated from lot landed cost) and the movement history filterable by consignee, institution or address, alongside the CSV exports. "What did we ship, to whom, from which lot" is one filtered table. Audit CLEAN.
-- [ ] 6.3 Launch list: terms, privacy, shipping, returns pages; SDS library; entity details on /about
+- [x] 6.3 Launch list — SDS library: `product_documents` table (migration 0015, applied local/staging/prod), staff PDF upload on the product edit page (admin|qc, same-origin, PDF magic bytes, 25 MB, new upload supersedes, nothing deleted), public download of the current sheet for published products only at `/api/products/[code]/sds`, product-page link and `/documentation/sds` library with REGULATORY_STATEMENT above the fold. `/legal/shipping` and `/legal/returns` added (versioned, marked pending counsel review) and linked from the footer with `/documentation/sds`. `/about` and the footer now name 8486 Ventures LLC (California), trading as NexPhase Labs, Oakland facility. Audit CLEAN.
 - [ ] 6.4 Final end-to-end verification and no-open-bugs sign-off
 
 ## Owner decisions still open (not engineering)

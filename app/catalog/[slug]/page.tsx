@@ -8,6 +8,7 @@ import { ResearchNoticeBlock } from '@/components/site/research-notice';
 import { REGULATORY_STATEMENT, STANDARD_DOCUMENTATION, STATUS_LABEL } from '@/lib/catalog';
 import { getPublishedProduct, listPublishedProducts, loadCatalog } from '@/lib/catalog-data';
 import { listReleasedLotsForProduct } from '@/lib/lots-public';
+import { currentSds } from '@/lib/product-documents';
 import { currentViewer } from '@/lib/visibility';
 import { formatCents, priceFor } from '@/lib/visibility-rules';
 
@@ -85,6 +86,7 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
     ? ((await loadCatalog(() => listReleasedLotsForProduct(product.code))).data ?? [])
     : [];
   const activeVariants = product.variants.filter((v) => v.active);
+  const sds = (await loadCatalog(() => currentSds(product.id))).data ?? null;
 
   return (
     <main className="bg-background text-foreground">
@@ -241,12 +243,24 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
           </div>
         </div>
 
-        {product.hasSds && (
-          <p className="mt-7 max-w-2xl leading-7 text-muted-foreground">
-            A safety data sheet is supplied with this material. Hazard classifications published by
-            different suppliers are not identical for every compound; the SDS issued with your lot
-            governs and should be read before handling.
-          </p>
+        {(product.hasSds || sds) && (
+          <div className="mt-7 max-w-2xl">
+            <p className="leading-7 text-muted-foreground">
+              A safety data sheet is supplied with this material. Hazard classifications published by
+              different suppliers are not identical for every compound; the SDS issued with your lot
+              governs and should be read before handling.
+            </p>
+            {sds ? (
+              <a
+                href={`/api/products/${product.code}/sds`}
+                className="mt-4 inline-flex h-11 items-center gap-2 border border-foreground/20 px-5 text-sm font-bold transition-colors hover:border-primary hover:text-primary"
+              >
+                <FileText className="size-4" /> Safety data sheet{sds.revision ? ` (${sds.revision})` : ''}
+              </a>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">The current sheet is issued with the shipment and on request at research@nexphaselabs.net.</p>
+            )}
+          </div>
         )}
       </section>
 

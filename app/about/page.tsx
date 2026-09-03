@@ -10,9 +10,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * TODO before launch - replace with the real corporate facts:
- * registered entity name, state of incorporation, year founded, and the
- * leadership section below. Do not publish claims that cannot be evidenced.
+ * Corporate facts here are the ones on record: operating entity, state of
+ * organisation, trading name and facility city. Nothing is published that
+ * cannot be evidenced; the founding year is left for the owner to confirm.
  */
 
 const principles = [
@@ -101,6 +101,19 @@ export default function AboutPage() {
               Questions about a specification, a lot, or an open account reach a person who can pull the record and
               answer directly.
             </p>
+            <dl className="mt-8 border-t border-border">
+              {[
+                ['Operating entity', '8486 Ventures LLC'],
+                ['Organised in', 'California, United States'],
+                ['Trading as', 'NexPhase Labs'],
+                ['Facility', 'Oakland, California'],
+              ].map(([k, v]) => (
+                <div key={k} className="grid gap-1 border-b border-border py-3 sm:grid-cols-[160px_1fr]">
+                  <dt className="text-sm font-semibold text-muted-foreground">{k}</dt>
+                  <dd className="text-sm">{v}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </div>
       </section>

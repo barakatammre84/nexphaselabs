@@ -160,6 +160,19 @@ export async function listAllProducts(): Promise<CatalogProduct[]> {
   return attachVariants(rows);
 }
 
+/** One PUBLISHED product by code, for public routes keyed by code. */
+export async function getPublishedProductByCode(code: string): Promise<CatalogProduct | null> {
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(products)
+    .where(and(eq(products.code, code.toUpperCase()), eq(products.visibility, 'published')))
+    .limit(1);
+  if (!row) return null;
+  const [product] = await attachVariants([row]);
+  return product ?? null;
+}
+
 /** One product by code regardless of visibility. Catalog manager only. */
 export async function getProductByCode(code: string): Promise<CatalogProduct | null> {
   const db = getDb();

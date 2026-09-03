@@ -17,6 +17,7 @@ const columns = [
       { href: '/documentation#coa', label: 'What a COA includes' },
       { href: '/documentation#handling', label: 'Storage & handling' },
       { href: '/documentation/lot-lookup', label: 'Lot lookup' },
+      { href: '/documentation/sds', label: 'Safety data sheets' },
       { href: '/faq', label: 'FAQ' },
     ],
   },
@@ -32,6 +33,8 @@ const columns = [
     heading: 'Legal',
     links: [
       { href: '/legal/terms', label: 'Terms of sale' },
+      { href: '/legal/shipping', label: 'Shipping policy' },
+      { href: '/legal/returns', label: 'Returns policy' },
       { href: '/legal/privacy', label: 'Privacy policy' },
       { href: '/legal/terms#research-use', label: 'Research-use policy' },
     ],
@@ -85,7 +88,9 @@ export function SiteFooter() {
             federal, state, and local law and for the safe handling, use, and disposal of every material received.
           </p>
           <div className="mt-8 flex flex-col justify-between gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center">
-            <p>&copy; {new Date().getFullYear()} NexPhase Labs. All rights reserved.</p>
+            <p>
+              &copy; {new Date().getFullYear()} 8486 Ventures LLC, trading as NexPhase Labs. Oakland, California.
+            </p>
             <Link href="/manage" className="utility-label transition-colors hover:text-primary">
               Catalog manager
             </Link>

@@ -164,6 +164,45 @@ export async function getOrganizationDocument(key: string): Promise<R2ObjectBody
   return bucket().get(key);
 }
 
+/* ------------------------------------------------------------------------ */
+/* Product documents (safety data sheets)                                    */
+/* ------------------------------------------------------------------------ */
+
+/** SDS for a product. PDF only. Key: products/<CODE>/sds/<uploadId>.pdf */
+export async function putProductDocument(
+  productCode: string,
+  kind: 'sds',
+  file: File | Blob,
+  meta: { uploadedBy: string; originalName?: string },
+): Promise<StoredDocument> {
+  const code = productCode.trim().toUpperCase();
+  if (!/^NPL-\d{3,4}$/.test(code)) throw new Error('Invalid product code.');
+  if (file.type !== 'application/pdf') throw new Error(`Unsupported document type: ${file.type || 'unknown'}.`);
+  if (file.size === 0) throw new Error('Empty file.');
+  if (file.size > MAX_DOCUMENT_BYTES) throw new Error('File exceeds the 25 MB limit.');
+  // The declared type is client-supplied; check the file really starts as a PDF.
+  if ((await file.slice(0, 5).text()) !== '%PDF-') throw new Error('Unsupported document type: not a PDF.');
+  const uploadId = crypto.randomUUID().replace(/-/g, '');
+  const key = `products/${code}/${kind}/${uploadId}.pdf`;
+  const uploadedAt = new Date();
+  await bucket().put(key, file.stream(), {
+    httpMetadata: { contentType: 'application/pdf' },
+    customMetadata: {
+      productCode: code,
+      kind,
+      uploadedBy: meta.uploadedBy,
+      uploadedAt: uploadedAt.toISOString(),
+      ...(meta.originalName ? { originalName: meta.originalName.slice(0, 200) } : {}),
+    },
+  });
+  return { key, contentType: 'application/pdf', size: file.size, uploadedAt };
+}
+
+export async function getProductDocument(key: string): Promise<R2ObjectBody | null> {
+  if (!key.startsWith('products/')) return null;
+  return bucket().get(key);
+}
+
 /** Build a download response for a stored object, with a safe filename. */
 export function documentResponse(object: R2ObjectBody, filename: string, inline = false): Response {
   const headers = new Headers();
