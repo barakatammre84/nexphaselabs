@@ -5,10 +5,15 @@ The site runs as a single Cloudflare Worker built by `vinext` with
 
 ## Environments
 
-| Environment | Worker name            | D1 database             | R2 bucket                    |
-| ----------- | ---------------------- | ----------------------- | ---------------------------- |
-| production  | `nexphaselabs`         | `nexphase-labs`         | `nexphase-documents`         |
-| staging     | `nexphaselabs-staging` | `nexphase-labs-staging` | `nexphase-documents-staging` |
+All infrastructure lives in the **company** Cloudflare account,
+`sam@nexphaselabs.net`, id `5438a1e4683ea3ea35ddc20ba50ac05a`. It is pinned as
+`account_id` in `wrangler.jsonc` so a session authenticated to another account
+cannot deploy here by accident.
+
+| Environment | Worker name            | D1 database             | D1 id                                  | R2 bucket                    |
+| ----------- | ---------------------- | ----------------------- | -------------------------------------- | ---------------------------- |
+| production  | `nexphaselabs`         | `nexphase-labs`         | `f3d791f2-f457-4544-b186-3e657c3e997d` | `nexphase-documents`         |
+| staging     | `nexphaselabs-staging` | `nexphase-labs-staging` | `a9937a08-9cf3-44ab-afe9-1feae83c9149` | `nexphase-documents-staging` |
 
 Staging is a full copy of the stack with its own data. Nothing in staging can
 read or write production lot records or documents.
