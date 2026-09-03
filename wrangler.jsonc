@@ -44,6 +44,9 @@
       "name": "nexphaselabs-staging",
       "vars": {
         "APP_ENV": "staging",
+        // PLACEHOLDER — a workers.dev host needs the account subdomain: replace with the origin the first
+        // `npm run deploy:staging` prints (https://nexphaselabs-staging.<subdomain>.workers.dev) and set the
+        // same value as the STAGING_URL repository variable. Staging email links use this origin.
         "PUBLIC_ORIGIN": "https://nexphaselabs-staging.workers.dev",
         "CONSUMER_TIER_ENABLED": "false",
         "EMAIL_FROM": "NexPhase Labs <research@nexphaselabs.net>"

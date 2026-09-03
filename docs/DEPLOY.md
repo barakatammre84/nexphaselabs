@@ -69,6 +69,28 @@ curl -fsS -X POST https://nexphaselabs.net/api/digest -H "Authorization: Bearer 
 
 Until both are set the endpoint answers 404. Admins can also email themselves the digest from the dashboard at any time.
 
+## Automated deploys (GitHub Actions)
+
+Three workflows in `.github/workflows/`:
+
+| Workflow | Trigger | What it does |
+| --- | --- | --- |
+| `ci.yml` | every push to a non-main branch, every pull request | typecheck, lint, tests, build |
+| `deploy-staging.yml` | push to `main` (or run manually) | checks → **build** → migrate the staging D1 → seed reference data → deploy the built worker → smoke-test `/api/health`. The build runs before the migration because a migration cannot be rolled back. Refuses to run until `STAGING_URL` is set. |
+| `deploy-production.yml` | push of a `v*` tag (or run manually) | the same against production, behind the `production` GitHub environment (add a required reviewer there to get an approval gate) |
+
+One-time setup by the owner:
+
+1. Create a Cloudflare API token from the **Edit Cloudflare Workers** template and add **D1:Edit** and **R2:Edit**.
+2. In the GitHub repository: Settings → Secrets and variables → Actions → add secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, and the variable `STAGING_URL` (the staging worker's real origin, `https://nexphaselabs-staging.<account-subdomain>.workers.dev`, printed by the first `npm run deploy:staging`). Put the same value in `wrangler.jsonc` env.staging `PUBLIC_ORIGIN`, which ships as a placeholder; staging email links depend on it.
+3. Settings → Environments → create `staging` and `production`; on `production`, add yourself as a required reviewer.
+4. Worker secrets (`RESEND_API_KEY`, payment rails, `DIGEST_TOKEN`) are still set once with `wrangler secret put`; the workflows never touch them.
+5. A brand-new production database has no products until `npm run db:seed:prod` is run once; after that the catalog is managed in the tools and the workflows only seed the reference classes.
+
+Release: `git tag v1.0.0 && git push origin v1.0.0`. Rollback: `npx wrangler rollback` (production) or `--env staging`; migrations are additive and remain in place, which is why every migration must keep the previous worker working.
+
+`GET /api/health` reports `{ ok, env, db }` with no caching and no data; it is what the smoke test polls.
+
 ## Rollback
 
 Every deploy creates an immutable Worker version. To roll back:

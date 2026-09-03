@@ -1,0 +1,79 @@
+# Push to main → checks and build → migrate the staging database → deploy the built worker → smoke test.
+# Needs repository secrets CLOUDFLARE_API_TOKEN (Workers, D1, R2 edit) and CLOUDFLARE_ACCOUNT_ID, and the
+# repository variable STAGING_URL (the staging worker's public origin, matching PUBLIC_ORIGIN in wrangler.jsonc env.staging).
+name: Deploy staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL }}
+    steps:
+      - name: Require STAGING_URL
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        run: test -n "$STAGING_URL" || { echo "Set the STAGING_URL repository variable first (docs/DEPLOY.md, Automated deploys)."; exit 1; }
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Checks
+        run: |
+          npx tsc --noEmit
+          npm run lint
+          npm test
+      - name: Build (staging configuration)
+        # The build must succeed BEFORE the database is touched: a migration cannot be undone by a rollback.
+        run: CLOUDFLARE_ENV=staging npm run build
+      - name: Built origin must match STAGING_URL
+        # Staging email links are built from PUBLIC_ORIGIN; if it still holds the placeholder the deploy would
+        # pass its smoke test while every link pointed at a host the account does not own.
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        run: |
+          origin=$(node -e "console.log(JSON.parse(require('fs').readFileSync('dist/server/wrangler.json','utf8')).vars.PUBLIC_ORIGIN||'')")
+          if [ "$origin" != "$STAGING_URL" ]; then echo "wrangler.jsonc env.staging PUBLIC_ORIGIN is '$origin' but STAGING_URL is '$STAGING_URL' — make them the same (docs/DEPLOY.md)."; exit 1; fi
+      - name: Apply migrations (staging D1)
+        # Migrations are backwards-compatible by convention (docs/DEPLOY.md), so the running worker
+        # keeps working during the seconds between this step and the deploy.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npm run db:migrate:staging
+      - name: Seed reference data (idempotent, INSERT OR IGNORE)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npm run db:seed:generate
+          npx wrangler d1 execute nexphase-labs-staging --remote --env staging --file drizzle/seed/classes.sql
+      - name: Deploy the built worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --config dist/server/wrangler.json
+      - name: Smoke test
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        run: |
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS "$STAGING_URL/api/health" | grep -q '"ok":true'; then echo "healthy"; exit 0; fi
+            sleep 10
+          done
+          echo "staging did not report healthy at $STAGING_URL/api/health"; exit 1
