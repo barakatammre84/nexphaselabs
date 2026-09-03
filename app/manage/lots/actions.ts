@@ -3,14 +3,16 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import {
+  CORRECTABLE_FIELDS,
   lotNumberFromParam,
   validateDisposition,
+  validateLotCorrection,
   validateLotIntake,
   validateLotTest,
   type LotIntakeInput,
   type LotTestInput,
 } from '@/lib/lot-rules';
-import { addLotTest, createLot, getLot, setLotDisposition } from '@/lib/lots-admin';
+import { addLotTest, correctLot, createLot, getLot, lotToIntakeInput, setLotDisposition } from '@/lib/lots-admin';
 import type { Violation } from '@/lib/catalog-rules';
 import { canRecordResults, canVerifyAccounts, getStaff } from '@/lib/staff-auth';
 
@@ -153,4 +155,38 @@ export async function setLotDispositionAction(lotNumber: string, _prev: LotFormS
   }
   if (!outcome.ok) return fail(outcome.error);
   redirect(`/manage/lots/${encodeURIComponent(lot.lotNumber)}?decided=${outcome.status}`);
+}
+
+/**
+ * Correct a lot record by supersession. QC and admin. The bound lot number is
+ * client-editable; the current record is re-read and the correction is
+ * validated against the same rules as a receipt.
+ */
+export async function correctLotAction(lotNumber: string, _prev: LotFormState, data: FormData): Promise<LotFormState> {
+  const values: Record<string, string> = {};
+  for (const f of [...CORRECTABLE_FIELDS, 'reason'] as const) {
+    const raw = data.get(f);
+    values[f] = typeof raw === 'string' ? raw : '';
+  }
+  const fail = (message: string): LotFormState => ({ values, errors: [message], violations: [] });
+  if (!(await sameOriginAction())) return fail('Request rejected: cross-origin.');
+  const staff = await getStaff();
+  if (!staff) redirect('/staff/sign-in?return_to=%2Fmanage%2Flots');
+  if (!canRecordResults(staff)) return fail('Only QC and admin roles can correct a lot record.');
+  const number = lotNumberFromParam(lotNumber);
+  if (!number) return fail('Unknown lot.');
+  const current = await getLot(number);
+  if (!current) return fail('Unknown lot.');
+  const proposed = Object.fromEntries(CORRECTABLE_FIELDS.map((f) => [f, values[f]])) as Partial<Record<(typeof CORRECTABLE_FIELDS)[number], string>>;
+  const validated = validateLotCorrection(lotToIntakeInput(current), proposed, values.reason);
+  if (!validated.ok) return { values, errors: validated.errors, violations: validated.violations };
+  let outcome;
+  try {
+    outcome = await correctLot(current, validated, staff);
+  } catch (error) {
+    console.error('[lots] correction failed', error instanceof Error ? error.message : error);
+    return fail('The correction could not be recorded. Try again shortly.');
+  }
+  if (!outcome.ok) return fail(outcome.error);
+  redirect(`/manage/lots/${encodeURIComponent(number)}?corrected=1`);
 }

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, isNull, sql } from 'drizzle-orm';
 import type { SQLiteUpdateSetSource } from 'drizzle-orm/sqlite-core';
 import { getDb } from '@/db';
 import {
@@ -21,8 +21,15 @@ import {
   type Disposition,
   type LotIntakeValidation,
   type LotTestValidation,
+  describeChanges,
+  type LotCorrectionValidation,
+  type LotIntakeInput,
 } from '@/lib/lot-rules';
 import type { StaffPrincipal } from '@/lib/staff-auth';
+import { randomToken } from '@/lib/staff-auth-core';
+import { lotFamilyIds } from '@/lib/lot-family';
+
+export { lotFamilyIds, lotVersions } from '@/lib/lot-family';
 
 /**
  * Lot writes and staff-side reads. Every function here is reachable only
@@ -139,9 +146,10 @@ export async function createLot(
   return { ok: true, lotNumber: validated.lotNumber };
 }
 
+/** Current record of every lot (superseded versions excluded). */
 export async function listLots(): Promise<Lot[]> {
   const db = getDb();
-  return db.select().from(lots).orderBy(desc(lots.receivedAt), asc(lots.lotNumber));
+  return db.select().from(lots).where(isNull(lots.supersededById)).orderBy(desc(lots.receivedAt), asc(lots.lotNumber));
 }
 
 export type LotDetail = {
@@ -152,9 +160,14 @@ export type LotDetail = {
   statusEvents: LotStatusEvent[];
 };
 
+/** The current record for a lot number (a corrected record supersedes the earlier one). */
 export async function getLot(lotNumber: string): Promise<Lot | null> {
   const db = getDb();
-  const [lot] = await db.select().from(lots).where(eq(lots.lotNumber, lotNumber.toUpperCase())).limit(1);
+  const [lot] = await db
+    .select()
+    .from(lots)
+    .where(and(eq(lots.lotNumber, lotNumber.toUpperCase()), isNull(lots.supersededById)))
+    .limit(1);
   return lot ?? null;
 }
 
@@ -162,11 +175,12 @@ export async function getLotDetail(lotNumber: string): Promise<LotDetail | null>
   const db = getDb();
   const lot = await getLot(lotNumber);
   if (!lot) return null;
+  const family = await lotFamilyIds(lot.id);
   const [tests, movements, documents, statusEvents] = await Promise.all([
-    db.select().from(lotTests).where(eq(lotTests.lotId, lot.id)).orderBy(asc(lotTests.createdAt)),
-    db.select().from(lotMovements).where(eq(lotMovements.lotId, lot.id)).orderBy(asc(lotMovements.occurredAt)),
-    db.select().from(lotDocuments).where(eq(lotDocuments.lotId, lot.id)).orderBy(desc(lotDocuments.uploadedAt)),
-    db.select().from(lotStatusEvents).where(eq(lotStatusEvents.lotId, lot.id)).orderBy(asc(lotStatusEvents.createdAt)),
+    db.select().from(lotTests).where(sql`${lotTests.lotId} IN ${family}`).orderBy(asc(lotTests.createdAt)),
+    db.select().from(lotMovements).where(sql`${lotMovements.lotId} IN ${family}`).orderBy(asc(lotMovements.occurredAt)),
+    db.select().from(lotDocuments).where(sql`${lotDocuments.lotId} IN ${family}`).orderBy(desc(lotDocuments.uploadedAt)),
+    db.select().from(lotStatusEvents).where(sql`${lotStatusEvents.lotId} IN ${family}`).orderBy(asc(lotStatusEvents.createdAt)),
   ]);
   return { lot, tests, movements, documents, statusEvents };
 }
@@ -196,10 +210,12 @@ export async function setLotDisposition(
   if (!fresh || fresh.status !== lot.status) return stale;
 
   if (decision === 'release') {
+    // Tests live on the version they were recorded against; a corrected record must still see them.
+    const family = await lotFamilyIds(fresh.id);
     const tests = await db
       .select({ testType: lotTests.testType, passed: lotTests.passed })
       .from(lotTests)
-      .where(eq(lotTests.lotId, fresh.id));
+      .where(sql`${lotTests.lotId} IN ${family}`);
     const blockers = releaseBlockers(fresh, tests);
     if (blockers.length) return { ok: false, error: `Cannot release: ${blockers.join(' ')}` };
   }
@@ -248,6 +264,7 @@ export async function addLotTest(
   staff: StaffPrincipal,
 ): Promise<void> {
   const db = getDb();
+  const family = await lotFamilyIds(lot.id);
   const now = new Date();
   const row = {
     id: `tst_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
@@ -283,7 +300,7 @@ export async function addLotTest(
         SELECT group_concat(entry, '; ') FROM (
           SELECT COALESCE(${lotTests.analyte}, 'Heavy metals') || ': ' || ${lotTests.result} AS entry
           FROM ${lotTests}
-          WHERE ${lotTests.lotId} = ${lot.id} AND ${lotTests.testType} = 'heavy_metal'
+          WHERE ${lotTests.lotId} IN ${family} AND ${lotTests.testType} = 'heavy_metal'
           ORDER BY ${lotTests.createdAt}, ${lotTests.id}
         )
       )`;
@@ -292,7 +309,7 @@ export async function addLotTest(
       break;
   }
 
-  await db.batch([db.insert(lotTests).values(row), db.update(lots).set(summary).where(eq(lots.id, lot.id))]);
+  await db.batch([db.insert(lotTests).values(row), db.update(lots).set(summary).where(and(eq(lots.id, lot.id), isNull(lots.supersededById)))]);
 }
 
 const KEY_COLUMN: Record<DocumentType, 'coaKey' | 'chromatogramKey' | 'massSpecKey' | 'sdsKey'> = {
@@ -322,11 +339,12 @@ export async function attachLotDocument(
 ): Promise<void> {
   const db = getDb();
   const now = new Date();
+  const family = await lotFamilyIds(lot.id);
   await db.batch([
     db
       .update(lotDocuments)
       .set({ supersededAt: now })
-      .where(and(eq(lotDocuments.lotId, lot.id), eq(lotDocuments.documentType, type), isNull(lotDocuments.supersededAt))),
+      .where(and(sql`${lotDocuments.lotId} IN ${family}`, eq(lotDocuments.documentType, type), isNull(lotDocuments.supersededAt))),
     db.insert(lotDocuments).values({
       id: `doc_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
       lotId: lot.id,
@@ -342,7 +360,7 @@ export async function attachLotDocument(
     db
       .update(lots)
       .set({ [KEY_COLUMN[type]]: stored.key, updatedAt: now })
-      .where(eq(lots.id, lot.id)),
+      .where(and(eq(lots.id, lot.id), isNull(lots.supersededById))),
   ]);
 }
 
@@ -352,7 +370,7 @@ export async function setLotCost(lot: Lot, costCents: number, costNote: string |
   const now = new Date();
   const was = lot.costCents === null ? 'not recorded' : `$${(lot.costCents / 100).toFixed(2)}`;
   await db.batch([
-    db.update(lots).set({ costCents, costNote, updatedAt: now }).where(eq(lots.id, lot.id)),
+    db.update(lots).set({ costCents, costNote, updatedAt: now }).where(and(eq(lots.id, lot.id), isNull(lots.supersededById))),
     db.insert(lotStatusEvents).values({
       id: `evt_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
       lotId: lot.id,
@@ -364,4 +382,132 @@ export async function setLotCost(lot: Lot, costCents: number, costNote: string |
       createdAt: now,
     }),
   ]);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Corrections                                                               */
+/* ------------------------------------------------------------------------ */
+
+export type CorrectionResult = { ok: true; lotNumber: string; newId: string } | { ok: false; error: string };
+
+/** The current record as intake input, for validating a correction against the same rules as a receipt. */
+export function lotToIntakeInput(lot: Lot): LotIntakeInput {
+  const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+  return {
+    lotNumber: lot.lotNumber,
+    productCode: lot.productCode,
+    manufacturerName: lot.manufacturerName,
+    manufacturerAddress: lot.manufacturerAddress,
+    supplierName: lot.supplierName,
+    countryOfOrigin: lot.countryOfOrigin,
+    entryNumber: lot.entryNumber,
+    manufactureDate: day(lot.manufactureDate),
+    receivedAt: day(lot.receivedAt) ?? '',
+    quantityReceived: lot.quantityReceived ?? '',
+    storageLocation: lot.storageLocation,
+    storageCondition: lot.storageCondition,
+    retestDate: day(lot.retestDate),
+  };
+}
+
+/**
+ * Correct a lot record. The existing row is never edited: a new row carrying
+ * the corrected values becomes the current record and the old row points at
+ * it through supersededById. Tests, documents, movements and events stay on
+ * the version they were written against and are read as one family.
+ *
+ * Guarded: the old row is claimed first (superseded_by_id must still be
+ * NULL); the new row and its event are inserted only where that claim
+ * landed, so two simultaneous corrections cannot both become current.
+ *
+ * Status, release decision and analytical summary carry over unchanged — a
+ * correction is not a disposition. It is refused when it would leave a
+ * released lot without what its release required, or would change the
+ * quantity received after material has already left the lot.
+ */
+export async function correctLot(
+  current: Lot,
+  validated: LotCorrectionValidation & { ok: true },
+  staff: StaffPrincipal,
+): Promise<CorrectionResult> {
+  const v = validated.value;
+  if (validated.changes.some((c) => c.field === 'quantityReceived') && current.quantityRemaining !== current.quantityReceived) {
+    return { ok: false, error: 'Quantity received cannot be corrected after material has been shipped from this lot. Record an adjustment movement instead.' };
+  }
+  if (current.status === 'released' && (!v.manufacturerName || !v.manufacturerAddress)) {
+    return { ok: false, error: 'A released lot must keep a manufacturer name and address (16 CCR 1736.9(d)). Hold the lot first if this is a genuine correction.' };
+  }
+  const db = getDb();
+  const now = new Date();
+  const newId = `lot_${randomToken().slice(0, 24)}`;
+  const overrides: Partial<Record<keyof Lot, unknown>> = {
+    id: newId,
+    manufacturerName: v.manufacturerName ?? null,
+    manufacturerAddress: v.manufacturerAddress ?? null,
+    supplierName: v.supplierName ?? null,
+    countryOfOrigin: v.countryOfOrigin ?? null,
+    entryNumber: v.entryNumber ?? null,
+    manufactureDate: v.manufactureDateValue,
+    receivedAt: v.receivedAtDate,
+    quantityReceived: v.quantityReceived,
+    // Copied live by the INSERT…SELECT unless the received quantity itself is being corrected,
+    // so a shipment landing between the read and this batch is never undone.
+    ...(validated.changes.some((c) => c.field === 'quantityReceived') ? { quantityRemaining: v.quantityReceived } : {}),
+    storageLocation: v.storageLocation ?? null,
+    storageCondition: v.storageCondition ?? null,
+    retestDate: v.retestDateValue,
+    supersededById: null,
+    lastMovementId: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const columns = getTableColumns(lots);
+  const projection = Object.fromEntries(
+    Object.entries(columns).map(([key, col]) => {
+      if (key in overrides) {
+        const raw = overrides[key as keyof Lot];
+        const driver = raw === null || raw === undefined ? null : (col as { mapToDriverValue: (v: unknown) => unknown }).mapToDriverValue(raw);
+        return [key, sql`${driver}`.as(col.name)];
+      }
+      return [key, col];
+    }),
+  ) as unknown as typeof columns; // runtime: aliased SQL for overridden columns, the column itself otherwise
+  const quantityChanging = validated.changes.some((c) => c.field === 'quantityReceived');
+  const [claimed] = await db.batch([
+    db
+      .update(lots)
+      .set({ supersededById: newId, updatedAt: now })
+      .where(
+        and(
+          eq(lots.id, current.id),
+          isNull(lots.supersededById),
+          // The nothing-shipped rule re-checked at write time, not from the earlier read.
+          quantityChanging ? sql`${lots.quantityRemaining} = ${lots.quantityReceived}` : sql`1 = 1`,
+        ),
+      )
+      .returning({ id: lots.id }),
+    db.insert(lots).select(
+      db
+        .select(projection)
+        .from(lots)
+        .where(and(eq(lots.id, current.id), eq(lots.supersededById, newId))),
+    ),
+    db.insert(lotStatusEvents).select(
+      db
+        .select({
+          id: sql<string>`${`lse_${randomToken().slice(0, 24)}`}`.as('id'),
+          lotId: lots.id,
+          fromStatus: lots.status,
+          toStatus: lots.status,
+          reason: sql<string>`${`${describeChanges(validated.changes)} — ${validated.reason}`.slice(0, 1000)}`.as('reason'),
+          decidedBy: sql<string>`${recordedBy(staff)}`.as('decided_by'),
+          kind: sql<string>`'correction'`.as('kind'),
+          createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
+        })
+        .from(lots)
+        .where(eq(lots.id, newId)),
+    ),
+  ]);
+  if (!claimed || claimed.length === 0) return { ok: false, error: 'This lot record changed while you were editing (corrected, or material shipped). Reload and check the current record.' };
+  return { ok: true, lotNumber: current.lotNumber, newId };
 }

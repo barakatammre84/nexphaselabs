@@ -114,7 +114,11 @@ export const lots = sqliteTable(
       .default(sql`(unixepoch())`),
   },
   (table) => ({
-    lotNumberIdx: uniqueIndex('lots_lot_number_idx').on(table.lotNumber),
+    /** One CURRENT record per lot number; superseded versions keep the number so the family stays findable. */
+    lotNumberIdx: uniqueIndex('lots_lot_number_current_idx')
+      .on(table.lotNumber)
+      .where(sql`superseded_by_id IS NULL`),
+    lotNumberLookupIdx: index('lots_lot_number_idx2').on(table.lotNumber),
     productIdx: index('lots_product_idx').on(table.productCode),
     statusIdx: index('lots_status_idx').on(table.status),
     accessionIdx: index('lots_accession_idx').on(table.accessionNumber),

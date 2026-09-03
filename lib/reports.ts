@@ -1,4 +1,4 @@
-import { asc, desc, eq } from 'drizzle-orm';
+import { asc, desc, eq, isNull } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { accounts, lotMovements, lots, orderItems, orders, organizations } from '@/db/schema';
 import { parseQuantity } from '@/lib/lot-rules';
@@ -154,7 +154,7 @@ export type LotRow = {
 
 export async function lotInventory(): Promise<LotRow[]> {
   const db = getDb();
-  const rows = await db.select().from(lots).orderBy(asc(lots.productCode), asc(lots.receivedAt));
+  const rows = await db.select().from(lots).where(isNull(lots.supersededById)).orderBy(asc(lots.productCode), asc(lots.receivedAt));
   return rows.map((l) => ({
     lotNumber: l.lotNumber,
     productCode: l.productCode,

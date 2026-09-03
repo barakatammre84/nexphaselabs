@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, like, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, like, sql, isNull } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { cartItems, lots, orderEvents, orderItems, orders, type Order, type OrderEvent, type OrderItem, type Organization } from '@/db/schema';
 import type { AccountPrincipal } from '@/lib/account-auth';
@@ -59,7 +59,7 @@ async function releasedProductCodes(codes: string[]): Promise<Set<string>> {
   const rows = await db
     .selectDistinct({ code: lots.productCode })
     .from(lots)
-    .where(and(eq(lots.status, 'released'), sql`${lots.productCode} IN ${codes}`));
+    .where(and(eq(lots.status, 'released'), isNull(lots.supersededById), sql`${lots.productCode} IN ${codes}`));
   return new Set(rows.map((r) => r.code));
 }
 

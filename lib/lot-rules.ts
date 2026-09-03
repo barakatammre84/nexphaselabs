@@ -366,3 +366,84 @@ export function parseCostCents(value: string | null | undefined): number | null 
   if (!/^\d{1,9}(?:\.\d{1,2})?$/.test(t)) return Number.NaN;
   return Math.round(Number(t) * 100);
 }
+
+/* ------------------------------------------------------------------------ */
+/* Corrections                                                               */
+/* ------------------------------------------------------------------------ */
+
+/** Fields a correction may change. Identity (lot number, product) and the analytical record are not among them. */
+export const CORRECTABLE_FIELDS = [
+  'manufacturerName',
+  'manufacturerAddress',
+  'supplierName',
+  'countryOfOrigin',
+  'entryNumber',
+  'manufactureDate',
+  'receivedAt',
+  'quantityReceived',
+  'storageLocation',
+  'storageCondition',
+  'retestDate',
+] as const;
+export type CorrectableField = (typeof CORRECTABLE_FIELDS)[number];
+
+export const CORRECTABLE_LABEL: Record<CorrectableField, string> = {
+  manufacturerName: 'Manufacturer',
+  manufacturerAddress: 'Manufacturer address',
+  supplierName: 'Supplier',
+  countryOfOrigin: 'Country of origin',
+  entryNumber: 'Customs entry number',
+  manufactureDate: 'Date of manufacture',
+  receivedAt: 'Date received',
+  quantityReceived: 'Quantity received',
+  storageLocation: 'Storage location',
+  storageCondition: 'Storage condition',
+  retestDate: 'Retest date',
+};
+
+export type LotCorrectionChange = { field: CorrectableField; from: string | null; to: string | null };
+
+export type LotIntakeValue = Extract<LotIntakeValidation, { ok: true }>['value'];
+
+export type LotCorrectionValidation =
+  | { ok: true; value: LotIntakeValue; changes: LotCorrectionChange[]; reason: string }
+  | { ok: false; errors: string[]; violations: Violation[] };
+
+/**
+ * A correction is validated exactly like an intake — the current record with
+ * the corrected values applied — so nothing a receipt would refuse can be
+ * introduced by a correction. At least one field must change and a reason is
+ * required; both are scanned for forbidden language.
+ */
+export function validateLotCorrection(
+  current: LotIntakeInput,
+  proposed: Partial<Record<CorrectableField, string | null | undefined>>,
+  reason: string | null | undefined,
+  now = new Date(),
+): LotCorrectionValidation {
+  const merged: LotIntakeInput = { ...current };
+  const changes: LotCorrectionChange[] = [];
+  for (const field of CORRECTABLE_FIELDS) {
+    if (!(field in proposed)) continue;
+    const to = (proposed[field] ?? '').toString().trim() || null;
+    const from = (current[field] ?? '').toString().trim() || null;
+    if (to !== from) {
+      changes.push({ field, from, to });
+      (merged as Record<string, unknown>)[field] = to;
+    }
+  }
+  const validated = validateLotIntake({ ...merged, note: null, cost: null, costNote: null }, now);
+  const errors: string[] = validated.ok ? [] : [...validated.errors];
+  const violations: Violation[] = validated.ok ? [] : [...validated.violations];
+  const why = (reason ?? '').trim();
+  if (!why) errors.push('Give the reason for the correction.');
+  if (why.length > 500) errors.push('Reason must be 500 characters or fewer.');
+  violations.push(...scanText('reason', why));
+  if (changes.length === 0) errors.push('Nothing changed. A correction must change at least one field.');
+  if (errors.length || violations.length || !validated.ok) return { ok: false, errors, violations };
+  return { ok: true, value: validated.value, changes, reason: why };
+}
+
+export function describeChanges(changes: LotCorrectionChange[]): string {
+  return changes.map((c) => `${CORRECTABLE_LABEL[c.field]}: ${c.from ?? '—'} → ${c.to ?? '—'}`).join('; ');
+}

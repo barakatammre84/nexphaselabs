@@ -3,19 +3,21 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AlertCircle, ArrowLeft, CircleCheck, Download } from 'lucide-react';
 import { LotDispositionForm } from '@/components/manage/lot-disposition-form';
+import { LotCorrectionForm } from '@/components/manage/lot-correction-form';
 import { LotTestForm } from '@/components/manage/lot-test-form';
 import { DOCUMENT_LABEL, DOCUMENT_TYPES, isDocumentType } from '@/lib/documents';
 import { ALLOWED_TRANSITIONS, TEST_TYPE_LABEL, lotNumberFromParam, releaseBlockers, type TestType } from '@/lib/lot-rules';
-import { LOT_STATUS_LABEL, currentDocumentKey, getLotDetail, type LotStatus } from '@/lib/lots-admin';
+import { lotVersions } from '@/lib/lot-family';
+import { LOT_STATUS_LABEL, currentDocumentKey, getLotDetail, lotToIntakeInput, type LotStatus } from '@/lib/lots-admin';
 import { canRecordResults, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
-import { addLotTestAction, setLotDispositionAction } from '../actions';
+import { addLotTestAction, correctLotAction, setLotDispositionAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Lot', robots: { index: false, follow: false } };
 
 type Props = {
   params: Promise<{ lotNumber: string }>;
-  searchParams: Promise<{ received?: string; uploaded?: string; error?: string; tested?: string; decided?: string; cost?: string }>;
+  searchParams: Promise<{ received?: string; uploaded?: string; error?: string; tested?: string; decided?: string; cost?: string; corrected?: string }>;
 };
 
 const UPLOAD_ERROR: Record<string, string> = {
@@ -56,7 +58,7 @@ const MOVEMENT_LABEL: Record<string, string> = {
 
 export default async function LotDetailPage({ params, searchParams }: Props) {
   const { lotNumber } = await params;
-  const { received, uploaded, error, tested, decided, cost } = await searchParams;
+  const { received, uploaded, error, tested, decided, cost, corrected } = await searchParams;
   const staff = await requireStaff(`/manage/lots/${encodeURIComponent(lotNumber)}`);
 
   const normalised = lotNumberFromParam(lotNumber);
@@ -64,6 +66,8 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
   const detail = await getLotDetail(normalised);
   if (!detail) notFound();
   const { lot, tests, movements, documents, statusEvents } = detail;
+  const versions = await lotVersions(lot.id);
+  const correctionInitial = Object.fromEntries(Object.entries(lotToIntakeInput(lot)).map(([k, v]) => [k, v ?? '']));
   const blockers = releaseBlockers(lot, tests);
   const allowed = ALLOWED_TRANSITIONS[lot.status] ?? [];
   const uploadError = error ? (UPLOAD_ERROR[error] ?? UPLOAD_ERROR.store) : null;
@@ -88,6 +92,11 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
         {cost && (
           <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
             <CircleCheck className="size-4 text-primary" /> Landed cost recorded.
+          </p>
+        )}
+        {corrected && (
+          <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
+            <CircleCheck className="size-4 text-primary" /> Correction recorded. This is now the current record; the earlier one stays on file.
           </p>
         )}
         {decided && (
@@ -117,6 +126,20 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
           </span>
         </div>
         {lot.statusReason && <p className="mt-3 text-sm text-muted-foreground">{lot.statusReason}</p>}
+        {versions.length > 1 && (
+          <p className="mt-3 font-mono text-xs text-muted-foreground">
+            Record version {versions.length} of {versions.length} &middot; corrected {versions.length - 1} time{versions.length === 2 ? '' : 's'}; earlier versions:{' '}
+            {versions
+              .slice(0, -1)
+              .map((x) => `${x.id} (${x.createdAt.toISOString().slice(0, 10)})`)
+              .join(', ')}
+          </p>
+        )}
+        {canRecordResults(staff) && (
+          <div className="mt-6">
+            <LotCorrectionForm initial={correctionInitial} quantityLocked={lot.quantityRemaining !== lot.quantityReceived} action={correctLotAction.bind(null, lot.lotNumber)} />
+          </div>
+        )}
 
         <div className="mt-10 grid gap-12 lg:grid-cols-2">
           <div>
@@ -316,8 +339,15 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
               <ul className="mt-2 divide-y divide-border border border-border text-sm">
                 {statusEvents.filter((e) => e.kind !== 'cost').map((e) => (
                   <li key={e.id} className="p-3">
-                    <span className="font-mono text-xs">{day(e.createdAt)}</span> &middot; {e.fromStatus} &rarr;{' '}
-                    <span className="font-semibold">{e.toStatus}</span> &middot; {e.decidedBy}
+                    <span className="font-mono text-xs">{day(e.createdAt)}</span> &middot;{' '}
+                    {e.kind === 'correction' ? (
+                      <span className="font-semibold">Record corrected</span>
+                    ) : (
+                      <>
+                        {e.fromStatus} &rarr; <span className="font-semibold">{e.toStatus}</span>
+                      </>
+                    )}{' '}
+                    &middot; {e.decidedBy}
                     {e.reason && <p className="mt-1 text-muted-foreground">{e.reason}</p>}
                   </li>
                 ))}

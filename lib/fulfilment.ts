@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql, isNull } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { accounts, lotMovements, lotStatusEvents, lots, orderEvents, orderItems, orders, type Lot } from '@/db/schema';
 import { sendEmail } from '@/lib/email';
@@ -38,7 +38,7 @@ export async function pickableLots(productCode: string): Promise<PickableLot[]> 
   const rows = await db
     .select({ id: lots.id, lotNumber: lots.lotNumber, quantityRemaining: lots.quantityRemaining, retestDate: lots.retestDate, releasedAt: lots.releasedAt })
     .from(lots)
-    .where(and(eq(lots.productCode, productCode), eq(lots.status, 'released')))
+    .where(and(eq(lots.productCode, productCode), eq(lots.status, 'released'), isNull(lots.supersededById)))
     .orderBy(asc(lots.releasedAt));
   return rows.filter((r) => {
     const q = r.quantityRemaining ? parseQuantity(r.quantityRemaining) : null;
@@ -83,7 +83,7 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
   // lot used twice is decremented once by the combined amount.
   const lotIds = [...new Set(items.map((it) => input.picks[it.id]))];
   if (lotIds.some((l) => !l)) return { ok: false, error: 'Choose a lot for every line.' };
-  const lotRows = await db.select().from(lots).where(sql`${lots.id} IN ${lotIds}`);
+  const lotRows = await db.select().from(lots).where(and(sql`${lots.id} IN ${lotIds}`, isNull(lots.supersededById)));
   const lotById = new Map<string, Lot>(lotRows.map((l) => [l.id, l]));
 
   type Plan = { lot: Lot; remaining: string; shipped: string; lines: { itemId: string; packs: number }[] };
@@ -124,7 +124,7 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
     WHERE ${sql.join(
       planList.map(
         (p) =>
-          sql`(${lots.id} = ${p.lot.id} AND ${lots.status} = 'released' AND ${lots.quantityRemaining} = ${p.lot.quantityRemaining ?? ''})`,
+          sql`(${lots.id} = ${p.lot.id} AND ${lots.status} = 'released' AND ${lots.supersededById} IS NULL AND ${lots.quantityRemaining} = ${p.lot.quantityRemaining ?? ''})`,
       ),
       sql` OR `,
     )}

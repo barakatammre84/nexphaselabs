@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { Lock, Plus } from 'lucide-react';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { loadCatalog } from '@/lib/catalog-data';
+import { LotAlerts } from '@/components/manage/lot-alerts';
+import { lotAlerts } from '@/lib/lot-alerts';
 import { LOT_STATUS_LABEL, listLots, type LotStatus } from '@/lib/lots-admin';
 import { requireStaff } from '@/lib/staff-auth';
 
@@ -24,8 +26,9 @@ function day(d: Date | null): string {
 
 export default async function LotsPage() {
   await requireStaff('/manage/lots');
-  const loaded = await loadCatalog(listLots);
-  const items = loaded.data ?? [];
+  const loaded = await loadCatalog(async () => ({ lots: await listLots(), alerts: await lotAlerts() }));
+  const items = loaded.data?.lots ?? [];
+  const alerts = loaded.data?.alerts ?? [];
 
   return (
     <main className="bg-background text-foreground">
@@ -48,6 +51,12 @@ export default async function LotsPage() {
         <p className="mt-6 max-w-2xl text-sm leading-6 text-muted-foreground">
           The lot is the unit of truth. Every lot arrives in quarantine and is only sellable after a named release.
         </p>
+
+        {!loaded.unavailable && alerts.length > 0 && (
+          <div className="mt-8">
+            <LotAlerts alerts={alerts} />
+          </div>
+        )}
 
         {loaded.unavailable ? (
           <div className="mt-10">

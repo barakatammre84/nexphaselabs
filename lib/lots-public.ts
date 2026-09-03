@@ -1,5 +1,6 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
+import { lotFamilyIds } from '@/lib/lot-family';
 import { lotTests, lots, type Lot } from '@/db/schema';
 import type { DocumentType } from '@/lib/documents';
 
@@ -51,7 +52,7 @@ function iso(value: Date | null): string | null {
 /** The released lot row, or null. Never returns an unreleased lot. */
 export async function getReleasedLot(lotNumber: string): Promise<Lot | null> {
   const db = getDb();
-  const [lot] = await db.select().from(lots).where(eq(lots.lotNumber, lotNumber)).limit(1);
+  const [lot] = await db.select().from(lots).where(and(eq(lots.lotNumber, lotNumber), isNull(lots.supersededById))).limit(1);
   if (!lot || lot.status !== 'released') return null;
   return lot;
 }
@@ -60,7 +61,8 @@ export async function getPublicLot(lotNumber: string): Promise<PublicLot | null>
   const lot = await getReleasedLot(lotNumber);
   if (!lot) return null;
   const db = getDb();
-  const tests = await db.select().from(lotTests).where(eq(lotTests.lotId, lot.id));
+  const family = await lotFamilyIds(lot.id);
+  const tests = await db.select().from(lotTests).where(sql`${lotTests.lotId} IN ${family}`);
 
   return {
     lotNumber: lot.lotNumber,
@@ -126,7 +128,7 @@ export async function listReleasedLotsForProduct(productCode: string): Promise<R
   const rows = await db
     .select({ lotNumber: lots.lotNumber, releasedAt: lots.releasedAt, retestDate: lots.retestDate, manufacturerName: lots.manufacturerName })
     .from(lots)
-    .where(and(eq(lots.productCode, productCode), eq(lots.status, 'released')))
+    .where(and(eq(lots.productCode, productCode), eq(lots.status, 'released'), isNull(lots.supersededById)))
     .orderBy(desc(lots.releasedAt));
   return rows.map((r) => ({ lotNumber: r.lotNumber, releasedOn: iso(r.releasedAt), retestDate: iso(r.retestDate), manufacturerName: r.manufacturerName }));
 }

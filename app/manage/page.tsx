@@ -3,7 +3,9 @@ import Link from 'next/link';
 import { ArrowRight, CircleCheck, Lock, Plus } from 'lucide-react';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { STATUS_LABEL } from '@/lib/catalog';
+import { LotAlerts } from '@/components/manage/lot-alerts';
 import { listAllProducts, loadCatalog } from '@/lib/catalog-data';
+import { lotAlerts } from '@/lib/lot-alerts';
 import { canEditCatalog, requireStaff } from '@/lib/staff-auth';
 
 export const dynamic = 'force-dynamic';
@@ -28,6 +30,7 @@ export default async function ManagePage({ searchParams }: Props) {
   const { saved, denied } = await searchParams;
   const loaded = await loadCatalog(listAllProducts);
   const items = loaded.data ?? [];
+  const alerts = (await loadCatalog(lotAlerts)).data ?? [];
   const canEdit = canEditCatalog(staff);
 
   return (
@@ -60,6 +63,11 @@ export default async function ManagePage({ searchParams }: Props) {
           <p role="status" className="mt-6 border border-border bg-secondary p-4 text-sm">
             Your role ({staff.role}) can view the catalog but not edit it.
           </p>
+        )}
+        {alerts.length > 0 && (
+          <div className="mt-6">
+            <LotAlerts alerts={alerts} compact />
+          </div>
         )}
 
         <p className="mt-6 max-w-2xl text-sm leading-6 text-muted-foreground">
