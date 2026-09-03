@@ -265,3 +265,33 @@ Books your CPA and bank recognise
 ### About this plan
 
  Prepared 2 September 2026 for 8486 Ventures LLC. Sequencing and scope reflect three stated constraints — two customer tiers, a twenty-six week horizon, and a tools-and-hosting budget with no contractors. Regulatory citations are to primary sources; cost figures are approximate and should be confirmed. Nothing here is legal advice, and decision two in particular is a question for a lawyer rather than for me.
+
+## Phase 7 — Operating tools (added 2026-09-03)
+
+Owner direction: nothing about the offer lives in code; every value staff need to change is data
+with a management tool, and the priority is the software needed to run the business day to day.
+Same loop discipline as Phases 1–6.
+
+- 7.1 Catalog fully data-driven: chemical classes (label, anchor, blurb, order) as a table managed
+  in the catalog manager; product photographs uploaded to R2 through the product form instead of
+  repository paths; featured/ordering managed in the manager. Seed remains the only code.
+- 7.2 Staff administration: create and deactivate staff, change roles, force password reset,
+  revoke sessions, view sign-in history — replaces the CLI script; admin only; every change an
+  attributed event.
+- 7.3 Customer service tools: customer password reset (email token, same posture as verification);
+  staff account lookup showing account, organisation, acknowledgements, orders and sessions;
+  resend verification; suspend/reinstate an account with reason; all attributed.
+- 7.4 Lot corrections and alerts: correct a lot record by superseding it (new row,
+  `supersededById`, reason, nothing edited in place); dashboard alerts for retest dates due,
+  quarantine ageing, low quantity on hand, released lots without a current SDS.
+- 7.5 Refunds and returns: record a refund against an order (`refund_due` → `refunded` with
+  reference and date, customer emailed); receive a return as a ledger movement into a quarantined
+  disposition; both in the accounting export.
+- 7.6 Procurement: suppliers and purchase orders; expected receipts linked to lot intake so
+  provenance and landed cost flow from the PO; open-PO and landed-cost reports.
+- 7.7 Operations dashboard and audit trail: `/manage` home with queue counts (verifications
+  waiting, orders awaiting payment, orders to fulfil, lots in quarantine, alerts); unified event
+  timeline across lots, orders, organisations, accounts and staff; optional daily digest email.
+- 7.8 Deployment automation: GitHub Actions build, test and deploy to staging on push and to
+  production on tag, migrations applied in the workflow; needs the owner's `CLOUDFLARE_API_TOKEN`
+  as a repository secret but removes every other manual step.

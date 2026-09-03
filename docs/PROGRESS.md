@@ -73,10 +73,22 @@ Phase 5 ships: a real order, paid, picked from a released lot, shipped, and reco
 - [x] 6.3 Launch list — SDS library: `product_documents` table (migration 0015, applied local/staging/prod), staff PDF upload on the product edit page (admin|qc, same-origin, PDF magic bytes, 25 MB, new upload supersedes, nothing deleted), public download of the current sheet for published products only at `/api/products/[code]/sds`, product-page link and `/documentation/sds` library with REGULATORY_STATEMENT above the fold. `/legal/shipping` and `/legal/returns` added (versioned, marked pending counsel review) and linked from the footer with `/documentation/sds`. `/about` and the footer now name 8486 Ventures LLC (California), trading as NexPhase Labs, Oakland facility. Audit CLEAN.
 - [x] 6.4 Final end-to-end verification and sign-off — Full chain run twice against the dev server on fresh accounts: sign-up → email verification → sign-in → organisation submission → admin approval → institutional pricing visible (still hidden to anonymous) → cart → idempotent order submit → payment method → admin records payment → fulfilment → shipment from a released lot (one order with two lines drawing on one lot) → customer tracking and lot links → lot decremented → ledger row → consignee report → orders/shipments CSVs with allocated cost and margin → public lot API without movements or quantities; emails at every transition; revocation of an approved organisation cuts pricing, cart, ordering and resubmission while existing orders stay visible. Public sweep: 26 paths, regulatory statement in the body of catalog, product, lot and SDS pages, no forbidden language on any public page. Regulatory-content audit CLEAN. Security/authorisation audit found three real issues, all fixed and re-audited CLEAN: (1) `pickFromLot` rounded sub-unit picks on kg/g-tracked lots to zero — now whole-microgram arithmetic with the unit stepping down so the ledger is exact, plus `sumQuantities` so several lines from one lot are summed exactly and a mismatch fails loudly instead of dropping a line; (2) lot document upload lacked a role gate and landed cost at intake was ungated and unattributed — COA/chromatogram/mass-spec/SDS uploads now require QC or admin, intake cost is admin-only and writes a `kind = 'cost'` event in the same batch; (3) no path revoked an approved organisation — `approved → revoked` decision (admin, reason required, same conditional-update + guarded-event shape, account mirror, applicant emailed; revoked organisations cannot resubmit without contacting us). Sub-microgram intake quantities are refused (ledger resolution). 96 tests, typecheck, lint and production build green.
 
+## Phase 7 — Operating tools (added 2026-09-03; owner direction: products are data, build the tools)
+
+- [ ] 7.1 Catalog fully data-driven: chemical classes as a managed table; product photographs uploaded to R2 via the product form; featured/order in the manager
+- [ ] 7.2 Staff administration UI (create, deactivate, roles, forced reset, session revocation, attributed events)
+- [ ] 7.3 Customer service tools (customer password reset; staff account lookup; resend verification; suspend/reinstate with reason)
+- [ ] 7.4 Lot corrections by supersession and dashboard alerts (retest due, quarantine ageing, low on hand, released without SDS)
+- [ ] 7.5 Refunds and returns (refund recorded with reference; return received as a quarantined movement; both in exports)
+- [ ] 7.6 Procurement: suppliers, purchase orders, expected receipts feeding lot intake and landed cost
+- [ ] 7.7 Operations dashboard with queue counts, unified audit timeline, optional daily digest
+- [ ] 7.8 Deployment automation via GitHub Actions (staging on push, production on tag, migrations in workflow)
+
 ## Owner decisions still open (not engineering)
 
 - Payment provider (Stripe/PayPal/Square prohibit this category)
 - Whether the consumer tier stays
+- ~~Product list changes~~ — owner decided 2026-09-03: nothing comes down; products are data, managed in the catalog manager
 - SDS set due 20 November 2026 — upload each product's sheet on its `/manage/products/[code]` page (the library, product link and public download are built)
 - Founding year for `/about` (not on record; left out)
 - Counsel review of `/legal/terms`, `/legal/shipping`, `/legal/returns`, `/legal/privacy`; the "pending counsel review" labels come off only after that

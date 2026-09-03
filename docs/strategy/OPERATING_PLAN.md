@@ -19,8 +19,10 @@ committed. Both cannot be the plan. Nothing built is wasted under either answer 
 access gate, documentation discipline and lot record carry over, and the code is committed — but
 the next dollar spent depends on this call.
 
-- **Owner decision:** research-supply business (current build) vs. partner-model brand (§5/§6)
-  vs. wind-down. Record the answer and the date here.
+- **Owner decision (2026-09-03):** continue the research-supply operating system. No product is
+  taken down; the catalog is data managed through the catalog manager and product decisions are
+  not made in code. Engineering focus is the software needed to run and operate the business
+  (Phase 7 in `docs/BUILD_PLAN.md`). The brief's §5/§6 pivot is not adopted.
 
 ## §1 Where you are
 
@@ -45,7 +47,7 @@ question 1 of the counsel brief (§4). **Owner decision, informed by counsel.**
 | # | Item | Status | Notes |
 |---|---|---|---|
 | 01 | Form the entity | **Done** (pending confirmation of EIN/bank) | LLC, California. Brief suggests Delaware C-corp if raising — not chosen. |
-| 02 | Take four SKUs down (tesamorelin, BPC-157, selank, both blends) | **Partial** | Tesamorelin and both blends withdrawn with reasons. **BPC-157 (NPL-001) and Selank (NPL-005) are still published.** CLAUDE.md already says the product list must be confirmed with an FDA regulatory attorney before launch. Owner decision; a withdrawal is one edit in the catalog manager (visibility → withdrawn, reason recorded, nothing deleted). |
+| 02 | Take four SKUs down (tesamorelin, BPC-157, selank, both blends) | **Owner decided: no** | Tesamorelin and both blends were withdrawn earlier for recorded reasons. BPC-157 and Selank stay published by owner decision (2026-09-03). Any future change is made as data in the catalog manager, never in code. |
 | 03 | Pull the parcel's zoning designation | **Not started** | Owner. One lookup at Oakland Planning. |
 | 04 | Inventory the inventory | **Built, not exercised** | Lot intake records compound, quantity, lot, manufacturer and address, supplier, country of origin, customs entry, documents, cost; everything enters quarantine. No production deploy yet, so the physical Oakland inventory is not in the system. Owner: deploy, then intake every container. |
 | 05 | Send the counsel brief to three firms | **Not started** | Counsel not engaged (CLAUDE.md). The brief text is in the artifact copy. |
@@ -90,3 +92,4 @@ SDS library, organisation revocation.
 ## Change log
 
 - 2026-09-03 — First status pass against the 2 September artifact.
+- 2026-09-03 — Owner decision recorded: continue research supply, no products removed, build operating tools (Phase 7).
