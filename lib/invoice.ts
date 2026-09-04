@@ -44,9 +44,18 @@ export type InvoicePreview = {
   current: IssuedDocument | null;
 };
 
+/**
+ * Documents are filed against the order NUMBER, matching how certificates are
+ * filed against the lot number: it is the reference a person holding the
+ * paper can quote back, and it does not change.
+ */
+function subjectId(orderNumber: string): string {
+  return orderNumber.trim().toUpperCase();
+}
+
 async function loadSubject(
   orderNumber: string,
-): Promise<{ subject: InvoiceSubject; orderId: string } | null> {
+): Promise<{ subject: InvoiceSubject } | null> {
   const detail = await getOrderByNumber(orderNumber);
   if (!detail) return null;
   const { order, items } = detail;
@@ -73,7 +82,6 @@ async function loadSubject(
   }
 
   return {
-    orderId: order.id,
     subject: {
       order: {
         orderNumber: order.orderNumber,
@@ -123,7 +131,7 @@ export async function previewInvoice(
   const year = invoiceYear(now);
   const [sequence, current] = await Promise.all([
     peekSequence(invoiceSequenceKey(year)),
-    currentDocument('invoice', 'order', loaded.orderId),
+    currentDocument('invoice', 'order', subjectId(orderNumber)),
   ]);
   return {
     content: buildInvoiceContent(loaded.subject),
@@ -144,12 +152,13 @@ export async function issueInvoice(
 ): Promise<IssueInvoiceResult> {
   const loaded = await loadSubject(orderNumber);
   if (!loaded) return { ok: false, errors: ['Order not found.'] };
-  const { subject, orderId } = loaded;
+  const { subject } = loaded;
+  const id = subjectId(subject.order.orderNumber);
 
   const blockers = invoiceBlockers(subject);
   if (blockers.length > 0) return { ok: false, errors: blockers };
 
-  const current = await currentDocument('invoice', 'order', orderId);
+  const current = await currentDocument('invoice', 'order', id);
   const issuedAt = new Date();
   const year = invoiceYear(issuedAt);
   const sequence = await claimSequence(invoiceSequenceKey(year));
@@ -167,7 +176,7 @@ export async function issueInvoice(
     const record = await issueDocument({
       kind: 'invoice',
       subjectType: 'order',
-      subjectId: orderId,
+      subjectId: id,
       documentNumber,
       bytes,
       issuedBy,

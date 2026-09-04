@@ -109,7 +109,16 @@ Phase 7 ships: every value staff change is data with a tool (classes, photograph
   organisation rather than the consignee. Refuses to issue if the lines, subtotal and total do not
   reconcile — an invoice is the last place to paper over an inconsistent order. Customers download
   the current invoice from their own order page; superseded ones stay available to staff.
-- [ ] 8.4 Packing slip issued at fulfilment
+- [x] 8.4 Packing slip issued at fulfilment
+
+  Carries no prices — the box is opened by a goods-in desk and sometimes by customs, and a priced
+  document invites a valuation argument the invoice already settles. Every line states the lot it
+  was picked from and the certificate issued for that lot, so a laboratory can reconcile what
+  arrived against the analysis it was promised without looking anything up. Refuses to issue while
+  any line is unpicked.
+
+  Certificates, invoices and packing slips are all filed against the number a person holding the
+  paper can quote back — the lot number or the order number — never a row id.
 - [ ] 8.5 GHS container labels and the hazard communication programme
 
 ## Owner decisions still open (not engineering)

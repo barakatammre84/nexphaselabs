@@ -29,7 +29,7 @@ export async function GET(
   try {
     const detail = await getOrderForAccount(account.id, normalised);
     if (!detail) return new Response('Not found', { status: 404 });
-    record = await currentDocument('invoice', 'order', detail.order.id);
+    record = await currentDocument('invoice', 'order', detail.order.orderNumber);
   } catch (error) {
     console.error(
       '[invoice] customer lookup failed',

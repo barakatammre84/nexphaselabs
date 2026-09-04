@@ -42,7 +42,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
   const detail = await getOrderForAccount(account.id, number);
   if (!detail) notFound();
   const { order, items, events } = detail;
-  const invoice = await currentDocument('invoice', 'order', order.id);
+  const invoice = await currentDocument('invoice', 'order', order.orderNumber);
   const methods = order.status === 'submitted' ? availablePaymentMethods() : [];
   const instructions =
     order.status === 'awaiting_payment'

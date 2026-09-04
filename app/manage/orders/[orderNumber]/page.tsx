@@ -15,6 +15,7 @@ import { pickableLots, type PickableLot } from '@/lib/fulfilment';
 import { orderNextStep } from '@/lib/workflow-display';
 import { getOrderByNumber } from '@/lib/orders';
 import { previewInvoice } from '@/lib/invoice';
+import { previewPackingSlip } from '@/lib/packing-slip';
 import { documentHistory } from '@/lib/issued-documents';
 import { canFulfil, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
 import { trackingUrl } from '@/lib/tracking';
@@ -37,6 +38,7 @@ type Props = {
     refunded?: string;
     returned?: string;
     invoiced?: string;
+    slipped?: string;
   }>;
 };
 
@@ -47,6 +49,10 @@ const ORDER_ERROR: Record<string, string> = {
     'The invoice cannot be issued. The outstanding items are listed under Invoice below.',
   invoicefailed:
     'The invoice could not be issued. Nothing was recorded. Try again shortly.',
+  slipblocked:
+    'The packing slip cannot be issued. The outstanding items are listed under Packing slip below.',
+  slipfailed:
+    'The packing slip could not be issued. Nothing was recorded. Try again shortly.',
 };
 
 function Row({
@@ -68,7 +74,7 @@ function Row({
 
 export default async function ManageOrderPage({ params, searchParams }: Props) {
   const { orderNumber } = await params;
-  const { paid, error, shipped, fulfilling, cancelled, refunded, returned, invoiced } =
+  const { paid, error, shipped, fulfilling, cancelled, refunded, returned, invoiced, slipped } =
     await searchParams;
   const staff = await requireStaff(`/manage/orders/${orderNumber}`);
   const number = orderNumberFromParam(orderNumber);
@@ -76,11 +82,13 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
   const detail = await getOrderByNumber(number);
   if (!detail) notFound();
   const { order, items, events } = detail;
-  const [invoice, orderDocs] = await Promise.all([
+  const [invoice, slip, orderDocs] = await Promise.all([
     previewInvoice(number),
-    documentHistory('order', order.id),
+    previewPackingSlip(number),
+    documentHistory('order', order.orderNumber),
   ]);
   const invoiceHistory = orderDocs.filter((d) => d.kind === 'invoice');
+  const slipHistory = orderDocs.filter((d) => d.kind === 'packing_slip');
   const lotsByProduct = new Map<string, PickableLot[]>();
   if (order.status === 'fulfilling') {
     for (const code of new Set(items.map((it) => it.productCode)))
@@ -104,6 +112,11 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
             state.
           </p>
         </div>
+        {slipped && (
+          <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
+            <CircleCheck className="size-4 text-primary" /> Packing slip {slipped} issued.
+          </p>
+        )}
         {invoiced && (
           <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
             <CircleCheck className="size-4 text-primary" /> Invoice {invoiced} issued.
@@ -350,6 +363,93 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                   Only an admin can record a payment.
                 </p>
               ))}
+
+            <h2 className="mt-10 utility-label text-primary">Packing slip</h2>
+            {slip === null ? (
+              <p className="mt-4 text-sm text-muted-foreground">Unavailable.</p>
+            ) : (
+              <div className="mt-4 border border-border bg-secondary p-5">
+                {slipHistory.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No packing slip has been issued for this order.
+                  </p>
+                ) : (
+                  <ul className="space-y-3">
+                    {slipHistory.map((doc) => (
+                      <li key={doc.id} className="text-sm">
+                        <span className="font-semibold">{doc.documentNumber}</span>
+                        {doc.supersededById && (
+                          <span className="ml-2 text-xs text-muted-foreground">superseded</span>
+                        )}
+                        <a
+                          href={`/api/manage/documents/${doc.id}`}
+                          className="ml-3 inline-flex items-center gap-1.5 font-semibold text-primary"
+                        >
+                          <Download className="size-3.5" /> Download
+                        </a>
+                        <span className="mt-1 block font-mono text-[11px] text-muted-foreground">
+                          {doc.issuedAt.toISOString().slice(0, 10)} &middot; {doc.issuedBy}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {slip.blockers.length > 0 && (
+                  <ul className="mt-4 space-y-1.5 text-sm">
+                    {slip.blockers.map((blocker) => (
+                      <li key={blocker} className="flex gap-2">
+                        <AlertCircle className="mt-0.5 size-3.5 shrink-0 text-destructive" />
+                        <span>{blocker}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {canFulfil(staff) && (
+                  <div className="mt-5 flex flex-wrap items-end gap-3">
+                    <a
+                      href={`/api/manage/orders/${encodeURIComponent(order.orderNumber)}/packing-slip`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex h-11 items-center justify-center gap-2 border border-foreground/20 px-5 text-sm font-bold hover:bg-background"
+                    >
+                      <FileText className="size-4" /> Preview
+                    </a>
+                    {slip.blockers.length === 0 && (
+                      <form
+                        method="post"
+                        action={`/api/manage/orders/${encodeURIComponent(order.orderNumber)}/packing-slip`}
+                        className="flex flex-wrap items-end gap-3"
+                      >
+                        {slipHistory.length > 0 && (
+                          <label className="flex flex-col gap-1.5 text-sm">
+                            Reason for reissue
+                            <input
+                              name="reason"
+                              required
+                              maxLength={200}
+                              placeholder="What changed"
+                              className="h-11 w-64 border border-foreground/20 bg-background px-3 text-sm"
+                            />
+                          </label>
+                        )}
+                        <button
+                          type="submit"
+                          className="inline-flex h-11 items-center justify-center bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90"
+                        >
+                          {slipHistory.length === 0 ? `Issue ${slip.documentNumber}` : 'Reissue'}
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                )}
+                <p className="mt-4 text-xs leading-5 text-muted-foreground">
+                  Prints the lot and certificate against every line, and no prices. Print it for
+                  the box.
+                </p>
+              </div>
+            )}
 
             <h2 className="mt-10 utility-label text-primary">Invoice</h2>
             {invoice === null ? (
