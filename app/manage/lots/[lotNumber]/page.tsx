@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { AlertCircle, ArrowLeft, CircleCheck, Download } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CircleCheck, Download, FileText } from 'lucide-react';
 import { LotDispositionForm } from '@/components/manage/lot-disposition-form';
 import { LotCorrectionForm } from '@/components/manage/lot-correction-form';
 import { LotTestForm } from '@/components/manage/lot-test-form';
 import { DOCUMENT_LABEL, DOCUMENT_TYPES, isDocumentType } from '@/lib/documents';
+import { previewCoa } from '@/lib/coa';
+import { documentHistory } from '@/lib/issued-documents';
 import { ALLOWED_TRANSITIONS, TEST_TYPE_LABEL, lotNumberFromParam, releaseBlockers, type TestType } from '@/lib/lot-rules';
 import { lotVersions } from '@/lib/lot-family';
 import { LOT_STATUS_LABEL, currentDocumentKey, getLotDetail, lotToIntakeInput, type LotStatus } from '@/lib/lots-admin';
@@ -17,7 +19,7 @@ export const metadata: Metadata = { title: 'Lot', robots: { index: false, follow
 
 type Props = {
   params: Promise<{ lotNumber: string }>;
-  searchParams: Promise<{ received?: string; uploaded?: string; error?: string; tested?: string; decided?: string; cost?: string; corrected?: string }>;
+  searchParams: Promise<{ received?: string; uploaded?: string; error?: string; tested?: string; decided?: string; cost?: string; corrected?: string; issued?: string }>;
 };
 
 const UPLOAD_ERROR: Record<string, string> = {
@@ -28,6 +30,9 @@ const UPLOAD_ERROR: Record<string, string> = {
   filetype: 'Only PDF, PNG and JPEG files are accepted.',
   badform: 'The upload could not be read.',
   store: 'The file could not be stored. Try again shortly.',
+  coablocked:
+    'The certificate cannot be issued yet. The outstanding items are listed under Certificate of analysis below.',
+  coafailed: 'The certificate could not be issued. Nothing was recorded. Try again shortly.',
 };
 
 function bytes(n: number): string {
@@ -58,7 +63,7 @@ const MOVEMENT_LABEL: Record<string, string> = {
 
 export default async function LotDetailPage({ params, searchParams }: Props) {
   const { lotNumber } = await params;
-  const { received, uploaded, error, tested, decided, cost, corrected } = await searchParams;
+  const { received, uploaded, error, tested, decided, cost, corrected, issued } = await searchParams;
   const staff = await requireStaff(`/manage/lots/${encodeURIComponent(lotNumber)}`);
 
   const normalised = lotNumberFromParam(lotNumber);
@@ -71,6 +76,8 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
   const blockers = releaseBlockers(lot, tests);
   const allowed = ALLOWED_TRANSITIONS[lot.status] ?? [];
   const uploadError = error ? (UPLOAD_ERROR[error] ?? UPLOAD_ERROR.store) : null;
+  const [coa, issuedDocs] = await Promise.all([previewCoa(normalised), documentHistory('lot', lot.id)]);
+  const coaHistory = issuedDocs.filter((d) => d.kind === 'coa');
 
   return (
     <main className="bg-background text-foreground">
@@ -103,6 +110,11 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
           <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
             <CircleCheck className="size-4 text-primary" /> Decision recorded. Status is now{' '}
             {LOT_STATUS_LABEL[lot.status as LotStatus] ?? lot.status}.
+          </p>
+        )}
+        {issued && (
+          <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
+            <CircleCheck className="size-4 text-primary" /> Certificate {issued} issued and attached to this lot.
           </p>
         )}
         {uploaded && isDocumentType(uploaded) && (
@@ -188,6 +200,120 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
 
           </div>
         </div>
+
+        <h2 className="mt-12 utility-label text-primary">Certificate of analysis</h2>
+        {coa === null ? (
+          <p className="mt-4 text-sm text-muted-foreground">Unavailable.</p>
+        ) : (
+          <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_20rem]">
+            <div>
+              {coaHistory.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No certificate has been issued for this lot yet.
+                </p>
+              ) : (
+                <ul className="border-t border-border">
+                  {coaHistory.map((doc) => (
+                    <li key={doc.id} className="grid gap-1 border-b border-border py-3 sm:grid-cols-[220px_1fr] sm:gap-6">
+                      <span className="text-sm font-semibold text-muted-foreground">
+                        {doc.documentNumber}
+                        {doc.supersededById && (
+                          <span className="ml-2 font-normal text-xs">superseded</span>
+                        )}
+                      </span>
+                      <span className="font-mono text-sm leading-6">
+                        <a
+                          href={`/api/manage/documents/${doc.id}`}
+                          className="inline-flex items-center gap-1.5 font-semibold text-primary"
+                        >
+                          <Download className="size-3.5" /> Download
+                        </a>
+                        <span className="ml-3 text-xs text-muted-foreground">
+                          {day(doc.issuedAt)} &middot; {doc.issuedBy} &middot; {bytes(doc.sizeBytes)}
+                        </span>
+                        <span className="mt-1 block break-all text-[11px] text-muted-foreground">
+                          SHA-256 {doc.sha256}
+                        </span>
+                        {doc.supersedeReason && (
+                          <span className="mt-1 block text-xs text-muted-foreground">{doc.supersedeReason}</span>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-4 border border-border bg-secondary p-5">
+              <p className="text-sm font-semibold">
+                {coaHistory.length === 0 ? 'Issue the certificate' : 'Reissue the certificate'}
+              </p>
+              <p className="font-mono text-xs text-muted-foreground">{coa.documentNumber}</p>
+
+              {coa.blockers.length > 0 ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Outstanding before a certificate can be issued:
+                  </p>
+                  <ul className="space-y-1.5 text-sm">
+                    {coa.blockers.map((blocker) => (
+                      <li key={blocker} className="flex gap-2">
+                        <AlertCircle className="mt-0.5 size-3.5 shrink-0 text-destructive" />
+                        <span>{blocker}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Every requirement is met. Read the preview before issuing — once issued, the
+                  certificate is a record and can only be replaced by a numbered reissue.
+                </p>
+              )}
+
+              <a
+                href={`/api/manage/lots/${encodeURIComponent(lot.lotNumber)}/coa`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-11 items-center justify-center gap-2 border border-foreground/20 px-5 text-sm font-bold hover:bg-background"
+              >
+                <FileText className="size-4" /> Preview
+              </a>
+
+              {canRecordResults(staff) && coa.blockers.length === 0 && (
+                <form
+                  method="post"
+                  action={`/api/manage/lots/${encodeURIComponent(lot.lotNumber)}/coa`}
+                  className="flex flex-col gap-3"
+                >
+                  {coaHistory.length > 0 && (
+                    <label className="flex flex-col gap-1.5 text-sm">
+                      Reason for reissue
+                      <input
+                        name="reason"
+                        required
+                        maxLength={200}
+                        placeholder="What changed since the last certificate"
+                        className="h-11 border border-foreground/20 bg-background px-3 text-sm"
+                      />
+                    </label>
+                  )}
+                  <button
+                    type="submit"
+                    className="inline-flex h-11 items-center justify-center bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90"
+                  >
+                    {coaHistory.length === 0 ? 'Issue certificate' : 'Issue reissue'}
+                  </button>
+                </form>
+              )}
+
+              <p className="text-xs leading-5 text-muted-foreground">
+                The certificate is generated from this lot record and its results, and becomes the
+                certificate of analysis on file. The previous one is kept, never deleted.
+              </p>
+            </div>
+          </div>
+        )}
 
         <h2 className="mt-12 utility-label text-primary">Documents</h2>
         <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_20rem]">

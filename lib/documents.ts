@@ -126,15 +126,28 @@ export async function putLotDocument(
  * Fetch a stored object by key. The caller is responsible for having already
  * checked that the requester is allowed to see this lot's documents.
  */
+/**
+ * Prefixes a lot's document key may legitimately have: `lots/` for a file
+ * uploaded against the lot, `issued/` for a certificate this business
+ * generated and then attached to it. The check is here to stop a key that did
+ * not come from our own records reaching the bucket, not to distinguish the
+ * two — both are ours.
+ */
+const LOT_KEY_PREFIXES = ['lots/', 'issued/'];
+
+function isLotKey(key: string): boolean {
+  return LOT_KEY_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
+
 export async function getLotDocument(
   key: string,
 ): Promise<R2ObjectBody | null> {
-  if (!key.startsWith('lots/')) return null;
+  if (!isLotKey(key)) return null;
   return bucket().get(key);
 }
 
 export async function headLotDocument(key: string): Promise<R2Object | null> {
-  if (!key.startsWith('lots/')) return null;
+  if (!isLotKey(key)) return null;
   return bucket().head(key);
 }
 

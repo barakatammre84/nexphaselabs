@@ -72,6 +72,26 @@ export async function claimSequence(key: string): Promise<number> {
   return claimed.next_value;
 }
 
+/**
+ * Give a claimed number back, if nobody has claimed past it yet.
+ *
+ * Claiming happens before the document can be rendered, because the number is
+ * printed on the document. If rendering or storage then fails, the number
+ * would otherwise be burned and the series would carry a gap that nobody can
+ * account for later. The decrement is guarded on the counter still standing
+ * where this claim left it, so it cannot rewind a number a second caller has
+ * already taken; in that (rare) race the gap survives, which is the safe
+ * direction to fail.
+ */
+export async function releaseSequence(key: string, claimed: number): Promise<boolean> {
+  if (!SEQUENCE_KEY_PATTERN.test(key)) return false;
+  const db = getDb();
+  const result = await db.run(
+    sql`UPDATE document_sequences SET next_value = ${claimed} WHERE key = ${key} AND next_value = ${claimed + 1}`,
+  );
+  return (result.meta?.changes ?? 0) > 0;
+}
+
 /** Peek at the number `claimSequence` would return, without taking it. */
 export async function peekSequence(key: string): Promise<number> {
   const db = getDb();
@@ -152,6 +172,7 @@ export async function issueDocument(input: IssueInput): Promise<IssuedDocument> 
 
   const id = `doc_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`;
   const row = {
+    createdAt: issuedAt,
     id,
     kind: input.kind,
     subjectType: input.subjectType,
@@ -168,31 +189,77 @@ export async function issueDocument(input: IssueInput): Promise<IssuedDocument> 
     supersedeReason: null,
   };
 
-  const insert = db.insert(issuedDocuments).values(row);
-  if (input.supersedes) {
-    // Guarded: only supersede a document that is still in force, so a second
-    // reissue cannot overwrite the pointer set by the first.
-    await db.batch([
-      insert,
+  const supersedes = input.supersedes;
+  if (!supersedes) {
+    await db.insert(issuedDocuments).values(row);
+  } else {
+    // Marker-guarded pair, the same shape the lot writes use.
+    //
+    // The supersede runs first and only matches a document still in force.
+    // The insert is then conditioned on *this* issue being the one that won —
+    // it looks for its own id in the superseded row's pointer. If a
+    // concurrent reissue got there first, the update matches nothing, the
+    // insert's guard is false, and neither statement writes. There is no
+    // ordering in which one lands without the other, so the subject can never
+    // end up with two documents both claiming to be current.
+    const seconds = Math.floor(issuedAt.getTime() / 1000);
+    // Raw timestamps are bound as unix seconds: a Date inside a `sql`
+    // template reaches D1 as an object and is rejected.
+    const source = db
+      .select({
+        id: sql`${id}`.as('id'),
+        kind: sql`${row.kind}`.as('kind'),
+        subjectType: sql`${row.subjectType}`.as('subject_type'),
+        subjectId: sql`${row.subjectId}`.as('subject_id'),
+        documentNumber: sql`${row.documentNumber}`.as('document_number'),
+        objectKey: sql`${row.objectKey}`.as('object_key'),
+        contentType: sql`${row.contentType}`.as('content_type'),
+        sizeBytes: sql`${row.sizeBytes}`.as('size_bytes'),
+        sha256: sql`${row.sha256}`.as('sha256'),
+        issuedBy: sql`${row.issuedBy}`.as('issued_by'),
+        issuedAt: sql`${seconds}`.as('issued_at'),
+        supersededById: sql`NULL`.as('superseded_by_id'),
+        supersededAt: sql`NULL`.as('superseded_at'),
+        supersedeReason: sql`NULL`.as('supersede_reason'),
+        createdAt: sql`${seconds}`.as('created_at'),
+      })
+      .from(issuedDocuments)
+      // The marker: this row exists only if the update above is the one that
+      // superseded the old document, so the insert cannot land without it.
+      .where(
+        and(
+          eq(issuedDocuments.id, supersedes.id),
+          eq(issuedDocuments.supersededById, id),
+        ),
+      );
+
+    const [, inserted] = await db.batch([
       db
         .update(issuedDocuments)
         .set({
           supersededById: id,
           supersededAt: issuedAt,
-          supersedeReason: input.supersedes.reason,
+          supersedeReason: supersedes.reason,
         })
         .where(
           and(
-            eq(issuedDocuments.id, input.supersedes.id),
+            eq(issuedDocuments.id, supersedes.id),
             isNull(issuedDocuments.supersededById),
           ),
         ),
+      db
+        .insert(issuedDocuments)
+        .select(source as never)
+        .returning({ id: issuedDocuments.id }),
     ]);
-  } else {
-    await insert;
+    if (inserted.length === 0) {
+      throw new Error(
+        'This document was reissued by someone else while you were working. Reload the lot and try again.',
+      );
+    }
   }
 
-  return { ...row, createdAt: issuedAt } as IssuedDocument;
+  return row as IssuedDocument;
 }
 
 /* ------------------------------------------------------------------------ */

@@ -38,6 +38,31 @@ describe('wrapText', () => {
     for (const line of lines) expect(measure(line, 10)).toBeLessThanOrEqual(25);
   });
 
+  it('breaks a chemical name at its hyphens, keeping the hyphen on the line', () => {
+    // A systematic name is one unbroken word. Breaking it mid-syllable
+    // ("L-alph | a-aspartyl") is what a reader of a certificate sees as an
+    // error, so hyphen boundaries are used before arbitrary ones.
+    const name = 'glycyl-L-alpha-glutamyl-L-prolyl-L-prolyl';
+    const lines = wrapText(name, 60, 10, measure);
+    for (const line of lines) expect(measure(line, 10)).toBeLessThanOrEqual(60);
+    expect(lines.join('')).toBe(name);
+    for (const line of lines.slice(0, -1)) expect(line.endsWith('-')).toBe(true);
+  });
+
+  it('still breaks a hyphenless word that no boundary can fit', () => {
+    // A SMILES string or an object key offers nothing to break on.
+    const lines = wrapText('CCCCCCCCCCCCCCCC', 25, 10, measure);
+    expect(lines.join('')).toBe('CCCCCCCCCCCCCCCC');
+    for (const line of lines) expect(measure(line, 10)).toBeLessThanOrEqual(25);
+  });
+
+  it('breaks a hyphen segment that is itself too wide', () => {
+    const word = 'ab-CDEFGHIJKLMNOP-yz';
+    const lines = wrapText(word, 25, 10, measure);
+    expect(lines.join('')).toBe(word);
+    for (const line of lines) expect(measure(line, 10)).toBeLessThanOrEqual(25);
+  });
+
   it('splits a long word that follows normal words', () => {
     const lines = wrapText('note ABCDEFGHIJ', 25, 10, measure);
     expect(lines[0]).toBe('note');
