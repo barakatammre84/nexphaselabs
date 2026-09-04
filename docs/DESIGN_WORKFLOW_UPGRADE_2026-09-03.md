@@ -71,6 +71,27 @@ Layout:
 
 Implementation used the isolated reliability release checkout based on the last
 verified staging release. Sync only the listed UI files back to the main project
-after matching their pre-edit contents. Do not include Claude's uncommitted COA
-implementation in this deployment. Final staging version and verification are
-recorded below after deployment.
+after matching their pre-edit contents. The UI release is commit 52bc664.
+Claude committed the completed COA work as 5a9da76 during this pass; it was
+incorporated without conflicts as a8070da and is included in the final regression
+run. The newer uncommitted invoice work is deliberately excluded.
+Final staging version and verification are recorded below after deployment.
+
+## Deployed result
+
+- Staging version: `7e7fe032-0d82-4937-b3d3-09f320f62f8a`.
+- Released at approximately 2026-09-04 06:59 UTC from a8070da (which includes
+  UI commit 52bc664 and Claude's completed 5a9da76 COA feature).
+- Final release and main-project checks: 385 tests across 39 files passed;
+  type checking and lint passed. Staging build and deployment dry run passed.
+- Live health: HTTP 200, database and document storage healthy, environment staging.
+- Live catalog CAS search returned exactly BPC-157; repeated query parameters
+  returned HTTP 200 rather than throwing.
+- Anonymous customer cart and staff queues redirected to their sign-in pages.
+- Live mobile access flow: four-step progress visible, menu closes on navigation,
+  and 390px viewport has 390px content width (no horizontal page overflow).
+- Production/WordPress/DNS were not changed. No remote test orders, accounts,
+  payments, certificates, or shipments were created during this UI verification.
+- The separate invoice implementation and unavailable real product photographs
+  remain outside this completed UI/workflow release. Existing photo placeholders
+  are retained; operational launch dependencies remain in the capability audit.
