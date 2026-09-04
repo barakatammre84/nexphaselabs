@@ -9,7 +9,7 @@
   // exercised freely without touching production lot records or documents.
   // Secrets are never written here; see docs/DEPLOY.md.
   "$schema": "node_modules/wrangler/config-schema.json",
-  "account_id": "5438a1e4683ea3ea35ddc20ba50ac05a",
+  "account_id": "3d429c7b2020e96fe10a1588f1fb3662",
   "name": "nexphaselabs",
   "compatibility_date": "2026-05-15",
   "compatibility_flags": ["nodejs_compat"],
@@ -30,7 +30,7 @@
     {
       "binding": "DB",
       "database_name": "nexphase-labs",
-      "database_id": "f3d791f2-f457-4544-b186-3e657c3e997d",
+      "database_id": "70e80fa9-cd27-4fd7-b0ee-1fea56c5778d",
       "migrations_dir": "drizzle"
     }
   ],
@@ -45,10 +45,9 @@
       "name": "nexphaselabs-staging",
       "vars": {
         "APP_ENV": "staging",
-        // PLACEHOLDER — a workers.dev host needs the account subdomain: replace with the origin the first
-        // `npm run deploy:staging` prints (https://nexphaselabs-staging.<subdomain>.workers.dev) and set the
-        // same value as the STAGING_URL repository variable. Staging email links use this origin.
-        "PUBLIC_ORIGIN": "https://nexphaselabs-staging.workers.dev",
+        // Real staging origin on the account's workers.dev subdomain. Keep the STAGING_URL repository
+        // variable identical; staging email links and payment return URLs are built from this.
+        "PUBLIC_ORIGIN": "https://nexphaselabs-staging.ammre.workers.dev",
         "CONSUMER_TIER_ENABLED": "false",
         "EMAIL_FROM": "NexPhase Labs <research@nexphaselabs.net>"
       },
@@ -56,7 +55,7 @@
         {
           "binding": "DB",
           "database_name": "nexphase-labs-staging",
-          "database_id": "a9937a08-9cf3-44ab-afe9-1feae83c9149",
+          "database_id": "d24c1b97-1517-4ac4-a019-bed2a2a39c2b",
           "migrations_dir": "drizzle"
         }
       ],
