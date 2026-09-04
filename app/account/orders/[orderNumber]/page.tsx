@@ -4,14 +4,18 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft, CircleCheck } from 'lucide-react';
 import { OrderHelp } from '@/components/site/order-help';
 import { orderNextStep } from '@/lib/workflow-display';
-import { requireAccount } from '@/lib/account-auth';
+import { currentDocument } from '@/lib/issued-documents';
+import { requireBuyer } from '@/lib/buyer-session';
 import {
   ORDER_STATUS_LABEL,
   orderNumberFromParam,
   type OrderStatus,
 } from '@/lib/order-rules';
 import { getOrderForAccount, paymentInstructionsFor } from '@/lib/orders';
-import { availablePaymentMethods } from '@/lib/payments';
+import {
+  availablePaymentMethods,
+  buyerSimulationEnabled,
+} from '@/lib/payments';
 import { trackingUrl } from '@/lib/tracking';
 import { formatCents } from '@/lib/visibility-rules';
 
@@ -34,13 +38,14 @@ type Props = {
 
 export default async function OrderPage({ params, searchParams }: Props) {
   const { orderNumber } = await params;
-  const { submitted, payment, error, cancelled } = await searchParams;
-  const account = await requireAccount(`/account/orders/${orderNumber}`);
+  const { submitted, payment, error, cancelled, paid } = await searchParams;
+  const account = await requireBuyer(`/account/orders/${orderNumber}`);
   const number = orderNumberFromParam(orderNumber);
   if (!number) notFound();
   const detail = await getOrderForAccount(account.id, number);
   if (!detail) notFound();
   const { order, items, events } = detail;
+  const invoice = await currentDocument('invoice', 'order', order.orderNumber);
   const methods = order.status === 'submitted' ? availablePaymentMethods() : [];
   const instructions =
     order.status === 'awaiting_payment'
@@ -77,6 +82,21 @@ export default async function OrderPage({ params, searchParams }: Props) {
             <CircleCheck className="size-4 text-primary" /> Payment method
             saved. Use the instructions below; an email notification has been
             queued.
+          </p>
+        )}
+        {paid === 'simulated' && order.paymentStatus === 'paid' && order.paymentRef === `TEST-${order.orderNumber}` && buyerSimulationEnabled() && (
+          <p
+            role="status"
+            className="mt-6 rounded-lg border border-border bg-secondary p-5 text-sm"
+          >
+            Test purchase complete. Simulated payment recorded; no money was
+            charged.
+          </p>
+        )}
+        {account.status === 'guest' && (
+          <p className="mt-5 text-sm text-muted-foreground">
+            Guest order · save this order number and return in this browser. No
+            account or email verification is needed.
           </p>
         )}
         {cancelled && (
@@ -248,6 +268,18 @@ export default async function OrderPage({ params, searchParams }: Props) {
           </form>
         )}
 
+        {invoice && (
+          <div className="mt-8 rounded-lg border border-border p-6">
+            <h2 className="font-display text-xl font-semibold">Invoice</h2>
+            <p className="mt-2 text-sm">{invoice.documentNumber} · issued {invoice.issuedAt.toISOString().slice(0, 10)}</p>
+            <a
+              className="action-secondary mt-4"
+              href={`/api/orders/${encodeURIComponent(order.orderNumber)}/invoice`}
+            >
+              Download invoice
+            </a>
+          </div>
+        )}
         {instructions && (
           <div className="mt-10 border border-border bg-secondary p-6">
             <h2 className="font-display text-xl font-bold tracking-tight">
@@ -270,6 +302,27 @@ export default async function OrderPage({ params, searchParams }: Props) {
           </div>
         )}
 
+        {buyerSimulationEnabled() &&
+          order.status === 'awaiting_payment' &&
+          order.paymentMethod === 'invoice' &&
+          order.paymentRef === `TEST-${order.orderNumber}` && (
+            <form
+              method="post"
+              action={`/api/orders/${order.orderNumber}/simulate-payment`}
+              className="mt-6 rounded-lg border border-primary bg-secondary p-6"
+            >
+              <h2 className="font-display text-xl font-semibold">
+                Finish your test purchase
+              </h2>
+              <p className="mt-2 text-sm leading-6">
+                No card or bank details needed. This records a simulated payment
+                in staging only.
+              </p>
+              <button type="submit" className="action-primary mt-5">
+                Complete simulated payment
+              </button>
+            </form>
+          )}
         {cancellable && (
           <details className="mt-6 rounded-md border border-border p-4">
             <summary className="cursor-pointer py-2 text-sm font-semibold">

@@ -12,6 +12,7 @@ declare namespace Cloudflare {
     PUBLIC_ORIGIN: string;
     /** "true" to allow consumer-tier sign-ups. Owner decision; ships "false". */
     CONSUMER_TIER_ENABLED?: string;
+    OPEN_CHECKOUT_ENABLED?: string;
     /** Sender for transactional email, e.g. "NexPhase Labs <research@nexphaselabs.net>". */
     EMAIL_FROM?: string;
     /** Secret: Resend API key. Set with `wrangler secret put RESEND_API_KEY`. */

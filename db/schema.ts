@@ -886,6 +886,8 @@ export const orders = sqliteTable(
     id: text('id').primaryKey(),
     orderNumber: text('order_number').notNull(),
     accountId: text('account_id').notNull(),
+    /** Checkout contact, not a verified identity or a login credential. */
+    contactEmail: text('contact_email'),
     organizationId: text('organization_id'),
     /** research_direct | (future) prescribed */
     channel: text('channel').notNull().default('research_direct'),

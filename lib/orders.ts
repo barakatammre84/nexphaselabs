@@ -1,13 +1,41 @@
 import { and, asc, desc, eq, like, sql, isNull } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { accounts, cartItems, lots, orderEvents, orderItems, orders, type Order, type OrderEvent, type OrderItem, type Organization } from '@/db/schema';
+import {
+  accounts,
+  cartItems,
+  lots,
+  orderEvents,
+  orderItems,
+  orders,
+  type Order,
+  type OrderEvent,
+  type OrderItem,
+  type Organization,
+} from '@/db/schema';
 import type { AccountPrincipal } from '@/lib/account-auth';
 import { getCart, type Cart } from '@/lib/cart';
-import { RUO_VERSION } from '@/lib/policy';
-import { btcpayCheckoutUrl, getPaymentMethod, invalidateBtcpayInvoice, type PaymentInstructions } from '@/lib/payments';
-import { canTransition, formatOrderNumber, orderTotals, refundAllowed, refundDue, type OrderStatus } from '@/lib/order-rules';
+import {
+  RUO_VERSION,
+  TERMS_VERSION,
+  GUEST_CHECKOUT_TERMS_VERSION,
+} from '@/lib/policy';
+import {
+  btcpayCheckoutUrl,
+  getPaymentMethod,
+  invalidateBtcpayInvoice,
+  type PaymentInstructions,
+} from '@/lib/payments';
+import {
+  canTransition,
+  formatOrderNumber,
+  orderTotals,
+  refundAllowed,
+  refundDue,
+  type OrderStatus,
+} from '@/lib/order-rules';
 import type { Visibility } from '@/lib/visibility-rules';
 import { conditionalInsert } from '@/lib/conditional-insert';
+import { openCheckoutEnabled } from '@/lib/site-config';
 import { orderSubmissionGuard } from '@/lib/order-submission-guard';
 
 function id(prefix: string): string {
@@ -27,7 +55,10 @@ export type ShipTo = {
 };
 
 /** The verified organisation's address is the only ship-to for an institutional account. */
-export function shipToFromOrganization(org: Organization, account: AccountPrincipal): ShipTo {
+export function shipToFromOrganization(
+  org: Organization,
+  account: AccountPrincipal,
+): ShipTo {
   return {
     consigneeName: org.receivingParty || account.name,
     consigneeInstitution: org.legalName,
@@ -59,7 +90,13 @@ async function releasedProductCodes(codes: string[]): Promise<Set<string>> {
   const rows = await db
     .selectDistinct({ code: lots.productCode })
     .from(lots)
-    .where(and(eq(lots.status, 'released'), isNull(lots.supersededById), sql`${lots.productCode} IN ${codes}`));
+    .where(
+      and(
+        eq(lots.status, 'released'),
+        isNull(lots.supersededById),
+        sql`${lots.productCode} IN ${codes}`,
+      ),
+    );
   return new Set(rows.map((r) => r.code));
 }
 
@@ -80,23 +117,66 @@ export async function createOrderFromCart(
   organizationId: string | null,
   customerNote: string | null,
   submissionToken: string,
+  contactEmail: string | null = null,
 ): Promise<CreateOrderResult> {
-  if (visibility.pricing === 'none') return { ok: false, error: 'Ordering is not available to your account yet.' };
-  if (account.tier !== 'institutional' || visibility.pricing !== 'institutional' || !organizationId) return { ok: false, error: 'Ordering requires a verified research organisation.' };
-  if (!/^[a-f0-9]{32}$/.test(submissionToken)) return { ok: false, error: 'Reload the cart and try again.' };
+  if (visibility.pricing === 'none')
+    return {
+      ok: false,
+      error: 'Ordering is not available to your account yet.',
+    };
+  if (
+    !openCheckoutEnabled() &&
+    (account.tier !== 'institutional' ||
+      visibility.pricing !== 'institutional' ||
+      !organizationId)
+  )
+    return {
+      ok: false,
+      error: 'Ordering requires a verified research organisation.',
+    };
+  if (
+    openCheckoutEnabled() &&
+    !organizationId &&
+    (!contactEmail ||
+      !shipTo.consigneeName ||
+      !shipTo.line1 ||
+      !shipTo.city ||
+      !shipTo.region ||
+      !shipTo.postalCode ||
+      shipTo.country !== 'US')
+  )
+    return {
+      ok: false,
+      error: 'Complete your checkout contact and delivery details.',
+    };
+  if (!/^[a-f0-9]{32}$/.test(submissionToken))
+    return { ok: false, error: 'Reload the cart and try again.' };
   const db = getDb();
   // Idempotent: the same rendered cart form can only ever produce one order.
   const [already] = await db
     .select({ orderNumber: orders.orderNumber })
     .from(orders)
-    .where(and(eq(orders.submissionToken, submissionToken), eq(orders.accountId, account.id)))
+    .where(
+      and(
+        eq(orders.submissionToken, submissionToken),
+        eq(orders.accountId, account.id),
+      ),
+    )
     .limit(1);
-  if (already) return { ok: true, orderNumber: already.orderNumber, duplicate: true };
+  if (already)
+    return { ok: true, orderNumber: already.orderNumber, duplicate: true };
   const cart: Cart = await getCart(account.id, visibility);
-  if (cart.lines.length === 0) return { ok: false, error: 'Your cart is empty.' };
-  if (!cart.orderable) return { ok: false, error: 'Fix the lines marked in your cart before submitting.' };
+  if (cart.lines.length === 0)
+    return { ok: false, error: 'Your cart is empty.' };
+  if (!cart.orderable)
+    return {
+      ok: false,
+      error: 'Fix the lines marked in your cart before submitting.',
+    };
 
-  const released = await releasedProductCodes([...new Set(cart.lines.map((l) => l.product.code))]);
+  const released = await releasedProductCodes([
+    ...new Set(cart.lines.map((l) => l.product.code)),
+  ]);
   const unavailable = cart.lines.filter((l) => !released.has(l.product.code));
   if (unavailable.length) {
     return {
@@ -106,7 +186,10 @@ export async function createOrderFromCart(
   }
 
   const now = new Date();
-  const lines = cart.lines.map((l) => ({ unitPriceCents: l.unitPriceCents!, quantity: l.quantity }));
+  const lines = cart.lines.map((l) => ({
+    unitPriceCents: l.unitPriceCents!,
+    quantity: l.quantity,
+  }));
   const totals = orderTotals(lines, 0);
   const orderId = id('ord');
   const accepted = eq(orders.id, orderId);
@@ -115,77 +198,127 @@ export async function createOrderFromCart(
     const orderNumber = await nextOrderNumber(now);
     try {
       const [created] = await db.batch([
-        conditionalInsert(orders, {
-          id: orderId,
-          orderNumber,
-          accountId: account.id,
-          organizationId,
-          channel: 'research_direct',
-          authorizationRef: null,
-          status: 'submitted',
-          currency: 'USD',
-          subtotalCents: totals.subtotalCents,
-          shippingCents: totals.shippingCents,
-          totalCents: totals.totalCents,
-          priceTier: visibility.pricing,
-          submissionToken,
-          consigneeName: shipTo.consigneeName,
-          consigneeInstitution: shipTo.consigneeInstitution,
-          shipToLine1: shipTo.line1,
-          shipToLine2: shipTo.line2,
-          shipToCity: shipTo.city,
-          shipToRegion: shipTo.region,
-          shipToPostalCode: shipTo.postalCode,
-          shipToCountry: shipTo.country,
-          shipToPhone: shipTo.phone,
-          customerNote,
-          submittedAt: now,
-          createdAt: now,
-          updatedAt: now,
-        }, accounts, orderSubmissionGuard(account, organizationId, shipTo, cart, now)).returning({ id: orders.id }),
-        ...cart.lines.map((l) =>
-          conditionalInsert(orderItems, {
-            id: id('oli'),
-            orderId,
-            productId: l.product.id,
-            productCode: l.product.code,
-            productName: l.product.name,
-            variantId: l.variant.id,
-            sku: l.variant.sku,
-            packSize: l.variant.quantity,
-            presentation: l.variant.presentation,
-            quantity: l.quantity,
-            unitPriceCents: l.unitPriceCents!,
-            lineTotalCents: l.unitPriceCents! * l.quantity,
+        conditionalInsert(
+          orders,
+          {
+            id: orderId,
+            orderNumber,
+            accountId: account.id,
+            organizationId,
+            contactEmail,
+            channel: organizationId ? 'research_direct' : 'guest_checkout',
+            authorizationRef: null,
+            status: 'submitted',
+            currency: 'USD',
+            subtotalCents: totals.subtotalCents,
+            shippingCents: totals.shippingCents,
+            totalCents: totals.totalCents,
+            priceTier: visibility.pricing,
+            submissionToken,
+            consigneeName: shipTo.consigneeName,
+            consigneeInstitution: shipTo.consigneeInstitution,
+            shipToLine1: shipTo.line1,
+            shipToLine2: shipTo.line2,
+            shipToCity: shipTo.city,
+            shipToRegion: shipTo.region,
+            shipToPostalCode: shipTo.postalCode,
+            shipToCountry: shipTo.country,
+            shipToPhone: shipTo.phone,
+            customerNote,
+            submittedAt: now,
             createdAt: now,
-          }, orders, accepted),
+            updatedAt: now,
+          },
+          accounts,
+          orderSubmissionGuard(account, organizationId, shipTo, cart, now),
+        ).returning({ id: orders.id }),
+        ...cart.lines.map((l) =>
+          conditionalInsert(
+            orderItems,
+            {
+              id: id('oli'),
+              orderId,
+              productId: l.product.id,
+              productCode: l.product.code,
+              productName: l.product.name,
+              variantId: l.variant.id,
+              sku: l.variant.sku,
+              packSize: l.variant.quantity,
+              presentation: l.variant.presentation,
+              quantity: l.quantity,
+              unitPriceCents: l.unitPriceCents!,
+              lineTotalCents: l.unitPriceCents! * l.quantity,
+              createdAt: now,
+            },
+            orders,
+            accepted,
+          ),
         ),
-        conditionalInsert(orderEvents, {
-          id: id('oev'),
-          orderId,
-          fromStatus: 'none',
-          toStatus: 'submitted',
-          note: `Submitted by the customer. Research-use acknowledgement version ${RUO_VERSION} confirmed for this order.`,
-          actor: `${account.name} (${account.id})`,
-          createdAt: now,
-        }, orders, accepted),
+        conditionalInsert(
+          orderEvents,
+          {
+            id: id('oev'),
+            orderId,
+            fromStatus: 'none',
+            toStatus: 'submitted',
+            note: `Submitted by the customer. Research-use acknowledgement version ${RUO_VERSION} and terms ${openCheckoutEnabled() && !organizationId ? GUEST_CHECKOUT_TERMS_VERSION : TERMS_VERSION} confirmed for this order.`,
+            actor: `${account.name} (${account.id})`,
+            createdAt: now,
+          },
+          orders,
+          accepted,
+        ),
         // The cart is cleared in the same transaction as the order is written.
-        db.delete(cartItems).where(and(eq(cartItems.accountId, account.id), sql`EXISTS (SELECT 1 FROM ${orders} WHERE ${accepted})`)),
+        db
+          .delete(cartItems)
+          .where(
+            and(
+              eq(cartItems.accountId, account.id),
+              sql`EXISTS (SELECT 1 FROM ${orders} WHERE ${accepted})`,
+            ),
+          ),
       ]);
       if (!created.length) {
         // A competing submission may have cleared this cart after our first
         // idempotency read. Return its order, never a false failure or a new one.
-        const [duplicate] = await db.select({ orderNumber: orders.orderNumber }).from(orders)
-          .where(and(eq(orders.submissionToken, submissionToken), eq(orders.accountId, account.id))).limit(1);
-        if (duplicate) return { ok: true, orderNumber: duplicate.orderNumber, duplicate: true };
-        return { ok: false, error: 'Your account, delivery address, cart or available offer changed. Reload and review before submitting again.' };
+        const [duplicate] = await db
+          .select({ orderNumber: orders.orderNumber })
+          .from(orders)
+          .where(
+            and(
+              eq(orders.submissionToken, submissionToken),
+              eq(orders.accountId, account.id),
+            ),
+          )
+          .limit(1);
+        if (duplicate)
+          return {
+            ok: true,
+            orderNumber: duplicate.orderNumber,
+            duplicate: true,
+          };
+        return {
+          ok: false,
+          error:
+            'Your account, delivery address, cart or available offer changed. Reload and review before submitting again.',
+        };
       }
       return { ok: true, orderNumber };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (/UNIQUE constraint failed: orders\.submission_token/i.test(message)) {
-        const [dup] = await db.select({ orderNumber: orders.orderNumber }).from(orders).where(and(eq(orders.submissionToken, submissionToken), eq(orders.accountId, account.id))).limit(1);
-        if (dup) return { ok: true, orderNumber: dup.orderNumber, duplicate: true };
+        const [dup] = await db
+          .select({ orderNumber: orders.orderNumber })
+          .from(orders)
+          .where(
+            and(
+              eq(orders.submissionToken, submissionToken),
+              eq(orders.accountId, account.id),
+            ),
+          )
+          .limit(1);
+        if (dup)
+          return { ok: true, orderNumber: dup.orderNumber, duplicate: true };
         return { ok: false, error: 'This cart was already submitted.' };
       }
       if (/UNIQUE constraint failed/i.test(message) && attempt < 2) continue;
@@ -195,27 +328,50 @@ export async function createOrderFromCart(
   return { ok: false, error: 'The order could not be numbered. Try again.' };
 }
 
-export type OrderDetail = { order: Order; items: OrderItem[]; events: OrderEvent[] };
+export type OrderDetail = {
+  order: Order;
+  items: OrderItem[];
+  events: OrderEvent[];
+};
 
-export async function listOrdersForAccount(accountId: string, limit = 200): Promise<Order[]> {
+export async function listOrdersForAccount(
+  accountId: string,
+  limit = 200,
+): Promise<Order[]> {
   const db = getDb();
-  return db.select().from(orders).where(eq(orders.accountId, accountId)).orderBy(desc(orders.submittedAt)).limit(limit);
+  return db
+    .select()
+    .from(orders)
+    .where(eq(orders.accountId, accountId))
+    .orderBy(desc(orders.submittedAt))
+    .limit(limit);
 }
 
-export async function getOrderForAccount(accountId: string, orderNumber: string): Promise<OrderDetail | null> {
+export async function getOrderForAccount(
+  accountId: string,
+  orderNumber: string,
+): Promise<OrderDetail | null> {
   const db = getDb();
   const [order] = await db
     .select()
     .from(orders)
-    .where(and(eq(orders.orderNumber, orderNumber), eq(orders.accountId, accountId)))
+    .where(
+      and(eq(orders.orderNumber, orderNumber), eq(orders.accountId, accountId)),
+    )
     .limit(1);
   if (!order) return null;
   return withDetail(order);
 }
 
-export async function getOrderByNumber(orderNumber: string): Promise<OrderDetail | null> {
+export async function getOrderByNumber(
+  orderNumber: string,
+): Promise<OrderDetail | null> {
   const db = getDb();
-  const [order] = await db.select().from(orders).where(eq(orders.orderNumber, orderNumber)).limit(1);
+  const [order] = await db
+    .select()
+    .from(orders)
+    .where(eq(orders.orderNumber, orderNumber))
+    .limit(1);
   if (!order) return null;
   return withDetail(order);
 }
@@ -223,8 +379,16 @@ export async function getOrderByNumber(orderNumber: string): Promise<OrderDetail
 async function withDetail(order: Order): Promise<OrderDetail> {
   const db = getDb();
   const [items, events] = await Promise.all([
-    db.select().from(orderItems).where(eq(orderItems.orderId, order.id)).orderBy(asc(orderItems.createdAt)),
-    db.select().from(orderEvents).where(eq(orderEvents.orderId, order.id)).orderBy(asc(orderEvents.createdAt)),
+    db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, order.id))
+      .orderBy(asc(orderItems.createdAt)),
+    db
+      .select()
+      .from(orderEvents)
+      .where(eq(orderEvents.orderId, order.id))
+      .orderBy(asc(orderEvents.createdAt)),
   ]);
   return { order, items, events };
 }
@@ -245,10 +409,25 @@ export async function transitionOrder(
   by: 'staff' | 'customer' | 'system',
   actor: string,
   note: string | null,
-  extra: Partial<Pick<typeof orders.$inferInsert, 'paymentMethod' | 'paymentRef' | 'paymentStatus' | 'paidAt' | 'carrier' | 'trackingNumber' | 'shippedAt' | 'refundDueCents'>> = {},
+  extra: Partial<
+    Pick<
+      typeof orders.$inferInsert,
+      | 'paymentMethod'
+      | 'paymentRef'
+      | 'paymentStatus'
+      | 'paidAt'
+      | 'carrier'
+      | 'trackingNumber'
+      | 'shippedAt'
+      | 'refundDueCents'
+    >
+  > = {},
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!canTransition(order.status, to, by)) {
-    return { ok: false, error: `An order that is ${order.status} cannot be moved to ${to} by ${by}.` };
+    return {
+      ok: false,
+      error: `An order that is ${order.status} cannot be moved to ${to} by ${by}.`,
+    };
   }
   const db = getDb();
   const now = new Date();
@@ -263,9 +442,15 @@ export async function transitionOrder(
         updatedAt: now,
         ...(to === 'cancelled' ? { cancelledAt: now, cancelReason: note } : {}),
       })
-      .where(and(eq(orders.id, order.id), eq(orders.status, order.status),
-        eq(orders.paymentStatus, order.paymentStatus), sql`${orders.paymentRef} IS ${order.paymentRef}`,
-        sql`${orders.lastTransitionId} IS ${order.lastTransitionId}`))
+      .where(
+        and(
+          eq(orders.id, order.id),
+          eq(orders.status, order.status),
+          eq(orders.paymentStatus, order.paymentStatus),
+          sql`${orders.paymentRef} IS ${order.paymentRef}`,
+          sql`${orders.lastTransitionId} IS ${order.lastTransitionId}`,
+        ),
+      )
       .returning({ id: orders.id }),
     db.insert(orderEvents).select(
       db
@@ -276,14 +461,24 @@ export async function transitionOrder(
           toStatus: sql<string>`${to}`.as('to_status'),
           note: sql<string | null>`${note}`.as('note'),
           actor: sql<string>`${actor}`.as('actor'),
-          createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
+          createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as(
+            'created_at',
+          ),
         })
         .from(orders)
-        .where(and(eq(orders.id, order.id), eq(orders.lastTransitionId, transitionId))),
+        .where(
+          and(
+            eq(orders.id, order.id),
+            eq(orders.lastTransitionId, transitionId),
+          ),
+        ),
     ),
   ]);
   if (!changed || changed.length === 0) {
-    return { ok: false, error: 'The order changed while you were working. Reload and try again.' };
+    return {
+      ok: false,
+      error: 'The order changed while you were working. Reload and try again.',
+    };
   }
   return { ok: true };
 }
@@ -292,7 +487,9 @@ export async function transitionOrder(
 /* Payment                                                                   */
 /* ------------------------------------------------------------------------ */
 
-export type BeginPaymentResult = { ok: true; instructions: PaymentInstructions } | { ok: false; error: string };
+export type BeginPaymentResult =
+  | { ok: true; instructions: PaymentInstructions }
+  | { ok: false; error: string };
 
 /**
  * Customer chooses a payment method for a submitted order. Moves the order
@@ -300,37 +497,66 @@ export type BeginPaymentResult = { ok: true; instructions: PaymentInstructions }
  * queues a notice linking to the secure instructions page. Re-choosing is
  * allowed only while still submitted.
  */
-export async function beginPayment(detail: OrderDetail, methodId: string, _accountEmail: string, actor: string): Promise<BeginPaymentResult> {
+export async function beginPayment(
+  detail: OrderDetail,
+  methodId: string,
+  _accountEmail: string,
+  actor: string,
+): Promise<BeginPaymentResult> {
   const method = getPaymentMethod(methodId);
-  if (!method) return { ok: false, error: 'That payment method is not available.' };
-  if (detail.order.status !== 'submitted') return { ok: false, error: 'Payment has already been set up for this order.' };
+  if (!method)
+    return { ok: false, error: 'That payment method is not available.' };
+  if (detail.order.status !== 'submitted')
+    return {
+      ok: false,
+      error: 'Payment has already been set up for this order.',
+    };
 
   let instructions: PaymentInstructions;
   try {
     instructions = await method.begin(detail.order);
   } catch (error) {
-    console.error('[payments] begin failed', error instanceof Error ? error.message : error);
-    return { ok: false, error: 'The payment could not be set up. Try again shortly or choose another method.' };
+    console.error(
+      '[payments] begin failed',
+      error instanceof Error ? error.message : error,
+    );
+    return {
+      ok: false,
+      error:
+        'The payment could not be set up. Try again shortly or choose another method.',
+    };
   }
 
-  const moved = await transitionOrder(detail.order, 'awaiting_payment', 'system', actor, `Payment method: ${method.label}.`, {
-    paymentMethod: method.id,
-    paymentRef: instructions.reference,
-    paymentStatus: 'pending',
-  });
+  const moved = await transitionOrder(
+    detail.order,
+    'awaiting_payment',
+    'system',
+    actor,
+    `Payment method: ${method.label}.`,
+    {
+      paymentMethod: method.id,
+      paymentRef: instructions.reference,
+      paymentStatus: 'pending',
+    },
+  );
   if (!moved.ok) return { ok: false, error: moved.error };
   return { ok: true, instructions };
 }
 
 /** Rebuild the instructions for display from what is stored on the order. */
-export async function paymentInstructionsFor(order: Order): Promise<PaymentInstructions | null> {
+export async function paymentInstructionsFor(
+  order: Order,
+): Promise<PaymentInstructions | null> {
   if (!order.paymentMethod) return null;
   const method = getPaymentMethod(order.paymentMethod);
   if (!method) {
     return {
       method: order.paymentMethod as PaymentInstructions['method'],
       title: 'Contact us before sending payment',
-      lines: ['This payment method is no longer available. Ask staff to confirm the instructions.', `Reference: ${order.paymentRef ?? order.orderNumber}`],
+      lines: [
+        'This payment method is no longer available. Ask staff to confirm the instructions.',
+        `Reference: ${order.paymentRef ?? order.orderNumber}`,
+      ],
       url: null,
       reference: order.paymentRef,
     };
@@ -353,13 +579,27 @@ export async function paymentInstructionsFor(order: Order): Promise<PaymentInstr
 }
 
 /** A staff member records that payment arrived (bank transfer, or any manual rail). Admin only, enforced by the caller. */
-export async function markOrderPaid(detail: OrderDetail, actor: string, reference: string | null, _accountEmail: string) {
+export async function markOrderPaid(
+  detail: OrderDetail,
+  actor: string,
+  reference: string | null,
+  _accountEmail: string,
+) {
   const now = new Date();
-  const moved = await transitionOrder(detail.order, 'paid', 'staff', actor, reference ? `Payment received. Reference: ${reference}.` : 'Payment received.', {
-    paymentStatus: 'paid',
-    paidAt: now,
-    ...(reference ? { paymentRef: reference } : {}),
-  });
+  const moved = await transitionOrder(
+    detail.order,
+    'paid',
+    'staff',
+    actor,
+    reference
+      ? `Payment received. Reference: ${reference}.`
+      : 'Payment received.',
+    {
+      paymentStatus: 'paid',
+      paidAt: now,
+      ...(reference ? { paymentRef: reference } : {}),
+    },
+  );
   if (!moved.ok) return moved;
   return moved;
 }
@@ -367,43 +607,113 @@ export async function markOrderPaid(detail: OrderDetail, actor: string, referenc
 /** Record a matched settlement once, including money arriving after cancellation.
  * Cancellation never erases incoming money or reopens fulfilment: the existing
  * refund-obligation workflow handles it; this function never transfers funds. */
-export async function settleBtcpayInvoice(orderNumber: string, invoiceId: string): Promise<{ ok: boolean; note: string; retryable?: boolean }> {
+export async function settleBtcpayInvoice(
+  orderNumber: string,
+  invoiceId: string,
+): Promise<{ ok: boolean; note: string; retryable?: boolean }> {
   const db = getDb();
   // Re-read once if cancellation/another settlement wins during the batch.
   for (let attempt = 0; attempt < 2; attempt++) {
     const detail = await getOrderByNumber(orderNumber);
     if (!detail) return { ok: false, note: 'unknown order' };
     const order = detail.order;
-    if (order.paymentMethod !== 'btcpay' || order.paymentRef !== invoiceId) return { ok: false, note: 'invoice does not match order' };
-    if (order.paidAt || ['paid', 'refund_due', 'refunded'].includes(order.paymentStatus)) return { ok: true, note: 'settlement already recorded' };
+    if (order.paymentMethod !== 'btcpay' || order.paymentRef !== invoiceId)
+      return { ok: false, note: 'invoice does not match order' };
+    if (
+      order.paidAt ||
+      ['paid', 'refund_due', 'refunded'].includes(order.paymentStatus)
+    )
+      return { ok: true, note: 'settlement already recorded' };
     const cancelled = order.status === 'cancelled';
-    if (order.status !== 'awaiting_payment' && !cancelled) return { ok: false, note: 'order is not ready for settlement', retryable: true };
+    if (order.status !== 'awaiting_payment' && !cancelled)
+      return {
+        ok: false,
+        note: 'order is not ready for settlement',
+        retryable: true,
+      };
     const now = new Date();
     const marker = id('otr');
-    const note = cancelled ? `Invoice ${invoiceId} settled after cancellation. Payment recorded; refund review required. No shipment authorized.` : `Invoice ${invoiceId} settled.`;
+    const note = cancelled
+      ? `Invoice ${invoiceId} settled after cancellation. Payment recorded; refund review required. No shipment authorized.`
+      : `Invoice ${invoiceId} settled.`;
     const [changed] = await db.batch([
-      db.update(orders).set({
-        status: cancelled ? 'cancelled' : 'paid', paymentStatus: cancelled ? 'refund_due' : 'paid',
-        paidAt: now, ...(cancelled ? { refundDueCents: order.totalCents } : {}), lastTransitionId: marker, updatedAt: now,
-      }).where(and(eq(orders.id, order.id), eq(orders.status, order.status), eq(orders.paymentStatus, order.paymentStatus),
-        eq(orders.paymentMethod, 'btcpay'), eq(orders.paymentRef, invoiceId), isNull(orders.paidAt),
-        sql`${orders.lastTransitionId} IS ${order.lastTransitionId}`)).returning({ id: orders.id }),
-      conditionalInsert(orderEvents, { id: id('oev'), orderId: order.id, fromStatus: order.status,
-        toStatus: cancelled ? 'cancelled' : 'paid', note, actor: 'BTCPay Server', createdAt: now },
-      orders, and(eq(orders.id, order.id), eq(orders.lastTransitionId, marker))!),
+      db
+        .update(orders)
+        .set({
+          status: cancelled ? 'cancelled' : 'paid',
+          paymentStatus: cancelled ? 'refund_due' : 'paid',
+          paidAt: now,
+          ...(cancelled ? { refundDueCents: order.totalCents } : {}),
+          lastTransitionId: marker,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(orders.id, order.id),
+            eq(orders.status, order.status),
+            eq(orders.paymentStatus, order.paymentStatus),
+            eq(orders.paymentMethod, 'btcpay'),
+            eq(orders.paymentRef, invoiceId),
+            isNull(orders.paidAt),
+            sql`${orders.lastTransitionId} IS ${order.lastTransitionId}`,
+          ),
+        )
+        .returning({ id: orders.id }),
+      conditionalInsert(
+        orderEvents,
+        {
+          id: id('oev'),
+          orderId: order.id,
+          fromStatus: order.status,
+          toStatus: cancelled ? 'cancelled' : 'paid',
+          note,
+          actor: 'BTCPay Server',
+          createdAt: now,
+        },
+        orders,
+        and(eq(orders.id, order.id), eq(orders.lastTransitionId, marker))!,
+      ),
     ]);
-    if (changed.length) return { ok: true, note: cancelled ? 'late payment recorded; refund review required' : 'paid' };
+    if (changed.length)
+      return {
+        ok: true,
+        note: cancelled
+          ? 'late payment recorded; refund review required'
+          : 'paid',
+      };
   }
-  return { ok: false, note: 'order changed during settlement; retry required', retryable: true };
+  return {
+    ok: false,
+    note: 'order changed during settlement; retry required',
+    retryable: true,
+  };
 }
 
 /** Cancel an unpaid order and request invoice invalidation. A later settlement
  * can still arrive and must be recorded separately, never silently discarded. */
-export async function cancelOrderByCustomer(detail: OrderDetail, actor: string, reason: string | null) {
-  const moved = await transitionOrder(detail.order, 'cancelled', 'customer', actor, reason ?? 'Cancelled by the customer.', {
-    paymentStatus: detail.order.paymentStatus === 'pending' ? 'failed' : detail.order.paymentStatus,
-  });
-  if (moved.ok && detail.order.paymentMethod === 'btcpay' && detail.order.paymentRef) {
+export async function cancelOrderByCustomer(
+  detail: OrderDetail,
+  actor: string,
+  reason: string | null,
+) {
+  const moved = await transitionOrder(
+    detail.order,
+    'cancelled',
+    'customer',
+    actor,
+    reason ?? 'Cancelled by the customer.',
+    {
+      paymentStatus:
+        detail.order.paymentStatus === 'pending'
+          ? 'failed'
+          : detail.order.paymentStatus,
+    },
+  );
+  if (
+    moved.ok &&
+    detail.order.paymentMethod === 'btcpay' &&
+    detail.order.paymentRef
+  ) {
     await invalidateBtcpayInvoice(detail.order.paymentRef);
   }
   return moved;
@@ -426,14 +736,30 @@ export async function recordRefund(
   actor: string,
   _accountEmail: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!Number.isSafeInteger(amountCents) || amountCents <= 0) return { ok: false, error: 'The refund must be a positive whole number of cents.' };
+  if (!Number.isSafeInteger(amountCents) || amountCents <= 0)
+    return {
+      ok: false,
+      error: 'The refund must be a positive whole number of cents.',
+    };
   reference = reference.trim();
-  if (!reference || reference.length > 120) return { ok: false, error: 'Enter a bank or provider reference of at most 120 characters.' };
+  if (!reference || reference.length > 120)
+    return {
+      ok: false,
+      error: 'Enter a bank or provider reference of at most 120 characters.',
+    };
   const order = detail.order;
-  if (!refundAllowed(order)) return { ok: false, error: `No refund is due on an order whose payment is ${order.paymentStatus}.` };
+  if (!refundAllowed(order))
+    return {
+      ok: false,
+      error: `No refund is due on an order whose payment is ${order.paymentStatus}.`,
+    };
   const due = refundDue(order);
   const already = order.refundCents ?? 0;
-  if (amountCents > due - already) return { ok: false, error: `The refund cannot exceed the $${((due - already) / 100).toFixed(2)} still owed.` };
+  if (amountCents > due - already)
+    return {
+      ok: false,
+      error: `The refund cannot exceed the $${((due - already) / 100).toFixed(2)} still owed.`,
+    };
   const db = getDb();
   const now = new Date();
   const marker = id('otr');
@@ -451,8 +777,14 @@ export async function recordRefund(
         lastTransitionId: marker,
         updatedAt: now,
       })
-      .where(and(eq(orders.id, order.id), eq(orders.paymentStatus, 'refund_due'), sql`COALESCE(${orders.refundCents}, 0) = ${already}`,
-        sql`COALESCE(${orders.refundDueCents}, ${orders.totalCents}) = ${due}`))
+      .where(
+        and(
+          eq(orders.id, order.id),
+          eq(orders.paymentStatus, 'refund_due'),
+          sql`COALESCE(${orders.refundCents}, 0) = ${already}`,
+          sql`COALESCE(${orders.refundDueCents}, ${orders.totalCents}) = ${due}`,
+        ),
+      )
       .returning({ id: orders.id }),
     db.insert(orderEvents).select(
       db
@@ -463,12 +795,20 @@ export async function recordRefund(
           toStatus: orders.status,
           note: sql<string>`${note}`.as('note'),
           actor: sql<string>`${actor}`.as('actor'),
-          createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
+          createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as(
+            'created_at',
+          ),
         })
         .from(orders)
-        .where(and(eq(orders.id, order.id), eq(orders.lastTransitionId, marker))),
+        .where(
+          and(eq(orders.id, order.id), eq(orders.lastTransitionId, marker)),
+        ),
     ),
   ]);
-  if (!changed || changed.length === 0) return { ok: false, error: 'The order changed while you were working. Reload and try again.' };
+  if (!changed || changed.length === 0)
+    return {
+      ok: false,
+      error: 'The order changed while you were working. Reload and try again.',
+    };
   return { ok: true };
 }

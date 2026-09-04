@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { openCheckoutEnabled } from '@/lib/site-config';
 import { ArrowRight } from 'lucide-react';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { ProductImage } from '@/components/site/product-image';
@@ -26,6 +27,7 @@ export default async function CatalogPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
+  const open = openCheckoutEnabled();
   const query = searchQuery((await searchParams).q);
   const catalog = await loadCatalog(async () => ({
     products: await listPublishedProducts(),
@@ -54,8 +56,9 @@ export default async function CatalogPage({
           </p>
         </div>
         <p className="mt-4 max-w-2xl leading-7 text-muted-foreground">
-          Browse chemical specifications below. Pricing and ordering require an
-          approved research account.
+          {open
+            ? 'Browse materials, choose a pack size, and check out as a guest. No account, email verification, or organization approval required.'
+            : 'Browse chemical specifications below. Pricing and ordering require an approved research account.'}
         </p>
         <nav
           className="mt-9 flex flex-wrap gap-3"
@@ -194,7 +197,7 @@ export default async function CatalogPage({
                       </p>
                     </div>
                     <span className="flex items-center gap-2 text-sm font-bold text-primary">
-                      Specifications
+                      {open ? 'View prices & order' : 'Specifications'}
                       <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                     </span>
                   </div>

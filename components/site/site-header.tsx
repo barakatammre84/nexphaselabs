@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { openCheckoutEnabled } from '@/lib/site-config';
 import { MobileMenu } from '@/components/site/mobile-menu';
 import { getAccount } from '@/lib/account-auth';
 
@@ -9,6 +10,7 @@ const navigation = [
   { href: '/faq', label: 'Help & FAQ' },
 ];
 export async function SiteHeader() {
+  const open = openCheckoutEnabled();
   let signedIn = false;
   try {
     signedIn = Boolean(await getAccount());
@@ -18,8 +20,16 @@ export async function SiteHeader() {
       error instanceof Error ? error.message : error,
     );
   }
-  const accountHref = signedIn ? '/account' : '/account/sign-in';
-  const accountLabel = signedIn ? 'Your account' : 'Sign in';
+  const accountHref = open
+    ? '/account/orders'
+    : signedIn
+      ? '/account'
+      : '/account/sign-in';
+  const accountLabel = open
+    ? 'Your orders'
+    : signedIn
+      ? 'Your account'
+      : 'Sign in';
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur">
       <div className="mx-auto flex min-h-20 max-w-[1500px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-12">
@@ -60,10 +70,10 @@ export async function SiteHeader() {
             {accountLabel}
           </Link>
           <Link
-            href={signedIn ? '/account/cart' : '/access'}
+            href={open || signedIn ? '/account/cart' : '/access'}
             className="action-primary"
           >
-            {signedIn ? 'Cart' : 'Research access'}
+            {open || signedIn ? 'Cart' : 'Research access'}
           </Link>
         </div>
         <MobileMenu>
@@ -93,10 +103,10 @@ export async function SiteHeader() {
               {accountLabel}
             </Link>
             <Link
-              href={signedIn ? '/account/cart' : '/access'}
+              href={open || signedIn ? '/account/cart' : '/access'}
               className="action-primary"
             >
-              {signedIn ? 'Cart' : 'Research access'}
+              {open || signedIn ? 'Cart' : 'Research access'}
             </Link>
           </nav>
         </MobileMenu>

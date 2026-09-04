@@ -17,8 +17,8 @@ vi.mock('next/navigation', () => ({
     throw new Error('Not found');
   },
 }));
-vi.mock('@/lib/account-auth', () => ({
-  requireAccount: async () => ({ id: 'local' }),
+vi.mock('@/lib/buyer-session', () => ({
+  requireBuyer: async () => ({ id: 'local' }),
 }));
 vi.mock('@/lib/orders', () => ({
   getOrderForAccount: async () => ({
@@ -33,7 +33,13 @@ vi.mock('@/lib/orders', () => ({
   }),
   paymentInstructionsFor: async () => null,
 }));
-vi.mock('@/lib/payments', () => ({ availablePaymentMethods: () => [] }));
+vi.mock('@/lib/payments', () => ({
+  availablePaymentMethods: () => [],
+  buyerSimulationEnabled: () => false,
+}));
+vi.mock('@/lib/issued-documents', () => ({
+  currentDocument: async () => null,
+}));
 import OrderPage from '@/app/account/orders/[orderNumber]/page';
 async function render() {
   return renderToStaticMarkup(

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { openCheckoutEnabled } from '@/lib/site-config';
 import {
   ArrowRight,
   ClipboardCheck,
@@ -78,6 +79,27 @@ const documentationHighlights = [
 ];
 
 export default async function Home() {
+  const open = openCheckoutEnabled();
+  const buyingSteps = [
+    {
+      step: '01',
+      title: 'Choose your material',
+      copy: 'Browse specifications, prices, pack sizes, and available lot records.',
+      icon: ClipboardCheck,
+    },
+    {
+      step: '02',
+      title: 'Check out as a guest',
+      copy: 'Add your email and delivery address. No registration, email verification, or organization approval.',
+      icon: ShieldCheck,
+    },
+    {
+      step: '03',
+      title: 'Complete payment',
+      copy: 'Follow your order through payment and delivery. Staging uses simulated payments only.',
+      icon: PackageCheck,
+    },
+  ];
   const catalog = await loadCatalog(async () => ({
     products: await listPublishedProducts(),
     classes: await listActiveClasses(),
@@ -102,8 +124,9 @@ export default async function Home() {
               Research materials. Clearly documented.
             </h1>
             <p className="mt-9 max-w-xl text-lg leading-8 text-muted-foreground sm:text-xl">
-              Chemical identity, lot records, and research access in one place.
-              Materials supplied to qualified laboratory organizations.
+              {open
+                ? 'Chemical identity, lot records, and straightforward guest checkout. Choose your research material and order without an account.'
+                : 'Chemical identity, lot records, and research access in one place. Materials supplied to qualified laboratory organizations.'}
             </p>
           </div>
           <div className="mt-12 flex flex-col gap-4 sm:flex-row">
@@ -114,10 +137,10 @@ export default async function Home() {
               Explore the catalog <ArrowRight className="size-4" />
             </Link>
             <Link
-              href="/access"
+              href={open ? '/account/cart' : '/access'}
               className="inline-flex h-12 items-center justify-center border border-foreground/20 px-6 text-sm font-bold transition-colors hover:border-primary hover:text-primary"
             >
-              Request research access
+              {open ? 'View cart' : 'Request research access'}
             </Link>
           </div>
         </div>
@@ -165,7 +188,18 @@ export default async function Home() {
         id="standards"
         className="mx-auto grid max-w-[1500px] border-b border-border sm:grid-cols-3"
       >
-        {standards.map(({ title, copy, icon: Icon }) => (
+        {(open
+          ? standards.map((item) =>
+              item.title === 'Qualification-first'
+                ? {
+                    ...item,
+                    title: 'Straightforward ordering',
+                    copy: 'Public pricing and guest checkout, with no account approval to wait for.',
+                  }
+                : item,
+            )
+          : standards
+        ).map(({ title, copy, icon: Icon }) => (
           <article
             key={title}
             className="border-b border-border p-7 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 lg:p-9"
@@ -271,34 +305,42 @@ export default async function Home() {
       {/* How access works */}
       <section className="mx-auto max-w-[1500px] px-5 py-16 sm:px-8 lg:px-12 lg:py-24">
         <div className="mb-12 max-w-2xl">
-          <p className="utility-label text-primary">How access works</p>
+          <p className="utility-label text-primary">
+            {open ? 'How to order' : 'How access works'}
+          </p>
           <h2 className="mt-3 font-display text-4xl font-extrabold tracking-[-0.045em] sm:text-5xl">
-            Three steps, reviewed by a person.
+            {open
+              ? 'From material to order in three steps.'
+              : 'Three steps, reviewed by a person.'}
           </h2>
           <p className="mt-5 leading-8 text-muted-foreground">
-            NexPhase Labs does not sell to the general public. Ordering is
-            opened to organizations that qualify under our research-use policy.
+            {open
+              ? 'No account application or verification step. Research-use conditions apply to every order.'
+              : 'NexPhase Labs does not sell to the general public. Ordering is opened to organizations that qualify under our research-use policy.'}
           </p>
         </div>
         <ol className="grid gap-px bg-border lg:grid-cols-3">
-          {accessSteps.map(({ step, title, copy, icon: Icon }) => (
-            <li key={step} className="bg-background p-7 lg:p-9">
-              <div className="mb-5 flex items-center justify-between">
-                <Icon className="size-5 text-primary" />
-                <span className="font-mono text-[11px] text-muted-foreground">
-                  {step}
-                </span>
-              </div>
-              <h3 className="font-display text-xl font-bold">{title}</h3>
-              <p className="mt-3 leading-7 text-muted-foreground">{copy}</p>
-            </li>
-          ))}
+          {(open ? buyingSteps : accessSteps).map(
+            ({ step, title, copy, icon: Icon }) => (
+              <li key={step} className="bg-background p-7 lg:p-9">
+                <div className="mb-5 flex items-center justify-between">
+                  <Icon className="size-5 text-primary" />
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    {step}
+                  </span>
+                </div>
+                <h3 className="font-display text-xl font-bold">{title}</h3>
+                <p className="mt-3 leading-7 text-muted-foreground">{copy}</p>
+              </li>
+            ),
+          )}
         </ol>
         <Link
-          href="/access"
+          href={open ? '/account/cart' : '/access'}
           className="mt-10 inline-flex h-12 items-center justify-center gap-3 bg-primary px-6 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
         >
-          Start a qualification request <ArrowRight className="size-4" />
+          {open ? 'Continue to your cart' : 'Start a qualification request'}{' '}
+          <ArrowRight className="size-4" />
         </Link>
       </section>
 

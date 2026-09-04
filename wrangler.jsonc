@@ -47,6 +47,7 @@
       "triggers": { "crons": ["*/5 * * * *"] },
       "vars": {
         "APP_ENV": "staging",
+        "OPEN_CHECKOUT_ENABLED": "true",
         // Real staging origin on the account's workers.dev subdomain. Keep the STAGING_URL repository
         // variable identical; staging email links and payment return URLs are built from this.
         "PUBLIC_ORIGIN": "https://nexphaselabs-staging.ammre.workers.dev",

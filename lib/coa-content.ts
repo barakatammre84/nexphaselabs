@@ -142,6 +142,7 @@ export function scanCoa(subject: CoaSubject): Violation[] {
     ['Product name', lot.productName],
     ['Appearance', lot.appearance],
     ['Storage condition', lot.storageCondition],
+    ['Purity', lot.purityResult],
     ['Purity method', lot.purityMethod],
     ['Identity method', lot.identityMethod],
     ['Water content', lot.waterContent],

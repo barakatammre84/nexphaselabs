@@ -10,6 +10,7 @@ const { state } = vi.hoisted(() => ({
     note: '<script>not markup</script> Please attach registration.',
   },
 }));
+vi.mock('@/lib/site-config', () => ({ openCheckoutEnabled: () => false }));
 vi.mock('next/link', () => ({
   default: ({
     children,

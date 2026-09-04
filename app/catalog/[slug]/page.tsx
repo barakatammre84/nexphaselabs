@@ -440,10 +440,9 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
         {visibility.pricing !== 'none' ? (
           <div className="mt-9 max-w-2xl">
             <p className="text-sm leading-6 text-muted-foreground">
-              Prices shown for your{' '}
               {visibility.pricing === 'institutional'
-                ? 'verified research organisation'
-                : 'account'}
+                ? 'Institutional prices shown'
+                : 'Public prices shown'}
               .{' '}
               <Link href="/account/cart" className="font-semibold text-primary">
                 View cart

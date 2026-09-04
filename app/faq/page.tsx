@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { openCheckoutEnabled } from '@/lib/site-config';
 import { ArrowRight } from 'lucide-react';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
 
@@ -93,6 +94,33 @@ const sections = [
 ];
 
 export default function FaqPage() {
+  const open = openCheckoutEnabled();
+  const displayedSections = open
+    ? [
+        {
+          heading: 'Ordering and guest checkout',
+          items: [
+            {
+              q: 'Do I need an account or approval to order?',
+              a: 'No. Add a pack size to your cart and check out as a guest. There is no email verification or organization approval step. Research-use conditions still apply.',
+            },
+            {
+              q: 'How do I see my order again?',
+              a: 'Use Your orders in the same browser used at checkout. Your private guest session lasts 30 days. Save your order number for support; entering an email does not create an account.',
+            },
+            {
+              q: 'Will a staging purchase charge me?',
+              a: 'No. Staging uses clearly labeled simulated payments. Never send money for a staging order.',
+            },
+            {
+              q: 'Why can’t I add a particular pack size?',
+              a: 'A pack size needs a published price and a released lot before it can be ordered. Contact support if either is unavailable.',
+            },
+          ],
+        },
+        ...sections.slice(1),
+      ]
+    : sections;
   return (
     <main className="bg-background text-foreground">
       <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12 lg:py-20">
@@ -104,23 +132,43 @@ export default function FaqPage() {
           The questions laboratories actually ask.
         </h1>
         <p className="mt-7 max-w-2xl text-lg leading-8 text-muted-foreground">
-          If something here is unclear, or your question is specific to a lot, write to{' '}
-          <a href="mailto:research@nexphaselabs.net" className="font-semibold text-primary hover:underline">
+          If something here is unclear, or your question is specific to a lot,
+          write to{' '}
+          <a
+            href="mailto:research@nexphaselabs.net"
+            className="font-semibold text-primary hover:underline"
+          >
             research@nexphaselabs.net
           </a>
           .
         </p>
       </section>
 
-      {sections.map((section) => (
-        <section key={section.heading} className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12">
+      {displayedSections.map((section) => (
+        <section
+          key={section.heading}
+          className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12"
+        >
           <div className="grid gap-10 lg:grid-cols-[0.7fr_1.3fr]">
-            <h2 className="font-display text-2xl font-extrabold tracking-[-0.04em] sm:text-3xl">{section.heading}</h2>
+            <h2 className="font-display text-2xl font-extrabold tracking-[-0.04em] sm:text-3xl">
+              {section.heading}
+            </h2>
             <dl className="border-t border-border">
               {section.items.map((item) => (
                 <div key={item.q} className="border-b border-border py-6">
-                  <dt className="font-display text-lg font-bold leading-snug tracking-tight">{item.q}</dt>
-                  <dd className="mt-3 max-w-3xl leading-7 text-muted-foreground">{item.a}</dd>
+                  <dt className="font-display text-lg font-bold leading-snug tracking-tight">
+                    {item.q}
+                  </dt>
+                  <dd className="mt-3 max-w-3xl leading-7 text-muted-foreground">
+                    {open
+                      ? item.a
+                          .replace(
+                            'Verified accounts can request',
+                            'You can request',
+                          )
+                          .replace('purchasing organization', 'purchaser')
+                      : item.a}
+                  </dd>
                 </div>
               ))}
             </dl>
@@ -129,8 +177,12 @@ export default function FaqPage() {
       ))}
 
       <section className="mx-auto max-w-[1500px] px-5 py-14 sm:px-8 lg:px-12">
-        <Link href="/access" className="inline-flex items-center gap-2 text-sm font-bold text-primary">
-          Request a research account <ArrowRight className="size-4" />
+        <Link
+          href={open ? '/catalog' : '/access'}
+          className="inline-flex items-center gap-2 text-sm font-bold text-primary"
+        >
+          {open ? 'Browse materials' : 'Request a research account'}{' '}
+          <ArrowRight className="size-4" />
         </Link>
       </section>
 

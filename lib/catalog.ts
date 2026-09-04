@@ -131,7 +131,7 @@ export type Product = {
  * catalog index. Not a footer element.
  */
 export const REGULATORY_STATEMENT =
-  'For laboratory research use only. Not for human or veterinary use. Not for diagnostic or therapeutic use. Supplied only to qualified organisations under a verified account.';
+  'For laboratory research use only. Not for human or veterinary use. Not for diagnostic or therapeutic use.';
 
 export const STANDARD_DOCUMENTATION = [
   'Lot-specific certificate of analysis',

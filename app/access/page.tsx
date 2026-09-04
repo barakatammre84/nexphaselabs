@@ -1,3 +1,4 @@
+import { openCheckoutEnabled } from '@/lib/site-config';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
@@ -84,6 +85,31 @@ const MAIL_BODY = [
 const mailHref = `mailto:research@nexphaselabs.net?subject=${encodeURIComponent(MAIL_SUBJECT)}&body=${encodeURIComponent(MAIL_BODY)}`;
 
 export default function AccessPage() {
+  if (openCheckoutEnabled())
+    return (
+      <main className="mx-auto max-w-3xl px-5 py-16 sm:px-8">
+        <p className="utility-label text-primary">Guest checkout</p>
+        <h1 className="page-title mt-4">No account required.</h1>
+        <p className="mt-6 text-lg leading-8 text-muted-foreground">
+          Choose a material, add a pack size to your cart, enter your delivery
+          details, and continue to payment. No registration, email verification,
+          or institutional approval.
+        </p>
+        <p className="mt-4 text-sm leading-6">
+          All materials remain for laboratory research use only. Staging
+          purchases use simulated payments; no money moves.
+        </p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Link href="/catalog" className="action-primary">
+            Browse materials
+          </Link>
+          <Link href="/account/cart" className="action-secondary">
+            View cart
+          </Link>
+        </div>
+      </main>
+    );
+
   return (
     <main className="bg-background text-foreground">
       <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12 lg:py-20">

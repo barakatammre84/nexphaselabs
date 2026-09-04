@@ -1,3 +1,7 @@
+## Owner-directed checkout change — 2026-09-04
+
+The owner explicitly requested removal of buyer registration, email verification, and organization approval gates. `OPEN_CHECKOUT_ENABLED=true` enables guest checkout and public list prices; it is enabled for staging only. This supersedes the institutional-only purchasing restrictions below **for environments where that switch is enabled**. Do not reinstate those buyer gates on the staging purchase path. Optional account registration and staff authentication remain separate. Research-use notices, safe data access, real payment settlement checks, and released-lot/stock controls stay in place. Never invent selling prices or substitute a simulated payment for real payment. Guest contacts are order snapshots, not verified identities.
+
 # NexPhase Labs — working notes for Claude Code
 
 Operating entity: 8486 Ventures LLC (California), trading as NexPhase Labs.

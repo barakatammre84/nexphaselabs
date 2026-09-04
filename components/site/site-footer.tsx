@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { openCheckoutEnabled } from '@/lib/site-config';
 import { loadCatalog } from '@/lib/catalog-data';
 import { listActiveClasses } from '@/lib/classes';
 
@@ -35,6 +36,7 @@ const staticColumns = [
 ];
 
 export async function SiteFooter() {
+  const open = openCheckoutEnabled();
   const classes = (await loadCatalog(listActiveClasses)).data ?? [];
   const columns = [
     {
@@ -60,9 +62,10 @@ export async function SiteFooter() {
               </span>
             </div>
             <p className="mt-5 text-sm leading-6 text-muted-foreground">
-              An independent supplier of research materials for qualified
-              laboratory organizations in the United States. Every lot ships
-              with its own analytical documentation.
+              {open
+                ? 'An independent supplier of laboratory research materials in the United States.'
+                : 'An independent supplier of research materials for qualified laboratory organizations in the United States.'}{' '}
+              Every lot ships with its own analytical documentation.
             </p>
           </div>
 
@@ -78,7 +81,9 @@ export async function SiteFooter() {
                       href={link.href}
                       className="transition-colors hover:text-primary"
                     >
-                      {link.label}
+                      {open && link.href === '/access'
+                        ? 'How to order'
+                        : link.label}
                     </Link>
                   </li>
                 ))}
@@ -93,15 +98,14 @@ export async function SiteFooter() {
               Research use only.
             </strong>{' '}
             All materials listed on this site are supplied strictly for in vitro
-            laboratory research and analytical use by qualified organizations.
-            They are not drugs, medicines, dietary supplements, cosmetics, food,
-            or consumer products. They are not for human or veterinary use, not
-            for clinical or diagnostic procedures, and not for consumption.
-            Nothing on this site is medical advice, and no statement here has
-            been evaluated by the Food and Drug Administration. Purchasers are
-            solely responsible for compliance with all applicable federal,
-            state, and local law and for the safe handling, use, and disposal of
-            every material received.
+            laboratory research and analytical use. They are not drugs,
+            medicines, dietary supplements, cosmetics, food, or consumer
+            products. They are not for human or veterinary use, not for clinical
+            or diagnostic procedures, and not for consumption. Nothing on this
+            site is medical advice, and no statement here has been evaluated by
+            the Food and Drug Administration. Purchasers are solely responsible
+            for compliance with all applicable federal, state, and local law and
+            for the safe handling, use, and disposal of every material received.
           </p>
           <div className="mt-8 flex flex-col justify-between gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center">
             <p>

@@ -3,6 +3,8 @@
 APP_ENV=development
 PUBLIC_ORIGIN=http://localhost:3000
 CONSUMER_TIER_ENABLED=false
+# Guest checkout is independent of optional account registration.
+OPEN_CHECKOUT_ENABLED=true
 EMAIL_FROM=NexPhase Labs <research@nexphaselabs.net>
 # Leave unset locally: verification emails are logged to the console instead.
 # RESEND_API_KEY=

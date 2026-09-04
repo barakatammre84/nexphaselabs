@@ -76,7 +76,7 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
   const blockers = releaseBlockers(lot, tests);
   const allowed = ALLOWED_TRANSITIONS[lot.status] ?? [];
   const uploadError = error ? (UPLOAD_ERROR[error] ?? UPLOAD_ERROR.store) : null;
-  const [coa, issuedDocs] = await Promise.all([previewCoa(normalised), documentHistory('lot', lot.id)]);
+  const [coa, issuedDocs] = await Promise.all([previewCoa(normalised), documentHistory('lot', lot.lotNumber)]);
   const coaHistory = issuedDocs.filter((d) => d.kind === 'coa');
 
   return (

@@ -1,3 +1,4 @@
+import { openCheckoutEnabled } from '@/lib/site-config';
 import type { Metadata } from 'next';
 import { LegalPage, LegalSection } from '@/components/site/legal-layout';
 
@@ -13,6 +14,7 @@ export default function PrivacyPage() {
       updated="Pending review"
       intro="This policy describes the information NexPhase Labs collects from organizations and their representatives, why it is collected, and how it is handled."
     >
+      {openCheckoutEnabled() && <LegalSection heading="Guest checkout"><p>Guest checkout collects a contact email and delivery details without registering an account or verifying identity. A necessary, private browser cookie links your cart and orders to this browser for 30 days. The cookie is not an advertising tracker. Its expiry does not delete order records; the retention section below still applies.</p></LegalSection>}
       <LegalSection heading="1. Information collected">
         <p>
           When an organization requests a research account we collect the organization name, website, business

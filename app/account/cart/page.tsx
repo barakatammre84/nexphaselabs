@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { AlertCircle, ArrowLeft, CircleCheck, Trash2 } from 'lucide-react';
+import { getBuyer } from '@/lib/buyer-session';
+import { openCheckoutEnabled } from '@/lib/site-config';
+import { CheckoutFields } from '@/components/site/checkout-fields';
 import { requireAccount } from '@/lib/account-auth';
 import { getCart } from '@/lib/cart';
 import { loadCatalog } from '@/lib/catalog-data';
@@ -20,13 +23,20 @@ export const metadata: Metadata = {
 type Props = { searchParams: Promise<{ added?: string; error?: string }> };
 
 export default async function CartPage({ searchParams }: Props) {
-  const account = await requireAccount('/account/cart');
+  const open = openCheckoutEnabled();
+  const account = open
+    ? await getBuyer()
+    : await requireAccount('/account/cart');
   const { added, error } = await searchParams;
   const { visibility } = await currentViewer();
-  const loaded = await loadCatalog(() => getCart(account.id, visibility));
+  const loaded = await loadCatalog(() =>
+    account
+      ? getCart(account.id, visibility)
+      : Promise.resolve({ lines: [], subtotalCents: 0, orderable: false }),
+  );
   const cart = loaded.data;
   const organization =
-    account.tier === 'institutional'
+    account?.tier === 'institutional'
       ? await loadCatalog(() => getOrganizationForAccount(account.id))
       : null;
   const org = organization?.data ?? null;
@@ -40,7 +50,9 @@ export default async function CartPage({ searchParams }: Props) {
         >
           <ArrowLeft className="size-4" /> Catalog
         </Link>
-        <p className="mt-6 utility-label text-primary">Research account</p>
+        <p className="mt-6 utility-label text-primary">
+          {open ? 'Guest checkout · no account required' : 'Research account'}
+        </p>
         <h1 className="mt-4 font-display text-4xl font-extrabold tracking-[-0.05em]">
           Cart
         </h1>
@@ -179,7 +191,12 @@ export default async function CartPage({ searchParams }: Props) {
               <h2 className="font-display text-xl font-bold tracking-tight">
                 Review and submit
               </h2>
-              {org && org.verificationStatus === 'approved' ? (
+              {open ? (
+                <CheckoutFields
+                  email={account?.status === 'guest' ? '' : account?.email}
+                  name={account?.status === 'guest' ? '' : account?.name}
+                />
+              ) : org && org.verificationStatus === 'approved' ? (
                 <div className="mt-4 text-sm leading-6">
                   <p className="font-semibold">Ships to</p>
                   <p className="text-muted-foreground">
@@ -231,23 +248,32 @@ export default async function CartPage({ searchParams }: Props) {
                   required
                   className="mt-1"
                 />
-                <span>I confirm the acknowledgement above for this order.</span>
+                <span>
+                  I confirm the acknowledgement above and accept the{' '}
+                  <Link
+                    href="/legal/terms"
+                    className="font-semibold text-primary underline"
+                  >
+                    terms of sale
+                  </Link>{' '}
+                  for this order.
+                </span>
               </label>
               <p className="mt-4 text-xs leading-5 text-muted-foreground">
-                Payment instructions follow submission. Material is picked from
-                a released lot by a named person; the certificate of analysis
-                for that lot ships with it.
+                Payment instructions follow submission. Staging payments are
+                simulated; no money moves. Material is picked from a released
+                lot by a named person; the certificate of analysis for that lot
+                ships with it.
               </p>
               <button
                 type="submit"
                 disabled={
                   !cart.orderable ||
-                  !org ||
-                  org.verificationStatus !== 'approved'
+                  (!open && (!org || org.verificationStatus !== 'approved'))
                 }
                 className="mt-5 inline-flex h-12 items-center justify-center bg-primary px-6 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                Submit order
+                Continue to payment
               </button>
             </form>
           </>

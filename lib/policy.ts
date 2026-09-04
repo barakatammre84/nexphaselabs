@@ -5,6 +5,7 @@
  * re-accepted before the account can be used.
  */
 
+export const GUEST_CHECKOUT_TERMS_VERSION = '2026-09-04-guest';
 export const TERMS_VERSION = '2026-09-02';
 export const RUO_VERSION = '2026-09-02';
 
