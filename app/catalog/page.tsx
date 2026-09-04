@@ -10,6 +10,7 @@ import {
   listPublishedProducts,
   loadCatalog,
 } from '@/lib/catalog-data';
+import { searchMaterials, searchQuery } from '@/lib/workflow-display';
 import { listActiveClasses } from '@/lib/classes';
 
 export const dynamic = 'force-dynamic';
@@ -20,52 +21,116 @@ export const metadata: Metadata = {
     'The full NexPhase Labs catalog, indexed by chemical class. Supplied to qualified organizations for laboratory research use only.',
 };
 
-export default async function CatalogPage() {
+export default async function CatalogPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const query = searchQuery((await searchParams).q);
   const catalog = await loadCatalog(async () => ({
     products: await listPublishedProducts(),
     classes: await listActiveClasses(),
   }));
   const all = catalog.data?.products ?? [];
   const classes = catalog.data?.classes ?? [];
-  const byClass = groupByClass(all);
+  const results = searchMaterials(all, query);
+  const byClass = groupByClass(results);
 
   return (
     <main className="bg-background text-foreground">
-      <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12 lg:py-20">
+      <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-8 sm:px-8 lg:px-12 lg:py-12">
         <p className="utility-label flex items-center gap-3 text-primary">
           <span className="h-px w-8 bg-primary" />
           Catalog {!catalog.unavailable && <>&middot; {all.length} materials</>}
         </p>
-        <h1 className="mt-7 max-w-3xl font-display text-[clamp(2.6rem,5vw,4.6rem)] font-extrabold leading-[0.92] tracking-[-0.06em]">
-          Every material, with its paperwork.
+        <h1 className="page-title mt-4 max-w-3xl">
+          Find your research material.
         </h1>
-        <p className="mt-7 max-w-2xl text-lg leading-8 text-muted-foreground">
-          Pricing and availability are shown to verified research accounts.
-          Specifications below describe the material; purity and lot data come
-          from the certificate of analysis issued for the lot you receive.
+        {/* Rule 1 — conditions of supply in the body, above the fold. */}
+        <div className="mt-5 max-w-2xl border-l-2 border-primary bg-secondary px-4 py-3">
+          <p className="utility-label text-primary">Conditions of supply</p>
+          <p className="mt-2 text-sm font-semibold leading-6">
+            {REGULATORY_STATEMENT}
+          </p>
+        </div>
+        <p className="mt-4 max-w-2xl leading-7 text-muted-foreground">
+          Browse chemical specifications below. Pricing and ordering require an
+          approved research account.
         </p>
         <nav
           className="mt-9 flex flex-wrap gap-3"
           aria-label="Chemical classes"
         >
-          {classes.map((area) => (
-            <a
-              key={area.id}
-              href={`#${area.id}`}
-              className="inline-flex h-10 items-center border border-foreground/20 px-4 text-sm font-semibold transition-colors hover:border-primary hover:text-primary"
-            >
-              {area.name}
-            </a>
-          ))}
+          {classes
+            .filter((area) => (byClass.get(area.name)?.length ?? 0) > 0)
+            .map((area) => (
+              <a
+                key={area.id}
+                href={`#${area.id}`}
+                className="inline-flex h-10 items-center border border-foreground/20 px-4 text-sm font-semibold transition-colors hover:border-primary hover:text-primary"
+              >
+                {area.name}
+              </a>
+            ))}
         </nav>
-        {/* Rule 1 — conditions of supply in the body, above the fold. */}
-        <div className="mt-9 max-w-2xl border-l-2 border-primary bg-secondary px-6 py-5">
-          <p className="utility-label text-primary">Conditions of supply</p>
-          <p className="mt-3 text-sm font-semibold leading-6">
-            {REGULATORY_STATEMENT}
-          </p>
-        </div>
       </section>
+
+      {!catalog.unavailable && (
+        <section className="mx-auto max-w-[1500px] px-5 pt-10 sm:px-8 lg:px-12">
+          <form
+            id="catalog-search"
+            role="search"
+            action="/catalog"
+            method="get"
+          >
+            <label
+              htmlFor="material-query"
+              className="block text-sm font-semibold"
+            >
+              Search by name, catalog number, or CAS
+            </label>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <input
+                id="material-query"
+                name="q"
+                type="search"
+                defaultValue={query}
+                maxLength={120}
+                placeholder="For example, BPC-157 or NPL-001"
+                className="min-h-12 min-w-0 flex-1 basis-64 rounded-md border border-input px-4"
+              />
+              <button type="submit" className="action-primary">
+                Search materials
+              </button>
+              {query && (
+                <Link
+                  href="/catalog#catalog-search"
+                  className="action-secondary"
+                >
+                  Clear search
+                </Link>
+              )}
+            </div>
+          </form>
+          <p role="status" className="mt-4 text-sm text-muted-foreground">
+            {results.length} {results.length === 1 ? 'material' : 'materials'}
+            {query ? <> matching &ldquo;{query}&rdquo;</> : ' in the catalog'}.
+          </p>
+          {results.length === 0 && (
+            <p className="mt-4 rounded-md bg-secondary p-5">
+              No matching materials. Try a shorter name or check the catalog
+              number.{' '}
+              <a
+                className="font-semibold text-primary"
+                href="mailto:research@nexphaselabs.net"
+              >
+                Ask us for help
+              </a>
+              .
+            </p>
+          )}
+        </section>
+      )}
 
       {catalog.unavailable && (
         <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12">
@@ -94,12 +159,12 @@ export default async function CatalogPage() {
               )}
             </div>
 
-            <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
               {items.map((product) => (
                 <Link
                   key={product.code}
                   href={`/catalog/${product.slug}`}
-                  className="group flex flex-col bg-background"
+                  className="group flex flex-col overflow-hidden rounded-lg bg-background"
                 >
                   <div className="relative aspect-[1.18] overflow-hidden bg-secondary">
                     <ProductImage
@@ -116,7 +181,7 @@ export default async function CatalogPage() {
                       {STATUS_LABEL[product.status]}
                     </span>
                   </div>
-                  <div className="flex flex-1 flex-col justify-between gap-5 border-t border-border p-5 lg:p-7">
+                  <div className="flex flex-1 flex-col justify-between gap-5 py-5">
                     <div>
                       <h3 className="font-display text-2xl font-bold tracking-tight">
                         {product.name}

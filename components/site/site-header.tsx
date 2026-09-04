@@ -1,75 +1,106 @@
 import Link from 'next/link';
+import { MobileMenu } from '@/components/site/mobile-menu';
 import { getAccount } from '@/lib/account-auth';
 
 const navigation = [
   { href: '/catalog', label: 'Catalog' },
   { href: '/documentation', label: 'Documentation & QC' },
   { href: '/about', label: 'About' },
-  { href: '/faq', label: 'FAQ' },
+  { href: '/faq', label: 'Help & FAQ' },
 ];
-
 export async function SiteHeader() {
   let signedIn = false;
   try {
     signedIn = Boolean(await getAccount());
   } catch (error) {
-    console.error('[header] account lookup failed', error instanceof Error ? error.message : error);
-    signedIn = false;
+    console.error(
+      '[header] account lookup failed',
+      error instanceof Error ? error.message : error,
+    );
   }
+  const accountHref = signedIn ? '/account' : '/account/sign-in';
+  const accountLabel = signedIn ? 'Your account' : 'Sign in';
   return (
-    <>
-      <div className="assay-rule" aria-hidden="true" />
-      <header className="sticky top-0 z-40 border-b border-border bg-background/92 backdrop-blur">
-        <div className="mx-auto flex h-20 max-w-[1500px] items-center justify-between gap-6 px-5 sm:px-8 lg:px-12">
-          <Link href="/" className="group flex shrink-0 items-center gap-3" aria-label="NexPhase Labs home">
-            <span className="grid size-9 place-items-center bg-primary text-sm font-extrabold text-primary-foreground transition-transform group-hover:-rotate-3">
-              NX
-            </span>
-            <span className="font-display text-[15px] font-extrabold uppercase tracking-[0.16em]">
-              NexPhase <span className="text-primary">Labs</span>
-            </span>
+    <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur">
+      <div className="mx-auto flex min-h-20 max-w-[1500px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-12">
+        <Link
+          href="/"
+          className="flex shrink-0 items-center gap-3"
+          aria-label="NexPhase Labs home"
+        >
+          <span className="grid size-10 place-items-center rounded-full bg-foreground text-sm font-bold text-white">
+            NX
+          </span>
+          <span className="font-display text-base font-semibold tracking-tight sm:text-lg">
+            NexPhase Labs
+          </span>
+        </Link>
+        <nav
+          className="hidden items-center gap-6 text-sm font-semibold xl:flex"
+          aria-label="Primary navigation"
+        >
+          {navigation.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="py-3 hover:text-primary"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+        <div className="hidden items-center gap-5 text-sm font-semibold xl:flex">
+          <Link
+            href="/catalog#catalog-search"
+            className="py-3 hover:text-primary"
+          >
+            Search
           </Link>
-
-          <nav className="hidden items-center gap-8 text-sm font-semibold md:flex" aria-label="Primary navigation">
+          <Link href={accountHref} className="py-3 hover:text-primary">
+            {accountLabel}
+          </Link>
+          <Link
+            href={signedIn ? '/account/cart' : '/access'}
+            className="action-primary"
+          >
+            {signedIn ? 'Cart' : 'Research access'}
+          </Link>
+        </div>
+        <MobileMenu>
+          <nav
+            aria-label="Mobile navigation"
+            className="absolute right-0 top-full mt-3 grid w-[min(20rem,calc(100vw-2.5rem))] gap-1 rounded-lg border border-border bg-white p-3 shadow-lg"
+          >
             {navigation.map((item) => (
-              <Link key={item.href} href={item.href} className="transition-colors hover:text-primary">
+              <Link
+                key={item.href}
+                href={item.href}
+                className="rounded px-3 py-3 text-sm font-semibold hover:bg-secondary"
+              >
                 {item.label}
               </Link>
             ))}
-          </nav>
-
-          <div className="hidden items-center gap-6 md:flex">
-            <Link href={signedIn ? '/account' : '/account/sign-in'} className="text-sm font-semibold transition-colors hover:text-primary">
-              {signedIn ? 'Your account' : 'Sign in'}
+            <Link
+              href="/catalog#catalog-search"
+              className="px-3 py-3 text-sm font-semibold"
+            >
+              Search catalog
             </Link>
             <Link
-              href="/access"
-              className="inline-flex h-11 shrink-0 items-center justify-center bg-primary px-5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+              href={accountHref}
+              className="px-3 py-3 text-sm font-semibold"
             >
-              Request research access
+              {accountLabel}
             </Link>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 border-t border-border px-5 py-3 md:hidden">
-          <nav
-            className="flex min-w-0 flex-1 items-center gap-5 overflow-x-auto text-sm font-semibold"
-            aria-label="Primary navigation"
-          >
-            {navigation.map((item) => (
-              <Link key={item.href} href={item.href} className="whitespace-nowrap transition-colors hover:text-primary">
-                {item.label}
-              </Link>
-            ))}
+            <Link
+              href={signedIn ? '/account/cart' : '/access'}
+              className="action-primary"
+            >
+              {signedIn ? 'Cart' : 'Research access'}
+            </Link>
           </nav>
-          <Link
-            href="/access"
-            className="shrink-0 whitespace-nowrap bg-primary px-3 py-1.5 text-sm font-bold text-primary-foreground"
-          >
-            Request access
-          </Link>
-        </div>
-      </header>
-    </>
+        </MobileMenu>
+      </div>
+    </header>
   );
 }

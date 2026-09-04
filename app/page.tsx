@@ -42,19 +42,19 @@ const accessSteps = [
   {
     step: '01',
     title: 'Submit a qualification request',
-    copy: 'Tell us the organization, the research context, and who will take receipt of material. No account is opened from a form alone.',
+    copy: 'Tell us the organization, the research context, and who will take receipt of material. Creating a login does not enable purchasing.',
     icon: ClipboardCheck,
   },
   {
     step: '02',
     title: 'We review and confirm',
-    copy: 'A person reviews the request against our research-use policy. Approved organizations receive catalog access and a named point of contact.',
+    copy: 'A person reviews the request against our research-use policy. Approval enables pricing and ordering; your account shows the review status.',
     icon: ShieldCheck,
   },
   {
     step: '03',
     title: 'Order with documentation attached',
-    copy: 'Every shipment carries the certificate of analysis, chromatogram, and lot record for the exact material in the box.',
+    copy: 'Choose materials after approval. Follow payment, shipment, and available lot documentation from your order.',
     icon: PackageCheck,
   },
 ];
@@ -91,20 +91,19 @@ export default async function Home() {
   return (
     <main className="overflow-hidden bg-background text-foreground">
       {/* Hero */}
-      <section className="mx-auto grid max-w-[1500px] border-b border-border lg:grid-cols-[1.08fr_.92fr]">
-        <div className="relative flex min-h-[560px] flex-col justify-between px-5 py-14 sm:px-8 lg:min-h-[660px] lg:px-12 lg:py-20">
-          <div className="absolute right-0 top-0 hidden h-full w-px bg-border lg:block" />
+      <section className="mx-auto grid max-w-[1500px] gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[1fr_1fr] lg:gap-14 lg:px-12 lg:py-14">
+        <div className="flex flex-col justify-center py-6 lg:py-10">
           <div>
             <p className="utility-label mb-8 flex items-center gap-3 text-primary">
               <span className="h-px w-8 bg-primary" />
               Independent research materials &middot; USA
             </p>
-            <h1 className="max-w-4xl font-display text-[clamp(3rem,6.6vw,7.2rem)] font-extrabold leading-[0.88] tracking-[-0.07em]">
-              Clarity at every stage of research.
+            <h1 className="max-w-2xl font-display text-[clamp(2.7rem,5.2vw,5.2rem)] font-semibold leading-[1.06] tracking-[-0.045em]">
+              Research materials. Clearly documented.
             </h1>
             <p className="mt-9 max-w-xl text-lg leading-8 text-muted-foreground sm:text-xl">
-              A cleaner research catalog built around batch visibility, useful
-              documentation, and qualified institutional access.
+              Chemical identity, lot records, and research access in one place.
+              Materials supplied to qualified laboratory organizations.
             </p>
           </div>
           <div className="mt-12 flex flex-col gap-4 sm:flex-row">
@@ -123,16 +122,13 @@ export default async function Home() {
           </div>
         </div>
 
-        <div className="relative min-h-[440px] bg-secondary lg:min-h-[660px]">
-          <div
-            className="absolute inset-0 lab-grid opacity-50"
-            aria-hidden="true"
-          />
-          <div className="absolute left-5 top-6 z-10 flex gap-2 sm:left-8 lg:left-10 lg:top-10">
-            <span className="spec-pill">COA</span>
-            <span className="spec-pill">HPLC</span>
-            <span className="spec-pill">Batch ID</span>
-          </div>
+        <div className="relative min-h-[430px] overflow-hidden rounded-xl bg-secondary lg:min-h-[560px]">
+          {!hero && (
+            <div className="flex min-h-[430px] items-center justify-center p-8 text-center text-muted-foreground">
+              Browse chemical specifications and available lot records in the
+              catalog.
+            </div>
+          )}
           {hero && (
             <>
               <ProductImage
@@ -140,24 +136,24 @@ export default async function Home() {
                 name={hero.name}
                 image={hero.image}
                 priority
-                imageClassName="object-center"
+                imageClassName="object-contain pb-28 pt-4"
                 sizes="(max-width: 1024px) 100vw, 46vw"
               />
               <div className="absolute bottom-0 left-0 right-0 z-10 grid grid-cols-[1fr_auto] border-t border-border bg-background/92 p-5 backdrop-blur sm:p-7">
                 <div>
                   <p className="utility-label text-muted-foreground">
-                    Featured material
+                    Reference photograph
                   </p>
                   <p className="mt-1 font-display text-2xl font-bold tracking-tight">
                     {hero.name}
-                    {hero.packSizes[0] ? (
-                      <> &middot; {hero.packSizes[0].quantity}</>
-                    ) : null}
                   </p>
                 </div>
-                <span className="self-end font-mono text-xs text-primary">
-                  {hero.code.replace('-', '\u2014')}
-                </span>
+                <Link
+                  href={`/catalog/${hero.slug}`}
+                  className="self-end text-sm font-semibold text-primary"
+                >
+                  View material
+                </Link>
               </div>
             </>
           )}
@@ -169,16 +165,13 @@ export default async function Home() {
         id="standards"
         className="mx-auto grid max-w-[1500px] border-b border-border sm:grid-cols-3"
       >
-        {standards.map(({ title, copy, icon: Icon }, index) => (
+        {standards.map(({ title, copy, icon: Icon }) => (
           <article
             key={title}
             className="border-b border-border p-7 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 lg:p-9"
           >
-            <div className="mb-10 flex items-center justify-between">
+            <div className="mb-5 flex items-center justify-between">
               <Icon className="size-5 text-primary" />
-              <span className="font-mono text-[11px] text-muted-foreground">
-                0{index + 1}
-              </span>
             </div>
             <h2 className="font-display text-xl font-bold">{title}</h2>
             <p className="mt-3 max-w-sm leading-7 text-muted-foreground">
@@ -196,8 +189,8 @@ export default async function Home() {
         <div className="mb-10 flex flex-wrap items-end justify-between gap-6">
           <div>
             <p className="utility-label text-primary">Selected catalog</p>
-            <h2 className="mt-3 font-display text-4xl font-extrabold tracking-[-0.045em] sm:text-5xl">
-              Research materials, clearly indexed.
+            <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+              Explore the catalog.
             </h2>
           </div>
           <Link
@@ -208,12 +201,12 @@ export default async function Home() {
           </Link>
         </div>
         {catalog.unavailable && <CatalogUnavailable compact />}
-        <div className="grid gap-px bg-border sm:grid-cols-3">
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {featured.map((product) => (
             <Link
               key={product.code}
               href={`/catalog/${product.slug}`}
-              className="group bg-background"
+              className="group overflow-hidden rounded-lg bg-background"
             >
               <div className="relative aspect-[1.18] overflow-hidden bg-secondary">
                 <ProductImage
@@ -227,7 +220,7 @@ export default async function Home() {
                   {product.code}
                 </span>
               </div>
-              <div className="flex items-end justify-between gap-4 border-t border-border p-5 lg:p-7">
+              <div className="flex items-end justify-between gap-4 py-5">
                 <div>
                   <h3 className="font-display text-2xl font-bold tracking-tight">
                     {product.name}
@@ -248,7 +241,7 @@ export default async function Home() {
         <div className="mx-auto max-w-[1404px]">
           <p className="utility-label text-primary">Browse by chemical class</p>
           <h2 className="mt-3 max-w-2xl font-display text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
-            Organized by what the material is, not what it is studied for.
+            Browse by chemical identity.
           </h2>
           <div className="mt-10 grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
             {classes.map((area) => {
@@ -290,7 +283,7 @@ export default async function Home() {
         <ol className="grid gap-px bg-border lg:grid-cols-3">
           {accessSteps.map(({ step, title, copy, icon: Icon }) => (
             <li key={step} className="bg-background p-7 lg:p-9">
-              <div className="mb-10 flex items-center justify-between">
+              <div className="mb-5 flex items-center justify-between">
                 <Icon className="size-5 text-primary" />
                 <span className="font-mono text-[11px] text-muted-foreground">
                   {step}
@@ -313,9 +306,7 @@ export default async function Home() {
       <section className="border-t border-border px-5 py-16 sm:px-8 lg:px-12 lg:py-20">
         <div className="mx-auto grid max-w-[1404px] gap-12 lg:grid-cols-[1fr_1fr] lg:items-center">
           <div>
-            <p className="utility-label text-primary">
-              What ships with every lot
-            </p>
+            <p className="utility-label text-primary">Lot documentation</p>
             <h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
               Documentation that matches the vial in your hand.
             </h2>

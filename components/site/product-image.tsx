@@ -39,7 +39,7 @@ export function ProductImage({
         fill
         priority={priority}
         unoptimized={uploaded}
-        className={`object-cover mix-blend-multiply ${imageClassName}`}
+        className={`${imageClassName.includes('object-contain') ? 'object-contain' : 'object-cover'} mix-blend-multiply ${imageClassName}`}
         sizes={sizes}
       />
     );

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Building2, CircleCheck, Clock, Lock } from 'lucide-react';
+import { AccessProgress } from '@/components/site/access-progress';
+import { getOrganizationForAccount } from '@/lib/organizations';
 import { AcknowledgementForm } from '@/components/site/acknowledgement-form';
 import { requireAccount } from '@/lib/account-auth';
 import { acknowledgementsCurrent } from '@/lib/account-rules';
@@ -10,7 +12,10 @@ import { listOrdersForAccount } from '@/lib/orders';
 import { formatCents } from '@/lib/visibility-rules';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Your account', robots: { index: false, follow: false } };
+export const metadata: Metadata = {
+  title: 'Your account',
+  robots: { index: false, follow: false },
+};
 
 type Props = { searchParams: Promise<{ ack?: string }> };
 
@@ -21,11 +26,11 @@ const VERIFICATION_TEXT: Record<string, { title: string; body: string }> = {
   },
   submitted: {
     title: 'Verification under review',
-    body: 'A person is reviewing your organisation. Most reviews complete within two business days.',
+    body: 'A person is reviewing your organisation. You can check this page for the latest status.',
   },
   more_info: {
     title: 'More information needed',
-    body: 'We need something more before approving. Check your email for what was asked.',
+    body: 'Review the request below, update your organization details, and resubmit for review.',
   },
   approved: {
     title: 'Verified institutional account',
@@ -37,7 +42,7 @@ const VERIFICATION_TEXT: Record<string, { title: string; body: string }> = {
   },
   revoked: {
     title: 'Verification withdrawn',
-    body: 'Verification of this organisation has been withdrawn. Pricing, availability and ordering are no longer available. Check your email for the reason.',
+    body: 'Verification of this organisation has been withdrawn. Pricing, availability and ordering are no longer available. Open your submission for the review details.',
   },
 };
 
@@ -45,10 +50,15 @@ export default async function AccountPage({ searchParams }: Props) {
   const account = await requireAccount('/account');
   const { ack } = await searchParams;
   const current = acknowledgementsCurrent(account);
-  const verification = VERIFICATION_TEXT[account.verificationStatus] ?? VERIFICATION_TEXT.none;
+  const verification =
+    VERIFICATION_TEXT[account.verificationStatus] ?? VERIFICATION_TEXT.none;
   const approved = account.verificationStatus === 'approved';
   const consumer = account.tier === 'consumer';
-  const recent = (await loadCatalog(() => listOrdersForAccount(account.id, 5))).data ?? [];
+  const organization = !consumer
+    ? await getOrganizationForAccount(account.id)
+    : null;
+  const recent =
+    (await loadCatalog(() => listOrdersForAccount(account.id, 5))).data ?? [];
 
   return (
     <main className="bg-background text-foreground">
@@ -56,15 +66,49 @@ export default async function AccountPage({ searchParams }: Props) {
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div>
             <p className="utility-label text-primary">Research account</p>
-            <h1 className="mt-5 font-display text-4xl font-extrabold tracking-[-0.05em]">{account.name}</h1>
-            <p className="mt-2 font-mono text-sm text-muted-foreground">{account.email}</p>
+            <h1 className="mt-5 font-display text-4xl font-extrabold tracking-[-0.05em]">
+              {account.name}
+            </h1>
+            <p className="mt-2 font-mono text-sm text-muted-foreground">
+              {account.email}
+            </p>
           </div>
           <form method="post" action="/api/account/sign-out">
-            <button type="submit" className="text-sm font-semibold hover:text-primary">
+            <button
+              type="submit"
+              className="text-sm font-semibold hover:text-primary"
+            >
               Sign out
             </button>
           </form>
         </div>
+
+        {!consumer && (
+          <AccessProgress
+            current={
+              ['none', 'more_info', 'declined'].includes(
+                account.verificationStatus,
+              )
+                ? 2
+                : 3
+            }
+            complete={approved}
+          />
+        )}
+        <nav
+          aria-label="Account navigation"
+          className="mt-8 flex flex-wrap gap-3"
+        >
+          <Link href="/catalog" className="action-primary">
+            Browse materials
+          </Link>
+          <Link href="/account/cart" className="action-secondary">
+            Cart
+          </Link>
+          <Link href="/account/orders" className="action-secondary">
+            Orders & documents
+          </Link>
+        </nav>
 
         {!current ? (
           <div className="mt-10">
@@ -74,11 +118,14 @@ export default async function AccountPage({ searchParams }: Props) {
           <div className="mt-10 border border-border bg-secondary p-6">
             <div className="flex items-center gap-3">
               <CircleCheck className="size-5 text-primary" />
-              <h2 className="font-display text-xl font-bold tracking-tight">Individual researcher account</h2>
+              <h2 className="font-display text-xl font-bold tracking-tight">
+                Individual researcher account
+              </h2>
             </div>
             <p className="mt-3 leading-7 text-muted-foreground">
-              Materials are supplied for laboratory research use only, under the acknowledgement you confirmed at
-              sign-up. Shipping is to a laboratory or business address.
+              Materials are supplied for laboratory research use only, under the
+              acknowledgement you confirmed at sign-up. Shipping is to a
+              laboratory or business address.
             </p>
           </div>
         ) : (
@@ -91,16 +138,35 @@ export default async function AccountPage({ searchParams }: Props) {
               ) : (
                 <Lock className="size-5 text-primary" />
               )}
-              <h2 className="font-display text-xl font-bold tracking-tight">{verification.title}</h2>
+              <h2 className="font-display text-xl font-bold tracking-tight">
+                {verification.title}
+              </h2>
             </div>
-            <p className="mt-3 leading-7 text-muted-foreground">{verification.body}</p>
+            <p className="mt-3 leading-7 text-muted-foreground">
+              {verification.body}
+            </p>
+            {['more_info', 'declined', 'revoked'].includes(
+              account.verificationStatus,
+            ) &&
+              organization?.reviewNote && (
+                <div className="mt-4 border-l-2 border-primary pl-4">
+                  <p className="text-sm font-semibold">Review message</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
+                    {organization.reviewNote}
+                  </p>
+                </div>
+              )}
             {account.verificationStatus !== 'approved' && (
               <Link
                 href="/account/organization"
                 className="mt-6 inline-flex h-11 items-center gap-2 bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90"
               >
                 <Building2 className="size-4" />
-                {account.verificationStatus === 'none' ? 'Submit organisation for verification' : 'View your submission'}
+                {account.verificationStatus === 'none'
+                  ? 'Submit organization details'
+                  : account.verificationStatus === 'more_info'
+                    ? 'Update details and resubmit'
+                    : 'View your submission'}
               </Link>
             )}
           </div>
@@ -111,11 +177,19 @@ export default async function AccountPage({ searchParams }: Props) {
             <p className="utility-label text-primary">Recent orders</p>
             <ul className="mt-3 divide-y divide-border border border-border text-sm">
               {recent.map((o) => (
-                <li key={o.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
-                  <Link href={`/account/orders/${o.orderNumber}`} className="font-mono font-semibold text-primary">
+                <li
+                  key={o.id}
+                  className="flex flex-wrap items-center justify-between gap-3 p-3"
+                >
+                  <Link
+                    href={`/account/orders/${o.orderNumber}`}
+                    className="font-mono font-semibold text-primary"
+                  >
                     {o.orderNumber}
                   </Link>
-                  <span>{ORDER_STATUS_LABEL[o.status as OrderStatus] ?? o.status}</span>
+                  <span>
+                    {ORDER_STATUS_LABEL[o.status as OrderStatus] ?? o.status}
+                  </span>
                   <span className="font-mono">{formatCents(o.totalCents)}</span>
                 </li>
               ))}
@@ -125,17 +199,26 @@ export default async function AccountPage({ searchParams }: Props) {
 
         <dl className="mt-10 border-t border-border">
           <div className="grid gap-1 border-b border-border py-4 sm:grid-cols-[220px_1fr] sm:gap-6">
-            <dt className="text-sm font-semibold text-muted-foreground">Account type</dt>
-            <dd className="text-sm">{consumer ? 'Individual researcher' : 'Research organisation'}</dd>
-          </div>
-          <div className="grid gap-1 border-b border-border py-4 sm:grid-cols-[220px_1fr] sm:gap-6">
-            <dt className="text-sm font-semibold text-muted-foreground">Terms accepted</dt>
-            <dd className="font-mono text-sm">
-              terms {account.termsVersion ?? '—'} &middot; research-use {account.ruoVersion ?? '—'}
+            <dt className="text-sm font-semibold text-muted-foreground">
+              Account type
+            </dt>
+            <dd className="text-sm">
+              {consumer ? 'Individual researcher' : 'Research organisation'}
             </dd>
           </div>
           <div className="grid gap-1 border-b border-border py-4 sm:grid-cols-[220px_1fr] sm:gap-6">
-            <dt className="text-sm font-semibold text-muted-foreground">Catalog</dt>
+            <dt className="text-sm font-semibold text-muted-foreground">
+              Terms accepted
+            </dt>
+            <dd className="font-mono text-sm">
+              terms {account.termsVersion ?? '—'} &middot; research-use{' '}
+              {account.ruoVersion ?? '—'}
+            </dd>
+          </div>
+          <div className="grid gap-1 border-b border-border py-4 sm:grid-cols-[220px_1fr] sm:gap-6">
+            <dt className="text-sm font-semibold text-muted-foreground">
+              Catalog
+            </dt>
             <dd className="flex gap-6 text-sm">
               <Link href="/catalog" className="font-semibold text-primary">
                 Browse materials
@@ -143,7 +226,10 @@ export default async function AccountPage({ searchParams }: Props) {
               <Link href="/account/cart" className="font-semibold text-primary">
                 Cart
               </Link>
-              <Link href="/account/orders" className="font-semibold text-primary">
+              <Link
+                href="/account/orders"
+                className="font-semibold text-primary"
+              >
                 Orders
               </Link>
             </dd>

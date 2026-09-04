@@ -7,7 +7,10 @@ import { listVerificationQueue } from '@/lib/organizations';
 import { requireStaff } from '@/lib/staff-auth';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Verification queue', robots: { index: false, follow: false } };
+export const metadata: Metadata = {
+  title: 'Verification queue',
+  robots: { index: false, follow: false },
+};
 
 const STATUS_LABEL: Record<string, string> = {
   submitted: 'Awaiting review',
@@ -17,10 +20,18 @@ const STATUS_LABEL: Record<string, string> = {
   revoked: 'Revoked',
 };
 
-export default async function VerificationQueuePage() {
+export default async function VerificationQueuePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
   await requireStaff('/manage/verification');
   const loaded = await loadCatalog(listVerificationQueue);
-  const rows = loaded.data ?? [];
+  const requested = (await searchParams).status ?? '';
+  const status = Object.hasOwn(STATUS_LABEL, requested) ? requested : '';
+  const rows = (loaded.data ?? []).filter(
+    (row) => !status || row.organization.verificationStatus === status,
+  );
 
   return (
     <main className="bg-background text-foreground">
@@ -32,15 +43,38 @@ export default async function VerificationQueuePage() {
           Verification queue
         </h1>
         <p className="mt-6 max-w-2xl text-sm leading-6 text-muted-foreground">
-          Every organisation is reviewed by a person before pricing is shown. Check the domain, the address and the
-          documents against the research-use policy.
+          Every organisation is reviewed by a person before pricing is shown.
+          Check the domain, the address and the documents against the
+          research-use policy.
         </p>
+        <form method="get" className="mt-6 flex flex-wrap items-end gap-3">
+          <label className="grid gap-2 text-sm font-semibold">
+            Review status
+            <select
+              name="status"
+              defaultValue={status}
+              className="min-h-11 rounded-md border border-input bg-background px-3"
+            >
+              <option value="">All statuses</option>
+              {Object.entries(STATUS_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="action-primary" type="submit">
+            Apply filter
+          </button>
+        </form>
         {loaded.unavailable ? (
           <div className="mt-10">
             <CatalogUnavailable />
           </div>
         ) : rows.length === 0 ? (
-          <p className="mt-10 border border-border bg-secondary p-6 text-sm">No submissions yet.</p>
+          <p className="mt-10 border border-border bg-secondary p-6 text-sm">
+            No submissions match this status.
+          </p>
         ) : (
           <div className="mt-10 overflow-x-auto border border-border">
             <table className="w-full min-w-[900px] border-collapse text-sm">
@@ -56,19 +90,37 @@ export default async function VerificationQueuePage() {
               </thead>
               <tbody>
                 {rows.map(({ organization, account }) => (
-                  <tr key={organization.id} className="border-b border-border last:border-b-0">
+                  <tr
+                    key={organization.id}
+                    className="border-b border-border last:border-b-0"
+                  >
                     <td className="p-4">
-                      <Link href={`/manage/verification/${organization.id}`} className="font-semibold text-primary">
+                      <Link
+                        href={`/manage/verification/${organization.id}`}
+                        className="font-semibold text-primary"
+                      >
                         {organization.legalName}
                       </Link>
                     </td>
                     <td className="p-4">
-                      {account.name} <span className="font-mono text-xs text-muted-foreground">{account.email}</span>
+                      {account.name}{' '}
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {account.email}
+                      </span>
                     </td>
-                    <td className="p-4 font-mono text-xs">{organization.website}</td>
-                    <td className="p-4 font-mono text-xs">{organization.submittedAt.toISOString().slice(0, 10)}</td>
-                    <td className="p-4 text-muted-foreground">{organization.reviewFlags.length || '—'}</td>
-                    <td className="p-4">{STATUS_LABEL[organization.verificationStatus] ?? organization.verificationStatus}</td>
+                    <td className="p-4 font-mono text-xs">
+                      {organization.website}
+                    </td>
+                    <td className="p-4 font-mono text-xs">
+                      {organization.submittedAt.toISOString().slice(0, 10)}
+                    </td>
+                    <td className="p-4 text-muted-foreground">
+                      {organization.reviewFlags.length || '—'}
+                    </td>
+                    <td className="p-4">
+                      {STATUS_LABEL[organization.verificationStatus] ??
+                        organization.verificationStatus}
+                    </td>
                   </tr>
                 ))}
               </tbody>
