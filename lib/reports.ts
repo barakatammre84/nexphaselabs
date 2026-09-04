@@ -35,6 +35,9 @@ export type OrderLineRow = {
   costCents: number | null;
   /** Order-level figures, repeated on every line of the order; exports print them once. */
   orderTotalCents: number;
+  orderShippingCents: number;
+  /** Remaining recorded obligation, not proof that a provider refund has occurred. */
+  refundOutstandingCents: number;
   refundCents: number | null;
   refundedOn: Date | null;
   refundRef: string | null;
@@ -78,6 +81,8 @@ export async function orderLines(): Promise<OrderLineRow[]> {
     lotNumber: it.lotNumber,
     costCents: it.lotId ? allocatedCost(lotCosts.get(it.lotId), it.packSize, it.quantity) : null,
     orderTotalCents: o.totalCents,
+    orderShippingCents: o.shippingCents,
+    refundOutstandingCents: o.paymentStatus === 'refund_due' ? Math.max(0, (o.refundDueCents ?? o.totalCents) - (o.refundCents ?? 0)) : 0,
     refundCents: o.refundCents,
     refundedOn: o.refundedAt,
     refundRef: o.refundRef,

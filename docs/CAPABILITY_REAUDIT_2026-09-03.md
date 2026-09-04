@@ -106,3 +106,34 @@ This section supersedes the initial gap/status snapshot above. Whole-business re
 7. **Finance/recovery/whole-team rehearsal:** exercise reconciliation against representative settled/refunded orders, recovery from a backup, and the supplier → receipt → release → institution → order → simulated payment → shipment → return/refund → reporting/document chain. Confirm deployed plan limits for worst-case multi-lot batches; per-query bind tests do not establish a billing-plan query budget.
 
 Runbook/process/frontend skills shaped the repeatable handling and verification steps; they do not establish regulatory, accounting or business-launch approval.
+
+## Purchasing, payment recovery and report re-audit — 4 September 2026 UTC
+
+This pass continued from the actual application and Claude's existing Phase 8.1, without replacing the in-progress COA files. It does not mark every business capability complete.
+
+### Completed fix → re-test → re-audit loops
+| Handoff | Before | After and evidence |
+| --- | --- | --- |
+| Supplier review → purchase order | Eligibility and identity could change before the order committed; draft sending did not recheck qualification. | Guarded creation checks supplier approval/active status/revision/name and product name/withdrawal. Dependent lines/events require the accepted parent. Sending rechecks eligibility; cancellation remains available. |
+| Supplier editing → qualification | A stale form could overwrite a newer edit, or approve evidence that had changed. | Revision-guarded edits and decisions, with no false history on a lost race. |
+| Expected receipt → intake | Cost edits could make automatic landed-cost allocation stale; loading all open POs failed above 100 bound IDs. | Intake rechecks allocated cost, quantities, product and order state. One bound JSON array handles order IDs. Single-line lookup no longer loads every open receipt. Verified with 105 open POs. |
+| Intake/correction → inventory | A withdrawal could race intake; cancelling/closing an order could race quantity correction and reopen its line. Tomorrow's receipt date was accepted. | Guarded intake for both PO and non-PO receipts, atomic parent/line checks on corrections, disposition recheck and calendar-date validation. Partial receipt/correction tests preserve cost, quantities and quarantine. |
+| Provider settlement → cancelled order | Late settlement was acknowledged without recording money received; transient state conflicts could receive a successful HTTP acknowledgement. | Matched late settlement stays cancelled, records payment and a refund obligation, queues one notice, and never authorizes shipment or sends funds. Duplicate deliveries are harmless, replacement invoice references are rechecked, transient failures request retry. Signed webhook must match the configured store. |
+| Refund review → recording | Amount owed could change between review and commit. | Refund recording now checks the reviewed obligation as well as prior refunds. Provider requests have bounded waits; raw provider error bodies are not logged. |
+| Operational reports → reconciliation | Export margin did not distinguish gross from net of refunds; total, shipping and remaining refund obligation were absent. | Explicit gross/net columns; order total, shipping and outstanding refund printed once per order. Tests reconcile a partial return, refund shares and lot costs; cancelled orders remain outside the sales summary. |
+
+- Added 38 regression cases: 22 purchasing/receiving, 11 payment recovery and 5 reporting.
+- Release snapshot: 303 tests across 33 files; typecheck, lint, staging build and deployment dry run passed.
+- Integrated shared project including Claude's current COA tests: 328 tests across 34 files; typecheck and lint passed.
+- No schema migration, provider call, payment, email, shipment, credential change or production/DNS/WordPress change was needed for these checks.
+- Export compatibility note: the old `Margin` header is now `Gross margin before refunds`, and four reconciliation columns are appended. Review downstream import mappings; this is an operational CSV, not a certified accounting import.
+- Runtime assumptions were checked against [Cloudflare's D1 transactions](https://developers.cloudflare.com/d1/worker-api/d1-database/) and [limits](https://developers.cloudflare.com/d1/platform/limits/). Settlement semantics were checked against [BTCPay's integration guide](https://docs.btcpayserver.org/Development/ecommerce-integration-guide/) and [webhook API](https://docs.btcpayserver.org/API/Greenfield/v1/).
+
+### Re-evaluated next work — not hidden behind a “complete” label
+1. Payment invoice creation still needs durable claim/reconciliation for concurrent requests and uncertain provider responses. The cancellation/settlement fixes above do not solve an invoice created externally before its reference is saved. Keep live acceptance off until this lifecycle is implemented and rehearsed.
+2. The stock/shipping/tax approval and reservation decisions remain unanswered. The system still must not treat zero shipping or absent tax as an approved commercial policy.
+3. Continue Claude's document milestone, then issued invoices, packing slips and approved labels. Do not redeploy unreviewed COA work or overwrite it.
+4. Remaining operational gates from the preceding section still apply: non-order email recovery/configuration, role and retest policy, backup restoration, provider reconciliation and the named-team staging rehearsal.
+5. Reports currently read the complete history in memory. Before material volume grows, add bounded date filters/pagination and measure response size; the 105-PO parameter fix is not proof of unlimited report capacity.
+
+The process-review skill guided the repeated handoff checks, and Cloudflare/Wrangler guidance guided the isolated staging verification. No business or regulatory approval is implied.

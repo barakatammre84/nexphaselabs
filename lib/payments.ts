@@ -72,6 +72,7 @@ const btcpay: PaymentMethod = {
     const host = String(env.BTCPAY_HOST).replace(/\/$/, '');
     const response = await fetch(`${host}/api/v1/stores/${env.BTCPAY_STORE_ID}/invoices`, {
       method: 'POST',
+      signal: AbortSignal.timeout(10_000),
       headers: { Authorization: `token ${env.BTCPAY_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         amount: (order.totalCents / 100).toFixed(2),
@@ -81,8 +82,7 @@ const btcpay: PaymentMethod = {
       }),
     });
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      console.error('[payments] btcpay invoice failed', response.status, body.slice(0, 300));
+      console.error('[payments] btcpay invoice failed', response.status);
       throw new Error('BTCPay invoice could not be created.');
     }
     const invoice = (await response.json()) as { id: string; checkoutLink: string };
@@ -143,13 +143,15 @@ export function btcpayCheckoutUrl(invoiceId: string): string | null {
   return `${String(env.BTCPAY_HOST).replace(/\/$/, '')}/i/${invoiceId}`;
 }
 
-/** Best effort: mark a BTCPay invoice invalid when the order is cancelled, so a late payment is not accepted. */
+/** Best effort: request invalidation on cancellation. This does not guarantee
+ * that money cannot arrive; settlement handling must still account for it. */
 export async function invalidateBtcpayInvoice(invoiceId: string): Promise<void> {
   if (!btcpay.enabled() || !/^[A-Za-z0-9]{6,64}$/.test(invoiceId)) return;
   try {
     const host = String(env.BTCPAY_HOST).replace(/\/$/, '');
     const response = await fetch(`${host}/api/v1/stores/${env.BTCPAY_STORE_ID}/invoices/${invoiceId}/status`, {
       method: 'POST',
+      signal: AbortSignal.timeout(10_000),
       headers: { Authorization: `token ${env.BTCPAY_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'Invalid' }),
     });

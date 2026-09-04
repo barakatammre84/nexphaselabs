@@ -263,7 +263,9 @@ export async function transitionOrder(
         updatedAt: now,
         ...(to === 'cancelled' ? { cancelledAt: now, cancelReason: note } : {}),
       })
-      .where(and(eq(orders.id, order.id), eq(orders.status, order.status)))
+      .where(and(eq(orders.id, order.id), eq(orders.status, order.status),
+        eq(orders.paymentStatus, order.paymentStatus), sql`${orders.paymentRef} IS ${order.paymentRef}`,
+        sql`${orders.lastTransitionId} IS ${order.lastTransitionId}`))
       .returning({ id: orders.id }),
     db.insert(orderEvents).select(
       db
@@ -362,20 +364,41 @@ export async function markOrderPaid(detail: OrderDetail, actor: string, referenc
   return moved;
 }
 
-/** A settled BTCPay invoice marks its order paid. Idempotent: an already-paid order is left alone. */
-export async function settleBtcpayInvoice(orderNumber: string, invoiceId: string): Promise<{ ok: boolean; note: string }> {
-  const detail = await getOrderByNumber(orderNumber);
-  if (!detail) return { ok: false, note: 'unknown order' };
-  if (detail.order.paymentMethod !== 'btcpay' || detail.order.paymentRef !== invoiceId) return { ok: false, note: 'invoice does not match order' };
-  if (detail.order.status === 'paid' || detail.order.paymentStatus === 'paid') return { ok: true, note: 'already paid' };
-  const moved = await transitionOrder(detail.order, 'paid', 'system', 'BTCPay Server', `Invoice ${invoiceId} settled.`, {
-    paymentStatus: 'paid',
-    paidAt: new Date(),
-  });
-  return moved.ok ? { ok: true, note: 'paid' } : { ok: false, note: moved.error };
+/** Record a matched settlement once, including money arriving after cancellation.
+ * Cancellation never erases incoming money or reopens fulfilment: the existing
+ * refund-obligation workflow handles it; this function never transfers funds. */
+export async function settleBtcpayInvoice(orderNumber: string, invoiceId: string): Promise<{ ok: boolean; note: string; retryable?: boolean }> {
+  const db = getDb();
+  // Re-read once if cancellation/another settlement wins during the batch.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const detail = await getOrderByNumber(orderNumber);
+    if (!detail) return { ok: false, note: 'unknown order' };
+    const order = detail.order;
+    if (order.paymentMethod !== 'btcpay' || order.paymentRef !== invoiceId) return { ok: false, note: 'invoice does not match order' };
+    if (order.paidAt || ['paid', 'refund_due', 'refunded'].includes(order.paymentStatus)) return { ok: true, note: 'settlement already recorded' };
+    const cancelled = order.status === 'cancelled';
+    if (order.status !== 'awaiting_payment' && !cancelled) return { ok: false, note: 'order is not ready for settlement', retryable: true };
+    const now = new Date();
+    const marker = id('otr');
+    const note = cancelled ? `Invoice ${invoiceId} settled after cancellation. Payment recorded; refund review required. No shipment authorized.` : `Invoice ${invoiceId} settled.`;
+    const [changed] = await db.batch([
+      db.update(orders).set({
+        status: cancelled ? 'cancelled' : 'paid', paymentStatus: cancelled ? 'refund_due' : 'paid',
+        paidAt: now, ...(cancelled ? { refundDueCents: order.totalCents } : {}), lastTransitionId: marker, updatedAt: now,
+      }).where(and(eq(orders.id, order.id), eq(orders.status, order.status), eq(orders.paymentStatus, order.paymentStatus),
+        eq(orders.paymentMethod, 'btcpay'), eq(orders.paymentRef, invoiceId), isNull(orders.paidAt),
+        sql`${orders.lastTransitionId} IS ${order.lastTransitionId}`)).returning({ id: orders.id }),
+      conditionalInsert(orderEvents, { id: id('oev'), orderId: order.id, fromStatus: order.status,
+        toStatus: cancelled ? 'cancelled' : 'paid', note, actor: 'BTCPay Server', createdAt: now },
+      orders, and(eq(orders.id, order.id), eq(orders.lastTransitionId, marker))!),
+    ]);
+    if (changed.length) return { ok: true, note: cancelled ? 'late payment recorded; refund review required' : 'paid' };
+  }
+  return { ok: false, note: 'order changed during settlement; retry required', retryable: true };
 }
 
-/** Customer cancels an unpaid order. A pending BTCPay invoice is invalidated so a late payment is not accepted. */
+/** Cancel an unpaid order and request invoice invalidation. A later settlement
+ * can still arrive and must be recorded separately, never silently discarded. */
 export async function cancelOrderByCustomer(detail: OrderDetail, actor: string, reason: string | null) {
   const moved = await transitionOrder(detail.order, 'cancelled', 'customer', actor, reason ?? 'Cancelled by the customer.', {
     paymentStatus: detail.order.paymentStatus === 'pending' ? 'failed' : detail.order.paymentStatus,
@@ -428,7 +451,8 @@ export async function recordRefund(
         lastTransitionId: marker,
         updatedAt: now,
       })
-      .where(and(eq(orders.id, order.id), eq(orders.paymentStatus, 'refund_due'), sql`COALESCE(${orders.refundCents}, 0) = ${already}`))
+      .where(and(eq(orders.id, order.id), eq(orders.paymentStatus, 'refund_due'), sql`COALESCE(${orders.refundCents}, 0) = ${already}`,
+        sql`COALESCE(${orders.refundDueCents}, ${orders.totalCents}) = ${due}`))
       .returning({ id: orders.id }),
     db.insert(orderEvents).select(
       db

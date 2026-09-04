@@ -7,6 +7,7 @@ import {
   lotStatusEvents,
   lotTests,
   lots,
+  products,
   purchaseOrderEvents,
   purchaseOrderLines,
   purchaseOrders,
@@ -124,6 +125,9 @@ export async function createLot(
 
   const now = new Date();
   const id = lotId();
+  const productCurrent = sql`EXISTS (SELECT 1 FROM products p WHERE p.id = ${product.id}
+    AND p.code = ${product.code} AND p.name = ${product.name} AND p.cas_number = ${product.casNumber}
+    AND p.visibility != 'withdrawn')`;
   // From an expected receipt: the supplier is the purchase order's, and the landed cost — unless typed —
   // is this receipt's conserved share of the line's landed cost (material + freight/duty share).
   const supplierName = validated.supplierName ?? expected?.supplierName ?? null;
@@ -135,7 +139,7 @@ export async function createLot(
     if (expected.receivedQuantity && !sumQuantities([expected.receivedQuantity, validated.quantityReceived])) {
       return { ok: false, error: `This receipt cannot be added to the ${expected.receivedQuantity} already received on the line.` };
     }
-    receipt = receiptStatements(expected.lineId, id, validated.quantityReceived, staff, now, expected);
+    receipt = receiptStatements(expected.lineId, id, validated.quantityReceived, staff, now, expected, productCurrent);
   }
   const share = expected ? quantityRatio(validated.quantityReceived, expected.quantity) : 1;
   const costCents = validated.costCents ?? (expected && receipt ? receiptCostCents(expected.landedCostCents, expected.allocatedCents, share, receipt.complete) : null);
@@ -198,11 +202,12 @@ export async function createLot(
 
   try {
     if (!receipt) {
-      await db.batch([
-        db.insert(lots).values(lotValues),
-        db.insert(lotMovements).values(movementValues),
-        ...(costEventValues ? [db.insert(lotStatusEvents).values(costEventValues)] : []),
+      const [created] = await db.batch([
+        insertWhere(lots, lotValues, products, and(eq(products.id, product.id), productCurrent)!).returning({ id: lots.id }),
+        insertWhere(lotMovements, movementValues, lots, eq(lots.id, id)),
+        ...(costEventValues ? [insertWhere(lotStatusEvents, costEventValues, lots, eq(lots.id, id))] : []),
       ] as unknown as Parameters<typeof db.batch>[0]);
+      if (!created || (created as unknown[]).length === 0) return { ok: false, error: 'The catalog product changed during intake. Reload and review again.' };
     } else {
       // Purchase-order path: claim the line first; the lot and everything after it exist only if the claim landed.
       const lotExists = sql`${lots.id} = ${id}`;
@@ -214,7 +219,7 @@ export async function createLot(
         ...receipt.after,
       ] as unknown as Parameters<typeof db.batch>[0]);
       if (!claimed || (claimed as unknown[]).length === 0) {
-        return { ok: false, error: 'Someone else received against that purchase-order line a moment ago. Reload, check the line, and record again.' };
+        return { ok: false, error: 'The purchase order, receipt quantities, allocated costs or catalog changed during intake. Reload and review again.' };
       }
     }
   } catch (error) {
@@ -579,7 +584,7 @@ export async function correctLot(
   let lineGuard: SQL = sql`1 = 1`;
   if (quantityChanging && current.purchaseOrderLineId) {
     const [line] = await db
-      .select({ l: purchaseOrderLines, poId: purchaseOrders.id, poStatus: purchaseOrders.status })
+      .select({ l: purchaseOrderLines, poId: purchaseOrders.id, poStatus: purchaseOrders.status, poTransition: purchaseOrders.lastTransitionId })
       .from(purchaseOrderLines)
       .innerJoin(purchaseOrders, eq(purchaseOrderLines.purchaseOrderId, purchaseOrders.id))
       .where(eq(purchaseOrderLines.id, current.purchaseOrderLineId))
@@ -595,7 +600,11 @@ export async function correctLot(
       const complete = compareQuantities(newTotal, line.l.quantity) >= 0;
       // The lot claim (below) also requires the line to be exactly as read, so a receipt landing
       // between the read and this batch makes the whole correction a no-op instead of half-applying.
-      lineGuard = sql`EXISTS (SELECT 1 FROM ${purchaseOrderLines} WHERE ${purchaseOrderLines.id} = ${line.l.id} AND ${purchaseOrderLines.receivedCount} = ${line.l.receivedCount} AND ${purchaseOrderLines.receivedQuantity} IS ${line.l.receivedQuantity})`;
+      lineGuard = sql`EXISTS (SELECT 1 FROM ${purchaseOrderLines} WHERE ${purchaseOrderLines.id} = ${line.l.id}
+        AND ${purchaseOrderLines.receivedCount} = ${line.l.receivedCount} AND ${purchaseOrderLines.receivedQuantity} IS ${line.l.receivedQuantity}
+        AND ${purchaseOrderLines.closedAt} IS ${line.l.closedAt ? Math.floor(line.l.closedAt.getTime() / 1000) : null})
+        AND EXISTS (SELECT 1 FROM ${purchaseOrders} WHERE ${purchaseOrders.id} = ${line.poId}
+          AND ${purchaseOrders.status} = ${line.poStatus} AND ${purchaseOrders.lastTransitionId} IS ${line.poTransition})`;
       const claimed = sql`EXISTS (SELECT 1 FROM ${lots} WHERE ${lots.id} = ${current.id} AND ${lots.supersededById} = ${newId})`;
       lineStatements.push(
         db
@@ -624,6 +633,8 @@ export async function correctLot(
             .where(and(eq(purchaseOrders.id, line.poId), claimed)),
         ),
       );
+    } else {
+      return { ok: false, error: 'The linked purchase-order line is missing. Reconcile the receipt before correcting its quantity.' };
     }
   }
   const [claimed] = await db.batch([
@@ -634,6 +645,7 @@ export async function correctLot(
         and(
           eq(lots.id, current.id),
           isNull(lots.supersededById),
+          eq(lots.status, current.status),
           // The nothing-shipped rule re-checked at write time, not from the earlier read.
           quantityChanging ? sql`${lots.quantityRemaining} = ${lots.quantityReceived}` : sql`1 = 1`,
           lineGuard,
