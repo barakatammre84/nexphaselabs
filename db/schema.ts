@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+export { notifications, notificationEvents } from './notifications-schema';
 import {
   index,
   integer,
@@ -325,6 +326,33 @@ export const products = sqliteTable(
       .$type<string[]>()
       .notNull()
       .default([]),
+    /**
+     * GHS hazard classification, for container labels and the hazard
+     * communication programme.
+     *
+     * Null means nobody has classified this material yet, which is not the
+     * same as "not hazardous" — that is recorded as a signal word of `none`
+     * with a source, so the absence of a hazard is a decision somebody made
+     * rather than a field nobody filled in. `dissent` carries a supplier
+     * disagreement verbatim; classifications are never silently reconciled.
+     */
+    hazard: text('hazard', { mode: 'json' })
+      .$type<{
+        signalWord: 'danger' | 'warning' | 'none';
+        /** GHS01..GHS09. */
+        pictograms: string[];
+        hazardStatements: { code: string; text: string }[];
+        precautionaryStatements: { code: string; text: string }[];
+        /** Hazard class and category, e.g. 'Skin irritation, Category 2'. */
+        classification: string[];
+        /** Where the classification came from. Required. */
+        source: string;
+        /** A supplier that classifies it differently, recorded not resolved. */
+        dissent: string | null;
+        reviewedBy: string;
+        /** ISO date. */
+        reviewedAt: string;
+      } | null>(),
     hasSds: integer('has_sds', { mode: 'boolean' }).notNull().default(false),
     /** Path under /public, or null where no photograph of this material exists. */
     image: text('image'),
@@ -885,6 +913,8 @@ export const orders = sqliteTable(
     id: text('id').primaryKey(),
     orderNumber: text('order_number').notNull(),
     accountId: text('account_id').notNull(),
+    /** Checkout contact, not a verified identity or a login credential. */
+    contactEmail: text('contact_email'),
     organizationId: text('organization_id'),
     /** research_direct | (future) prescribed */
     channel: text('channel').notNull().default('research_direct'),
@@ -1152,9 +1182,9 @@ export const issuedDocuments = sqliteTable(
   'issued_documents',
   {
     id: text('id').primaryKey(),
-    /** coa | invoice | packing_slip | ghs_label */
+    /** coa | invoice | packing_slip | hazcom */
     kind: text('kind').notNull(),
-    /** lot | order | product */
+    /** lot | order | product | facility */
     subjectType: text('subject_type').notNull(),
     subjectId: text('subject_id').notNull(),
     /** Printed on the document. Unique for all time — an invoice number is never reused. */
@@ -1193,3 +1223,26 @@ export const documentSequences = sqliteTable('document_sequences', {
 
 export type IssuedDocument = typeof issuedDocuments.$inferSelect;
 export type DocumentSequence = typeof documentSequences.$inferSelect;
+
+/* -------------------------------------------------------------------------- */
+/* Operating settings (Phase 8.5)                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Facts about the operation that documents need and code must not invent:
+ * the registered address and telephone that a GHS label has to carry, who is
+ * responsible for the hazard communication programme, where material is
+ * handled, how staff reach a safety data sheet.
+ *
+ * These live in the database rather than in `lib/entity.ts` because they are
+ * the owner's to set and change without a deploy — the same reason the
+ * catalog is data. Every change is attributed.
+ */
+export const settings = sqliteTable('settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedBy: text('updated_by').notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+});
+
+export type Setting = typeof settings.$inferSelect;

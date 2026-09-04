@@ -39,6 +39,15 @@ export const FORM_FIELDS = [
   'status',
   'description',
   'sourceNotes',
+  'hazardSignalWord',
+  'hazardPictograms',
+  'hazardStatements',
+  'hazardPrecautionary',
+  'hazardClassification',
+  'hazardSource',
+  'hazardDissent',
+  'hazardReviewedBy',
+  'hazardReviewedAt',
   'hasSds',
   'image',
   'featured',
@@ -110,6 +119,21 @@ export function valuesToInput(v: FormValues): ProductInput {
     status: v.status ?? '',
     description: v.description ?? '',
     sourceNotes: lines(v.sourceNotes ?? ''),
+    hazard: null,
+    hazardDraft: {
+      signalWord: v.hazardSignalWord ?? '',
+      pictograms: (v.hazardPictograms ?? '')
+        .split(/[,\s]+/)
+        .map((c) => c.trim())
+        .filter(Boolean),
+      hazardStatements: lines(v.hazardStatements ?? ''),
+      precautionaryStatements: lines(v.hazardPrecautionary ?? ''),
+      classification: lines(v.hazardClassification ?? ''),
+      source: v.hazardSource ?? '',
+      dissent: v.hazardDissent ?? '',
+      reviewedBy: v.hazardReviewedBy ?? '',
+      reviewedAt: v.hazardReviewedAt ?? '',
+    },
     hasSds: v.hasSds === 'on' || v.hasSds === 'true',
     image: v.image || null,
     featured: v.featured === 'on' || v.featured === 'true',
@@ -173,6 +197,19 @@ export function productToValues(p: CatalogProduct): FormValues {
     status: p.status,
     description: p.description,
     sourceNotes: p.sourceNotes.join('\n'),
+    hazardSignalWord: p.hazard?.signalWord ?? '',
+    hazardPictograms: (p.hazard?.pictograms ?? []).join(' '),
+    hazardStatements: (p.hazard?.hazardStatements ?? [])
+      .map((h) => `${h.code} ${h.text}`)
+      .join('\n'),
+    hazardPrecautionary: (p.hazard?.precautionaryStatements ?? [])
+      .map((h) => `${h.code} ${h.text}`)
+      .join('\n'),
+    hazardClassification: (p.hazard?.classification ?? []).join('\n'),
+    hazardSource: p.hazard?.source ?? '',
+    hazardDissent: p.hazard?.dissent ?? '',
+    hazardReviewedBy: p.hazard?.reviewedBy ?? '',
+    hazardReviewedAt: p.hazard?.reviewedAt ?? '',
     hasSds: p.hasSds ? 'on' : '',
     image: p.image ?? '',
     featured: p.featured ? 'on' : '',

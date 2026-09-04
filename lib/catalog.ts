@@ -25,6 +25,8 @@
  * product inserts of Cayman Chemical, MedChemExpress and MilliporeSigma.
  */
 
+import type { Hazard } from '@/lib/hazard';
+
 /**
  * Chemical classes live in the `chemical_classes` table and are managed in the
  * catalog manager. The type is a plain string: the set of classes is data.
@@ -120,6 +122,13 @@ export type Product = {
   status: ProductStatus;
   description: string;
   sourceNotes: string[];
+  /**
+   * GHS classification, for container labels and the hazard communication
+   * programme. Undefined means nobody has classified this material yet, which
+   * is not the same as a recorded finding that it is not hazardous — that is a
+   * `signalWord` of `none` with a source behind it.
+   */
+  hazard?: Hazard;
   hasSds: boolean;
   /** Omitted where we do not yet hold a photograph of the material. */
   image?: string;
@@ -131,7 +140,7 @@ export type Product = {
  * catalog index. Not a footer element.
  */
 export const REGULATORY_STATEMENT =
-  'For laboratory research use only. Not for human or veterinary use. Not for diagnostic or therapeutic use. Supplied only to qualified organisations under a verified account.';
+  'For laboratory research use only. Not for human or veterinary use. Not for diagnostic or therapeutic use.';
 
 export const STANDARD_DOCUMENTATION = [
   'Lot-specific certificate of analysis',

@@ -61,6 +61,7 @@ function productColumns(v: ProductInput, staff: StaffPrincipal, now: Date) {
     status: v.status,
     description: v.description,
     sourceNotes: v.sourceNotes,
+    hazard: v.hazard,
     hasSds: v.hasSds,
     image: v.image ?? null,
     featured: v.featured,

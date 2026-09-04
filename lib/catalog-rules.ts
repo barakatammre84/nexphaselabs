@@ -11,6 +11,7 @@
  * it either. If a rule here is loosened, it must be loosened knowingly.
  */
 
+import { validateHazard, type Hazard, type HazardInput } from '@/lib/hazard';
 import type { ChemicalClass, ProductStatus } from '@/lib/catalog';
 
 /* ------------------------------------------------------------------------ */
@@ -230,6 +231,10 @@ export type ProductInput = {
   status: string;
   description: string;
   sourceNotes: string[];
+  /** The validated classification, produced by `validateProductInput`. */
+  hazard: Hazard | null;
+  /** The classification as typed into the form, before validation. */
+  hazardDraft?: HazardInput | null;
   hasSds: boolean;
   /** null, a repository asset `/products/<slug>.<ext>`, or an R2 key `products/<CODE>/image/<id>.<ext>` set by the upload tool. */
   image?: string | null;
@@ -369,6 +374,8 @@ export function validateProductInput(
     status: t(raw.status),
     description: t(raw.description),
     sourceNotes: (raw.sourceNotes ?? []).map(t).filter(Boolean),
+    hazard: raw.hazard ?? null,
+    hazardDraft: raw.hazardDraft ?? null,
     hasSds: Boolean(raw.hasSds),
     image: t(raw.image) || null,
     featured: Boolean(raw.featured),
@@ -524,6 +531,33 @@ export function validateProductInput(
   // Provenance — every published figure needs a source (CLAUDE.md rule 4).
   if (value.sourceNotes.length === 0)
     errors.push('At least one source note is required before saving.');
+
+  // GHS classification. Left blank the product is simply unclassified, which
+  // is a state the hazard communication programme reports rather than hides.
+  const draft = raw.hazardDraft;
+  const drafted =
+    draft &&
+    Boolean(
+      draft.signalWord?.trim() ||
+        draft.source?.trim() ||
+        draft.reviewedBy?.trim() ||
+        draft.reviewedAt?.trim() ||
+        draft.pictograms?.length ||
+        draft.hazardStatements?.length ||
+        draft.precautionaryStatements?.length ||
+        draft.classification?.length,
+    );
+  if (drafted && draft) {
+    const checked = validateHazard(draft);
+    if (checked.ok) {
+      value.hazard = checked.value;
+    } else {
+      errors.push(...checked.errors);
+      violations.push(...checked.violations);
+    }
+  } else {
+    value.hazard = null;
+  }
 
   // Visibility
   if (!(VISIBILITIES as readonly string[]).includes(value.visibility)) {

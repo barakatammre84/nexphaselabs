@@ -17,17 +17,23 @@ import { documentSequences, issuedDocuments, type IssuedDocument } from '@/db/sc
  *     object, its hash and its number, and points at the replacement.
  */
 
-export const DOCUMENT_KINDS = ['coa', 'invoice', 'packing_slip', 'ghs_label'] as const;
+/**
+ * Container labels are deliberately absent. A label is reprinted every time a
+ * vial is filled; archiving each print would bury the records that matter
+ * without making any container safer. What is kept is the classification the
+ * label is generated from, and the written programme below.
+ */
+export const DOCUMENT_KINDS = ['coa', 'invoice', 'packing_slip', 'hazcom'] as const;
 export type IssuedDocumentKind = (typeof DOCUMENT_KINDS)[number];
 
 export const DOCUMENT_KIND_LABEL: Record<IssuedDocumentKind, string> = {
   coa: 'Certificate of analysis',
   invoice: 'Invoice',
   packing_slip: 'Packing slip',
-  ghs_label: 'Container label',
+  hazcom: 'Hazard communication programme',
 };
 
-export type SubjectType = 'lot' | 'order' | 'product';
+export type SubjectType = 'lot' | 'order' | 'product' | 'facility';
 
 export function isDocumentKind(value: string): value is IssuedDocumentKind {
   return (DOCUMENT_KINDS as readonly string[]).includes(value);

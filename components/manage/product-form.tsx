@@ -304,6 +304,86 @@ export function ProductForm({ initial, mode, classes, action }: Props) {
         />
       </section>
 
+      <section className="grid gap-6">
+        <h2 className="utility-label text-primary">GHS hazard classification</h2>
+        <p className="max-w-[70ch] text-sm leading-6 text-muted-foreground">
+          What a container label states. Leave every field blank and the material is simply
+          unclassified — the hazard communication programme reports that rather than hiding it.
+          A signal word of <span className="font-mono">none</span> is different: it records a
+          finding that the material is not classified as hazardous, and needs a source like any
+          other figure.
+        </p>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="hazardSignalWord" className={label}>
+              Signal word
+            </label>
+            <select
+              id="hazardSignalWord"
+              name="hazardSignalWord"
+              key={`k-${v.hazardSignalWord || ''}`}
+              defaultValue={v.hazardSignalWord || ''}
+              className={input}
+            >
+              <option value="">Not classified</option>
+              <option value="danger">danger</option>
+              <option value="warning">warning</option>
+              <option value="none">none (not classified as hazardous)</option>
+            </select>
+          </div>
+          <Field
+            name="hazardPictograms"
+            title="Pictograms"
+            values={v}
+            hint="GHS codes separated by spaces, e.g. GHS07 GHS08."
+          />
+        </div>
+        <Field
+          name="hazardStatements"
+          title="Hazard statements"
+          values={v}
+          multiline
+          hint="One per line, code then text: H315 Causes skin irritation."
+        />
+        <Field
+          name="hazardPrecautionary"
+          title="Precautionary statements"
+          values={v}
+          multiline
+          hint="One per line: P264 Wash hands thoroughly after handling."
+        />
+        <Field
+          name="hazardClassification"
+          title="Hazard class and category"
+          values={v}
+          multiline
+          hint="One per line, e.g. Skin irritation, Category 2."
+        />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Field
+            name="hazardSource"
+            title="Source of the classification"
+            values={v}
+            hint="The SDS or supplier this is taken from. Required when anything above is filled in."
+          />
+          <Field
+            name="hazardDissent"
+            title="Supplier disagreement"
+            values={v}
+            hint="Where a supplier classifies it differently, record theirs here rather than choosing between them."
+          />
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Field name="hazardReviewedBy" title="Reviewed by" values={v} />
+          <Field
+            name="hazardReviewedAt"
+            title="Date reviewed"
+            values={v}
+            hint="YYYY-MM-DD."
+          />
+        </div>
+      </section>
+
       <section className="grid gap-6 lg:grid-cols-2">
         <h2 className="utility-label text-primary lg:col-span-2">
           Publication

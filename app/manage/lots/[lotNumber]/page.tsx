@@ -7,6 +7,8 @@ import { LotCorrectionForm } from '@/components/manage/lot-correction-form';
 import { LotTestForm } from '@/components/manage/lot-test-form';
 import { DOCUMENT_LABEL, DOCUMENT_TYPES, isDocumentType } from '@/lib/documents';
 import { previewCoa } from '@/lib/coa';
+import { LABEL_SIZES } from '@/lib/hazard';
+import { labelPreviewForLot } from '@/lib/hazard-label';
 import { documentHistory } from '@/lib/issued-documents';
 import { ALLOWED_TRANSITIONS, TEST_TYPE_LABEL, lotNumberFromParam, releaseBlockers, type TestType } from '@/lib/lot-rules';
 import { lotVersions } from '@/lib/lot-family';
@@ -76,7 +78,11 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
   const blockers = releaseBlockers(lot, tests);
   const allowed = ALLOWED_TRANSITIONS[lot.status] ?? [];
   const uploadError = error ? (UPLOAD_ERROR[error] ?? UPLOAD_ERROR.store) : null;
-  const [coa, issuedDocs] = await Promise.all([previewCoa(normalised), documentHistory('lot', lot.lotNumber)]);
+  const [coa, issuedDocs, label] = await Promise.all([
+    previewCoa(normalised),
+    documentHistory('lot', lot.lotNumber),
+    labelPreviewForLot(normalised),
+  ]);
   const coaHistory = issuedDocs.filter((d) => d.kind === 'coa');
 
   return (
@@ -200,6 +206,83 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
 
           </div>
         </div>
+
+        <h2 className="mt-12 utility-label text-primary">Container labels</h2>
+        {label === null ? (
+          <p className="mt-4 text-sm text-muted-foreground">Unavailable.</p>
+        ) : (
+          <div className="mt-4 border border-border bg-secondary p-5">
+            {label.blockers.length > 0 ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Labels cannot be printed for this lot yet:
+                </p>
+                <ul className="mt-3 space-y-1.5 text-sm">
+                  {label.blockers.map((blocker) => (
+                    <li key={blocker} className="flex gap-2">
+                      <AlertCircle className="mt-0.5 size-3.5 shrink-0 text-destructive" />
+                      <span>{blocker}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-4 text-xs leading-5 text-muted-foreground">
+                  Classification is set on the product page. The registered address, telephone and
+                  pictogram artwork are set under Hazard comms.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Printed on demand from the classification held against{' '}
+                  <span className="font-mono">{lot.productCode}</span>. Labels are not archived;
+                  the classification behind them is.
+                </p>
+                <form
+                  method="get"
+                  action={`/api/manage/lots/${encodeURIComponent(lot.lotNumber)}/label`}
+                  target="_blank"
+                  className="mt-4 flex flex-wrap items-end gap-3"
+                >
+                  <label className="flex flex-col gap-1.5 text-sm">
+                    Label stock
+                    <select
+                      name="size"
+                      defaultValue="bottle"
+                      className="h-11 border border-foreground/20 bg-background px-3 text-sm"
+                    >
+                      {Object.entries(LABEL_SIZES).map(([key, stock]) => (
+                        <option key={key} value={key}>
+                          {stock.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-sm">
+                    Copies
+                    <input
+                      name="copies"
+                      type="number"
+                      min={1}
+                      max={100}
+                      defaultValue={1}
+                      className="h-11 w-24 border border-foreground/20 bg-background px-3 text-sm"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="inline-flex h-11 items-center justify-center gap-2 border border-foreground/20 px-5 text-sm font-bold hover:bg-background"
+                  >
+                    <FileText className="size-4" /> Print labels
+                  </button>
+                </form>
+                <p className="mt-4 text-xs leading-5 text-muted-foreground">
+                  If the content does not fit the stock chosen, the label is refused rather than
+                  trimmed — every element on it is required.
+                </p>
+              </>
+            )}
+          </div>
+        )}
 
         <h2 className="mt-12 utility-label text-primary">Certificate of analysis</h2>
         {coa === null ? (

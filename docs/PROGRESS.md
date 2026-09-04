@@ -119,7 +119,25 @@ Phase 7 ships: every value staff change is data with a tool (classes, photograph
 
   Certificates, invoices and packing slips are all filed against the number a person holding the
   paper can quote back — the lot number or the order number — never a row id.
-- [ ] 8.5 GHS container labels and the hazard communication programme
+- [x] 8.5 GHS container labels and the hazard communication programme
+
+  Hazard classification is structured data on the product — signal word, pictograms, H and P
+  statements, class and category — edited in the catalog manager, sourced like every other figure,
+  and scanned for forbidden language. A supplier that classifies differently is recorded, not
+  reconciled. A signal word of `none` is a recorded finding that the material is not hazardous,
+  which is different from nobody having looked.
+
+  Labels are printed on demand and not archived; what is archived is the classification behind
+  them. A label is refused outright — not warned about — when the classification, the
+  responsible-party address and telephone, or the prescribed UN pictogram artwork is missing, and
+  refused again if the content does not fit the stock chosen rather than dropping a required line.
+
+  The written programme is generated from the recorded facts and the catalog, and prints its own
+  gaps on the first page so an issued programme cannot be mistaken for a complete one.
+
+  **Owner actions this surfaces:** set the registered address and telephone under Hazard comms —
+  a compliant label cannot be printed without them — and upload the nine official UN pictogram
+  PNGs. Then classify each product and issue the programme. Due 20 November 2026.
 
 ## Owner decisions still open (not engineering)
 

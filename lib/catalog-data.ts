@@ -80,6 +80,7 @@ export function rowToProduct(row: ProductRow, variants: ProductVariantRow[]): Ca
     status: row.status as ProductStatus,
     description: row.description,
     sourceNotes: row.sourceNotes,
+    hazard: row.hazard ?? undefined,
     hasSds: row.hasSds,
     image: row.image ?? undefined,
     featured: row.featured,
