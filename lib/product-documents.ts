@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { productDocuments, productRevisions, products, type ProductDocument } from '@/db/schema';
 import type { StoredDocument } from '@/lib/documents';

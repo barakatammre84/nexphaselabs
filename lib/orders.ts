@@ -174,7 +174,7 @@ export async function createOrderFromCart(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (/UNIQUE constraint failed: orders\.submission_token/i.test(message)) {
-        const [dup] = await db.select({ orderNumber: orders.orderNumber }).from(orders).where(eq(orders.submissionToken, submissionToken)).limit(1);
+        const [dup] = await db.select({ orderNumber: orders.orderNumber }).from(orders).where(and(eq(orders.submissionToken, submissionToken), eq(orders.accountId, account.id))).limit(1);
         if (dup) return { ok: true, orderNumber: dup.orderNumber, duplicate: true };
         return { ok: false, error: 'This cart was already submitted.' };
       }

@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import { ORDER_NUMBER_PATTERN } from '@/lib/order-rules';
 import { settleBtcpayInvoice } from '@/lib/orders';
 import { parseBtcpayEvent, verifyBtcpaySignature } from '@/lib/payments-core';
+import { livePaymentsAllowed } from '@/lib/environment-safety';
 
 /**
  * BTCPay Server webhook. Only a correctly signed InvoiceSettled event can
@@ -9,6 +10,7 @@ import { parseBtcpayEvent, verifyBtcpaySignature } from '@/lib/payments-core';
  * Everything else is acknowledged and ignored.
  */
 export async function POST(request: Request) {
+  if (!livePaymentsAllowed(env.APP_ENV)) return new Response('Not configured', { status: 404 });
   const secret = env.BTCPAY_WEBHOOK_SECRET;
   if (!secret) return new Response('Not configured', { status: 404 });
   const raw = await request.text();

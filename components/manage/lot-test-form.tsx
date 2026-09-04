@@ -22,6 +22,7 @@ export function LotTestForm({ today, action }: Props) {
   return (
     <form action={formAction} className="flex flex-col gap-5 border border-border bg-secondary p-5">
       <p className="text-sm font-semibold">Record a test result</p>
+      <p className={help}>Put a released lot on hold before adding results. New analytical evidence requires a fresh release review.</p>
       {problems > 0 && (
         <div role="alert" className="border border-destructive/40 bg-background p-4">
           <p className="flex items-center gap-2 text-sm font-semibold">

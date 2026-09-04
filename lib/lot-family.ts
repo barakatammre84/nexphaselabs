@@ -15,12 +15,12 @@ import { lots, type Lot } from '@/db/schema';
 export async function lotFamilyIds(currentId: string): Promise<string[]> {
   const db = getDb();
   const rows = await db.all<{ id: string }>(sql`
-    WITH RECURSIVE fam(id, depth) AS (
-      SELECT ${currentId}, 0
-      UNION ALL
-      SELECT l.id, fam.depth + 1 FROM lots l JOIN fam ON l.superseded_by_id = fam.id
+    WITH RECURSIVE fam(id) AS (
+      SELECT ${currentId}
+      UNION
+      SELECT l.id FROM lots l JOIN fam ON l.superseded_by_id = fam.id
     )
-    SELECT id FROM fam ORDER BY depth LIMIT 50
+    SELECT id FROM fam ORDER BY CASE WHEN id = ${currentId} THEN 0 ELSE 1 END, id
   `);
   return rows.map((r) => r.id);
 }
