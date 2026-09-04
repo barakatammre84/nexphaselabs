@@ -8,7 +8,7 @@ import {
   type CoaContent,
   type CoaSubject,
 } from '@/lib/coa-content';
-import { attachLotDocument, getLotDetail, recordedBy } from '@/lib/lots-admin';
+import { attachLotDocument, getLot, getLotDetail, recordedBy } from '@/lib/lots-admin';
 import {
   claimSequence,
   currentDocument,
@@ -18,7 +18,7 @@ import {
 } from '@/lib/issued-documents';
 import { renderCoa } from '@/lib/coa-render';
 import type { StaffPrincipal } from '@/lib/staff-auth';
-import type { IssuedDocument } from '@/db/schema';
+import type { IssuedDocument, Lot } from '@/db/schema';
 
 /**
  * Issuing the certificate of analysis.
@@ -45,9 +45,22 @@ export type CoaPreview = {
   current: IssuedDocument | null;
 };
 
+/**
+ * Certificates are filed against the lot NUMBER, not the lot row id.
+ *
+ * A correction supersedes the row and inserts a new one with a new id, so
+ * keying on the id would scatter a lot's certificate history across every
+ * correction it has ever had — and a reissue would not find the certificate
+ * it was replacing. The number is what the customer holds and what the
+ * certificate is about, so it is what the history hangs on.
+ */
+function coaSubjectId(lotNumber: string): string {
+  return lotNumber.trim().toUpperCase();
+}
+
 async function loadSubject(lotNumber: string): Promise<{
   subject: CoaSubject;
-  lotId: string;
+  lot: Lot;
 } | null> {
   const detail = await getLotDetail(lotNumber);
   if (!detail) return null;
@@ -55,7 +68,7 @@ async function loadSubject(lotNumber: string): Promise<{
   const product = await getProductByCode(lot.productCode).catch(() => null);
 
   return {
-    lotId: lot.id,
+    lot,
     subject: {
       lot: {
         lotNumber: lot.lotNumber,
@@ -112,7 +125,7 @@ export async function previewCoa(lotNumber: string): Promise<CoaPreview | null> 
   const { subject } = loaded;
   const [revision, current] = await Promise.all([
     peekSequence(coaSequenceKey(lotNumber)),
-    currentDocument('coa', 'lot', loaded.lotId),
+    currentDocument('coa', 'lot', coaSubjectId(lotNumber)),
   ]);
   const violations = scanCoa(subject);
   return {
@@ -149,7 +162,8 @@ export async function issueCoa(
 ): Promise<IssueCoaResult> {
   const loaded = await loadSubject(lotNumber);
   if (!loaded) return { ok: false, errors: ['Lot not found.'] };
-  const { subject, lotId } = loaded;
+  const { subject, lot } = loaded;
+  const subjectId = coaSubjectId(lot.lotNumber);
 
   const violations = scanCoa(subject);
   const blockers = [
@@ -158,19 +172,17 @@ export async function issueCoa(
   ];
   if (blockers.length > 0) return { ok: false, errors: blockers };
 
-  const detail = await getLotDetail(lotNumber);
-  if (!detail) return { ok: false, errors: ['Lot not found.'] };
-
-  const current = await currentDocument('coa', 'lot', lotId);
+  const current = await currentDocument('coa', 'lot', subjectId);
   const revision = await claimSequence(coaSequenceKey(lotNumber));
-  const documentNumber = coaNumber(subject.lot.lotNumber, revision);
+  const documentNumber = coaNumber(lot.lotNumber, revision);
   const issuedAt = new Date();
   const issuedBy = recordedBy(staff);
 
   // The number is printed on the document, so it has to be claimed before
-  // rendering. If anything below fails, the claim is handed back so the
-  // series does not carry a gap nobody can account for.
-  let record;
+  // rendering. Until the issue is written the claim can still be handed back,
+  // so the series carries no gap nobody can account for; once it is written
+  // the number is permanently spent and must not be released.
+  let issued = false;
   try {
     const bytes = await renderCoa(buildCoaContent(subject), {
       documentNumber,
@@ -179,10 +191,26 @@ export async function issueCoa(
       supersedes: current?.documentNumber ?? null,
     });
 
-    record = await issueDocument({
+    // Everything above was computed from a snapshot taken before the number
+    // was claimed and the document drawn. A correction or a disposition in
+    // that window would make this certificate a statement about a record that
+    // no longer stands, so the lot is re-read and the issue abandoned if it
+    // has moved. Same guard as `setLotDisposition`.
+    const fresh = await getLot(lotNumber);
+    if (!fresh || fresh.id !== lot.id || fresh.status !== lot.status) {
+      await releaseSequence(coaSequenceKey(lotNumber), revision).catch(() => false);
+      return {
+        ok: false,
+        errors: [
+          'The lot record changed while the certificate was being prepared. Reload the lot and issue again.',
+        ],
+      };
+    }
+
+    const record = await issueDocument({
       kind: 'coa',
       subjectType: 'lot',
-      subjectId: lotId,
+      subjectId,
       documentNumber,
       bytes,
       issuedBy,
@@ -194,26 +222,29 @@ export async function issueCoa(
           }
         : null,
     });
+    issued = true;
+
+    // Point the lot at the certificate we just issued, using the same path an
+    // uploaded certificate takes so the release gate and the public lot
+    // lookup need no special case.
+    await attachLotDocument(
+      fresh,
+      'coa',
+      {
+        key: record.objectKey,
+        contentType: record.contentType,
+        size: record.sizeBytes,
+        uploadedAt: issuedAt,
+      },
+      `${documentNumber}.pdf`,
+      staff,
+    );
+
+    return { ok: true, documentNumber, documentId: record.id };
   } catch (error) {
-    await releaseSequence(coaSequenceKey(lotNumber), revision).catch(() => false);
+    if (!issued) {
+      await releaseSequence(coaSequenceKey(lotNumber), revision).catch(() => false);
+    }
     throw error;
   }
-
-  // Point the lot at the certificate we just issued, using the same path an
-  // uploaded certificate takes so the release gate and the public lot lookup
-  // need no special case.
-  await attachLotDocument(
-    detail.lot,
-    'coa',
-    {
-      key: record.objectKey,
-      contentType: record.contentType,
-      size: record.sizeBytes,
-      uploadedAt: issuedAt,
-    },
-    `${documentNumber}.pdf`,
-    staff,
-  );
-
-  return { ok: true, documentNumber, documentId: record.id };
 }
