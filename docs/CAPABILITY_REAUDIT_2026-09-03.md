@@ -63,3 +63,46 @@ The process-optimization skill guided the handoff and bottleneck comparison. Clo
 - No database migration was required or applied by this release. No data, accounts, credentials, WordPress configuration or DNS were changed.
 - The reliability edits are ALSO present in the shared development checkout alongside Claude's separate Phase 8 work. Do not blindly cherry-pick them into that dirty checkout; review the shared diff when integrating the next milestone. The isolated release commit preserves the exact tested code.
 - Dependency installation reported 14 advisories (6 moderate, 8 high) in the baseline dependency tree. Detailed advisory triage is outstanding; this is not a security-clearance claim. Dependencies were not upgraded while Claude was changing package files.
+
+## Continued capability loops — 4 September 2026 UTC
+
+This section supersedes the initial gap/status snapshot above. Whole-business readiness is still not signed off.
+
+### Correct-project reconciliation
+- Claude committed Phase 8.1 as 7b23514. Its document foundation (entity block, layout/rendering, immutable issued-document storage and staff download) is preserved in the release snapshot.
+- Claude's new COA implementation is actively changing the shared checkout: coa-content/coa modules, lot COA routes, lot page, document access and rendering/storage refinements. These are concurrent work, not missing capabilities to rebuild. They are not included in this release unless already in the committed 8.1 foundation.
+- All changes from this pass are integrated into the actual application checkout under /Users/ammrebarakat/Developer/nexphaselabs.net. No files in Claude's active COA work were overwritten. Do not blindly cherry-pick the isolated commits over this shared tree.
+
+### Audit → fix → re-audit evidence
+| Capability | Confirmed gap and fix | Verification |
+| --- | --- | --- |
+| Order/customer handoff | Direct email failures could disappear after the business event committed. Order-event trigger now creates a durable notice atomically; staff see failures on the dashboard and an admin-only notification queue. | Real-SQLite rollback tests; competing dispatcher, frozen-payload retries, expired lease recovery, provider rejection/uncertainty, 23-hour/eight-attempt stop and attributed handling tests. |
+| Operational notification handling | No recoverable failure queue or clear distinction between provider acceptance and customer receipt. | Local browser: sign-in → dashboard warning → failure queue → note → handled separately → attributed history. No real email sent. Runbook: NOTIFICATIONS_RUNBOOK.md. |
+| Scheduled processing | Needed a real runtime check in addition to mocked provider tests. | Built handler ran in local workerd. Local assets-router scheduled forwarding failed in the pinned tooling; direct-handler smoke passed and processed a synthetic pending notice into attention with zero provider attempts. Live Cloudflare cron later completed successfully, with no exceptions and count-only logs. |
+| Shipment/return dates | A 24-hour tolerance admitted tomorrow's shipment/return and the day before shipment as a return date. | Reject future calendar dates, shipment before order submission, and return before shipment; regression tests. Empty-line shipments are rejected clearly. |
+| Refund boundary | Direct service calls could record negative, zero, fractional or NaN amounts, or a blank reference; only the form applied validation. | Service rejects invalid cents/references. Concurrent refund attempts produce one recorded refund, not two. |
+| Shipment ledger | Needed evidence beyond pure quantity rules for competing updates and partial failure. | Payment → pick → shipment → partial return → refund scenario; stock conserved, returns never replenish sellable stock, five notices recorded. Held/changed lots, duplicate shipment and failed notification insert cannot leave partial stock/line/history writes. |
+| Checkout acceptance | Account/session approval, ship-to, price, pack, cart or released-lot status could change after review but before the order was accepted. | One guarded acceptance statement rechecks all reviewed inputs; dependent order lines, history and cart clearing only happen after acceptance. Fourteen concurrent-change regressions preserve the cart and produce no orphan rows. Overlapping identical submissions return the same order. |
+| Shipment eligibility | Revoking institutional approval after ordering did not itself prevent shipment. | Current account/institution eligibility checked before picking and again in the atomic stock claim. Suspension or revocation winning during picking causes no shipment or stock movement. |
+| Query capacity | Expanding one bound value per reviewed field/lot can exceed D1's 100-parameter limit; a 100-message history query also risked exceeding it. | Snapshot comparisons and notification-ID lookup use a bound JSON array. SQLite D1 adapter now enforces 100 parameters. Full 20-line cart and 20-distinct-lot shipment tests pass. [Cloudflare D1 limits](https://developers.cloudflare.com/d1/platform/limits/). |
+
+### Releases and verification
+- Notification/date/refund milestone: isolated commit 5b0f839, staging version ac06e291-ae10-4fa6-ae3a-df1b91cb571a.
+- Applied only staging migrations 0028 (Claude's document foundation) and 0029 (notification queue/history/trigger). No historical notice backfill. Immediately before migration staging had zero orders and no configured secret names.
+- Checkout/eligibility/capacity follow-up: isolated commit 371ccfd, staging version e36fbf67-360c-4435-adde-937f5088336b. No additional migration.
+- Release snapshot: 265 tests in 30 files, typecheck, lint and staging build pass.
+- Integrated shared project, including Claude's current additional tests: 290 tests in 31 files, typecheck and lint pass. This is not a claim that unfinished COA routes were deployed.
+- Live cron proof on the first notification milestone: outcome ok, no exceptions; accepted=0, retrying=0, attention=0, skipped=0. The same schedule remains configured in the follow-up.
+- WordPress, DNS and production remain unchanged. No provider credentials, tester permissions, live payments, customer emails or real shipments were created.
+- Package advisory detail retrieval failed with a bounded registry timeout. Previously observed advisories remain unresolved; no security-clearance claim.
+
+### Remaining core gaps and execution gates
+1. **Order commercial approval:** decide whether stock, shipping and tax are approved by staff before payment, or which configured service calculates them. Current zero shipping/no tax field is not treated as a finished policy. A clarification was sent; no policy answer has arrived.
+2. **Inventory commitments:** reservation, expiry and backorder rules are still absent. Preventing negative stock at shipment does not reserve inventory for an unpaid or paid order. Implement alongside the chosen approval/payment workflow, then test competing orders and held/expired lots.
+3. **Payment/provider lifecycle:** live provider setup and settlement/cancellation/late-payment recovery require an approved rail and test configuration. No real credentials were configured. Existing simulated rails remain available only for testing.
+4. **Communications:** configure the permitted sender and approved tester allowlist, then rehearse actual provider acceptance/delivery. Non-order emails (account verification/reset, institutional decisions and digest) remain outside the new durable queue; authentication tokens deliberately never enter it.
+5. **Phase 8 documents:** continue from Claude's COA milestone, then verify invoice, packing slip and label/HazCom workflows against actual approved entity/material evidence. Preserve concurrent work and re-audit the integrated milestone; do not call the foundation the whole document phase.
+6. **Quality authority:** confirm retest-date enforcement, exception/countersignature rules and exact role-to-authority mapping. Existing named release, quarantine and immutable histories are retained; no approval policy was invented.
+7. **Finance/recovery/whole-team rehearsal:** exercise reconciliation against representative settled/refunded orders, recovery from a backup, and the supplier → receipt → release → institution → order → simulated payment → shipment → return/refund → reporting/document chain. Confirm deployed plan limits for worst-case multi-lot batches; per-query bind tests do not establish a billing-plan query budget.
+
+Runbook/process/frontend skills shaped the repeatable handling and verification steps; they do not establish regulatory, accounting or business-launch approval.
