@@ -8,6 +8,7 @@ import { hashPassword, randomToken, sha256Hex, verifyPassword } from '@/lib/staf
 import type { AccountTier } from '@/lib/account-rules';
 import { RUO_VERSION, TERMS_VERSION } from '@/lib/policy';
 import { publicOrigin } from '@/lib/site-config';
+import { ENTITY_FOOTER } from '@/lib/entity';
 
 /**
  * Customer account authentication. Same primitives and the same posture as
@@ -96,7 +97,7 @@ export async function signUp(
         'Someone tried to create a NexPhase Labs account with this email address, but an account already exists.',
         `If this was you, sign in at ${publicOrigin()}/account/sign-in. If it was not, no action is needed.`,
         '',
-        'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
+        ENTITY_FOOTER,
       ].join('\n'),
     });
     return { ok: false, reason: 'exists' };
@@ -164,7 +165,7 @@ export async function issueVerification(accountId: string, email: string, name: 
       '',
       'If you did not create an account, ignore this message.',
       '',
-      'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
+      ENTITY_FOOTER,
     ].join('\n'),
   });
   return result.ok;

@@ -17,6 +17,7 @@ import { DECISION_TARGET, decisionsFor, type OrganizationValidation, type Verifi
 import { publicOrigin } from '@/lib/site-config';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 import { recordedBy } from '@/lib/lots-admin';
+import { ENTITY_FOOTER } from '@/lib/entity';
 
 function id(prefix: string): string {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`;
@@ -280,7 +281,7 @@ export async function decideVerification(
           : decision === 'revoke'
             ? 'Your verification has been withdrawn — NexPhase Labs'
             : 'Verification decision — NexPhase Labs',
-    text: [...body, '', 'NexPhase Labs · 8486 Ventures LLC · Oakland, CA'].join('\n'),
+    text: [...body, '', ENTITY_FOOTER].join('\n'),
   });
 
   return { ok: true, status: target };

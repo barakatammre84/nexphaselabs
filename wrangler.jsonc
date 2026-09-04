@@ -13,13 +13,14 @@
   "name": "nexphaselabs",
   "compatibility_date": "2026-05-15",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "vinext/server/fetch-handler",
+  "main": "worker.ts",
   "assets": {
     "directory": "dist/client",
     "not_found_handling": "none",
     "binding": "ASSETS"
   },
   "observability": { "enabled": true },
+  "triggers": { "crons": ["*/5 * * * *"] },
   "vars": {
     "APP_ENV": "production",
     "PUBLIC_ORIGIN": "https://nexphaselabs.net",
@@ -43,6 +44,7 @@
   "env": {
     "staging": {
       "name": "nexphaselabs-staging",
+      "triggers": { "crons": ["*/5 * * * *"] },
       "vars": {
         "APP_ENV": "staging",
         // Real staging origin on the account's workers.dev subdomain. Keep the STAGING_URL repository

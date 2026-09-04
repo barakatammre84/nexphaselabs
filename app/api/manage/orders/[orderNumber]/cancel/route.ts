@@ -1,15 +1,10 @@
-import { eq } from 'drizzle-orm';
-import { getDb } from '@/db';
-import { accounts } from '@/db/schema';
-import { sendEmail } from '@/lib/email';
 import { recordedBy } from '@/lib/lots-admin';
 import { orderNumberFromParam } from '@/lib/order-rules';
 import { getOrderByNumber, transitionOrder } from '@/lib/orders';
 import { invalidateBtcpayInvoice } from '@/lib/payments';
-import { publicOrigin } from '@/lib/site-config';
 import { canVerifyAccounts, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
 
-/** Admin cancels an order that has not shipped, with a reason the customer is sent. */
+/** Admin cancels an unshipped order; its event queues a secure order-page notice. */
 export async function POST(request: Request, { params }: { params: Promise<{ orderNumber: string }> }) {
   if (!sameOrigin(request)) return new Response('Forbidden', { status: 403 });
   const staff = await getStaffFromRequest(request);
@@ -39,25 +34,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
     });
     if (!result.ok) return back(`error=${encodeURIComponent(result.error)}`);
     if (detail.order.paymentMethod === 'btcpay' && detail.order.paymentRef) await invalidateBtcpayInvoice(detail.order.paymentRef);
-    const [account] = await getDb().select({ email: accounts.email }).from(accounts).where(eq(accounts.id, detail.order.accountId)).limit(1);
-    if (account?.email) {
-      await sendEmail({
-        to: account.email,
-        subject: `Order ${detail.order.orderNumber} cancelled — NexPhase Labs`,
-        text: [
-          `Order ${detail.order.orderNumber} has been cancelled.`,
-          '',
-          reason,
-          '',
-          detail.order.paymentStatus === 'paid' ? 'The payment received is due back to you and will be returned to the originating account.' : '',
-          `Order details: ${publicOrigin()}/account/orders/${detail.order.orderNumber}`,
-          '',
-          'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
-        ]
-          .filter((l, i, arr) => !(l === '' && arr[i - 1] === ''))
-          .join('\n'),
-      });
-    }
   } catch (error) {
     console.error('[orders] staff cancel failed', error instanceof Error ? error.message : error);
     return back('error=unavailable');

@@ -1,14 +1,12 @@
 import { and, asc, eq, sql, isNull } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { returnAllowed, validateReturn } from '@/lib/order-rules';
-import { accounts, lotMovements, lotStatusEvents, lots, orderEvents, orderItems, orders, type Lot } from '@/db/schema';
-import { sendEmail } from '@/lib/email';
+import { lotMovements, lotStatusEvents, lots, orderEvents, orderItems, orders, type Lot } from '@/db/schema';
 import { isMassUnit, pickFromLot, sumQuantities } from '@/lib/lot-quantities';
 import { formatQuantity, parseQuantity } from '@/lib/lot-rules';
 import { recordedBy } from '@/lib/lots-admin';
 import { scanText } from '@/lib/catalog-rules';
 import { transitionOrder, type OrderDetail } from '@/lib/orders';
-import { publicOrigin } from '@/lib/site-config';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 
 /**
@@ -61,6 +59,7 @@ export type ShipmentResult = { ok: true } | { ok: false; error: string };
 export async function recordShipment(detail: OrderDetail, input: ShipmentInput, staff: StaffPrincipal): Promise<ShipmentResult> {
   const { order, items } = detail;
   if (order.status !== 'fulfilling') return { ok: false, error: 'Start fulfilment before recording a shipment.' };
+  if (items.length === 0) return { ok: false, error: 'This order has no lines to ship. Review the order record.' };
 
   const carrier = input.carrier.trim().slice(0, 60);
   const trackingNumber = input.trackingNumber.trim().slice(0, 80);
@@ -72,7 +71,10 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
   if (Number.isNaN(shippedOn.getTime()) || shippedOn.toISOString().slice(0, 10) !== input.shippedOn) {
     return { ok: false, error: 'Ship date is not a real date.' };
   }
-  if (shippedOn.getTime() > Date.now() + 24 * 3600 * 1000) return { ok: false, error: 'Ship date cannot be in the future.' };
+  // These fields are calendar dates stored at UTC midnight, not timestamps
+  // needing a 24-hour tolerance. That tolerance admitted tomorrow's shipment.
+  if (input.shippedOn > new Date().toISOString().slice(0, 10)) return { ok: false, error: 'Ship date cannot be in the future.' };
+  if (input.shippedOn < order.submittedAt.toISOString().slice(0, 10)) return { ok: false, error: 'Ship date is before the order was submitted.' };
   const violation = scanText('note', note)[0];
   if (violation) return { ok: false, error: `Note contains ${violation.reason} ("${violation.match}").` };
 
@@ -107,7 +109,6 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
     plans.set(lot.id, plan);
   }
 
-  const [account] = await db.select({ email: accounts.email, id: accounts.id }).from(accounts).where(eq(accounts.id, order.accountId)).limit(1);
   const shipToAddress = [order.shipToLine1, order.shipToLine2, order.shipToCity, order.shipToRegion, order.shipToPostalCode, order.shipToCountry]
     .filter(Boolean)
     .join(', ');
@@ -238,24 +239,6 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
     return { ok: false, error: 'A picked lot or the order changed while you were recording the shipment. Reload and pick again.' };
   }
 
-  if (account?.email) {
-    await sendEmail({
-      to: account.email,
-      subject: `Order ${order.orderNumber} has shipped — NexPhase Labs`,
-      text: [
-        `Order ${order.orderNumber} shipped on ${input.shippedOn} via ${carrier}.`,
-        `Tracking: ${trackingNumber}`,
-        '',
-        'Lots supplied:',
-        ...[...plans.values()].map((p) => `  ${p.lot.lotNumber} — ${publicOrigin()}/lots/${encodeURIComponent(p.lot.lotNumber)}`),
-        '',
-        'The certificate of analysis for each lot is in the parcel and at the link above.',
-        `Order details: ${publicOrigin()}/account/orders/${order.orderNumber}`,
-        '',
-        'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
-      ].join('\n'),
-    });
-  }
   return { ok: true };
 }
 

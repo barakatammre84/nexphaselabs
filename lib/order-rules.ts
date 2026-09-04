@@ -141,8 +141,8 @@ export function validateReturn(items: ReturnLine[], raw: ReturnRaw, shippedAt: D
   const receivedOn = new Date(`${raw.receivedOn}T00:00:00Z`);
   // JS rolls 2026-02-30 into March; the round trip catches it.
   if (Number.isNaN(receivedOn.getTime()) || receivedOn.toISOString().slice(0, 10) !== raw.receivedOn) return { ok: false, error: 'Received date is not a real date.' };
-  if (receivedOn.getTime() > now.getTime() + 24 * 3600 * 1000) return { ok: false, error: 'Received date cannot be in the future.' };
-  if (shippedAt && receivedOn.getTime() < shippedAt.getTime() - 24 * 3600 * 1000) return { ok: false, error: 'Received date is before the shipment.' };
+  if (raw.receivedOn > now.toISOString().slice(0, 10)) return { ok: false, error: 'Received date cannot be in the future.' };
+  if (shippedAt && raw.receivedOn < shippedAt.toISOString().slice(0, 10)) return { ok: false, error: 'Received date is before the shipment.' };
   const condition = (raw.condition ?? '').trim().slice(0, 200);
   if (!condition) return { ok: false, error: 'Describe the condition of the returned material (seal, label, storage).' };
   const lines: { itemId: string; packs: number }[] = [];

@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+export { notifications, notificationEvents } from './notifications-schema';
 import {
   index,
   integer,
@@ -1130,3 +1131,66 @@ export type SupplierEvent = typeof supplierEvents.$inferSelect;
 export type PurchaseOrder = typeof purchaseOrders.$inferSelect;
 export type PurchaseOrderLine = typeof purchaseOrderLines.$inferSelect;
 export type PurchaseOrderEvent = typeof purchaseOrderEvents.$inferSelect;
+
+/* -------------------------------------------------------------------------- */
+/* Issued documents (Phase 8)                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A document this business has issued: a certificate of analysis, an invoice,
+ * a packing slip, a container label.
+ *
+ * An issued document is a record, not a rendering. The bytes are written to
+ * R2 once and never regenerated, because a certificate produced today from a
+ * lot row that has since been corrected would not be the certificate the
+ * customer holds. `sha256` is the hash of the bytes as issued, so a document
+ * produced in a dispute can be checked against what left here.
+ *
+ * Corrections follow the lot pattern: issue a new document, point the old one
+ * at it through `supersededById`, delete nothing.
+ */
+export const issuedDocuments = sqliteTable(
+  'issued_documents',
+  {
+    id: text('id').primaryKey(),
+    /** coa | invoice | packing_slip | ghs_label */
+    kind: text('kind').notNull(),
+    /** lot | order | product */
+    subjectType: text('subject_type').notNull(),
+    subjectId: text('subject_id').notNull(),
+    /** Printed on the document. Unique for all time — an invoice number is never reused. */
+    documentNumber: text('document_number').notNull(),
+    objectKey: text('object_key').notNull(),
+    contentType: text('content_type').notNull().default('application/pdf'),
+    sizeBytes: integer('size_bytes').notNull(),
+    /** Lowercase hex SHA-256 of the issued bytes. */
+    sha256: text('sha256').notNull(),
+    issuedBy: text('issued_by').notNull(),
+    issuedAt: integer('issued_at', { mode: 'timestamp' }).notNull(),
+    supersededById: text('superseded_by_id'),
+    supersededAt: integer('superseded_at', { mode: 'timestamp' }),
+    supersedeReason: text('supersede_reason'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    subjectIdx: index('issued_documents_subject_idx').on(table.subjectType, table.subjectId),
+    kindIdx: index('issued_documents_kind_idx').on(table.kind),
+    numberIdx: uniqueIndex('issued_documents_number_idx').on(table.documentNumber),
+    keyIdx: uniqueIndex('issued_documents_key_idx').on(table.objectKey),
+  }),
+);
+
+/**
+ * Monotonic counters behind document numbers, one row per series
+ * (`invoice:2026`, `coa:STG-001`). Claimed with a single
+ * `UPDATE … SET next_value = next_value + 1 … RETURNING`, which D1 executes
+ * atomically, so two staff issuing at once cannot take the same number.
+ */
+export const documentSequences = sqliteTable('document_sequences', {
+  key: text('key').primaryKey(),
+  nextValue: integer('next_value').notNull().default(1),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+});
+
+export type IssuedDocument = typeof issuedDocuments.$inferSelect;
+export type DocumentSequence = typeof documentSequences.$inferSelect;

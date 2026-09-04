@@ -16,6 +16,7 @@ import { publicOrigin } from '@/lib/site-config';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 import { hashPassword, passwordPolicyError, randomToken, sha256Hex } from '@/lib/staff-auth-core';
 import { issueVerification } from '@/lib/account-auth';
+import { ENTITY_FOOTER } from '@/lib/entity';
 
 /**
  * Customer service: the customer's own password reset, and the staff tools
@@ -27,7 +28,7 @@ import { issueVerification } from '@/lib/account-auth';
 const RESET_TTL_SECONDS = 60 * 60;
 const id = (prefix: string) => `${prefix}_${randomToken().slice(0, 24)}`;
 const by = (staff: StaffPrincipal) => `${staff.name} (${staff.id})`;
-const FOOTER = 'NexPhase Labs · 8486 Ventures LLC · Oakland, CA';
+const FOOTER = ENTITY_FOOTER;
 
 /* ------------------------------------------------------------------------ */
 /* Password reset                                                            */

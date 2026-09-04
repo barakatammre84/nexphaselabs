@@ -6,6 +6,7 @@ import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { DOMAIN_LABEL, activityTimeline, domainsForRole, queueCounts } from '@/lib/activity';
 import { loadCatalog } from '@/lib/catalog-data';
 import { lotAlerts } from '@/lib/lot-alerts';
+import { notificationCounts } from '@/lib/notifications';
 import { canFulfil, canManageStaff, requireStaff } from '@/lib/staff-auth';
 
 export const dynamic = 'force-dynamic';
@@ -19,7 +20,7 @@ export default async function DashboardPage({ searchParams }: Props) {
   const { denied, digest } = await searchParams;
   const admin = canManageStaff(staff);
   const domains = domainsForRole(staff);
-  const loaded = await loadCatalog(async () => ({ counts: await queueCounts(), alerts: await lotAlerts(), recent: await activityTimeline(domains, 15, 15) }));
+  const loaded = await loadCatalog(async () => ({ counts: await queueCounts(), alerts: await lotAlerts(), recent: await activityTimeline(domains, 15, 15), notices: admin ? await notificationCounts() : {} }));
   const c = loaded.data?.counts;
   const tiles = c
     ? [
@@ -32,6 +33,7 @@ export default async function DashboardPage({ searchParams }: Props) {
         { n: c.lotsOnHold, label: 'lots on hold', href: '/manage/lots', urgent: c.lotsOnHold > 0 },
         ...(canFulfil(staff) ? [{ n: c.openPurchaseOrders, label: 'open purchase orders', href: '/manage/procurement', urgent: false }] : []),
         ...(admin ? [{ n: c.staffOnOneTimePassword, label: 'staff still on a one-time password', href: '/manage/staff', urgent: false }] : []),
+        ...(admin ? [{ n: loaded.data?.notices.attention ?? 0, label: 'customer notifications needing attention', href: '/manage/notifications?status=attention', urgent: (loaded.data?.notices.attention ?? 0) > 0 }] : []),
       ]
     : [];
 

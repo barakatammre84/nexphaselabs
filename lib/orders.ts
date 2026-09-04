@@ -4,9 +4,7 @@ import { cartItems, lots, orderEvents, orderItems, orders, type Order, type Orde
 import type { AccountPrincipal } from '@/lib/account-auth';
 import { getCart, type Cart } from '@/lib/cart';
 import { RUO_VERSION } from '@/lib/policy';
-import { sendEmail } from '@/lib/email';
 import { btcpayCheckoutUrl, getPaymentMethod, invalidateBtcpayInvoice, type PaymentInstructions } from '@/lib/payments';
-import { publicOrigin } from '@/lib/site-config';
 import { canTransition, formatOrderNumber, orderTotals, refundAllowed, refundDue, type OrderStatus } from '@/lib/order-rules';
 import type { Visibility } from '@/lib/visibility-rules';
 
@@ -285,9 +283,10 @@ export type BeginPaymentResult = { ok: true; instructions: PaymentInstructions }
 /**
  * Customer chooses a payment method for a submitted order. Moves the order
  * to awaiting_payment with the method and provider reference recorded, and
- * emails the instructions. Re-choosing is allowed only while still submitted.
+ * queues a notice linking to the secure instructions page. Re-choosing is
+ * allowed only while still submitted.
  */
-export async function beginPayment(detail: OrderDetail, methodId: string, accountEmail: string, actor: string): Promise<BeginPaymentResult> {
+export async function beginPayment(detail: OrderDetail, methodId: string, _accountEmail: string, actor: string): Promise<BeginPaymentResult> {
   const method = getPaymentMethod(methodId);
   if (!method) return { ok: false, error: 'That payment method is not available.' };
   if (detail.order.status !== 'submitted') return { ok: false, error: 'Payment has already been set up for this order.' };
@@ -306,22 +305,6 @@ export async function beginPayment(detail: OrderDetail, methodId: string, accoun
     paymentStatus: 'pending',
   });
   if (!moved.ok) return { ok: false, error: moved.error };
-
-  await sendEmail({
-    to: accountEmail,
-    subject: `Payment for order ${detail.order.orderNumber} — NexPhase Labs`,
-    text: [
-      `Order ${detail.order.orderNumber}`,
-      '',
-      instructions.title,
-      ...instructions.lines,
-      ...(instructions.url ? ['', instructions.url] : []),
-      '',
-      `Order details: ${publicOrigin()}/account/orders/${detail.order.orderNumber}`,
-      '',
-      'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
-    ].join('\n'),
-  });
   return { ok: true, instructions };
 }
 
@@ -332,8 +315,8 @@ export async function paymentInstructionsFor(order: Order): Promise<PaymentInstr
   if (!method) {
     return {
       method: order.paymentMethod as PaymentInstructions['method'],
-      title: 'Payment instructions were emailed to you',
-      lines: [`Reference: ${order.paymentRef ?? order.orderNumber}`],
+      title: 'Contact us before sending payment',
+      lines: ['This payment method is no longer available. Ask staff to confirm the instructions.', `Reference: ${order.paymentRef ?? order.orderNumber}`],
       url: null,
       reference: order.paymentRef,
     };
@@ -356,7 +339,7 @@ export async function paymentInstructionsFor(order: Order): Promise<PaymentInstr
 }
 
 /** A staff member records that payment arrived (bank transfer, or any manual rail). Admin only, enforced by the caller. */
-export async function markOrderPaid(detail: OrderDetail, actor: string, reference: string | null, accountEmail: string) {
+export async function markOrderPaid(detail: OrderDetail, actor: string, reference: string | null, _accountEmail: string) {
   const now = new Date();
   const moved = await transitionOrder(detail.order, 'paid', 'staff', actor, reference ? `Payment received. Reference: ${reference}.` : 'Payment received.', {
     paymentStatus: 'paid',
@@ -364,18 +347,6 @@ export async function markOrderPaid(detail: OrderDetail, actor: string, referenc
     ...(reference ? { paymentRef: reference } : {}),
   });
   if (!moved.ok) return moved;
-  await sendEmail({
-    to: accountEmail,
-    subject: `Payment received for order ${detail.order.orderNumber} — NexPhase Labs`,
-    text: [
-      `Order ${detail.order.orderNumber}`,
-      '',
-      'Your payment has been recorded. Material will be picked from a released lot and shipped with its certificate of analysis.',
-      `Order details: ${publicOrigin()}/account/orders/${detail.order.orderNumber}`,
-      '',
-      'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
-    ].join('\n'),
-  });
   return moved;
 }
 
@@ -418,8 +389,11 @@ export async function recordRefund(
   amountCents: number,
   reference: string,
   actor: string,
-  accountEmail: string,
+  _accountEmail: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!Number.isSafeInteger(amountCents) || amountCents <= 0) return { ok: false, error: 'The refund must be a positive whole number of cents.' };
+  reference = reference.trim();
+  if (!reference || reference.length > 120) return { ok: false, error: 'Enter a bank or provider reference of at most 120 characters.' };
   const order = detail.order;
   if (!refundAllowed(order)) return { ok: false, error: `No refund is due on an order whose payment is ${order.paymentStatus}.` };
   const due = refundDue(order);
@@ -460,20 +434,5 @@ export async function recordRefund(
     ),
   ]);
   if (!changed || changed.length === 0) return { ok: false, error: 'The order changed while you were working. Reload and try again.' };
-  if (accountEmail) {
-    await sendEmail({
-      to: accountEmail,
-      subject: `Refund for order ${order.orderNumber} — NexPhase Labs`,
-      text: [
-        `Order ${order.orderNumber}`,
-        '',
-        `A refund of $${(amountCents / 100).toFixed(2)} has been sent to the payment account the order was paid from. Reference: ${reference}.`,
-        'Depending on the bank or provider it can take several business days to appear.',
-        `Order details: ${publicOrigin()}/account/orders/${order.orderNumber}`,
-        '',
-        'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
-      ].join('\n'),
-    });
-  }
   return { ok: true };
 }

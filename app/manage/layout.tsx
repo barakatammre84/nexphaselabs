@@ -22,7 +22,7 @@ export default async function ManageLayout({
       <div className="border-b border-border bg-secondary">
         <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-4 px-5 py-3 text-sm sm:px-8 lg:px-12">
           <nav
-            className="flex items-center gap-6 font-semibold"
+            className="flex flex-wrap items-center gap-x-6 gap-y-3 font-semibold"
             aria-label="Manager navigation"
           >
             <span className="flex items-center gap-2 text-primary">
@@ -57,6 +57,9 @@ export default async function ManageLayout({
             </Link>
             {canManageStaff(staff) && (
               <>
+                <Link href="/manage/notifications" className="hover:text-primary">
+                  Notifications
+                </Link>
                 <Link href="/manage/accounts" className="hover:text-primary">
                   Accounts
                 </Link>
