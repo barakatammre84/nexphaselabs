@@ -295,3 +295,45 @@ Same loop discipline as Phases 1–6.
 - 7.8 Deployment automation: GitHub Actions build, test and deploy to staging on push and to
   production on tag, migrations applied in the workflow; needs the owner's `CLOUDFLARE_API_TOKEN`
   as a repository secret but removes every other manual step.
+
+## Phase 8 — The documents the business issues (added 2026-09-04)
+
+The system can receive material, test it, release it and ship a prepaid order, but it produces
+none of the paperwork that transaction is supposed to generate. Today a lot cannot be released
+without uploading a certificate made by hand somewhere else, "invoice by email" sends bank
+instructions with no invoice attached, nothing accompanies a shipment, and there is no PDF
+generation anywhere in the codebase. This phase gives the business one document spine and the
+four documents it owes.
+
+Design rules for the whole phase, derived from how lots already work:
+
+- An issued document is a record, not a view. It is rendered once, stored in R2, and never
+  regenerated silently. Corrections issue a new numbered document that supersedes the old one,
+  exactly as lot corrections do. Nothing is overwritten and nothing is hard-deleted.
+- Every generated document is content-hashed. The hash is stored so a certificate presented in a
+  dispute can be proved to be the one that was issued.
+- Free text that reaches a customer document passes the forbidden-language scanner at issue time,
+  the same as public catalog fields. A certificate is public-facing.
+- The layout modules are pure and unit-tested. Only the storage layer touches R2 or D1.
+
+- 8.1 Document spine: `pdf-lib` rendering inside the worker, a pure layout library (page
+  furniture, tables, wrapping, the entity block), the entity identity centralised out of the five
+  places it is currently duplicated as a string, content hashing, an `issued_documents` table with
+  supersession, storage and a staff download route.
+- 8.2 Certificate of analysis, issued by us: rendered from the lot record and its test results —
+  identity, lot number, manufacturer name and address as 16 CCR 1736.9(d) requires, each test with
+  method, result and specification, the analytical laboratory and accession number, retest date,
+  storage and the conditions of supply. Preview before issue; issuing writes the `coa` lot
+  document so the existing release gate and the existing public route serve it unchanged. A lot
+  correction supersedes the certificate.
+- 8.3 Invoice: sequentially numbered per calendar year through a guarded claim, the entity and
+  bill-to details, order lines, totals, payment instructions and terms. Downloadable by staff and
+  by the customer who owns the order. Attached to the order and to the invoice email.
+- 8.4 Packing slip: issued at fulfilment, listing each line with the lot number assigned to it,
+  the certificate reference and the conditions of supply. No prices, so the slip can travel in the
+  box.
+- 8.5 GHS container labels and the hazard communication programme: structured hazard fields on the
+  product (signal word, hazard and precautionary statements, pictograms, GHS classification) edited
+  in the catalog manager rather than buried in `sourceNotes` prose, a label PDF at real container
+  sizes carrying product identifier, signal word, pictograms, statements and supplier
+  identification, and the written hazard communication programme. Due 20 November 2026.

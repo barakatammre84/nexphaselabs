@@ -89,6 +89,14 @@ Phase 7 ships: every value staff change is data with a tool (classes, photograph
 
 **Owner actions to go live (unchanged in kind, updated in detail):** Cloudflare API token + GitHub secrets and `STAGING_URL`, then push to main to deploy staging and tag `v1.0.0` for production (`docs/DEPLOY.md`); production staff user via `npm run staff:create` (must-change password) and then manage staff in `/manage/staff`; `RESEND_API_KEY`; payment rail; consumer-tier decision; real SDS PDFs and product photographs uploaded through the product pages; counsel review of the legal pages; `DIGEST_TO`/`DIGEST_TOKEN` if a scheduled digest is wanted.
 
+## Phase 8 — The documents the business issues
+
+- [ ] 8.1 Document spine (pdf-lib, pure layout library, entity block, hashing, issued documents table, storage, staff download)
+- [ ] 8.2 Certificate of analysis issued from the lot record and its tests
+- [ ] 8.3 Invoice with sequential numbering
+- [ ] 8.4 Packing slip issued at fulfilment
+- [ ] 8.5 GHS container labels and the hazard communication programme
+
 ## Owner decisions still open (not engineering)
 
 - Payment provider (Stripe/PayPal/Square prohibit this category)
