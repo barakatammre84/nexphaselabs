@@ -40,5 +40,10 @@ The owner has been asked for prices. Until supplied, the real catalog remains pr
 ## Release record
 
 - Staging database backup: private local export at `/tmp/nexphase-guest-e2e.tt6frk/staging-before-guest.sql` (not committed).
-- Pending remote migration before deployment: only `0031_guest_checkout.sql`.
-- Deployment version and live smoke checks: pending.
+- Applied remote migration: only `0031_guest_checkout.sql`. Additive column/notification-trigger changes; previous worker compatibility retained.
+- Release commit: `7caf505`.
+- Staging version: `107dcda8-cf67-4275-98ac-a08cc1d58a8a`, deployed 2026-09-04 at approximately 15:32 UTC.
+- Live smoke checks passed at 15:33 UTC: healthy database/document storage; anonymous cart HTTP 200; no-account access page; product page no longer hides pricing behind verification; staff orders still redirect to staff sign-in; unauthenticated simulation denied (401); cross-origin cart POST denied (403). No remote test orders, guest records, payments or shipments were created.
+- Post-deployment data check: all 16 active published pack sizes still have null public and institutional prices. No prices were changed.
+- Final type checks passed in both the isolated release and the real main project. The main migration snapshot preserves Claude's settings/hazard fields and adds the guest contact column.
+- Local browser automation remained unavailable after repeated timeouts. The successful built-worker HTTP purchase test is the end-to-end evidence, not a claim of completed visual browser inspection.
