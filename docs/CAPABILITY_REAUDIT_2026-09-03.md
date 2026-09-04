@@ -54,3 +54,12 @@ Status: targeted hardening pass, not a business-launch sign-off.
 6. Run the full supplier → lot → institution → order → simulated payment → shipment → return/refund → reports rehearsal on staging with named testers.
 
 The process-optimization skill guided the handoff and bottleneck comparison. Cloudflare guidance guided isolation and dependency checks. Neither constitutes regulatory or accounting sign-off.
+
+## Verified staging release
+- Source snapshot: local branch codex/reliability-audit-20260903, commit 7a73f24.
+- Staging Worker version: d6367cf4-9175-4ca7-ac02-680d3f159dea, deployed 4 September 2026 UTC (3 September Pacific).
+- Final checks: 165 tests in 24 files, typecheck, lint and production build passed. Staging build and deployment succeeded.
+- Live smoke checks: health returned 200 with db=ok and docs=ok; home/catalog/staff sign-in returned 200 and the test banner; /manage redirected to sign-in; unknown lot and staging payment webhook returned 404; robots disallows all staging indexing.
+- No database migration was required or applied by this release. No data, accounts, credentials, WordPress configuration or DNS were changed.
+- The reliability edits are ALSO present in the shared development checkout alongside Claude's separate Phase 8 work. Do not blindly cherry-pick them into that dirty checkout; review the shared diff when integrating the next milestone. The isolated release commit preserves the exact tested code.
+- Dependency installation reported 14 advisories (6 moderate, 8 high) in the baseline dependency tree. Detailed advisory triage is outstanding; this is not a security-clearance claim. Dependencies were not upgraded while Claude was changing package files.
