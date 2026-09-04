@@ -1,12 +1,14 @@
 import { and, asc, desc, eq, like, sql, isNull } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { cartItems, lots, orderEvents, orderItems, orders, type Order, type OrderEvent, type OrderItem, type Organization } from '@/db/schema';
+import { accounts, cartItems, lots, orderEvents, orderItems, orders, type Order, type OrderEvent, type OrderItem, type Organization } from '@/db/schema';
 import type { AccountPrincipal } from '@/lib/account-auth';
 import { getCart, type Cart } from '@/lib/cart';
 import { RUO_VERSION } from '@/lib/policy';
 import { btcpayCheckoutUrl, getPaymentMethod, invalidateBtcpayInvoice, type PaymentInstructions } from '@/lib/payments';
 import { canTransition, formatOrderNumber, orderTotals, refundAllowed, refundDue, type OrderStatus } from '@/lib/order-rules';
 import type { Visibility } from '@/lib/visibility-rules';
+import { conditionalInsert } from '@/lib/conditional-insert';
+import { orderSubmissionGuard } from '@/lib/order-submission-guard';
 
 function id(prefix: string): string {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`;
@@ -80,6 +82,7 @@ export async function createOrderFromCart(
   submissionToken: string,
 ): Promise<CreateOrderResult> {
   if (visibility.pricing === 'none') return { ok: false, error: 'Ordering is not available to your account yet.' };
+  if (account.tier !== 'institutional' || visibility.pricing !== 'institutional' || !organizationId) return { ok: false, error: 'Ordering requires a verified research organisation.' };
   if (!/^[a-f0-9]{32}$/.test(submissionToken)) return { ok: false, error: 'Reload the cart and try again.' };
   const db = getDb();
   // Idempotent: the same rendered cart form can only ever produce one order.
@@ -106,12 +109,13 @@ export async function createOrderFromCart(
   const lines = cart.lines.map((l) => ({ unitPriceCents: l.unitPriceCents!, quantity: l.quantity }));
   const totals = orderTotals(lines, 0);
   const orderId = id('ord');
+  const accepted = eq(orders.id, orderId);
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const orderNumber = await nextOrderNumber(now);
     try {
-      await db.batch([
-        db.insert(orders).values({
+      const [created] = await db.batch([
+        conditionalInsert(orders, {
           id: orderId,
           orderNumber,
           accountId: account.id,
@@ -138,9 +142,9 @@ export async function createOrderFromCart(
           submittedAt: now,
           createdAt: now,
           updatedAt: now,
-        }),
+        }, accounts, orderSubmissionGuard(account, organizationId, shipTo, cart, now)).returning({ id: orders.id }),
         ...cart.lines.map((l) =>
-          db.insert(orderItems).values({
+          conditionalInsert(orderItems, {
             id: id('oli'),
             orderId,
             productId: l.product.id,
@@ -154,9 +158,9 @@ export async function createOrderFromCart(
             unitPriceCents: l.unitPriceCents!,
             lineTotalCents: l.unitPriceCents! * l.quantity,
             createdAt: now,
-          }),
+          }, orders, accepted),
         ),
-        db.insert(orderEvents).values({
+        conditionalInsert(orderEvents, {
           id: id('oev'),
           orderId,
           fromStatus: 'none',
@@ -164,10 +168,18 @@ export async function createOrderFromCart(
           note: `Submitted by the customer. Research-use acknowledgement version ${RUO_VERSION} confirmed for this order.`,
           actor: `${account.name} (${account.id})`,
           createdAt: now,
-        }),
+        }, orders, accepted),
         // The cart is cleared in the same transaction as the order is written.
-        db.delete(cartItems).where(eq(cartItems.accountId, account.id)),
+        db.delete(cartItems).where(and(eq(cartItems.accountId, account.id), sql`EXISTS (SELECT 1 FROM ${orders} WHERE ${accepted})`)),
       ]);
+      if (!created.length) {
+        // A competing submission may have cleared this cart after our first
+        // idempotency read. Return its order, never a false failure or a new one.
+        const [duplicate] = await db.select({ orderNumber: orders.orderNumber }).from(orders)
+          .where(and(eq(orders.submissionToken, submissionToken), eq(orders.accountId, account.id))).limit(1);
+        if (duplicate) return { ok: true, orderNumber: duplicate.orderNumber, duplicate: true };
+        return { ok: false, error: 'Your account, delivery address, cart or available offer changed. Reload and review before submitting again.' };
+      }
       return { ok: true, orderNumber };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

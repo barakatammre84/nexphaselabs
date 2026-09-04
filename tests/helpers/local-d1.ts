@@ -16,7 +16,10 @@ export function localD1(migrate = true) {
   let beforeBatch: (() => void) | undefined;
   class Prepared {
     constructor(readonly query: string, readonly values: SQLInputValue[] = []) {}
-    bind(...values: SQLInputValue[]) { return new Prepared(this.query, values); }
+    bind(...values: SQLInputValue[]) {
+      if (values.length > 100) throw new Error(`D1 permits at most 100 bound parameters; query used ${values.length}.`);
+      return new Prepared(this.query, values);
+    }
     execute() {
       const statement = sqlite.prepare(this.query);
       const results = statement.all(...this.values);

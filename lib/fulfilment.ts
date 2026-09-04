@@ -8,6 +8,7 @@ import { recordedBy } from '@/lib/lots-admin';
 import { scanText } from '@/lib/catalog-rules';
 import { transitionOrder, type OrderDetail } from '@/lib/orders';
 import type { StaffPrincipal } from '@/lib/staff-auth';
+import { orderCustomerEligible } from '@/lib/order-eligibility';
 
 /**
  * Fulfilment. The one place material leaves a lot.
@@ -81,6 +82,8 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
   const db = getDb();
   const now = new Date();
   const by = recordedBy(staff);
+  const [eligible] = await db.select({ id: orders.id }).from(orders).where(and(eq(orders.id, order.id), orderCustomerEligible(order))).limit(1);
+  if (!eligible) return { ok: false, error: 'The customer or institution is no longer approved for shipment. Ask an administrator to review the account.' };
 
   // Resolve every pick against a fresh read of the lot; group lines by lot so a
   // lot used twice is decremented once by the combined amount.
@@ -123,14 +126,12 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
   // lot or to none, and nothing below writes unless its lot carries the marker.
   const precondition = sql`(
     SELECT count(*) FROM ${lots}
-    WHERE ${sql.join(
-      planList.map(
-        (p) =>
-          sql`(${lots.id} = ${p.lot.id} AND ${lots.status} = 'released' AND ${lots.supersededById} IS NULL AND ${lots.quantityRemaining} = ${p.lot.quantityRemaining ?? ''})`,
-      ),
-      sql` OR `,
-    )}
-  ) = ${planList.length} AND (SELECT ${orders.status} FROM ${orders} WHERE ${orders.id} = ${order.id}) = 'fulfilling'`;
+    INNER JOIN json_each(${JSON.stringify(planList.map((plan) => ({ id: plan.lot.id, remaining: plan.lot.quantityRemaining ?? '' })))}) AS expected
+      ON ${lots.id} = json_extract(expected.value, '$.id')
+    WHERE ${lots.status} = 'released' AND ${lots.supersededById} IS NULL
+      AND ${lots.quantityRemaining} = json_extract(expected.value, '$.remaining')
+  ) = ${planList.length} AND (SELECT ${orders.status} FROM ${orders} WHERE ${orders.id} = ${order.id}) = 'fulfilling'
+    AND ${orderCustomerEligible(order)}`;
 
   const stamped = (lotId: string) =>
     sql`EXISTS (SELECT 1 FROM ${lots} WHERE ${lots.id} = ${lotId} AND ${lots.lastMovementId} = ${shipmentId})`;

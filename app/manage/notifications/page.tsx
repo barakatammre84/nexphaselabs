@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { desc, inArray } from 'drizzle-orm';
+import { desc, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { notificationEvents } from '@/db/notifications-schema';
 import { canManageStaff, requireStaff } from '@/lib/staff-auth';
@@ -21,7 +21,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   const { status, result } = await searchParams;
   const loaded = await loadCatalog(async () => {
     const [rows, counts] = await Promise.all([listNotifications(status), notificationCounts()]);
-    const events = rows.length ? await getDb().select().from(notificationEvents).where(inArray(notificationEvents.notificationId, rows.map((row) => row.id))).orderBy(desc(notificationEvents.createdAt)).limit(200) : [];
+    const events = rows.length ? await getDb().select().from(notificationEvents).where(sql`${notificationEvents.notificationId} IN (SELECT value FROM json_each(${JSON.stringify(rows.map((row) => row.id))}))`).orderBy(desc(notificationEvents.createdAt)).limit(200) : [];
     return { rows, counts, events };
   });
   return <main className="mx-auto max-w-[1400px] px-5 py-14 text-foreground sm:px-8 lg:px-12">

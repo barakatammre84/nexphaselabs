@@ -5,7 +5,7 @@ vi.mock('cloudflare:workers', () => ({ env }));
 vi.mock('next/headers', () => ({ cookies: vi.fn() }));
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 import { getDb } from '@/db';
-import { accounts, lots, orderItems, orders } from '@/db/schema';
+import { accounts, lots, orderItems, orders, organizations } from '@/db/schema';
 import { getOrderByNumber, markOrderPaid, recordRefund } from '@/lib/orders';
 import { recordReturn, recordShipment, startFulfilment } from '@/lib/fulfilment';
 import type { StaffPrincipal } from '@/lib/staff-auth';
@@ -21,10 +21,12 @@ beforeEach(async () => {
   vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
   vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('No external services permitted in this test')));
   local = localD1(); env.DB = local.binding;
-  await getDb().insert(accounts).values({ id: 'customer', email: 'test@example.invalid', name: 'Synthetic customer', passwordHash: 'disabled', tier: 'institutional' });
+  await getDb().insert(accounts).values({ id: 'customer', email: 'test@example.invalid', name: 'Synthetic customer', passwordHash: 'disabled', tier: 'institutional', status: 'active', verificationStatus: 'approved' });
+  await getDb().insert(organizations).values({ id: 'org1', accountId: 'customer', legalName: 'Synthetic institution', website: 'https://example.invalid', emailDomain: 'example.invalid', organizationType: 'analytical_lab', addressLine1: 'Test', city: 'Test', region: 'CA', postalCode: '00000', country: 'US', researchContext: 'Synthetic', receivingParty: 'Synthetic', verificationStatus: 'approved', submittedAt: new Date('2026-09-01') });
   await getDb().insert(lots).values({ id: 'lot1', lotNumber: 'LOCAL-LOT', productCode: 'LOCAL-PRODUCT', productName: 'Synthetic material', casNumber: '50-00-0', status: 'released', quantityReceived: '10 mg', quantityRemaining: '10 mg', receivedAt: new Date('2026-09-01') });
   await getDb().insert(orders).values({ id: 'order1', orderNumber: 'LOCAL-ORDER', accountId: 'customer', status: 'awaiting_payment', paymentStatus: 'pending', subtotalCents: 200, totalCents: 200, priceTier: 'institutional', consigneeName: 'Synthetic', shipToLine1: 'Test', shipToCity: 'Test', shipToRegion: 'CA', shipToPostalCode: '00000', shipToCountry: 'US', submittedAt: new Date('2026-09-01') });
   await getDb().insert(orderItems).values({ id: 'line1', orderId: 'order1', productId: 'product1', productCode: 'LOCAL-PRODUCT', productName: 'Synthetic', variantId: 'variant1', sku: 'LOCAL-SKU', packSize: '2 mg', presentation: 'powder', quantity: 2, unitPriceCents: 100, lineTotalCents: 200 });
+  await getDb().update(orders).set({ organizationId: 'org1' });
 });
 afterEach(() => { expect(fetch).not.toHaveBeenCalled(); vi.unstubAllGlobals(); vi.useRealTimers(); local.sqlite.close(); delete env.DB; });
 async function readyToShip() {
@@ -61,6 +63,18 @@ describe('order, shipment, return and refund transactions', () => {
     local.beforeNextBatch(() => local.sqlite.exec("UPDATE lots SET status = 'on_hold'"));
     expect((await recordShipment(await detail(), shipment, staff)).ok).toBe(false);
     expect(count('lot_movements')).toBe(0);
+  });
+  it.each(["UPDATE accounts SET status = 'suspended'", "UPDATE organizations SET verification_status = 'revoked'"])(
+    'refuses shipment when approval is revoked during picking: %s', async (change) => {
+      await readyToShip();
+      local.beforeNextBatch(() => local.sqlite.exec(change));
+      expect((await recordShipment(await detail(), shipment, staff)).ok).toBe(false);
+      expect(count('lot_movements')).toBe(0);
+      expect(local.sqlite.prepare('SELECT quantity_remaining FROM lots').get()!.quantity_remaining).toBe('10 mg');
+    });
+  it('explains why an already-suspended account cannot be shipped', async () => {
+    await readyToShip(); local.sqlite.exec("UPDATE accounts SET status = 'suspended'");
+    expect(await recordShipment(await detail(), shipment, staff)).toMatchObject({ ok: false, error: expect.stringContaining('no longer approved') });
   });
   it('rolls back stock, line assignment and shipment when the notification insert fails', async () => {
     await readyToShip();
@@ -107,5 +121,18 @@ describe('order, shipment, return and refund transactions', () => {
   it('requires a refund reference even for direct service calls', async () => {
     local.sqlite.exec("UPDATE orders SET status = 'cancelled', payment_status = 'refund_due', refund_due_cents = 200");
     expect((await recordRefund(await detail(), 100, ' ', 'Test admin', '')).ok).toBe(false);
+  });
+  it('ships 20 distinct lots without exceeding D1 parameter limits', async () => {
+    const picks: Record<string, string> = { line1: 'lot1' };
+    for (let i = 2; i <= 20; i++) {
+      await getDb().insert(lots).values({ id: `lot${i}`, lotNumber: `LOCAL-LOT-${i}`, productCode: 'LOCAL-PRODUCT', productName: 'Synthetic', casNumber: '50-00-0', status: 'released', quantityReceived: '10 mg', quantityRemaining: '10 mg', receivedAt: new Date('2026-09-01') });
+      await getDb().insert(orderItems).values({ id: `line${i}`, orderId: 'order1', productId: 'product1', productCode: 'LOCAL-PRODUCT', productName: 'Synthetic', variantId: `variant${i}`, sku: `LOCAL-SKU-${i}`, packSize: '2 mg', presentation: 'powder', quantity: 2, unitPriceCents: 100, lineTotalCents: 200 });
+      picks[`line${i}`] = `lot${i}`;
+    }
+    await getDb().update(orders).set({ subtotalCents: 4000, totalCents: 4000 });
+    await readyToShip();
+    expect(await recordShipment(await detail(), { ...shipment, picks }, staff)).toEqual({ ok: true });
+    expect(count('lot_movements')).toBe(20);
+    expect(local.sqlite.prepare("SELECT count(*) AS n FROM lots WHERE quantity_remaining = '6 mg'").get()!.n).toBe(20);
   });
 });
