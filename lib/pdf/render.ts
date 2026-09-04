@@ -18,6 +18,7 @@ import {
   documentTimestamp,
   layoutRow,
   wrapText,
+  wrapToLines,
 } from './layout';
 
 /**
@@ -147,9 +148,15 @@ export class Cursor {
     if (options.gap) this.y -= options.gap;
   }
 
-  /** Section heading with a rule under it. */
+  /**
+   * Section heading with a rule under it.
+   *
+   * Reserves room for the heading plus roughly two rows of what follows, so a
+   * heading is never left sitting alone at the foot of a page with its
+   * content overleaf.
+   */
   heading(value: string): void {
-    this.ensure(30);
+    this.ensure(30 + 28);
     this.y -= 8;
     this.page.drawText(value.toUpperCase(), {
       x: MARGIN,
@@ -183,11 +190,21 @@ export class Cursor {
   ): void {
     const leading = size * 1.35;
     const valueWidth = this.contentWidth - labelWidth;
-    for (const [label, raw] of rows) {
+
+    // Lay every row out first so the last two can be kept together. Without
+    // this a section's final field is left stranded alone on the next page,
+    // detached from the heading that gives it meaning.
+    const laid = rows.map(([label, raw]) => {
       const value = raw == null || raw === '' ? '—' : String(raw);
       const lines = wrapText(value, valueWidth, size, this.measure());
-      const height = Math.max(1, lines.length) * leading + 2;
-      this.ensure(height);
+      return { label, lines, height: Math.max(1, lines.length) * leading + 2 };
+    });
+
+    for (let i = 0; i < laid.length; i += 1) {
+      const { label, lines, height } = laid[i];
+      const needed =
+        i === laid.length - 2 ? height + laid[i + 1].height : height;
+      this.ensure(needed);
       this.page.drawText(label, {
         x: MARGIN,
         y: this.y - size,
@@ -423,15 +440,18 @@ export async function finishDocument(
       color: RULE,
     });
     if (note) {
-      const lines = wrapText(
+      // Two lines, with the cut marked. A supersession note says why a
+      // certificate was replaced, so dropping its tail silently would hide
+      // compliance-relevant text; an ellipsis at least shows it was cut.
+      const lines = wrapToLines(
         note,
         LETTER.width - MARGIN * 2,
         7,
         (t, s) => fonts.regular.widthOfTextAtSize(t, s),
+        2,
       );
-      // Footnote sits above the stamp line; keep it to two lines.
-      let ny = y + 2 + lines.slice(0, 2).length * 9;
-      for (const line of lines.slice(0, 2)) {
+      let ny = y + 2 + lines.length * 9;
+      for (const line of lines) {
         page.drawText(line, {
           x: MARGIN,
           y: ny,

@@ -19,6 +19,53 @@ export const LETTER = { width: 612, height: 792 } as const;
 export const MARGIN = 54; // 0.75in
 
 /**
+ * Split a single word that is wider than its column.
+ *
+ * Hyphens are tried first and the hyphen stays at the end of the line, which
+ * is what makes a systematic chemical name readable when it wraps:
+ * `glycyl-L-alpha-glutamyl-…` breaks after a hyphen rather than through
+ * `L-alph | a-aspartyl`. Only a single segment still too wide for the column
+ * — a SMILES string or an object key, which have no hyphens to use — falls
+ * back to breaking at an arbitrary character.
+ */
+function breakWord(
+  word: string,
+  width: number,
+  size: number,
+  measure: Measurer,
+): string[] {
+  const lines: string[] = [];
+  let line = '';
+  // Split after each hyphen, keeping the hyphen with the segment before it.
+  for (const segment of word.split(/(?<=-)/)) {
+    if (line && measure(line + segment, size) > width) {
+      lines.push(line);
+      line = '';
+    }
+    if (measure(segment, size) <= width) {
+      line += segment;
+      continue;
+    }
+    if (line) {
+      lines.push(line);
+      line = '';
+    }
+    let chunk = '';
+    for (const char of segment) {
+      if (chunk && measure(chunk + char, size) > width) {
+        lines.push(chunk);
+        chunk = char;
+      } else {
+        chunk += char;
+      }
+    }
+    line = chunk;
+  }
+  if (line) lines.push(line);
+  return lines.length > 0 ? lines : [''];
+}
+
+/**
  * Break `text` into lines that each fit `width`.
  *
  * Wraps on spaces. A single word wider than the column — a long object key, a
@@ -53,20 +100,13 @@ export function wrapText(
         out.push(line);
         line = '';
       }
-      // The word alone may still be too wide; break it hard.
+      // The word alone may still be too wide; break it.
       if (measure(word, size) <= width) {
         line = word;
       } else {
-        let chunk = '';
-        for (const char of word) {
-          if (chunk && measure(chunk + char, size) > width) {
-            out.push(chunk);
-            chunk = char;
-          } else {
-            chunk += char;
-          }
-        }
-        line = chunk;
+        const broken = breakWord(word, width, size, measure);
+        out.push(...broken.slice(0, -1));
+        line = broken[broken.length - 1] ?? '';
       }
     }
     if (line) out.push(line);

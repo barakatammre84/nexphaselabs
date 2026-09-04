@@ -91,8 +91,17 @@ Phase 7 ships: every value staff change is data with a tool (classes, photograph
 
 ## Phase 8 — The documents the business issues
 
-- [ ] 8.1 Document spine (pdf-lib, pure layout library, entity block, hashing, issued documents table, storage, staff download)
-- [ ] 8.2 Certificate of analysis issued from the lot record and its tests
+- [x] 8.1 Document spine (pdf-lib, pure layout library, entity block, hashing, issued documents table, storage, staff download)
+- [x] 8.2 Certificate of analysis issued from the lot record and its tests
+
+  Verified against a real lot: preview renders and stores nothing; issuing records the number,
+  writes the PDF to R2 and points the lot at it; staff and public downloads return byte-identical
+  files whose SHA-256 matches the recorded hash. Reissue supersession is covered by integration
+  tests against real SQLite, including the concurrent case where two staff reissue the same
+  certificate — the loser writes no row at all.
+
+  A certificate cannot be issued while any result has no pass or fail recorded. That is stricter
+  than the release gate, which accepts an unassessed result as long as an identity test passed.
 - [ ] 8.3 Invoice with sequential numbering
 - [ ] 8.4 Packing slip issued at fulfilment
 - [ ] 8.5 GHS container labels and the hazard communication programme
