@@ -103,6 +103,26 @@ Release: `git tag v1.0.0 && git push origin v1.0.0`. Rollback: `npx wrangler rol
 
 `GET /api/health` reports `{ ok, env, db }` with no caching and no data; it is what the smoke test polls.
 
+## Verified on real infrastructure, 2026-09-04
+
+Both workers are deployed in the bistelligent account and answer `/api/health`
+with `ok`:
+
+- staging `https://nexphaselabs-staging.ammre.workers.dev`
+- production `https://nexphaselabs.ammre.workers.dev`, inert because no DNS
+  points at it
+
+Exercised end to end against staging, not the dev server: staff sign-in with a
+one-time password, the forced password change, a lot received through the
+intake form, a certificate uploaded to R2 and read back byte-identical, four
+test results, a named release, and the public lot lookup showing the released
+lot with its certificate while leaking no quantity, cost, supplier or movement
+data. A quarantined lot returned 404 publicly, as intended.
+
+Two gaps confirmed rather than assumed. Customer sign-up creates the account
+but cannot send its verification email, and the operations digest fails to
+send, both because no `RESEND_API_KEY` is configured. Everything else works.
+
 ## Rollback
 
 Every deploy creates an immutable Worker version. To roll back:
