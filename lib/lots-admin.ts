@@ -20,6 +20,7 @@ import { getProductByCode } from '@/lib/catalog-data';
 import type { DocumentType, StoredDocument } from '@/lib/documents';
 import {
   DISPOSITION_TARGET,
+  validateDisposition,
   releaseBlockers,
   type Disposition,
   type LotIntakeValidation,
@@ -285,7 +286,11 @@ export async function setLotDisposition(
 
   // Decide against the row as it is now, not as the page rendered it.
   const fresh = await getLot(lot.lotNumber);
-  if (!fresh || fresh.status !== lot.status) return stale;
+  if (!fresh || fresh.id !== lot.id || fresh.status !== lot.status) return stale;
+  const validation = validateDisposition({ decision, reason }, fresh.status);
+  if (!validation.ok) return { ok: false, error: 'This lot decision is not allowed. Reload and review the reason and status.' };
+
+  let releaseGuard: SQL = sql`1 = 1`;
 
   if (decision === 'release') {
     // Tests live on the version they were recorded against; a corrected record must still see them.
@@ -296,6 +301,17 @@ export async function setLotDisposition(
       .where(sql`${lotTests.lotId} IN ${family}`);
     const blockers = releaseBlockers(fresh, tests);
     if (blockers.length) return { ok: false, error: `Cannot release: ${blockers.join(' ')}` };
+    // Tests are append-only. Recheck the reviewed evidence at write time so a
+    // simultaneous result/document/correction cannot invalidate the decision.
+    releaseGuard = sql`
+      ${lots.manufacturerName} IS ${fresh.manufacturerName}
+      AND ${lots.manufacturerAddress} IS ${fresh.manufacturerAddress}
+      AND ${lots.coaKey} IS ${fresh.coaKey}
+      AND ${lots.identityConfirmed} = 1
+      AND ${lots.purityResult} IS ${fresh.purityResult}
+      AND ${lots.quantityRemaining} IS ${fresh.quantityRemaining}
+      AND (SELECT count(*) FROM ${lotTests} WHERE ${lotTests.lotId} IN ${family}) = ${tests.length}
+    `;
   }
 
   const update =
@@ -303,26 +319,19 @@ export async function setLotDisposition(
       ? { status: target, releasedBy: by, releasedAt: now, statusReason: null, updatedAt: now }
       : { status: target, statusReason: reason, updatedAt: now };
 
-  // Conditional on the status the decision was made against, so two people
-  // acting at once cannot both win. The event is written only after the
-  // update is known to have applied; a decision that did not happen leaves
-  // no record claiming that it did.
-  const [changed] = await db
-    .update(lots)
-    .set(update)
-    .where(and(eq(lots.id, fresh.id), eq(lots.status, fresh.status)))
-    .returning({ id: lots.id });
-  if (!changed) return stale;
-
-  await db.insert(lotStatusEvents).values({
-    id: `evt_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
-    lotId: fresh.id,
-    fromStatus: fresh.status,
-    toStatus: target,
-    reason,
-    decidedBy: by,
-    createdAt: now,
-  });
+  // The decision and its audit event must commit or fail together. changes()
+  // refers to the immediately preceding UPDATE within this atomic batch.
+  const [changed] = await db.batch([
+    db.update(lots).set(update)
+      .where(and(eq(lots.id, fresh.id), isNull(lots.supersededById), eq(lots.status, fresh.status), releaseGuard))
+      .returning({ id: lots.id }),
+    insertWhere(lotStatusEvents, {
+      id: `evt_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
+      lotId: fresh.id, fromStatus: fresh.status, toStatus: target,
+      reason, decidedBy: by, createdAt: now,
+    }, lots, sql`${lots.id} = ${fresh.id} AND changes() = 1`),
+  ]);
+  if (!changed.length) return stale;
   return { ok: true, status: target };
 }
 
@@ -334,7 +343,8 @@ export async function setLotDisposition(
  *   purity       → purityResult, purityMethod
  *   water        → waterContent
  *   heavy_metal  → heavyMetalsSummary, rebuilt from every heavy-metal row
- * A test can be recorded in any status; it does not change the status.
+ * Hold a released lot before recording new evidence, then make a fresh named
+ * release decision. A failed result must never leave material sellable.
  */
 export async function addLotTest(
   lot: Lot,
@@ -387,7 +397,11 @@ export async function addLotTest(
       break;
   }
 
-  await db.batch([db.insert(lotTests).values(row), db.update(lots).set(summary).where(and(eq(lots.id, lot.id), isNull(lots.supersededById)))]);
+  const [inserted] = await db.batch([
+    insertWhere(lotTests, row, lots, sql`${lots.id} = ${lot.id} AND ${lots.supersededById} IS NULL AND ${lots.status} != 'released'`).returning({ id: lotTests.id }),
+    db.update(lots).set(summary).where(and(eq(lots.id, lot.id), isNull(lots.supersededById), sql`changes() = 1`)),
+  ]);
+  if (!inserted.length) throw new Error('Hold a released lot before recording results, or reload a corrected lot.');
 }
 
 const KEY_COLUMN: Record<DocumentType, 'coaKey' | 'chromatogramKey' | 'massSpecKey' | 'sdsKey'> = {
@@ -418,12 +432,19 @@ export async function attachLotDocument(
   const db = getDb();
   const now = new Date();
   const family = await lotFamilyIds(lot.id);
-  await db.batch([
+  const column = KEY_COLUMN[type];
+  // The unique upload key is the claim marker. A correction that wins first
+  // must not leave a history entry saying a document was attached when it was not.
+  const claimed = sql`EXISTS (SELECT 1 FROM ${lots} WHERE ${lots.id} = ${lot.id} AND ${lots.supersededById} IS NULL AND ${lots[column]} = ${stored.key})`;
+  const [changed] = await db.batch([
+    db.update(lots).set({ [column]: stored.key, updatedAt: now })
+      .where(and(eq(lots.id, lot.id), isNull(lots.supersededById)))
+      .returning({ id: lots.id }),
     db
       .update(lotDocuments)
       .set({ supersededAt: now })
-      .where(and(sql`${lotDocuments.lotId} IN ${family}`, eq(lotDocuments.documentType, type), isNull(lotDocuments.supersededAt))),
-    db.insert(lotDocuments).values({
+      .where(and(sql`${lotDocuments.lotId} IN ${family}`, eq(lotDocuments.documentType, type), isNull(lotDocuments.supersededAt), claimed)),
+    insertWhere(lotDocuments, {
       id: `doc_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
       lotId: lot.id,
       documentType: type,
@@ -434,12 +455,9 @@ export async function attachLotDocument(
       uploadedBy: recordedBy(staff),
       uploadedAt: stored.uploadedAt,
       createdAt: now,
-    }),
-    db
-      .update(lots)
-      .set({ [KEY_COLUMN[type]]: stored.key, updatedAt: now })
-      .where(and(eq(lots.id, lot.id), isNull(lots.supersededById))),
+    }, lots, sql`${lots.id} = ${lot.id} AND ${claimed}`),
   ]);
+  if (!changed.length) throw new Error('The lot was corrected during upload. Reload and attach the document to the current record.');
 }
 
 /** Admin records or corrects the landed cost of a lot; the change is an event on the lot. */
@@ -447,9 +465,11 @@ export async function setLotCost(lot: Lot, costCents: number, costNote: string |
   const db = getDb();
   const now = new Date();
   const was = lot.costCents === null ? 'not recorded' : `$${(lot.costCents / 100).toFixed(2)}`;
-  await db.batch([
-    db.update(lots).set({ costCents, costNote, updatedAt: now }).where(and(eq(lots.id, lot.id), isNull(lots.supersededById))),
-    db.insert(lotStatusEvents).values({
+  const [changed] = await db.batch([
+    db.update(lots).set({ costCents, costNote, updatedAt: now })
+      .where(and(eq(lots.id, lot.id), isNull(lots.supersededById), eq(lots.status, lot.status), sql`${lots.costCents} IS ${lot.costCents}`))
+      .returning({ id: lots.id }),
+    insertWhere(lotStatusEvents, {
       id: `evt_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
       lotId: lot.id,
       fromStatus: lot.status,
@@ -458,8 +478,9 @@ export async function setLotCost(lot: Lot, costCents: number, costNote: string |
       decidedBy: recordedBy(staff),
       kind: 'cost',
       createdAt: now,
-    }),
+    }, lots, sql`${lots.id} = ${lot.id} AND changes() = 1`),
   ]);
+  if (!changed.length) throw new Error('The lot changed while recording cost. Reload and review the current record.');
 }
 
 /* ------------------------------------------------------------------------ */

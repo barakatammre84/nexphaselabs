@@ -1,0 +1,77 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { localD1 } from './helpers/local-d1';
+const { env } = vi.hoisted(() => ({ env: {} as { DB?: D1Database } }));
+vi.mock('cloudflare:workers', () => ({ env }));
+vi.mock('next/headers', () => ({ cookies: vi.fn() }));
+vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
+import { getDb } from '@/db';
+import { accounts, emailTokens, staffUsers } from '@/db/schema';
+import { accountSignIn, verifyEmailToken } from '@/lib/account-auth';
+import { resetPasswordWithToken } from '@/lib/account-service';
+import { signIn } from '@/lib/staff-auth';
+import { hashPassword, sha256Hex, verifyPassword } from '@/lib/staff-auth-core';
+
+let local: ReturnType<typeof localD1>;
+const password = 'Synthetic-Password-123!';
+const token = 'a'.repeat(64);
+beforeEach(async () => {
+  local = localD1();
+  env.DB = local.binding;
+  const passwordHash = await hashPassword(password);
+  await getDb().insert(accounts).values({ id: 'account_test', email: 'test@example.org', name: 'Test', passwordHash, tier: 'institutional', status: 'active' });
+  await getDb().insert(staffUsers).values({ id: 'staff_test', email: 'staff@example.org', name: 'Test staff', passwordHash, role: 'admin' });
+  await getDb().insert(emailTokens).values({ id: 'token_test', accountId: 'account_test', purpose: 'reset_password', tokenHash: await sha256Hex(token), expiresAt: new Date(Date.now() + 3600000) });
+});
+afterEach(() => { vi.useRealTimers(); local.sqlite.close(); delete env.DB; });
+
+describe('account transaction invariants', () => {
+  it('allows normal customer and staff sign-in and records the staff event', async () => {
+    expect((await accountSignIn('test@example.org', password, null)).ok).toBe(true);
+    expect((await signIn('staff@example.org', password, null)).ok).toBe(true);
+    expect(local.sqlite.prepare('SELECT count(*) AS n FROM account_sessions').get()!.n).toBe(1);
+    expect(local.sqlite.prepare("SELECT count(*) AS n FROM staff_events WHERE action = 'sign_in'").get()!.n).toBe(1);
+  });
+  it('does not issue a customer session when credentials change during sign-in', async () => {
+    local.beforeNextBatch(() => local.sqlite.exec("UPDATE accounts SET password_hash = 'new-credential', last_change_id = 'reset_won'"));
+    expect((await accountSignIn('test@example.org', password, null)).ok).toBe(false);
+    expect(local.sqlite.prepare('SELECT count(*) AS n FROM account_sessions').get()!.n).toBe(0);
+  });
+  it('does not issue a staff session or sign-in event when access is revoked mid-flight', async () => {
+    local.beforeNextBatch(() => local.sqlite.exec("UPDATE staff_users SET active = 0, last_change_id = 'deactivation_won'"));
+    expect((await signIn('staff@example.org', password, null)).ok).toBe(false);
+    expect(local.sqlite.prepare('SELECT count(*) AS n FROM staff_sessions').get()!.n).toBe(0);
+    expect(local.sqlite.prepare('SELECT count(*) AS n FROM staff_events').get()!.n).toBe(0);
+  });
+  it('never lets the loser of a same-second reset claim overwrite the winner', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const seconds = Math.floor(Date.now() / 1000);
+    const winnerHash = await hashPassword('Winner-Password-456!');
+    local.beforeNextBatch(() => {
+      local.sqlite.prepare('UPDATE email_tokens SET used_at = ?').run(seconds);
+      local.sqlite.prepare("UPDATE accounts SET password_hash = ?, last_change_id = 'winner'").run(winnerHash);
+    });
+    const outcome = await resetPasswordWithToken(token, 'Loser-Password-789!', 'Loser-Password-789!');
+    expect(outcome).toEqual({ ok: false, reason: 'invalid' });
+    const hash = local.sqlite.prepare('SELECT password_hash FROM accounts').get()!.password_hash as string;
+    expect(await verifyPassword('Winner-Password-456!', hash)).toBe(true);
+    expect(local.sqlite.prepare("SELECT count(*) AS n FROM account_events WHERE action = 'password_reset'").get()!.n).toBe(0);
+  });
+  it('resets once, revokes sessions, and records exactly one event', async () => {
+    await accountSignIn('test@example.org', password, null);
+    expect(await resetPasswordWithToken(token, 'Replacement-Password-123!', 'Replacement-Password-123!')).toEqual({ ok: true });
+    expect((await resetPasswordWithToken(token, 'Another-Password-123!', 'Another-Password-123!')).ok).toBe(false);
+    expect(local.sqlite.prepare('SELECT count(*) AS n FROM account_sessions WHERE revoked_at IS NULL').get()!.n).toBe(0);
+    expect(local.sqlite.prepare("SELECT count(*) AS n FROM account_events WHERE action = 'password_reset'").get()!.n).toBe(1);
+  });
+  it('does not reset an account suspended between token validation and commit', async () => {
+    local.beforeNextBatch(() => local.sqlite.exec("UPDATE accounts SET status = 'suspended'"));
+    expect((await resetPasswordWithToken(token, 'Replacement-Password-123!', 'Replacement-Password-123!')).ok).toBe(false);
+    expect(local.sqlite.prepare('SELECT used_at FROM email_tokens').get()!.used_at).toBeNull();
+  });
+  it('does not consume a verification token revoked during validation', async () => {
+    local.sqlite.exec("UPDATE email_tokens SET purpose = 'verify_email'; UPDATE accounts SET status = 'pending_email'");
+    local.beforeNextBatch(() => local.sqlite.exec('UPDATE email_tokens SET used_at = unixepoch()'));
+    expect(await verifyEmailToken(token)).toBe('invalid');
+    expect(local.sqlite.prepare('SELECT status FROM accounts').get()!.status).toBe('pending_email');
+  });
+});

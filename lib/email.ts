@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { appEnv } from '@/lib/site-config';
+import { emailRecipientAllowed } from '@/lib/environment-safety';
 
 /**
  * Transactional email.
@@ -36,11 +37,15 @@ export async function sendEmail(message: EmailMessage): Promise<EmailResult> {
     return { ok: false, error: 'Email is not configured.' };
   }
 
+  if (!emailRecipientAllowed(env.APP_ENV, message.to, env.TEST_EMAIL_ALLOWLIST)) {
+    return { ok: false, error: 'Non-production email is limited to approved test recipients.' };
+  }
+
   try {
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from, to: [message.to], subject: message.subject, text: message.text }),
+      body: JSON.stringify({ from, to: [message.to], subject: appEnv() === 'production' ? message.subject : `[TEST] ${message.subject}`, text: message.text }),
     });
     if (!response.ok) {
       const body = await response.text().catch(() => '');

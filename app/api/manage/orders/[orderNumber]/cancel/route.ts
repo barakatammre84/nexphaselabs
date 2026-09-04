@@ -8,6 +8,7 @@ import { getOrderByNumber, transitionOrder } from '@/lib/orders';
 import { invalidateBtcpayInvoice } from '@/lib/payments';
 import { publicOrigin } from '@/lib/site-config';
 import { canVerifyAccounts, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
+import { ENTITY_FOOTER } from '@/lib/entity';
 
 /** Admin cancels an order that has not shipped, with a reason the customer is sent. */
 export async function POST(request: Request, { params }: { params: Promise<{ orderNumber: string }> }) {
@@ -52,7 +53,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
           detail.order.paymentStatus === 'paid' ? 'The payment received is due back to you and will be returned to the originating account.' : '',
           `Order details: ${publicOrigin()}/account/orders/${detail.order.orderNumber}`,
           '',
-          'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
+          ENTITY_FOOTER,
         ]
           .filter((l, i, arr) => !(l === '' && arr[i - 1] === ''))
           .join('\n'),

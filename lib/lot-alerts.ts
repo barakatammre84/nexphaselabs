@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, isNull, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { lots, productDocuments, products } from '@/db/schema';
 import { isMassUnit } from '@/lib/lot-quantities';

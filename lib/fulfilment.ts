@@ -10,6 +10,7 @@ import { scanText } from '@/lib/catalog-rules';
 import { transitionOrder, type OrderDetail } from '@/lib/orders';
 import { publicOrigin } from '@/lib/site-config';
 import type { StaffPrincipal } from '@/lib/staff-auth';
+import { ENTITY_FOOTER } from '@/lib/entity';
 
 /**
  * Fulfilment. The one place material leaves a lot.
@@ -252,7 +253,7 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
         'The certificate of analysis for each lot is in the parcel and at the link above.',
         `Order details: ${publicOrigin()}/account/orders/${order.orderNumber}`,
         '',
-        'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
+        ENTITY_FOOTER,
       ].join('\n'),
     });
   }

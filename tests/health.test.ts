@@ -1,0 +1,29 @@
+import { describe, expect, it, vi } from 'vitest';
+import { checkDependencies, SCHEMA_PROBES } from '@/lib/health';
+
+function database(batch = vi.fn().mockResolvedValue(SCHEMA_PROBES.map(() => ({ success: true })))) {
+  return { prepare: vi.fn((query: string) => ({ query })), batch } as unknown as Pick<D1Database, 'prepare' | 'batch'>;
+}
+
+describe('deployment dependency health', () => {
+  it('probes every table and explicit columns without reading rows', () => {
+    expect(SCHEMA_PROBES.length).toBeGreaterThanOrEqual(32);
+    expect(SCHEMA_PROBES.every((query) => query.endsWith('LIMIT 0'))).toBe(true);
+    expect(SCHEMA_PROBES.some((query) => query.includes('"lots"."superseded_by_id"'))).toBe(true);
+    expect(SCHEMA_PROBES.some((query) => query.includes('"orders"."refund_due_cents"'))).toBe(true);
+  });
+  it('accepts an accessible bucket even when the probe object is absent', async () => {
+    const head = vi.fn().mockResolvedValue(null);
+    expect(await checkDependencies({ DB: database(), DOCS: { head } })).toEqual({ ok: true, db: 'ok', docs: 'ok' });
+    expect(head).toHaveBeenCalledWith('_health/readiness-probe');
+  });
+  it('fails when bindings, schema or documents are unavailable', async () => {
+    expect((await checkDependencies({})).ok).toBe(false);
+    const DOCS = { head: vi.fn().mockResolvedValue(null) };
+    expect(await checkDependencies({ DB: database(vi.fn().mockRejectedValue(new Error('missing column'))), DOCS }))
+      .toEqual({ ok: false, db: 'unavailable', docs: 'ok' });
+    expect(await checkDependencies({ DB: database(), DOCS: { head: vi.fn().mockRejectedValue(new Error('bucket denied')) } }))
+      .toEqual({ ok: false, db: 'ok', docs: 'unavailable' });
+    expect((await checkDependencies({ DB: database(vi.fn().mockResolvedValue([{ success: false }])), DOCS })).ok).toBe(false);
+  });
+});

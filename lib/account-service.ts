@@ -16,6 +16,7 @@ import { publicOrigin } from '@/lib/site-config';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 import { hashPassword, passwordPolicyError, randomToken, sha256Hex } from '@/lib/staff-auth-core';
 import { issueVerification } from '@/lib/account-auth';
+import { ENTITY_FOOTER } from '@/lib/entity';
 
 /**
  * Customer service: the customer's own password reset, and the staff tools
@@ -27,7 +28,7 @@ import { issueVerification } from '@/lib/account-auth';
 const RESET_TTL_SECONDS = 60 * 60;
 const id = (prefix: string) => `${prefix}_${randomToken().slice(0, 24)}`;
 const by = (staff: StaffPrincipal) => `${staff.name} (${staff.id})`;
-const FOOTER = 'NexPhase Labs · 8486 Ventures LLC · Oakland, CA';
+const FOOTER = ENTITY_FOOTER;
 
 /* ------------------------------------------------------------------------ */
 /* Password reset                                                            */
@@ -137,13 +138,19 @@ export async function resetPasswordWithToken(token: string, next: string, confir
   if (passwordPolicyError(next)) return { ok: false, reason: 'policy' };
   if (next !== confirm) return { ok: false, reason: 'mismatch' };
   const passwordHash = await hashPassword(next);
+  const claimId = id('reset');
   const [used] = await db.batch([
     // Single use: the token row is claimed first and everything else applies only if that claim won.
-    db.update(emailTokens).set({ usedAt: now }).where(and(eq(emailTokens.id, row.id), isNull(emailTokens.usedAt))).returning({ id: emailTokens.id }),
+    db.update(emailTokens).set({ usedAt: now }).where(and(
+      eq(emailTokens.id, row.id), isNull(emailTokens.usedAt),
+      sql`${emailTokens.expiresAt} > unixepoch()`,
+      sql`EXISTS (SELECT 1 FROM ${accounts} WHERE ${accounts.id} = ${row.accountId} AND ${accounts.status} IN ('active', 'pending_email'))`,
+    )).returning({ id: emailTokens.id }),
     db
       .update(accounts)
       .set({
         passwordHash,
+        lastChangeId: claimId,
         failedAttempts: 0,
         lockedUntil: null,
         // A reset link proves control of the address at least as well as the verification link does.
@@ -151,23 +158,23 @@ export async function resetPasswordWithToken(token: string, next: string, confir
         status: sql`CASE WHEN ${accounts.status} = 'pending_email' THEN 'active' ELSE ${accounts.status} END`,
         updatedAt: now,
       })
-      .where(and(eq(accounts.id, row.accountId), sql`EXISTS (SELECT 1 FROM email_tokens t WHERE t.id = ${row.id} AND t.used_at = ${Math.floor(now.getTime() / 1000)})`)),
+      .where(and(eq(accounts.id, row.accountId), sql`changes() = 1`)),
     db
       .update(accountSessions)
       .set({ revokedAt: now })
-      .where(and(eq(accountSessions.accountId, row.accountId), isNull(accountSessions.revokedAt), sql`EXISTS (SELECT 1 FROM email_tokens t WHERE t.id = ${row.id} AND t.used_at = ${Math.floor(now.getTime() / 1000)})`)),
+      .where(and(eq(accountSessions.accountId, row.accountId), isNull(accountSessions.revokedAt), sql`EXISTS (SELECT 1 FROM ${accounts} WHERE ${accounts.id} = ${row.accountId} AND ${accounts.lastChangeId} = ${claimId})`)),
     db.insert(accountEvents).select(
       db
         .select({
           id: sql<string>`${id('aev')}`.as('id'),
-          accountId: emailTokens.accountId,
+          accountId: accounts.id,
           action: sql<string>`'password_reset'`.as('action'),
           detail: sql<string>`'password set from reset link; all sessions ended'`.as('detail'),
           actor: sql<string>`'self'`.as('actor'),
           createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
         })
-        .from(emailTokens)
-        .where(and(eq(emailTokens.id, row.id), eq(emailTokens.usedAt, now))),
+        .from(accounts)
+        .where(and(eq(accounts.id, row.accountId), eq(accounts.lastChangeId, claimId))),
     ),
   ]);
   if (!used || used.length === 0) return { ok: false, reason: 'invalid' };
@@ -349,4 +356,3 @@ export function describeToken(t: typeof emailTokens.$inferSelect, now = new Date
   const state = t.usedAt ? `used ${t.usedAt.toISOString().slice(0, 16).replace('T', ' ')}` : t.expiresAt < now ? 'expired' : 'live';
   return `${t.purpose.replace('_', ' ')} · issued ${t.createdAt.toISOString().slice(0, 16).replace('T', ' ')} · ${state}`;
 }
-

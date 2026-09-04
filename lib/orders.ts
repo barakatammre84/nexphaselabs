@@ -9,6 +9,7 @@ import { btcpayCheckoutUrl, getPaymentMethod, invalidateBtcpayInvoice, type Paym
 import { publicOrigin } from '@/lib/site-config';
 import { canTransition, formatOrderNumber, orderTotals, refundAllowed, refundDue, type OrderStatus } from '@/lib/order-rules';
 import type { Visibility } from '@/lib/visibility-rules';
+import { ENTITY_FOOTER } from '@/lib/entity';
 
 function id(prefix: string): string {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`;
@@ -174,7 +175,7 @@ export async function createOrderFromCart(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (/UNIQUE constraint failed: orders\.submission_token/i.test(message)) {
-        const [dup] = await db.select({ orderNumber: orders.orderNumber }).from(orders).where(eq(orders.submissionToken, submissionToken)).limit(1);
+        const [dup] = await db.select({ orderNumber: orders.orderNumber }).from(orders).where(and(eq(orders.submissionToken, submissionToken), eq(orders.accountId, account.id))).limit(1);
         if (dup) return { ok: true, orderNumber: dup.orderNumber, duplicate: true };
         return { ok: false, error: 'This cart was already submitted.' };
       }
@@ -319,7 +320,7 @@ export async function beginPayment(detail: OrderDetail, methodId: string, accoun
       '',
       `Order details: ${publicOrigin()}/account/orders/${detail.order.orderNumber}`,
       '',
-      'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
+      ENTITY_FOOTER,
     ].join('\n'),
   });
   return { ok: true, instructions };
@@ -373,7 +374,7 @@ export async function markOrderPaid(detail: OrderDetail, actor: string, referenc
       'Your payment has been recorded. Material will be picked from a released lot and shipped with its certificate of analysis.',
       `Order details: ${publicOrigin()}/account/orders/${detail.order.orderNumber}`,
       '',
-      'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
+      ENTITY_FOOTER,
     ].join('\n'),
   });
   return moved;
@@ -471,7 +472,7 @@ export async function recordRefund(
         'Depending on the bank or provider it can take several business days to appear.',
         `Order details: ${publicOrigin()}/account/orders/${order.orderNumber}`,
         '',
-        'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
+        ENTITY_FOOTER,
       ].join('\n'),
     });
   }

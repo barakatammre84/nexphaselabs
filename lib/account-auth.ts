@@ -8,6 +8,7 @@ import { hashPassword, randomToken, sha256Hex, verifyPassword } from '@/lib/staf
 import type { AccountTier } from '@/lib/account-rules';
 import { RUO_VERSION, TERMS_VERSION } from '@/lib/policy';
 import { publicOrigin } from '@/lib/site-config';
+import { ENTITY_FOOTER } from '@/lib/entity';
 
 /**
  * Customer account authentication. Same primitives and the same posture as
@@ -96,7 +97,7 @@ export async function signUp(
         'Someone tried to create a NexPhase Labs account with this email address, but an account already exists.',
         `If this was you, sign in at ${publicOrigin()}/account/sign-in. If it was not, no action is needed.`,
         '',
-        'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
+        ENTITY_FOOTER,
       ].join('\n'),
     });
     return { ok: false, reason: 'exists' };
@@ -164,7 +165,7 @@ export async function issueVerification(accountId: string, email: string, name: 
       '',
       'If you did not create an account, ignore this message.',
       '',
-      'NexPhase Labs · 8486 Ventures LLC · Oakland, CA',
+      ENTITY_FOOTER,
     ].join('\n'),
   });
   return result.ok;
@@ -185,14 +186,17 @@ export async function verifyEmailToken(token: string): Promise<VerifyResult> {
   if (row.usedAt) return 'already';
   if (row.expiresAt < now) return 'expired';
 
-  await db.batch([
-    db.update(emailTokens).set({ usedAt: now }).where(eq(emailTokens.id, row.id)),
+  const [claimed] = await db.batch([
+    db.update(emailTokens).set({ usedAt: now }).where(and(
+      eq(emailTokens.id, row.id), isNull(emailTokens.usedAt), sql`${emailTokens.expiresAt} > unixepoch()`,
+      sql`EXISTS (SELECT 1 FROM ${accounts} WHERE ${accounts.id} = ${row.accountId} AND ${accounts.status} IN ('active', 'pending_email'))`,
+    )).returning({ id: emailTokens.id }),
     db
       .update(accounts)
       .set({ emailVerifiedAt: now, status: sql`CASE WHEN ${accounts.status} = 'pending_email' THEN 'active' ELSE ${accounts.status} END`, updatedAt: now })
-      .where(eq(accounts.id, row.accountId)),
+      .where(and(eq(accounts.id, row.accountId), sql`changes() = 1`)),
   ]);
-  return 'verified';
+  return claimed.length ? 'verified' : 'invalid';
 }
 
 /* ------------------------------------------------------------------------ */
@@ -235,20 +239,28 @@ export async function accountSignIn(email: string, password: string, userAgent: 
 
   const token = randomToken();
   const expiresAt = new Date(now.getTime() + SESSION_TTL_SECONDS * 1000);
-  await db.batch([
-    db.insert(accountSessions).values({
-      id: id('ses'),
-      tokenHash: await sha256Hex(token),
-      accountId: account.id,
-      expiresAt,
-      userAgent: userAgent?.slice(0, 200) ?? null,
-      createdAt: now,
-    }),
+  const tokenHash = await sha256Hex(token);
+  const [inserted] = await db.batch([
+    db.insert(accountSessions).select(db.select({
+      id: sql<string>`${id('ses')}`.as('id'),
+      tokenHash: sql<string>`${tokenHash}`.as('token_hash'),
+      accountId: accounts.id,
+      expiresAt: sql<number>`${Math.floor(expiresAt.getTime() / 1000)}`.as('expires_at'),
+      revokedAt: sql<null>`NULL`.as('revoked_at'),
+      userAgent: sql<string | null>`${userAgent?.slice(0, 200) ?? null}`.as('user_agent'),
+      createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
+    }).from(accounts).where(and(
+      eq(accounts.id, account.id), eq(accounts.status, 'active'),
+      eq(accounts.passwordHash, account.passwordHash),
+      sql`${accounts.lastChangeId} IS ${account.lastChangeId}`,
+      sql`(${accounts.lockedUntil} IS NULL OR ${accounts.lockedUntil} <= unixepoch())`,
+    ))).returning({ id: accountSessions.id }),
     db
       .update(accounts)
       .set({ failedAttempts: 0, lockedUntil: null, lastLoginAt: now, updatedAt: now })
-      .where(eq(accounts.id, account.id)),
+      .where(and(eq(accounts.id, account.id), sql`changes() = 1`)),
   ]);
+  if (!inserted.length) return { ok: false, reason: 'invalid' };
   return { ok: true, token, expiresAt, account };
 }
 

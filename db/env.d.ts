@@ -16,6 +16,8 @@ declare namespace Cloudflare {
     EMAIL_FROM?: string;
     /** Secret: Resend API key. Set with `wrangler secret put RESEND_API_KEY`. */
     RESEND_API_KEY?: string;
+    /** Exact comma-separated mailboxes allowed to receive non-production email. Empty denies all. */
+    TEST_EMAIL_ALLOWLIST?: string;
     /** Bank transfer remittance text (bank name, account, routing, SWIFT). Set as a secret. */
     PAYMENT_BANK_INSTRUCTIONS?: string;
     /** BTCPay Server (self-hosted). All four set → Bitcoin checkout is offered; the webhook secret is required so settlement can complete. */

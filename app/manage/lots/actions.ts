@@ -120,6 +120,7 @@ export async function addLotTestAction(lotNumber: string, _prev: LotFormState, d
 
   const result = validateLotTest(values as unknown as LotTestInput);
   if (!result.ok) return { values, errors: result.errors, violations: result.violations };
+  if (lot.status === 'released') return fail('Put this lot on hold before recording new analytical results, then review it for release again.');
 
   try {
     await addLotTest(lot, result.value, staff);

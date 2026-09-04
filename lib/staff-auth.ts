@@ -104,11 +104,30 @@ export async function signIn(email: string, password: string, userAgent: string 
   const token = randomToken();
   const expiresAt = new Date(now.getTime() + SESSION_TTL_SECONDS * 1000);
   const sessionId = `ses_${randomToken().slice(0, 24)}`;
-  await db.batch([
-    db.insert(staffSessions).values({ id: sessionId, tokenHash: await sha256Hex(token), userId: user.id, expiresAt, userAgent: ua }),
-    db.update(staffUsers).set({ failedAttempts: 0, lockedUntil: null, lastLoginAt: now, updatedAt: now }).where(eq(staffUsers.id, user.id)),
-    db.insert(staffEvents).values({ id: eventId(), userId: user.id, action: 'sign_in', detail: `session ${sessionId}`, actor: 'self', userAgent: ua, createdAt: now }),
+  const tokenHash = await sha256Hex(token);
+  const [inserted] = await db.batch([
+    db.insert(staffSessions).select(db.select({
+      id: sql<string>`${sessionId}`.as('id'),
+      tokenHash: sql<string>`${tokenHash}`.as('token_hash'),
+      userId: staffUsers.id,
+      expiresAt: sql<number>`${Math.floor(expiresAt.getTime() / 1000)}`.as('expires_at'),
+      revokedAt: sql<null>`NULL`.as('revoked_at'),
+      userAgent: sql<string | null>`${ua}`.as('user_agent'),
+      createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
+    }).from(staffUsers).where(and(
+      eq(staffUsers.id, user.id), eq(staffUsers.active, true), eq(staffUsers.passwordHash, user.passwordHash),
+      sql`${staffUsers.lastChangeId} IS ${user.lastChangeId}`,
+      sql`(${staffUsers.lockedUntil} IS NULL OR ${staffUsers.lockedUntil} <= unixepoch())`,
+    ))).returning({ id: staffSessions.id }),
+    db.update(staffUsers).set({ failedAttempts: 0, lockedUntil: null, lastLoginAt: now, updatedAt: now }).where(and(eq(staffUsers.id, user.id), sql`changes() = 1`)),
+    db.insert(staffEvents).select(db.select({
+      id: sql<string>`${eventId()}`.as('id'), userId: staffSessions.userId,
+      action: sql<string>`'sign_in'`.as('action'), detail: sql<string>`${`session ${sessionId}`}`.as('detail'),
+      actor: sql<string>`'self'`.as('actor'), userAgent: sql<string | null>`${ua}`.as('user_agent'),
+      createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
+    }).from(staffSessions).where(eq(staffSessions.id, sessionId))),
   ]);
+  if (!inserted.length) return { ok: false, reason: 'invalid' };
 
   return { ok: true, token, expiresAt, user };
 }
