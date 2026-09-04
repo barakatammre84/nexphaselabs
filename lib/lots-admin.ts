@@ -261,10 +261,10 @@ export async function getLotDetail(lotNumber: string): Promise<LotDetail | null>
   if (!lot) return null;
   const family = await lotFamilyIds(lot.id);
   const [tests, movements, documents, statusEvents] = await Promise.all([
-    db.select().from(lotTests).where(sql`${lotTests.lotId} IN ${family}`).orderBy(asc(lotTests.createdAt)),
-    db.select().from(lotMovements).where(sql`${lotMovements.lotId} IN ${family}`).orderBy(asc(lotMovements.occurredAt)),
-    db.select().from(lotDocuments).where(sql`${lotDocuments.lotId} IN ${family}`).orderBy(desc(lotDocuments.uploadedAt)),
-    db.select().from(lotStatusEvents).where(sql`${lotStatusEvents.lotId} IN ${family}`).orderBy(asc(lotStatusEvents.createdAt)),
+    db.select().from(lotTests).where(sql`${lotTests.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)}))`).orderBy(asc(lotTests.createdAt)),
+    db.select().from(lotMovements).where(sql`${lotMovements.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)}))`).orderBy(asc(lotMovements.occurredAt)),
+    db.select().from(lotDocuments).where(sql`${lotDocuments.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)}))`).orderBy(desc(lotDocuments.uploadedAt)),
+    db.select().from(lotStatusEvents).where(sql`${lotStatusEvents.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)}))`).orderBy(asc(lotStatusEvents.createdAt)),
   ]);
   return { lot, tests, movements, documents, statusEvents };
 }
@@ -303,7 +303,7 @@ export async function setLotDisposition(
     const tests = await db
       .select({ testType: lotTests.testType, passed: lotTests.passed })
       .from(lotTests)
-      .where(sql`${lotTests.lotId} IN ${family}`);
+      .where(sql`${lotTests.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)}))`);
     const blockers = releaseBlockers(fresh, tests);
     if (blockers.length) return { ok: false, error: `Cannot release: ${blockers.join(' ')}` };
     // Tests are append-only. Recheck the reviewed evidence at write time so a
@@ -315,7 +315,7 @@ export async function setLotDisposition(
       AND ${lots.identityConfirmed} = 1
       AND ${lots.purityResult} IS ${fresh.purityResult}
       AND ${lots.quantityRemaining} IS ${fresh.quantityRemaining}
-      AND (SELECT count(*) FROM ${lotTests} WHERE ${lotTests.lotId} IN ${family}) = ${tests.length}
+      AND (SELECT count(*) FROM ${lotTests} WHERE ${lotTests.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)}))) = ${tests.length}
     `;
   }
 
@@ -393,7 +393,7 @@ export async function addLotTest(
         SELECT group_concat(entry, '; ') FROM (
           SELECT COALESCE(${lotTests.analyte}, 'Heavy metals') || ': ' || ${lotTests.result} AS entry
           FROM ${lotTests}
-          WHERE ${lotTests.lotId} IN ${family} AND ${lotTests.testType} = 'heavy_metal'
+          WHERE ${lotTests.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)})) AND ${lotTests.testType} = 'heavy_metal'
           ORDER BY ${lotTests.createdAt}, ${lotTests.id}
         )
       )`;
@@ -448,7 +448,7 @@ export async function attachLotDocument(
     db
       .update(lotDocuments)
       .set({ supersededAt: now })
-      .where(and(sql`${lotDocuments.lotId} IN ${family}`, eq(lotDocuments.documentType, type), isNull(lotDocuments.supersededAt), claimed)),
+      .where(and(sql`${lotDocuments.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)}))`, eq(lotDocuments.documentType, type), isNull(lotDocuments.supersededAt), claimed)),
     insertWhere(lotDocuments, {
       id: `doc_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
       lotId: lot.id,

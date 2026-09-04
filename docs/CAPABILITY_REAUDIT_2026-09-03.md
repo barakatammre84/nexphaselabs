@@ -137,3 +137,8 @@ This pass continued from the actual application and Claude's existing Phase 8.1,
 5. Reports currently read the complete history in memory. Before material volume grows, add bounded date filters/pagination and measure response size; the 105-PO parameter fix is not proof of unlimited report capacity.
 
 The process-review skill guided the repeated handoff checks, and Cloudflare/Wrangler guidance guided the isolated staging verification. No business or regulatory approval is implied.
+
+### Long-history follow-up
+- Re-audit found the same bound-parameter limit in lot audit history, release evidence checks, document replacement, heavy-metal summaries and public analytical results. Converted these family lookups to one bound JSON array.
+- Expanded the existing correction-chain regression to 111 versions. It verifies full staff history, heavy-metal test recording, document replacement, named release and public analytical results; quarantine remains hidden and public records omit movements, release actor and stock quantities. Cycles still terminate.
+- First release of the purchasing/payment/report changes: commit dcc1031, staging version cc95167d-78ad-48e5-b9b4-54b3b0445a29. Live health passed; procurement required sign-in and live payment webhook remained disabled.
