@@ -542,6 +542,7 @@ export function validateProductInput(
         draft.source?.trim() ||
         draft.reviewedBy?.trim() ||
         draft.reviewedAt?.trim() ||
+        draft.dissent?.trim() ||
         draft.pictograms?.length ||
         draft.hazardStatements?.length ||
         draft.precautionaryStatements?.length ||

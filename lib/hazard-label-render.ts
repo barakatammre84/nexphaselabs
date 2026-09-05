@@ -32,9 +32,14 @@ const RED = rgb(0.8, 0.05, 0.05);
 export type LabelArtwork = Record<string, Uint8Array>;
 
 export class LabelTooSmallError extends Error {
-  constructor(size: LabelSize, needed: number, available: number) {
+  constructor(
+    size: LabelSize,
+    needed: number,
+    available: number,
+    axis: 'height' | 'width' = 'height',
+  ) {
     super(
-      `The label content needs ${Math.ceil(needed)}pt of height but ${LABEL_SIZES[size].label} gives ${Math.floor(available)}pt. Choose a larger label size.`,
+      `The label content needs ${Math.ceil(needed)}pt of ${axis} but ${LABEL_SIZES[size].label} gives ${Math.floor(available)}pt. Choose a larger label size.`,
     );
     this.name = 'LabelTooSmallError';
   }
@@ -130,6 +135,22 @@ export async function renderLabel(
     foot.reduce((sum, b) => sum + blockHeight(b), 0);
 
   if (needed > available) throw new LabelTooSmallError(size, needed, available);
+
+  // The pictogram band is laid out across the label rather than wrapped, so
+  // its width is checked too: enough pictograms plus the signal word beside
+  // them will run past the printable edge, and a signal word printed off the
+  // label is the same defect as one left off it.
+  if (content.pictograms.length > 0) {
+    const signalPoints = size === 'vial' ? 9 : 13;
+    const bandWidth =
+      content.pictograms.length * (boxSize + 3) +
+      (content.signalWord !== 'none'
+        ? 2 + bold.widthOfTextAtSize(SIGNAL_WORD_LABEL[content.signalWord], signalPoints)
+        : 0);
+    if (bandWidth > width) {
+      throw new LabelTooSmallError(size, bandWidth, width, 'width');
+    }
+  }
 
   const copies = Math.max(1, Math.min(meta.copies ?? 1, 100));
   for (let copy = 0; copy < copies; copy += 1) {

@@ -108,6 +108,16 @@ describe('validateHazard', () => {
     }
   });
 
+  it('requires a precautionary statement, which a label must carry', () => {
+    // 29 CFR 1910.1200(f)(1)(vi). Without this a classification could be
+    // saved that prints a label missing one of the six required elements.
+    const result = validateHazard(input({ precautionaryStatements: [] }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.some((e) => e.includes('1910.1200(f)(1)(vi)'))).toBe(true);
+    }
+  });
+
   it('records "not hazardous" as a finding, with a source', () => {
     // A material found not to be hazardous is a decision somebody made, not
     // an empty field — but it cannot then carry pictograms or hazards.
@@ -211,6 +221,19 @@ describe('labelBlockers', () => {
     // An empty red diamond is not a pictogram.
     const blockers = labelBlockers(subject({ artworkAvailable: [] }));
     expect(blockers.some((b) => b.includes('GHS07'))).toBe(true);
+  });
+
+  it('refuses a classification carrying no precautionary statement', () => {
+    // Belt and braces: a classification saved before this rule existed must
+    // still not print.
+    const validated = validateHazard(input());
+    if (!validated.ok) throw new Error('Expected a valid hazard fixture');
+    const stale = {
+      ...validated.value,
+      precautionaryStatements: [],
+    } as unknown as LabelSubject['hazard'];
+    const blockers = labelBlockers(subject({ hazard: stale }));
+    expect(blockers.some((b) => b.includes('1910.1200(f)(1)(vi)'))).toBe(true);
   });
 
   it('needs no artwork for a product carrying no pictograms', () => {

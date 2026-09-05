@@ -178,8 +178,18 @@ export function validateHazard(input: HazardInput): HazardValidation {
     if (hazardStatements.length > 0) {
       errors.push('A material with no signal word cannot carry hazard statements. Remove them, or assign a signal word.');
     }
-  } else if (hazardStatements.length === 0) {
-    errors.push('A signal word needs at least one hazard statement to qualify it.');
+  } else {
+    if (hazardStatements.length === 0) {
+      errors.push('A signal word needs at least one hazard statement to qualify it.');
+    }
+    // 29 CFR 1910.1200(f)(1)(vi) lists precautionary statements among the six
+    // elements a container label must bear. A classification saved without one
+    // would print a label missing a required element.
+    if (precautionaryStatements.length === 0) {
+      errors.push(
+        'At least one precautionary statement is required — a label must carry one (29 CFR 1910.1200(f)(1)(vi)).',
+      );
+    }
   }
 
   // Everything here reaches a container label and the product page.
@@ -280,6 +290,12 @@ export function labelBlockers(subject: LabelSubject): string[] {
   if (!responsibleParty.telephone) {
     blockers.push(
       'No telephone number is recorded. A label must give the telephone number of the responsible party (29 CFR 1910.1200(f)(1)(v)).',
+    );
+  }
+
+  if (hazard && hazard.signalWord !== 'none' && hazard.precautionaryStatements.length === 0) {
+    blockers.push(
+      'The classification carries no precautionary statement. A label must bear at least one (29 CFR 1910.1200(f)(1)(vi)).',
     );
   }
 

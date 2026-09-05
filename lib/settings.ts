@@ -47,21 +47,28 @@ export async function writeSettings(
   const db = getDb();
   const now = Math.floor(Date.now() / 1000);
   const actor = `${staff.name} (${staff.id})`;
+
+  // One batch, so a form submission cannot half-apply. These values are
+  // printed together on every container label and in the issued programme; an
+  // address updated without its telephone would be worse than neither.
+  const statements = [];
   for (const [key, raw] of Object.entries(values)) {
     if (!isSettingKey(key)) continue;
     const value = String(raw ?? '').trim();
-    if (!value) {
-      await db.run(sql`DELETE FROM settings WHERE key = ${key}`);
-      continue;
-    }
-    await db.run(
-      sql`INSERT INTO settings (key, value, updated_by, updated_at)
-          VALUES (${key}, ${value}, ${actor}, ${now})
-          ON CONFLICT(key) DO UPDATE SET value = excluded.value,
-                                         updated_by = excluded.updated_by,
-                                         updated_at = excluded.updated_at`,
+    statements.push(
+      value
+        ? db.run(
+            sql`INSERT INTO settings (key, value, updated_by, updated_at)
+                VALUES (${key}, ${value}, ${actor}, ${now})
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value,
+                                               updated_by = excluded.updated_by,
+                                               updated_at = excluded.updated_at`,
+          )
+        : db.run(sql`DELETE FROM settings WHERE key = ${key}`),
     );
   }
+  if (statements.length === 0) return;
+  await db.batch(statements as unknown as Parameters<typeof db.batch>[0]);
 }
 
 /**
