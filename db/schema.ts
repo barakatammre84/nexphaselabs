@@ -1,5 +1,11 @@
 import { sql } from 'drizzle-orm';
 export { notifications, notificationEvents } from './notifications-schema';
+export {
+  feedbackConversations,
+  feedbackEvents,
+  feedbackMessages,
+  feedbackNotes,
+} from './feedback-schema';
 import {
   index,
   integer,
@@ -336,23 +342,22 @@ export const products = sqliteTable(
      * rather than a field nobody filled in. `dissent` carries a supplier
      * disagreement verbatim; classifications are never silently reconciled.
      */
-    hazard: text('hazard', { mode: 'json' })
-      .$type<{
-        signalWord: 'danger' | 'warning' | 'none';
-        /** GHS01..GHS09. */
-        pictograms: string[];
-        hazardStatements: { code: string; text: string }[];
-        precautionaryStatements: { code: string; text: string }[];
-        /** Hazard class and category, e.g. 'Skin irritation, Category 2'. */
-        classification: string[];
-        /** Where the classification came from. Required. */
-        source: string;
-        /** A supplier that classifies it differently, recorded not resolved. */
-        dissent: string | null;
-        reviewedBy: string;
-        /** ISO date. */
-        reviewedAt: string;
-      } | null>(),
+    hazard: text('hazard', { mode: 'json' }).$type<{
+      signalWord: 'danger' | 'warning' | 'none';
+      /** GHS01..GHS09. */
+      pictograms: string[];
+      hazardStatements: { code: string; text: string }[];
+      precautionaryStatements: { code: string; text: string }[];
+      /** Hazard class and category, e.g. 'Skin irritation, Category 2'. */
+      classification: string[];
+      /** Where the classification came from. Required. */
+      source: string;
+      /** A supplier that classifies it differently, recorded not resolved. */
+      dissent: string | null;
+      reviewedBy: string;
+      /** ISO date. */
+      reviewedAt: string;
+    } | null>(),
     hasSds: integer('has_sds', { mode: 'boolean' }).notNull().default(false),
     /** Path under /public, or null where no photograph of this material exists. */
     image: text('image'),
@@ -516,7 +521,9 @@ export const staffUsers = sqliteTable(
     lockedUntil: integer('locked_until', { mode: 'timestamp' }),
     lastLoginAt: integer('last_login_at', { mode: 'timestamp' }),
     /** Set on creation and on an admin reset; cleared when the person sets their own password. */
-    mustChangePassword: integer('must_change_password', { mode: 'boolean' }).notNull().default(false),
+    mustChangePassword: integer('must_change_password', { mode: 'boolean' })
+      .notNull()
+      .default(false),
     passwordChangedAt: integer('password_changed_at', { mode: 'timestamp' }),
     createdBy: text('created_by'),
     /** Fresh id stamped by every admin change; the event row is written only where it matches. */
@@ -550,7 +557,9 @@ export const staffEvents = sqliteTable(
     /** "Name (stf_id)" of the actor, or "self" / "system". */
     actor: text('actor').notNull(),
     userAgent: text('user_agent'),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     userIdx: index('staff_events_user_idx').on(table.userId),
@@ -639,7 +648,9 @@ export const accountEvents = sqliteTable(
     action: text('action').notNull(),
     detail: text('detail'),
     actor: text('actor').notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     accountIdx: index('account_events_account_idx').on(table.accountId),
@@ -924,7 +935,12 @@ export const orders = sqliteTable(
     currency: text('currency').notNull().default('USD'),
     subtotalCents: integer('subtotal_cents').notNull(),
     shippingCents: integer('shipping_cents').notNull().default(0),
+    taxCents: integer('tax_cents').notNull().default(0),
     totalCents: integer('total_cents').notNull(),
+    /** Checkout rate accepted by the customer; copied from a server-owned quote. */
+    shippingQuoteId: text('shipping_quote_id'),
+    shippingRateId: text('shipping_rate_id'),
+    shippingService: text('shipping_service'),
     /** Tier the prices were taken from: institutional | consumer */
     priceTier: text('price_tier').notNull(),
     // Ship-to snapshot
@@ -1054,14 +1070,20 @@ export const suppliers = sqliteTable(
     website: text('website'),
     notes: text('notes'),
     /** unqualified | qualified | suspended */
-    qualificationStatus: text('qualification_status').notNull().default('unqualified'),
+    qualificationStatus: text('qualification_status')
+      .notNull()
+      .default('unqualified'),
     qualifiedBy: text('qualified_by'),
     qualifiedAt: integer('qualified_at', { mode: 'timestamp' }),
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
     lastChangeId: text('last_change_id'),
     createdBy: text('created_by').notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     nameIdx: uniqueIndex('suppliers_name_idx').on(table.name),
@@ -1077,7 +1099,9 @@ export const supplierEvents = sqliteTable(
     action: text('action').notNull(),
     detail: text('detail'),
     actor: text('actor').notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     supplierIdx: index('supplier_events_supplier_idx').on(table.supplierId),
@@ -1103,8 +1127,12 @@ export const purchaseOrders = sqliteTable(
     note: text('note'),
     lastTransitionId: text('last_transition_id'),
     createdBy: text('created_by').notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     numberIdx: uniqueIndex('purchase_orders_number_idx').on(table.poNumber),
@@ -1131,7 +1159,9 @@ export const purchaseOrderLines = sqliteTable(
     /** Lot id stamped by the receipt that last updated this line; the lot row is inserted only where it matches. */
     lastReceiptLotId: text('last_receipt_lot_id'),
     closedAt: integer('closed_at', { mode: 'timestamp' }),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     poIdx: index('purchase_order_lines_po_idx').on(table.purchaseOrderId),
@@ -1148,7 +1178,9 @@ export const purchaseOrderEvents = sqliteTable(
     toStatus: text('to_status').notNull(),
     note: text('note'),
     actor: text('actor').notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
     poIdx: index('purchase_order_events_po_idx').on(table.purchaseOrderId),
@@ -1199,12 +1231,19 @@ export const issuedDocuments = sqliteTable(
     supersededById: text('superseded_by_id'),
     supersededAt: integer('superseded_at', { mode: 'timestamp' }),
     supersedeReason: text('supersede_reason'),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
   },
   (table) => ({
-    subjectIdx: index('issued_documents_subject_idx').on(table.subjectType, table.subjectId),
+    subjectIdx: index('issued_documents_subject_idx').on(
+      table.subjectType,
+      table.subjectId,
+    ),
     kindIdx: index('issued_documents_kind_idx').on(table.kind),
-    numberIdx: uniqueIndex('issued_documents_number_idx').on(table.documentNumber),
+    numberIdx: uniqueIndex('issued_documents_number_idx').on(
+      table.documentNumber,
+    ),
     keyIdx: uniqueIndex('issued_documents_key_idx').on(table.objectKey),
   }),
 );
@@ -1218,7 +1257,9 @@ export const issuedDocuments = sqliteTable(
 export const documentSequences = sqliteTable('document_sequences', {
   key: text('key').primaryKey(),
   nextValue: integer('next_value').notNull().default(1),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
 });
 
 export type IssuedDocument = typeof issuedDocuments.$inferSelect;
@@ -1242,7 +1283,9 @@ export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
   updatedBy: text('updated_by').notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
 });
 
 export type Setting = typeof settings.$inferSelect;

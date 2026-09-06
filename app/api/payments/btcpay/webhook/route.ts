@@ -12,7 +12,7 @@ import { livePaymentsAllowed } from '@/lib/environment-safety';
 export async function POST(request: Request) {
   if (!livePaymentsAllowed(env.APP_ENV)) return new Response('Not configured', { status: 404 });
   const secret = env.BTCPAY_WEBHOOK_SECRET;
-  if (!secret) return new Response('Not configured', { status: 404 });
+  if (!secret || !env.BTCPAY_STORE_ID) return new Response('Not configured', { status: 404 });
   const raw = await request.text();
   if (raw.length > 64 * 1024) return new Response('Too large', { status: 413 });
   if (!(await verifyBtcpaySignature(raw, request.headers.get('BTCPay-Sig'), secret))) {
@@ -26,12 +26,13 @@ export async function POST(request: Request) {
   }
   const event = parseBtcpayEvent(body);
   if (!event) return new Response('Bad event', { status: 400 });
+  if ((body as { storeId?: unknown }).storeId !== env.BTCPAY_STORE_ID) return new Response('Wrong store', { status: 400 });
   if (event.type !== 'InvoiceSettled') return Response.json({ ok: true, ignored: event.type });
   if (!event.orderNumber || !ORDER_NUMBER_PATTERN.test(event.orderNumber)) return Response.json({ ok: true, ignored: 'no order' });
   try {
     const result = await settleBtcpayInvoice(event.orderNumber, event.invoiceId);
     console.info(`[payments] btcpay ${event.invoiceId} → ${event.orderNumber}: ${result.note}`);
-    return Response.json({ ok: result.ok, note: result.note });
+    return Response.json({ ok: result.ok, note: result.note }, { status: result.retryable ? 503 : 200 });
   } catch (error) {
     console.error('[payments] webhook failed', error instanceof Error ? error.message : error);
     return new Response('Error', { status: 500 });

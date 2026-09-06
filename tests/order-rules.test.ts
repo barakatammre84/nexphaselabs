@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { canTransition, formatOrderNumber, orderNumberFromParam, orderTotals, parseQuantityInput } from '@/lib/order-rules';
+import {
+  canTransition,
+  formatOrderNumber,
+  orderNumberFromParam,
+  orderTotals,
+  parseQuantityInput,
+} from '@/lib/order-rules';
 
 describe('order rules', () => {
   it('parses quantities within bounds', () => {
@@ -11,10 +17,26 @@ describe('order rules', () => {
     expect(parseQuantityInput('x')).toBeNull();
   });
   it('totals lines in cents', () => {
-    expect(orderTotals([{ unitPriceCents: 4500, quantity: 2 }, { unitPriceCents: 8000, quantity: 1 }], 0)).toEqual({ subtotalCents: 17000, shippingCents: 0, totalCents: 17000 });
+    expect(
+      orderTotals(
+        [
+          { unitPriceCents: 4500, quantity: 2 },
+          { unitPriceCents: 8000, quantity: 1 },
+        ],
+        500,
+        100,
+      ),
+    ).toEqual({
+      subtotalCents: 17000,
+      shippingCents: 500,
+      taxCents: 100,
+      totalCents: 17600,
+    });
   });
   it('formats and parses order numbers', () => {
-    expect(formatOrderNumber(new Date('2026-09-02T23:59:00Z'), 7)).toBe('NX-260902-0007');
+    expect(formatOrderNumber(new Date('2026-09-02T23:59:00Z'), 7)).toBe(
+      'NX-260902-0007',
+    );
     expect(orderNumberFromParam('nx-260902-0007')).toBe('NX-260902-0007');
     expect(orderNumberFromParam('NX-1')).toBeNull();
     expect(orderNumberFromParam('%E0%A4%A')).toBeNull();
@@ -22,7 +44,9 @@ describe('order rules', () => {
   it('enforces who can move an order where', () => {
     expect(canTransition('submitted', 'awaiting_payment', 'system')).toBe(true);
     expect(canTransition('submitted', 'paid', 'customer')).toBe(false);
-    expect(canTransition('awaiting_payment', 'cancelled', 'customer')).toBe(true);
+    expect(canTransition('awaiting_payment', 'cancelled', 'customer')).toBe(
+      true,
+    );
     expect(canTransition('paid', 'cancelled', 'customer')).toBe(false);
     expect(canTransition('paid', 'fulfilling', 'staff')).toBe(true);
     expect(canTransition('shipped', 'cancelled', 'staff')).toBe(false);

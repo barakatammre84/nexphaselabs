@@ -89,6 +89,7 @@ async function loadSubject(
         currency: order.currency,
         subtotalCents: order.subtotalCents,
         shippingCents: order.shippingCents,
+        taxCents: order.taxCents,
         totalCents: order.totalCents,
         paymentMethod: order.paymentMethod,
         paymentRef: order.paymentRef,
@@ -193,7 +194,9 @@ export async function issueInvoice(
     // Hand the number back so the year's series carries no gap that nobody
     // can account for. An accountant reading a gap assumes a suppressed
     // invoice, which is exactly the wrong inference.
-    await releaseSequence(invoiceSequenceKey(year), sequence).catch(() => false);
+    await releaseSequence(invoiceSequenceKey(year), sequence).catch(
+      () => false,
+    );
     throw error;
   }
 }

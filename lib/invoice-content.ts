@@ -22,6 +22,7 @@ export type InvoiceOrder = {
   currency: string;
   subtotalCents: number;
   shippingCents: number;
+  taxCents: number;
   totalCents: number;
   paymentMethod: string | null;
   paymentRef: string | null;
@@ -88,7 +89,9 @@ export function invoiceBlockers(subject: InvoiceSubject): string[] {
     blockers.push('This order has no lines.');
   }
   if (order.status === 'cancelled') {
-    blockers.push('This order is cancelled. An invoice cannot be issued for it.');
+    blockers.push(
+      'This order is cancelled. An invoice cannot be issued for it.',
+    );
   }
 
   for (const line of lines) {
@@ -108,9 +111,12 @@ export function invoiceBlockers(subject: InvoiceSubject): string[] {
       `The lines total ${amount(lineSum)} but the order subtotal recorded is ${amount(order.subtotalCents)}.`,
     );
   }
-  if (order.subtotalCents + order.shippingCents !== order.totalCents) {
+  if (
+    order.subtotalCents + order.shippingCents + order.taxCents !==
+    order.totalCents
+  ) {
     blockers.push(
-      `The subtotal and shipping come to ${amount(order.subtotalCents + order.shippingCents)} but the order total recorded is ${amount(order.totalCents)}.`,
+      `The subtotal, shipping and tax come to ${amount(order.subtotalCents + order.shippingCents + order.taxCents)} but the order total recorded is ${amount(order.totalCents)}.`,
     );
   }
   return blockers;
@@ -155,9 +161,7 @@ export function paymentStatusLabel(status: string): string {
 }
 
 /** Address block, skipping the lines that have no value. */
-function addressLines(
-  parts: (string | null | undefined)[],
-): string[] {
+function addressLines(parts: (string | null | undefined)[]): string[] {
   return parts
     .map((part) => (part == null ? '' : String(part).trim()))
     .filter((part) => part.length > 0);
@@ -194,7 +198,12 @@ export function buildInvoiceContent(subject: InvoiceSubject): InvoiceContent {
 
   const rows: InvoiceRow[] = lines.map((line) => ({
     item: `${line.productName} (${line.productCode})`,
-    detail: [line.sku, line.packSize, line.presentation, line.lotNumber ? `Lot ${line.lotNumber}` : null]
+    detail: [
+      line.sku,
+      line.packSize,
+      line.presentation,
+      line.lotNumber ? `Lot ${line.lotNumber}` : null,
+    ]
       .filter(Boolean)
       .join(' · '),
     quantity: String(line.quantity),
@@ -202,8 +211,12 @@ export function buildInvoiceContent(subject: InvoiceSubject): InvoiceContent {
     total: amount(line.lineTotalCents),
   }));
 
-  const totals: [string, string][] = [['Subtotal', amount(order.subtotalCents)]];
-  if (order.shippingCents !== 0) totals.push(['Shipping', amount(order.shippingCents)]);
+  const totals: [string, string][] = [
+    ['Subtotal', amount(order.subtotalCents)],
+  ];
+  if (order.shippingCents !== 0)
+    totals.push(['Shipping', amount(order.shippingCents)]);
+  if (order.taxCents !== 0) totals.push(['Tax', amount(order.taxCents)]);
   totals.push([`Total ${order.currency}`, amount(order.totalCents)]);
 
   return {
@@ -212,7 +225,10 @@ export function buildInvoiceContent(subject: InvoiceSubject): InvoiceContent {
     shipTo,
     details: [
       ['Order number', order.orderNumber],
-      ['Order date', order.submittedAt ? documentDate(order.submittedAt) : null],
+      [
+        'Order date',
+        order.submittedAt ? documentDate(order.submittedAt) : null,
+      ],
       ['Payment status', paymentStatusLabel(order.paymentStatus)],
       ['Payment method', order.paymentMethod],
       ['Payment reference', order.paymentRef],

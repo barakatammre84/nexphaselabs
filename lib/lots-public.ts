@@ -62,7 +62,7 @@ export async function getPublicLot(lotNumber: string): Promise<PublicLot | null>
   if (!lot) return null;
   const db = getDb();
   const family = await lotFamilyIds(lot.id);
-  const tests = await db.select().from(lotTests).where(sql`${lotTests.lotId} IN ${family}`);
+  const tests = await db.select().from(lotTests).where(sql`${lotTests.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)}))`);
 
   return {
     lotNumber: lot.lotNumber,

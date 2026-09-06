@@ -69,6 +69,17 @@ npx wrangler secret put NAME --env staging
 `vars` in `wrangler.jsonc` are for non-secret configuration only (`APP_ENV`,
 `PUBLIC_ORIGIN`).
 
+### Website feedback archive (optional ChatGPT retrieval)
+
+The live website feedback channel works without an external AI credential. To let an approved ChatGPT Action search its read-only archive, set a separate random bearer token:
+
+```bash
+npx wrangler secret put CHATGPT_FEEDBACK_READ_TOKEN --env staging
+npx wrangler secret put CHATGPT_FEEDBACK_READ_TOKEN
+```
+
+Use the matching environment's `/api/feedback/openapi` URL as the Action schema and configure the same token as bearer authentication. The token grants read-only access to feedback messages and optional visitor contact data, so store it as a secret and rotate it if it is disclosed. Do not reuse payment, staff-session, or deployment credentials.
+
 ### Operations digest (optional)
 
 `DIGEST_TO` (an **admin's** address — the digest carries customer-account and staff-credential rows that only admins may see) and `DIGEST_TOKEN` (a random string of at least 32 characters, set as a secret) enable
@@ -85,11 +96,11 @@ Until both are set the endpoint answers 404. Admins can also email themselves th
 
 Three workflows in `.github/workflows/`:
 
-| Workflow | Trigger | What it does |
-| --- | --- | --- |
-| `ci.yml` | every push to a non-main branch, every pull request | typecheck, lint, tests, build |
-| `deploy-staging.yml` | push to `main` (or run manually) | checks → **build** → migrate the staging D1 → seed reference data → deploy the built worker → smoke-test `/api/health`. The build runs before the migration because a migration cannot be rolled back. Refuses to run until `STAGING_URL` is set. |
-| `deploy-production.yml` | push of a `v*` tag (or run manually) | the same against production, behind the `production` GitHub environment (add a required reviewer there to get an approval gate) |
+| Workflow                | Trigger                                             | What it does                                                                                                                                                                                                                                      |
+| ----------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci.yml`                | every push to a non-main branch, every pull request | typecheck, lint, tests, build                                                                                                                                                                                                                     |
+| `deploy-staging.yml`    | push to `main` (or run manually)                    | checks → **build** → migrate the staging D1 → seed reference data → deploy the built worker → smoke-test `/api/health`. The build runs before the migration because a migration cannot be rolled back. Refuses to run until `STAGING_URL` is set. |
+| `deploy-production.yml` | push of a `v*` tag (or run manually)                | the same against production, behind the `production` GitHub environment (add a required reviewer there to get an approval gate)                                                                                                                   |
 
 One-time setup by the owner:
 

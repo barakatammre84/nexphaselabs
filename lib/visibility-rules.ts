@@ -21,26 +21,81 @@ export type Visibility = {
   pricing: 'none' | 'consumer' | 'institutional';
   availability: boolean;
   /** Why pricing is hidden, for the page to explain. */
-  reason: 'anonymous' | 'acknowledgement' | 'unverified' | 'consumer_disabled' | null;
+  reason:
+    | 'anonymous'
+    | 'acknowledgement'
+    | 'unverified'
+    | 'consumer_disabled'
+    | null;
 };
 
-export function visibilityFor(viewer: ViewerInput, consumerTierEnabled: boolean): Visibility {
-  if (!viewer) return { signedIn: false, pricing: 'none', availability: false, reason: 'anonymous' };
+export function visibilityFor(
+  viewer: ViewerInput,
+  consumerTierEnabled: boolean,
+  openCheckout = false,
+): Visibility {
+  if (openCheckout)
+    return {
+      signedIn: Boolean(viewer),
+      pricing:
+        viewer?.tier === 'institutional' &&
+        viewer.verificationStatus === 'approved'
+          ? 'institutional'
+          : 'consumer',
+      availability: true,
+      reason: null,
+    };
+  if (!viewer)
+    return {
+      signedIn: false,
+      pricing: 'none',
+      availability: false,
+      reason: 'anonymous',
+    };
   if (!viewer.acknowledgementsCurrent) {
-    return { signedIn: true, pricing: 'none', availability: false, reason: 'acknowledgement' };
+    return {
+      signedIn: true,
+      pricing: 'none',
+      availability: false,
+      reason: 'acknowledgement',
+    };
   }
   if (viewer.tier === 'institutional') {
     if (viewer.verificationStatus === 'approved') {
-      return { signedIn: true, pricing: 'institutional', availability: true, reason: null };
+      return {
+        signedIn: true,
+        pricing: 'institutional',
+        availability: true,
+        reason: null,
+      };
     }
-    return { signedIn: true, pricing: 'none', availability: false, reason: 'unverified' };
+    return {
+      signedIn: true,
+      pricing: 'none',
+      availability: false,
+      reason: 'unverified',
+    };
   }
-  if (consumerTierEnabled) return { signedIn: true, pricing: 'consumer', availability: true, reason: null };
-  return { signedIn: true, pricing: 'none', availability: false, reason: 'consumer_disabled' };
+  if (consumerTierEnabled)
+    return {
+      signedIn: true,
+      pricing: 'consumer',
+      availability: true,
+      reason: null,
+    };
+  return {
+    signedIn: true,
+    pricing: 'none',
+    availability: false,
+    reason: 'consumer_disabled',
+  };
 }
 
 export function priceFor(
-  variant: { listPriceCents: number | null; institutionalPriceCents: number | null },
+  variant: {
+    listPriceCents: number | null;
+    institutionalPriceCents: number | null;
+  },
   pricing: Visibility['pricing'],
 ): number | null {
   if (pricing === 'institutional') return variant.institutionalPriceCents;

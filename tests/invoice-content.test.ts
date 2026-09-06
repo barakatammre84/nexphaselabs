@@ -43,6 +43,7 @@ const subject = (
     currency: 'USD',
     subtotalCents: 25000,
     shippingCents: 2500,
+    taxCents: 0,
     totalCents: 27500,
     paymentMethod: 'invoice',
     paymentRef: 'WIRE-9931',
@@ -70,14 +71,16 @@ describe('invoiceBlockers', () => {
   });
 
   it('refuses an order with no lines', () => {
-    expect(invoiceBlockers(subject({ subtotalCents: 0, totalCents: 2500 }, []))).toContain(
-      'This order has no lines.',
-    );
+    expect(
+      invoiceBlockers(subject({ subtotalCents: 0, totalCents: 2500 }, [])),
+    ).toContain('This order has no lines.');
   });
 
   it('refuses a cancelled order', () => {
     expect(
-      invoiceBlockers(subject({ status: 'cancelled' })).some((b) => b.includes('cancelled')),
+      invoiceBlockers(subject({ status: 'cancelled' })).some((b) =>
+        b.includes('cancelled'),
+      ),
     ).toBe(true);
   });
 
@@ -90,13 +93,19 @@ describe('invoiceBlockers', () => {
   });
 
   it('catches lines that do not sum to the recorded subtotal', () => {
-    const blockers = invoiceBlockers(subject({ subtotalCents: 20000, totalCents: 22500 }));
-    expect(blockers.some((b) => b.includes('but the order subtotal recorded is'))).toBe(true);
+    const blockers = invoiceBlockers(
+      subject({ subtotalCents: 20000, totalCents: 22500 }),
+    );
+    expect(
+      blockers.some((b) => b.includes('but the order subtotal recorded is')),
+    ).toBe(true);
   });
 
   it('catches a total that does not include shipping', () => {
     const blockers = invoiceBlockers(subject({ totalCents: 25000 }));
-    expect(blockers.some((b) => b.includes('but the order total recorded is'))).toBe(true);
+    expect(
+      blockers.some((b) => b.includes('but the order total recorded is')),
+    ).toBe(true);
   });
 
   it('refuses a line with a non-positive quantity', () => {
@@ -109,7 +118,9 @@ describe('invoiceBlockers', () => {
   });
 
   it('states the amounts in the mismatch so it can be reconciled', () => {
-    const blockers = invoiceBlockers(subject({}, [line({ lineTotalCents: 24000 })]));
+    const blockers = invoiceBlockers(
+      subject({}, [line({ lineTotalCents: 24000 })]),
+    );
     const message = blockers.find((b) => b.includes('does not add up'))!;
     expect(message).toContain('250.00');
     expect(message).toContain('240.00');
@@ -149,7 +160,10 @@ describe('buildInvoiceContent', () => {
     const content = buildInvoiceContent(
       subject({ shippingCents: 0, totalCents: 25000 }),
     );
-    expect(content.totals.map(([label]) => label)).toEqual(['Subtotal', 'Total USD']);
+    expect(content.totals.map(([label]) => label)).toEqual([
+      'Subtotal',
+      'Total USD',
+    ]);
   });
 
   it('shows shipping when it is charged', () => {
@@ -161,8 +175,22 @@ describe('buildInvoiceContent', () => {
     ]);
   });
 
+  it('shows tax and reconciles it into the accepted total', () => {
+    const content = buildInvoiceContent(
+      subject({ taxCents: 2063, totalCents: 29563 }),
+    );
+    expect(content.totals).toEqual([
+      ['Subtotal', '250.00'],
+      ['Shipping', '25.00'],
+      ['Tax', '20.63'],
+      ['Total USD', '295.63'],
+    ]);
+  });
+
   it('says nothing is due once the order is paid', () => {
-    expect(buildInvoiceContent(subject()).paymentNote).toContain('no payment is due');
+    expect(buildInvoiceContent(subject()).paymentNote).toContain(
+      'no payment is due',
+    );
   });
 
   it('asks for payment when the order is not paid', () => {
@@ -177,7 +205,9 @@ describe('buildInvoiceContent', () => {
   });
 
   it('leaves the lot off a line that has not been fulfilled', () => {
-    const content = buildInvoiceContent(subject({}, [line({ lotNumber: null })]));
+    const content = buildInvoiceContent(
+      subject({}, [line({ lotNumber: null })]),
+    );
     expect(content.rows[0].detail).not.toContain('Lot');
   });
 
@@ -188,8 +218,9 @@ describe('buildInvoiceContent', () => {
   it('includes a customer note only when there is one', () => {
     expect(buildInvoiceContent(subject()).customerNote).toBeNull();
     expect(
-      buildInvoiceContent(subject({ customerNote: '  Deliver to the loading bay ' }))
-        .customerNote,
+      buildInvoiceContent(
+        subject({ customerNote: '  Deliver to the loading bay ' }),
+      ).customerNote,
     ).toBe('Deliver to the loading bay');
   });
 });

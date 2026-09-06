@@ -49,26 +49,32 @@ const qcStages = [
 
 export default function DocumentationPage() {
   return (
-    <main className="bg-background text-foreground">
-      <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12 lg:py-20">
-        <p className="utility-label flex items-center gap-3 text-primary">
-          <span className="h-px w-8 bg-primary" />
-          Documentation &amp; quality control
-        </p>
-        <h1 className="mt-7 max-w-4xl font-display text-[clamp(2.6rem,5vw,4.6rem)] font-extrabold leading-[0.92] tracking-[-0.06em]">
-          The paperwork should describe the vial, not the product line.
+    <main className="text-foreground">
+      <section className="mx-auto max-w-[1280px] px-4 pb-8 pt-3 sm:px-6">
+        <div className="ion-page-hero px-7 py-14 sm:px-12 lg:px-16 lg:py-20">
+        <p className="ion-kicker">COAs and quality control</p>
+        <h1 className="ion-heading mt-7 max-w-4xl text-[clamp(3rem,6vw,5.5rem)]">
+          Verified batch documentation.
         </h1>
         <p className="mt-7 max-w-2xl text-lg leading-8 text-muted-foreground">
-          A generic certificate tells a laboratory almost nothing. Every NexPhase Labs shipment carries analytical
-          documentation tied to the lot number printed on the vial you received.
+          Searchable lot records, method-specific results, and analytical files
+          connected to the exact material your laboratory receives.
         </p>
+        <div className="mt-9 flex flex-wrap gap-3">
+          <Link href="/documentation/lot-lookup" className="action-primary gap-2">
+            Search COAs <ArrowRight className="size-4" />
+          </Link>
+          <Link href="/catalog" className="action-secondary">Shop products</Link>
+        </div>
+        </div>
       </section>
 
-      <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12">
-        <h2 className="font-display text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">How a lot reaches you</h2>
-        <ol className="mt-10 grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
+      <section className="mx-auto max-w-[1280px] px-4 py-12 sm:px-6">
+        <p className="ion-kicker">From synthesis to shipment</p>
+        <h2 className="ion-heading mt-5 text-4xl sm:text-5xl">How a lot reaches you.</h2>
+        <ol className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {qcStages.map(({ icon: Icon, step, title, copy }) => (
-            <li key={step} className="bg-background p-7">
+            <li key={step} className="ion-panel p-7">
               <div className="mb-10 flex items-center justify-between">
                 <Icon className="size-5 text-primary" />
                 <span className="font-mono text-[11px] text-muted-foreground">{step}</span>
@@ -80,8 +86,8 @@ export default function DocumentationPage() {
         </ol>
       </section>
 
-      <section id="coa" className="mx-auto max-w-[1500px] scroll-mt-32 border-b border-border px-5 py-14 sm:px-8 lg:px-12">
-        <div className="grid gap-12 lg:grid-cols-[0.85fr_1.15fr]">
+      <section id="coa" className="mx-auto max-w-[1280px] scroll-mt-32 px-4 py-12 sm:px-6">
+        <div className="ion-panel grid gap-12 p-7 sm:p-10 lg:grid-cols-[0.85fr_1.15fr] lg:p-12">
           <div>
             <p className="utility-label text-primary">Certificate of analysis</p>
             <h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
@@ -109,8 +115,8 @@ export default function DocumentationPage() {
         </div>
       </section>
 
-      <section id="handling" className="mx-auto max-w-[1500px] scroll-mt-32 border-b border-border px-5 py-14 sm:px-8 lg:px-12">
-        <div className="grid gap-12 lg:grid-cols-[0.85fr_1.15fr]">
+      <section id="handling" className="mx-auto max-w-[1280px] scroll-mt-32 px-4 pb-20 pt-8 sm:px-6">
+        <div className="ion-panel grid gap-12 p-7 sm:p-10 lg:grid-cols-[0.85fr_1.15fr] lg:p-12">
           <div>
             <p className="utility-label text-primary">Storage &amp; handling</p>
             <h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">

@@ -354,7 +354,7 @@ export function validateLotIntake(raw: LotIntakeInput, now = new Date()): LotInt
   }
 
   const receivedAtDate = parseDate(value.receivedAt, 'Date received', errors, true);
-  if (receivedAtDate && receivedAtDate.getTime() > now.getTime() + 24 * 3600 * 1000) {
+  if (receivedAtDate && receivedAtDate.toISOString().slice(0, 10) > now.toISOString().slice(0, 10)) {
     errors.push('Date received cannot be in the future.');
   }
   const manufactureDateValue = parseDate(value.manufactureDate, 'Date of manufacture', errors);

@@ -1,7 +1,14 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { AlertCircle, ArrowLeft, CircleCheck, Clock, FileUp } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowLeft,
+  CircleCheck,
+  Clock,
+  FileUp,
+} from 'lucide-react';
+import { AccessProgress } from '@/components/site/access-progress';
 import { AcknowledgementForm } from '@/components/site/acknowledgement-form';
 import { requireAccount } from '@/lib/account-auth';
 import { acknowledgementsCurrent } from '@/lib/account-rules';
@@ -12,15 +19,23 @@ import {
   ORGANIZATION_TYPE_LABEL,
   type OrganizationDocumentKind,
 } from '@/lib/organization-rules';
-import { getOrganizationForAccount, listOrganizationDocuments } from '@/lib/organizations';
+import {
+  getOrganizationForAccount,
+  listOrganizationDocuments,
+} from '@/lib/organizations';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Organisation verification', robots: { index: false, follow: false } };
+export const metadata: Metadata = {
+  title: 'Organisation verification',
+  robots: { index: false, follow: false },
+};
 
 type Props = { searchParams: Promise<Record<string, string | undefined>> };
 
-const input = 'h-12 w-full border border-foreground/20 bg-background px-4 text-sm outline-none focus:border-primary';
-const area = 'min-h-[7rem] w-full border border-foreground/20 bg-background p-4 text-sm outline-none focus:border-primary';
+const input =
+  'h-12 w-full border border-foreground/20 bg-background px-4 text-sm outline-none focus:border-primary';
+const area =
+  'min-h-[7rem] w-full border border-foreground/20 bg-background p-4 text-sm outline-none focus:border-primary';
 
 const DOC_MESSAGE: Record<string, string> = {
   ok: 'Document uploaded.',
@@ -57,11 +72,25 @@ function Field({
         {required && <span className="text-primary"> *</span>}
       </label>
       {multiline ? (
-        <textarea id={name} name={name} defaultValue={values[name] ?? ''} className={area} required={required} />
+        <textarea
+          id={name}
+          name={name}
+          defaultValue={values[name] ?? ''}
+          className={area}
+          required={required}
+        />
       ) : (
-        <input id={name} name={name} defaultValue={values[name] ?? ''} className={input} required={required} />
+        <input
+          id={name}
+          name={name}
+          defaultValue={values[name] ?? ''}
+          className={input}
+          required={required}
+        />
       )}
-      {hint && <p className="text-xs leading-5 text-muted-foreground">{hint}</p>}
+      {hint && (
+        <p className="text-xs leading-5 text-muted-foreground">{hint}</p>
+      )}
     </div>
   );
 }
@@ -75,20 +104,31 @@ export default async function OrganizationPage({ searchParams }: Props) {
     return (
       <main className="bg-background text-foreground">
         <section className="mx-auto max-w-3xl px-5 py-16 sm:px-8">
-          <AcknowledgementForm returnTo="/account/organization" error={params.ack} />
+          <AcknowledgementForm
+            returnTo="/account/organization"
+            error={params.ack}
+          />
         </section>
       </main>
     );
   }
 
   const organization = await getOrganizationForAccount(account.id);
-  const documents = organization ? await listOrganizationDocuments(organization.id) : [];
-  const editable = !organization || organization.verificationStatus === 'more_info' || organization.verificationStatus === 'declined';
+  const documents = organization
+    ? await listOrganizationDocuments(organization.id)
+    : [];
+  const editable =
+    !organization ||
+    organization.verificationStatus === 'more_info' ||
+    organization.verificationStatus === 'declined';
   const errors = params.error ? params.error.split('|').slice(0, 12) : [];
-  const docMessage = params.doc ? (DOC_MESSAGE[params.doc] ?? DOC_MESSAGE.store) : null;
+  const docMessage = params.doc
+    ? (DOC_MESSAGE[params.doc] ?? DOC_MESSAGE.store)
+    : null;
 
   const values: Record<string, string> = {};
-  for (const [k, v] of Object.entries(params)) if (k.startsWith('v_') && v) values[k.slice(2)] = v;
+  for (const [k, v] of Object.entries(params))
+    if (k.startsWith('v_') && v) values[k.slice(2)] = v;
   if (organization && Object.keys(values).length === 0) {
     Object.assign(values, {
       legalName: organization.legalName,
@@ -110,46 +150,86 @@ export default async function OrganizationPage({ searchParams }: Props) {
   return (
     <main className="bg-background text-foreground">
       <section className="mx-auto max-w-3xl px-5 py-16 sm:px-8">
-        <Link href="/account" className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-primary">
+        <Link
+          href="/account"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-primary"
+        >
           <ArrowLeft className="size-4" /> Your account
         </Link>
-        <p className="mt-6 utility-label text-primary">Organisation verification</p>
+        <p className="mt-6 utility-label text-primary">
+          Organisation verification
+        </p>
         <h1 className="mt-4 font-display text-4xl font-extrabold tracking-[-0.05em]">
-          {organization ? organization.legalName : 'Tell us about your organisation'}
+          {organization
+            ? organization.legalName
+            : 'Tell us about your organisation'}
         </h1>
 
+        <AccessProgress
+          current={editable ? 2 : 3}
+          complete={organization?.verificationStatus === 'approved'}
+        />
+        <p className="mt-4 text-sm leading-6 text-muted-foreground">
+          {editable
+            ? 'Complete the details below, then submit for review. You can attach supporting documents after submission.'
+            : organization?.verificationStatus === 'approved'
+              ? 'Your organization is approved. You can browse prices and order eligible materials.'
+              : 'Your submission is saved. This page shows your review status and any requested changes.'}
+        </p>
+        {organization?.verificationStatus === 'approved' && (
+          <Link href="/catalog" className="action-primary mt-4">
+            Browse materials
+          </Link>
+        )}
+
         {params.submitted && (
-          <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
-            <CircleCheck className="size-4 text-primary" /> Submitted. A person will review it, usually within two
-            business days. Add supporting documents below if you have them.
+          <p
+            role="status"
+            className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm"
+          >
+            <CircleCheck className="size-4 text-primary" /> Submitted. A person
+            will review it, and the review status will appear here. Add
+            supporting documents below if you have them.
           </p>
         )}
-        {organization && organization.verificationStatus === 'submitted' && !params.submitted && (
-          <p className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
-            <Clock className="size-4 text-primary" /> Under review since {organization.submittedAt.toISOString().slice(0, 10)}.
-          </p>
-        )}
+        {organization &&
+          organization.verificationStatus === 'submitted' &&
+          !params.submitted && (
+            <p className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
+              <Clock className="size-4 text-primary" /> Under review since{' '}
+              {organization.submittedAt.toISOString().slice(0, 10)}.
+            </p>
+          )}
         {organization && organization.verificationStatus === 'approved' && (
           <p className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
-            <CircleCheck className="size-4 text-primary" /> Verified. Pricing and lot availability are visible to you.
+            <CircleCheck className="size-4 text-primary" /> Verified. Pricing
+            and lot availability are visible to you.
           </p>
         )}
-        {organization && ['more_info', 'declined', 'revoked'].includes(organization.verificationStatus) && organization.reviewNote && (
-          <div className="mt-6 border border-border bg-secondary p-4 text-sm">
-            <p className="font-semibold">
-              {organization.verificationStatus === 'more_info'
-                ? 'We need a little more:'
-                : organization.verificationStatus === 'revoked'
-                  ? 'Verification was withdrawn:'
-                  : 'Verification was declined:'}
-            </p>
-            <p className="mt-2 leading-6">{organization.reviewNote}</p>
-          </div>
-        )}
+        {organization &&
+          ['more_info', 'declined', 'revoked'].includes(
+            organization.verificationStatus,
+          ) &&
+          organization.reviewNote && (
+            <div className="mt-6 border border-border bg-secondary p-4 text-sm">
+              <p className="font-semibold">
+                {organization.verificationStatus === 'more_info'
+                  ? 'We need a little more:'
+                  : organization.verificationStatus === 'revoked'
+                    ? 'Verification was withdrawn:'
+                    : 'Verification was declined:'}
+              </p>
+              <p className="mt-2 leading-6">{organization.reviewNote}</p>
+            </div>
+          )}
         {errors.length > 0 && (
-          <div role="alert" className="mt-6 border border-destructive/40 bg-secondary p-5">
+          <div
+            role="alert"
+            className="mt-6 border border-destructive/40 bg-secondary p-5"
+          >
             <p className="flex items-center gap-2 text-sm font-semibold">
-              <AlertCircle className="size-4 text-destructive" /> Please fix the following:
+              <AlertCircle className="size-4 text-destructive" /> Please fix the
+              following:
             </p>
             <ul className="mt-2 list-disc space-y-1 pl-6 text-sm">
               {errors.map((e) => (
@@ -160,15 +240,42 @@ export default async function OrganizationPage({ searchParams }: Props) {
         )}
 
         {editable ? (
-          <form method="post" action="/api/account/organization" className="mt-10 flex flex-col gap-8">
-            <div className="grid gap-6 sm:grid-cols-2">
-              <Field name="legalName" title="Legal name" values={values} required />
-              <Field name="website" title="Website" values={values} required hint="Your email address must be on this domain." />
+          <form
+            method="post"
+            action="/api/account/organization"
+            className="mt-10 flex flex-col gap-8"
+          >
+            <fieldset className="grid gap-6 sm:grid-cols-2">
+              <legend className="mb-4 font-display text-xl font-semibold">
+                Organization details
+              </legend>
+              <Field
+                name="legalName"
+                title="Legal name"
+                values={values}
+                required
+              />
+              <Field
+                name="website"
+                title="Website"
+                values={values}
+                required
+                hint="Your email address must be on this domain."
+              />
               <div className="flex flex-col gap-2 sm:col-span-2">
-                <label htmlFor="organizationType" className="text-sm font-semibold">
+                <label
+                  htmlFor="organizationType"
+                  className="text-sm font-semibold"
+                >
                   Organisation type <span className="text-primary">*</span>
                 </label>
-                <select id="organizationType" name="organizationType" defaultValue={values.organizationType ?? ''} className={input} required>
+                <select
+                  id="organizationType"
+                  name="organizationType"
+                  defaultValue={values.organizationType ?? ''}
+                  className={input}
+                  required
+                >
                   <option value="">Choose…</option>
                   {ORGANIZATION_TYPES.map((t) => (
                     <option key={t} value={t}>
@@ -177,26 +284,56 @@ export default async function OrganizationPage({ searchParams }: Props) {
                   ))}
                 </select>
               </div>
-              <Field name="registrationNumber" title="Tax or registration number" values={values} hint="EIN, charity number, company number. Used to confirm the organisation exists as described." />
+              <Field
+                name="registrationNumber"
+                title="Tax or registration number"
+                values={values}
+                hint="EIN, charity number, company number. Used to confirm the organisation exists as described."
+              />
               <Field name="phone" title="Phone" values={values} />
-            </div>
+            </fieldset>
 
             <div>
               <p className="utility-label text-primary">Shipping address</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                The laboratory or business premises material ships to. No residential addresses, no PO boxes.
+                The laboratory or business premises material ships to. No
+                residential addresses, no PO boxes.
               </p>
               <div className="mt-5 grid gap-6 sm:grid-cols-2">
                 <div className="sm:col-span-2">
-                  <Field name="addressLine1" title="Street address" values={values} required />
+                  <Field
+                    name="addressLine1"
+                    title="Street address"
+                    values={values}
+                    required
+                  />
                 </div>
                 <div className="sm:col-span-2">
-                  <Field name="addressLine2" title="Building, department, floor" values={values} />
+                  <Field
+                    name="addressLine2"
+                    title="Building, department, floor"
+                    values={values}
+                  />
                 </div>
                 <Field name="city" title="City" values={values} required />
-                <Field name="region" title="State / province / region" values={values} required />
-                <Field name="postalCode" title="Postal code" values={values} required />
-                <Field name="country" title="Country" values={values} required />
+                <Field
+                  name="region"
+                  title="State / province / region"
+                  values={values}
+                  required
+                />
+                <Field
+                  name="postalCode"
+                  title="Postal code"
+                  values={values}
+                  required
+                />
+                <Field
+                  name="country"
+                  title="Country"
+                  values={values}
+                  required
+                />
               </div>
             </div>
 
@@ -222,7 +359,9 @@ export default async function OrganizationPage({ searchParams }: Props) {
               type="submit"
               className="inline-flex h-12 items-center justify-center bg-primary px-6 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
             >
-              {organization ? 'Resubmit for verification' : 'Submit for verification'}
+              {organization
+                ? 'Resubmit for verification'
+                : 'Submit for verification'}
             </button>
           </form>
         ) : (
@@ -230,12 +369,34 @@ export default async function OrganizationPage({ searchParams }: Props) {
             <dl className="mt-10 border-t border-border">
               {[
                 ['Website', organization.website],
-                ['Type', ORGANIZATION_TYPE_LABEL[organization.organizationType as keyof typeof ORGANIZATION_TYPE_LABEL] ?? organization.organizationType],
-                ['Shipping address', [organization.addressLine1, organization.addressLine2, organization.city, organization.region, organization.postalCode, organization.country].filter(Boolean).join(', ')],
+                [
+                  'Type',
+                  ORGANIZATION_TYPE_LABEL[
+                    organization.organizationType as keyof typeof ORGANIZATION_TYPE_LABEL
+                  ] ?? organization.organizationType,
+                ],
+                [
+                  'Shipping address',
+                  [
+                    organization.addressLine1,
+                    organization.addressLine2,
+                    organization.city,
+                    organization.region,
+                    organization.postalCode,
+                    organization.country,
+                  ]
+                    .filter(Boolean)
+                    .join(', '),
+                ],
                 ['Receiving party', organization.receivingParty],
               ].map(([k, v]) => (
-                <div key={k} className="grid gap-1 border-b border-border py-4 sm:grid-cols-[220px_1fr] sm:gap-6">
-                  <dt className="text-sm font-semibold text-muted-foreground">{k}</dt>
+                <div
+                  key={k}
+                  className="grid gap-1 border-b border-border py-4 sm:grid-cols-[220px_1fr] sm:gap-6"
+                >
+                  <dt className="text-sm font-semibold text-muted-foreground">
+                    {k}
+                  </dt>
                   <dd className="text-sm">{v}</dd>
                 </div>
               ))}
@@ -247,30 +408,51 @@ export default async function OrganizationPage({ searchParams }: Props) {
           <div className="mt-12">
             <p className="utility-label text-primary">Supporting documents</p>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Optional but they speed the review: a registration certificate, or a purchase order or letter on the
-              organisation&rsquo;s letterhead. PDF, PNG or JPEG, up to 25 MB, up to six files.
+              Optional but they speed the review: a registration certificate, or
+              a purchase order or letter on the organisation&rsquo;s letterhead.
+              PDF, PNG or JPEG, up to 25 MB, up to six files.
             </p>
             {docMessage && (
-              <p role={params.doc === 'ok' ? 'status' : 'alert'} className="mt-4 border border-border bg-secondary p-3 text-sm">
+              <p
+                role={params.doc === 'ok' ? 'status' : 'alert'}
+                className="mt-4 border border-border bg-secondary p-3 text-sm"
+              >
                 {docMessage}
               </p>
             )}
             {documents.length > 0 && (
               <ul className="mt-4 divide-y divide-border border border-border text-sm">
                 {documents.map((d) => (
-                  <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
-                    <span>{DOCUMENT_KIND_LABEL[d.kind as OrganizationDocumentKind] ?? d.kind}</span>
+                  <li
+                    key={d.id}
+                    className="flex flex-wrap items-center justify-between gap-3 p-3"
+                  >
+                    <span>
+                      {DOCUMENT_KIND_LABEL[
+                        d.kind as OrganizationDocumentKind
+                      ] ?? d.kind}
+                    </span>
                     <span className="font-mono text-xs text-muted-foreground">
-                      {d.originalName ?? d.objectKey.split('/').pop()} &middot; {d.uploadedAt.toISOString().slice(0, 10)}
+                      {d.originalName ?? d.objectKey.split('/').pop()} &middot;{' '}
+                      {d.uploadedAt.toISOString().slice(0, 10)}
                     </span>
                   </li>
                 ))}
               </ul>
             )}
-            <form method="post" action="/api/account/organization/documents" encType="multipart/form-data" className="mt-4 flex flex-col gap-4 border border-border bg-secondary p-5">
+            <form
+              method="post"
+              action="/api/account/organization/documents"
+              encType="multipart/form-data"
+              className="mt-4 flex flex-col gap-4 border border-border bg-secondary p-5"
+            >
               <label className="flex flex-col gap-1.5 text-sm">
                 Document type
-                <select name="kind" required className="h-11 border border-foreground/20 bg-background px-3 text-sm">
+                <select
+                  name="kind"
+                  required
+                  className="h-11 border border-foreground/20 bg-background px-3 text-sm"
+                >
                   {DOCUMENT_KINDS.map((k) => (
                     <option key={k} value={k}>
                       {DOCUMENT_KIND_LABEL[k]}
@@ -280,9 +462,18 @@ export default async function OrganizationPage({ searchParams }: Props) {
               </label>
               <label className="flex flex-col gap-1.5 text-sm">
                 File
-                <input name="file" type="file" required accept="application/pdf,image/png,image/jpeg" className="text-sm" />
+                <input
+                  name="file"
+                  type="file"
+                  required
+                  accept="application/pdf,image/png,image/jpeg"
+                  className="text-sm"
+                />
               </label>
-              <button type="submit" className="inline-flex h-11 w-fit items-center gap-2 bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90">
+              <button
+                type="submit"
+                className="inline-flex h-11 w-fit items-center gap-2 bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90"
+              >
                 <FileUp className="size-4" /> Upload
               </button>
             </form>

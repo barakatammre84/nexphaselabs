@@ -26,5 +26,10 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", ".node_modules-broken-local"]
+  "exclude": [
+    "node_modules",
+    ".node_modules-broken-local",
+    "dist",
+    ".wrangler"
+  ]
 }

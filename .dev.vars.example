@@ -3,12 +3,36 @@
 APP_ENV=development
 PUBLIC_ORIGIN=http://localhost:3000
 CONSUMER_TIER_ENABLED=false
+# Guest checkout is independent of optional account registration.
+OPEN_CHECKOUT_ENABLED=true
 EMAIL_FROM=NexPhase Labs <research@nexphaselabs.net>
 # Leave unset locally: verification emails are logged to the console instead.
 # RESEND_API_KEY=
-# Payment rails (owner decision). Leave unset to fall back to invoice-by-email + staff recording.
+# With a real key, non-production sends only to exact comma-separated approved test mailboxes.
+# TEST_EMAIL_ALLOWLIST=
+# Payment rails below are production-only. Staging/development always simulate payment.
 # PAYMENT_BANK_INSTRUCTIONS=Bank: Example Bank\nAccount name: 8486 Ventures LLC\nRouting: 000000000\nAccount: 000000000
 # BTCPAY_HOST=https://btcpay.example.com
 # BTCPAY_STORE_ID=
 # BTCPAY_API_KEY=
 # BTCPAY_WEBHOOK_SECRET=
+# Commerce readiness. Use a test key locally/staging; never commit credentials.
+# INVENTORY_RESERVATION_MINUTES=30
+# SHIPPING_PROVIDER=shippo
+# SHIPPO_API_KEY=shippo_test_replace_me
+# SHIPPO_CARRIER_ACCOUNTS=shippo_ups_account_id,shippo_fedex_account_id
+# SHIPPING_FROM_JSON={"name":"NexPhase Labs","street1":"REPLACE","city":"Oakland","state":"CA","zip":"REPLACE","country":"US","is_residential":false}
+# Standard packed parcel used until SKU-specific packing profiles are approved.
+# SHIPPING_DEFAULT_PARCEL_JSON={"length":8,"width":6,"height":4,"baseWeight":0.4,"perPackWeight":0.1}
+# CHECKOUT_QUOTES_REQUIRED=true
+# TAX_PROVIDER=taxjar
+# TAXJAR_API_KEY=
+# TAXJAR_SANDBOX=true
+# Non-production UI rehearsal only; never allowed in production.
+# SHIPPING_SIMULATION_ENABLED=true
+# TAX_PROVIDER=simulated
+# TAX_SIMULATED_RATE_BPS=825
+# Production must also explicitly set LIVE_SHIPPING_ENABLED=true after approval.
+# LIVE_SHIPPING_ENABLED=false
+# Read-only feedback archive used by an approved ChatGPT Action. Generate a random value of at least 32 characters.
+# CHATGPT_FEEDBACK_READ_TOKEN=

@@ -4,9 +4,18 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft, FileText, Lock } from 'lucide-react';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { ProductImage } from '@/components/site/product-image';
+import { ProductPurchasePanel } from '@/components/site/product-purchase-panel';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
-import { REGULATORY_STATEMENT, STANDARD_DOCUMENTATION, STATUS_LABEL } from '@/lib/catalog';
-import { getPublishedProduct, listPublishedProducts, loadCatalog } from '@/lib/catalog-data';
+import {
+  REGULATORY_STATEMENT,
+  STANDARD_DOCUMENTATION,
+  STATUS_LABEL,
+} from '@/lib/catalog';
+import {
+  getPublishedProduct,
+  listPublishedProducts,
+  loadCatalog,
+} from '@/lib/catalog-data';
 import { listReleasedLotsForProduct } from '@/lib/lots-public';
 import { currentSds } from '@/lib/product-documents';
 import { currentViewer } from '@/lib/visibility';
@@ -32,13 +41,21 @@ export const dynamic = 'force-dynamic';
  *     No dose, no route, no reconstitution volume, no benefit, no indication.
  */
 
-type PageProps = { params: Promise<{ slug: string }>; searchParams: Promise<{ cart?: string; why?: string }> };
+type PageProps = {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ cart?: string; why?: string }>;
+};
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const loaded = await loadCatalog(() => getPublishedProduct(slug));
   const product = loaded.data;
-  if (!product) return { title: loaded.unavailable ? 'Catalog unavailable' : 'Material not found' };
+  if (!product)
+    return {
+      title: loaded.unavailable ? 'Catalog unavailable' : 'Material not found',
+    };
 
   return {
     title: `${product.name} — ${product.code}`,
@@ -76,21 +93,27 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
 
   const siblings = await loadCatalog(listPublishedProducts);
   const related = (siblings.data ?? [])
-    .filter((item) => item.chemicalClass === product.chemicalClass && item.slug !== product.slug)
+    .filter(
+      (item) =>
+        item.chemicalClass === product.chemicalClass &&
+        item.slug !== product.slug,
+    )
     .slice(0, 3);
 
   // Tier-aware visibility: one rule, evaluated here, decides whether prices
   // and released lots render. Anonymous and unverified visitors see neither.
   const { account, visibility } = await currentViewer();
   const releasedLots = visibility.availability
-    ? ((await loadCatalog(() => listReleasedLotsForProduct(product.code))).data ?? [])
+    ? ((await loadCatalog(() => listReleasedLotsForProduct(product.code)))
+        .data ?? [])
     : [];
   const activeVariants = product.variants.filter((v) => v.active);
   const sds = (await loadCatalog(() => currentSds(product.id))).data ?? null;
+  const hasReleasedLot = releasedLots.length > 0;
 
   return (
-    <main className="bg-background text-foreground">
-      <div className="mx-auto max-w-[1500px] px-5 pt-8 sm:px-8 lg:px-12">
+    <main className="material-page text-foreground">
+      <div className="mx-auto max-w-[1280px] px-4 pt-6 sm:px-6">
         <Link
           href="/catalog"
           className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary"
@@ -101,15 +124,22 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
       </div>
 
       {/* ---------- Identity header ---------- */}
-      <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-10 sm:px-8 lg:px-12">
-        <div className="grid gap-10 lg:grid-cols-[1fr_20rem] lg:gap-16">
-          <div>
-            <p className="utility-label text-primary">
+      <section className="ion-panel mx-auto mt-5 max-w-[1232px] px-6 py-8 sm:px-10 sm:py-10 lg:px-12">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-center lg:gap-14">
+          <div className="lg:order-2">
+            <p className="ion-kicker">
               {product.code} &middot; {product.chemicalClass}
             </p>
-            <h1 className="mt-5 font-display text-[clamp(2.2rem,4.5vw,3.6rem)] font-extrabold leading-[0.96] tracking-[-0.05em]">
+            <h1 className="ion-heading mt-6 text-[clamp(3rem,5vw,5rem)]">
               {product.name}
             </h1>
+            {/* Rule 1 — conditions of supply, in the body, above the fold. */}
+            <div className="mt-6 max-w-2xl rounded-[1.25rem] border border-blue-100 bg-secondary px-5 py-4">
+              <p className="text-sm font-extrabold text-primary">Conditions of supply</p>
+              <p className="mt-2 text-sm font-semibold leading-6">
+                {REGULATORY_STATEMENT}
+              </p>
+            </div>
             <p className="mt-5 max-w-2xl font-mono text-sm leading-relaxed text-muted-foreground">
               {product.formalName}
             </p>
@@ -119,51 +149,92 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
               </p>
             )}
 
-            <p className="mt-7 max-w-2xl leading-8 text-muted-foreground">{product.description}</p>
+            <p className="mt-7 max-w-2xl leading-8 text-muted-foreground">
+              {product.description}
+            </p>
 
-            {/* Rule 1 — conditions of supply, in the body, above the fold. */}
-            <div className="mt-8 max-w-2xl border-l-2 border-primary bg-secondary px-6 py-5">
-              <p className="utility-label text-primary">Conditions of supply</p>
-              <p className="mt-3 text-sm font-semibold leading-6">{REGULATORY_STATEMENT}</p>
-            </div>
+            {visibility.pricing !== 'none' && (
+              <ProductPurchasePanel
+                productName={product.name}
+                productSlug={product.slug}
+                hasReleasedLot={hasReleasedLot}
+                variants={activeVariants.map((variant) => ({
+                  sku: variant.sku,
+                  quantity: variant.quantity,
+                  presentation: variant.presentation,
+                  priceCents: priceFor(variant, visibility.pricing),
+                }))}
+              />
+            )}
           </div>
 
-          <div className="relative aspect-square overflow-hidden border border-border bg-secondary">
+          <div className="relative aspect-square overflow-hidden rounded-[1.6rem] bg-secondary lg:order-1">
             <ProductImage
               code={product.code}
               name={product.name}
               image={product.image}
-              sizes="(max-width: 1024px) 100vw, 20rem"
+              sizes="(max-width: 1024px) 100vw, 42vw"
             />
           </div>
         </div>
       </section>
 
+      <nav
+        aria-label="Material sections"
+        className="mx-auto flex max-w-[1280px] flex-wrap gap-3 px-4 py-7 sm:px-6"
+      >
+        <a href="#material-identity" className="action-secondary">
+          Specifications
+        </a>
+        <a href="#material-documents" className="action-secondary">
+          Documents
+        </a>
+        <a href="#material-packs" className="action-primary">
+          Pack sizes & ordering
+        </a>
+      </nav>
       {/* ---------- Chemical identity ---------- */}
-      <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12">
-        <h2 className="utility-label text-primary">Chemical identity</h2>
+      <section className="ion-panel mx-auto my-6 max-w-[1232px] px-6 py-10 sm:px-10 lg:px-12">
+        <h2
+          id="material-identity"
+          className="ion-heading text-3xl sm:text-4xl"
+        >
+          Chemical identity
+        </h2>
         <dl className="mt-5 max-w-4xl border-t border-border">
           <SpecRow label="CAS number" value={product.casNumber} />
           {product.relatedCas?.map((r) => (
             <SpecRow key={r.cas} label={`CAS — ${r.form}`} value={r.cas} />
           ))}
           {product.sequenceOneLetter && (
-            <SpecRow label="Sequence (one-letter)" value={product.sequenceOneLetter} />
+            <SpecRow
+              label="Sequence (one-letter)"
+              value={product.sequenceOneLetter}
+            />
           )}
           {product.sequenceThreeLetter && (
-            <SpecRow label="Sequence (three-letter)" value={product.sequenceThreeLetter} />
+            <SpecRow
+              label="Sequence (three-letter)"
+              value={product.sequenceThreeLetter}
+            />
           )}
           <SpecRow label="Molecular formula" value={product.molecularFormula} />
           <SpecRow label="Molecular weight" value={product.molecularWeight} />
-          {product.exactMass && <SpecRow label="Exact mass" value={product.exactMass} />}
-          {product.inchiKey && <SpecRow label="InChI Key" value={product.inchiKey} />}
+          {product.exactMass && (
+            <SpecRow label="Exact mass" value={product.exactMass} />
+          )}
+          {product.inchiKey && (
+            <SpecRow label="InChI Key" value={product.inchiKey} />
+          )}
           {product.smiles && <SpecRow label="SMILES" value={product.smiles} />}
-          {product.pubchemCid && <SpecRow label="PubChem CID" value={product.pubchemCid} />}
+          {product.pubchemCid && (
+            <SpecRow label="PubChem CID" value={product.pubchemCid} />
+          )}
         </dl>
       </section>
 
       {/* ---------- Specification and handling ---------- */}
-      <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12">
+      <section className="ion-panel mx-auto my-6 max-w-[1232px] px-6 py-10 sm:px-10 lg:px-12">
         <div className="grid gap-12 lg:grid-cols-2">
           <div>
             <h2 className="utility-label text-primary">Specification</h2>
@@ -178,7 +249,10 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
             <h2 className="utility-label text-primary">Handling and storage</h2>
             <dl className="mt-5 border-t border-border">
               <SpecRow label="Storage (solid)" value={product.storageSolid} />
-              <SpecRow label="Storage (stock solution)" value={product.storageStock} />
+              <SpecRow
+                label="Storage (stock solution)"
+                value={product.storageStock}
+              />
               <SpecRow label="Stability" value={product.stability} />
               <SpecRow label="Shipping condition" value={product.shipping} />
             </dl>
@@ -189,12 +263,23 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
             */}
             {product.solubility.length > 0 && (
               <div className="mt-9">
-                <h3 className="utility-label text-primary">Solubility in laboratory solvents</h3>
+                <h3 className="utility-label text-primary">
+                  Solubility in laboratory solvents
+                </h3>
                 <ul className="mt-5 flex flex-col gap-4">
                   {product.solubility.map((s) => (
-                    <li key={`${s.solvent}-${s.concentration}`} className="text-sm leading-6">
-                      <span className="font-mono">{s.solvent}</span> — {s.concentration}
-                      {s.note && <span className="text-muted-foreground"> ({s.note})</span>}
+                    <li
+                      key={`${s.solvent}-${s.concentration}`}
+                      className="text-sm leading-6"
+                    >
+                      <span className="font-mono">{s.solvent}</span> —{' '}
+                      {s.concentration}
+                      {s.note && (
+                        <span className="text-muted-foreground">
+                          {' '}
+                          ({s.note})
+                        </span>
+                      )}
                       <span className="mt-1 block font-mono text-[11px] text-muted-foreground">
                         Source: {s.source}
                       </span>
@@ -208,12 +293,17 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
       </section>
 
       {/* ---------- Documentation ---------- */}
-      <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12">
-        <h2 className="utility-label text-primary">Documentation</h2>
+      <section className="ion-panel mx-auto my-6 max-w-[1232px] px-6 py-10 sm:px-10 lg:px-12">
+        <p className="ion-kicker">Batch tested and documented</p>
+        <h2
+          id="material-documents"
+          className="ion-heading mt-5 text-3xl sm:text-4xl"
+        >
+          Lab results for this material
+        </h2>
         <p className="mt-5 max-w-2xl leading-8 text-muted-foreground">
-          Quality claims that describe a product line are marketing. Quality claims that describe a
-          lot are useful. Every certificate is tied to a lot number, and the chromatogram is
-          attached rather than summarized.
+          Review documentation tied to a released lot—not a generic product-line
+          certificate. Each record stays connected to the lot number on the vial.
         </p>
 
         <div className="mt-9 grid gap-px bg-border sm:grid-cols-2">
@@ -229,10 +319,13 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
           </div>
 
           <div className="bg-background p-7">
-            <h3 className="font-display text-xl font-bold tracking-tight">Look up a lot</h3>
+            <h3 className="font-display text-xl font-bold tracking-tight">
+              Look up a lot
+            </h3>
             <p className="mt-5 leading-7 text-muted-foreground">
-              Enter a lot number to retrieve the certificate of analysis, the HPLC chromatogram and
-              the mass spectrum for material you already hold.
+              Enter a lot number to retrieve the certificate of analysis, the
+              HPLC chromatogram and the mass spectrum for material you already
+              hold.
             </p>
             <Link
               href="/documentation/lot-lookup"
@@ -246,37 +339,70 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
         {(product.hasSds || sds) && (
           <div className="mt-7 max-w-2xl">
             <p className="leading-7 text-muted-foreground">
-              A safety data sheet is supplied with this material. Hazard classifications published by
-              different suppliers are not identical for every compound; the SDS issued with your lot
-              governs and should be read before handling.
+              A safety data sheet is supplied with this material. Hazard
+              classifications published by different suppliers are not identical
+              for every compound; the SDS issued with your lot governs and
+              should be read before handling.
             </p>
             {sds ? (
               <a
                 href={`/api/products/${product.code}/sds`}
                 className="mt-4 inline-flex h-11 items-center gap-2 border border-foreground/20 px-5 text-sm font-bold transition-colors hover:border-primary hover:text-primary"
               >
-                <FileText className="size-4" /> Safety data sheet{sds.revision ? ` (${sds.revision})` : ''}
+                <FileText className="size-4" /> Safety data sheet
+                {sds.revision ? ` (${sds.revision})` : ''}
               </a>
             ) : (
-              <p className="mt-3 text-sm text-muted-foreground">The current sheet is issued with the shipment and on request at research@nexphaselabs.net.</p>
+              <p className="mt-3 text-sm text-muted-foreground">
+                The current sheet is issued with the shipment and on request at
+                research@nexphaselabs.net.
+              </p>
             )}
           </div>
         )}
       </section>
 
       {/* ---------- Commercial ---------- */}
-      <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12">
-        <h2 className="utility-label text-primary">Pack sizes and availability</h2>
+      <section className="ion-panel mx-auto my-6 max-w-[1232px] px-6 py-10 sm:px-10 lg:px-12">
+        <p className="ion-kicker">Choose your configuration</p>
+        <h2 id="material-packs" className="ion-heading mt-5 text-3xl sm:text-4xl">
+          Pack sizes and current availability
+        </h2>
 
-        <div className="mt-6 max-w-2xl border border-border">
-          <div className="grid grid-cols-[1fr_auto_auto] items-center gap-6 border-b border-border bg-secondary px-6 py-3">
-            <span className="utility-label text-muted-foreground">Quantity</span>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Reference photos identify the material, not a selected pack size. Use
+          the quantities listed below when ordering.
+        </p>
+        {visibility.pricing !== 'none' && (
+          <div className="mt-5 flex max-w-2xl flex-wrap items-center justify-between gap-3 border-l-4 border-primary bg-secondary px-4 py-3 text-sm">
+            <span>
+              Choose a pack below. No account or email verification is required.
+            </span>
+            <span className="font-semibold">
+              Shipping and tax appear before payment.
+            </span>
+          </div>
+        )}
+        <div className="mt-6 max-w-3xl overflow-hidden rounded-[1.4rem] border border-border">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-secondary px-4 py-3">
+            <span className="utility-label text-muted-foreground">
+              Quantity
+            </span>
             <span className="utility-label text-muted-foreground">Status</span>
-            {visibility.pricing !== 'none' && <span className="utility-label text-muted-foreground">Price</span>}
+            {visibility.pricing !== 'none' && (
+              <span className="utility-label text-muted-foreground">Price</span>
+            )}
           </div>
           {cartFlag && (
-            <p role="alert" className="border-b border-border bg-secondary px-6 py-3 text-sm">
-              {cartFlag === 'error' && why ? why.slice(0, 200) : cartFlag === 'invalid' ? 'That pack size is not valid.' : 'The cart is temporarily unavailable.'}
+            <p
+              role="alert"
+              className="border-b border-border bg-secondary px-6 py-3 text-sm"
+            >
+              {cartFlag === 'error' && why
+                ? why.slice(0, 200)
+                : cartFlag === 'invalid'
+                  ? 'That pack size is not valid.'
+                  : 'The cart is temporarily unavailable.'}
             </p>
           )}
           {activeVariants.map((variant) => {
@@ -284,26 +410,60 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
             return (
               <div
                 key={variant.sku}
-                className="grid grid-cols-[1fr_auto_auto] items-center gap-6 border-b border-border px-6 py-4 last:border-b-0"
+                className="flex flex-wrap items-center justify-between gap-4 border-b border-border px-4 py-4 last:border-b-0"
               >
                 <span className="font-mono text-sm">
                   {variant.quantity}
-                  <span className="block text-xs text-muted-foreground">{variant.presentation}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {variant.presentation}
+                  </span>
                 </span>
-                <span className="text-sm text-muted-foreground">{STATUS_LABEL[product.status]}</span>
+                <span
+                  className={`text-sm ${hasReleasedLot ? 'text-primary' : 'text-destructive'}`}
+                >
+                  {hasReleasedLot
+                    ? STATUS_LABEL[product.status]
+                    : 'Not currently available'}
+                </span>
                 {visibility.pricing !== 'none' && (
-                  <span className="flex items-center justify-end gap-3 text-right font-mono text-sm">
+                  <span className="flex flex-wrap items-center justify-end gap-3 text-right font-mono text-sm">
                     {cents === null ? (
                       'Price on request'
+                    ) : !hasReleasedLot ? (
+                      <>
+                        <span>{formatCents(cents)}</span>
+                        <span className="text-xs text-muted-foreground">
+                          Awaiting released lot
+                        </span>
+                      </>
                     ) : (
                       <>
                         {formatCents(cents)}
-                        <form method="post" action="/api/cart" className="flex items-center gap-2">
+                        <form
+                          method="post"
+                          action="/api/cart"
+                          className="flex items-center gap-2"
+                        >
                           <input type="hidden" name="sku" value={variant.sku} />
-                          <input type="hidden" name="return_to" value={`/catalog/${product.slug}`} />
-                          <input name="quantity" type="number" min={1} max={50} defaultValue={1} aria-label="Quantity" className="h-9 w-16 border border-foreground/20 bg-background px-2 font-mono text-xs" />
-                          <button type="submit" className="h-9 bg-primary px-3 text-xs font-bold text-primary-foreground hover:bg-primary/90">
-                            Add
+                          <input
+                            type="hidden"
+                            name="return_to"
+                            value={`/catalog/${product.slug}`}
+                          />
+                          <input
+                            name="quantity"
+                            type="number"
+                            min={1}
+                            max={50}
+                            defaultValue={1}
+                            aria-label={`Quantity for ${variant.sku}`}
+                            className="h-11 w-16 rounded-full border border-input bg-background px-3 font-mono text-xs"
+                          />
+                          <button
+                            type="submit"
+                            className="h-11 rounded-full bg-primary px-4 text-xs font-bold text-primary-foreground hover:bg-primary/90"
+                          >
+                            Add to cart
                           </button>
                         </form>
                       </>
@@ -318,7 +478,10 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
         {visibility.pricing !== 'none' ? (
           <div className="mt-9 max-w-2xl">
             <p className="text-sm leading-6 text-muted-foreground">
-              Prices shown for your {visibility.pricing === 'institutional' ? 'verified research organisation' : 'account'}.{' '}
+              {visibility.pricing === 'institutional'
+                ? 'Institutional prices shown'
+                : 'Public prices shown'}
+              .{' '}
               <Link href="/account/cart" className="font-semibold text-primary">
                 View cart
               </Link>
@@ -326,16 +489,25 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
             </p>
             <h3 className="mt-8 utility-label text-primary">Released lots</h3>
             {releasedLots.length === 0 ? (
-              <p className="mt-4 text-sm text-muted-foreground">No lot is currently released for this material.</p>
+              <p className="mt-4 text-sm text-muted-foreground">
+                No lot is currently released for this material.
+              </p>
             ) : (
               <ul className="mt-4 divide-y divide-border border border-border">
                 {releasedLots.map((lot) => (
-                  <li key={lot.lotNumber} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
-                    <Link href={`/lots/${encodeURIComponent(lot.lotNumber)}`} className="font-mono font-semibold text-primary">
+                  <li
+                    key={lot.lotNumber}
+                    className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm"
+                  >
+                    <Link
+                      href={`/lots/${encodeURIComponent(lot.lotNumber)}`}
+                      className="font-mono font-semibold text-primary"
+                    >
                       {lot.lotNumber}
                     </Link>
                     <span className="font-mono text-xs text-muted-foreground">
-                      {lot.manufacturerName ?? 'Manufacturer on COA'} &middot; released {lot.releasedOn ?? '—'}
+                      {lot.manufacturerName ?? 'Manufacturer on COA'} &middot;
+                      released {lot.releasedOn ?? '—'}
                       {lot.retestDate ? ` · retest ${lot.retestDate}` : ''}
                     </span>
                   </li>
@@ -373,18 +545,25 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
               }
               className="inline-flex h-12 shrink-0 items-center justify-center bg-primary px-6 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
             >
-              {visibility.reason === 'anonymous' ? 'Request access' : visibility.reason === 'unverified' ? (account?.verificationStatus === 'none' ? 'Submit your organisation' : 'View your submission') : 'Your account'}
+              {visibility.reason === 'anonymous'
+                ? 'Request access'
+                : visibility.reason === 'unverified'
+                  ? account?.verificationStatus === 'none'
+                    ? 'Submit your organisation'
+                    : 'View your submission'
+                  : 'Your account'}
             </Link>
           </div>
         )}
       </section>
 
       {/* ---------- Data provenance ---------- */}
-      <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12">
+      <section className="ion-panel mx-auto my-6 max-w-[1232px] px-6 py-10 sm:px-10 lg:px-12">
         <h2 className="utility-label text-primary">Data provenance</h2>
         <p className="mt-5 max-w-2xl leading-8 text-muted-foreground">
-          Where published values differ between suppliers, both are shown rather than reconciled.
-          Values we could not attribute to a source are omitted rather than estimated.
+          Where published values differ between suppliers, both are shown rather
+          than reconciled. Values we could not attribute to a source are omitted
+          rather than estimated.
         </p>
         <ul className="mt-7 flex max-w-3xl flex-col gap-3 border-t border-border pt-7">
           {product.sourceNotes.map((note) => (
@@ -397,14 +576,20 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
 
       {/* ---------- Related, by chemical class only ---------- */}
       {related.length > 0 && (
-        <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12">
+        <section className="ion-panel mx-auto my-6 max-w-[1232px] px-6 py-10 sm:px-10 lg:px-12">
           <h2 className="font-display text-2xl font-extrabold tracking-[-0.04em]">
             Also in {product.chemicalClass.toLowerCase()}
           </h2>
           <div className="mt-8 grid gap-px bg-border sm:grid-cols-3">
             {related.map((item) => (
-              <Link key={item.slug} href={`/catalog/${item.slug}`} className="group bg-background p-7">
-                <p className="font-mono text-[11px] text-muted-foreground">{item.code}</p>
+              <Link
+                key={item.slug}
+                href={`/catalog/${item.slug}`}
+                className="group bg-background p-7"
+              >
+                <p className="font-mono text-[11px] text-muted-foreground">
+                  {item.code}
+                </p>
                 <h3 className="mt-3 font-display text-lg font-bold tracking-tight transition-colors group-hover:text-primary">
                   {item.name}
                 </h3>

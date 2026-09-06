@@ -12,6 +12,11 @@ export function consumerTierEnabled(): boolean {
   return env.CONSUMER_TIER_ENABLED === 'true';
 }
 
+/** Owner-requested guest checkout. Rollout is explicit per environment. */
+export function openCheckoutEnabled(): boolean {
+  return env.OPEN_CHECKOUT_ENABLED === 'true';
+}
+
 export function publicOrigin(): string {
   return (env.PUBLIC_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
 }

@@ -9,7 +9,10 @@ import { LOT_STATUS_LABEL, listLots, type LotStatus } from '@/lib/lots-admin';
 import { requireStaff } from '@/lib/staff-auth';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Lots', robots: { index: false, follow: false } };
+export const metadata: Metadata = {
+  title: 'Lots',
+  robots: { index: false, follow: false },
+};
 
 const STATUS_CLASS: Record<LotStatus, string> = {
   quarantine: 'bg-secondary',
@@ -24,10 +27,21 @@ function day(d: Date | null): string {
   return d ? d.toISOString().slice(0, 10) : '—';
 }
 
-export default async function LotsPage() {
+export default async function LotsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
   await requireStaff('/manage/lots');
-  const loaded = await loadCatalog(async () => ({ lots: await listLots(), alerts: await lotAlerts() }));
-  const items = loaded.data?.lots ?? [];
+  const loaded = await loadCatalog(async () => ({
+    lots: await listLots(),
+    alerts: await lotAlerts(),
+  }));
+  const requested = (await searchParams).status ?? '';
+  const status = Object.hasOwn(LOT_STATUS_LABEL, requested) ? requested : '';
+  const items = (loaded.data?.lots ?? []).filter(
+    (lot) => !status || lot.status === status,
+  );
   const alerts = loaded.data?.alerts ?? [];
 
   return (
@@ -49,9 +63,30 @@ export default async function LotsPage() {
           </Link>
         </div>
         <p className="mt-6 max-w-2xl text-sm leading-6 text-muted-foreground">
-          The lot is the unit of truth. Every lot arrives in quarantine and is only sellable after a named release.
+          The lot is the unit of truth. Every lot arrives in quarantine and is
+          only sellable after a named release.
         </p>
 
+        <form method="get" className="mt-6 flex flex-wrap items-end gap-3">
+          <label className="grid gap-2 text-sm font-semibold">
+            Lot status
+            <select
+              name="status"
+              defaultValue={status}
+              className="min-h-11 rounded-md border border-input bg-background px-3"
+            >
+              <option value="">All statuses</option>
+              {Object.entries(LOT_STATUS_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="action-primary" type="submit">
+            Apply filter
+          </button>
+        </form>
         {!loaded.unavailable && alerts.length > 0 && (
           <div className="mt-8">
             <LotAlerts alerts={alerts} />
@@ -63,7 +98,9 @@ export default async function LotsPage() {
             <CatalogUnavailable />
           </div>
         ) : items.length === 0 ? (
-          <p className="mt-10 border border-border bg-secondary p-6 text-sm">No lots received yet.</p>
+          <p className="mt-10 border border-border bg-secondary p-6 text-sm">
+            No lots match this status.
+          </p>
         ) : (
           <div className="mt-10 overflow-x-auto border border-border">
             <table className="w-full min-w-[960px] border-collapse text-sm">
@@ -80,22 +117,44 @@ export default async function LotsPage() {
               </thead>
               <tbody>
                 {items.map((lot) => (
-                  <tr key={lot.id} className="border-b border-border last:border-b-0">
+                  <tr
+                    key={lot.id}
+                    className="border-b border-border last:border-b-0"
+                  >
                     <td className="p-4 font-mono text-xs">
-                      <Link href={`/manage/lots/${encodeURIComponent(lot.lotNumber)}`} className="font-semibold text-primary">
+                      <Link
+                        href={`/manage/lots/${encodeURIComponent(lot.lotNumber)}`}
+                        className="font-semibold text-primary"
+                      >
                         {lot.lotNumber}
                       </Link>
                     </td>
                     <td className="p-4">
-                      {lot.productName} <span className="font-mono text-xs text-muted-foreground">{lot.productCode}</span>
+                      {lot.productName}{' '}
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {lot.productCode}
+                      </span>
                     </td>
-                    <td className="p-4 font-mono text-xs">{day(lot.receivedAt)}</td>
-                    <td className="p-4 text-muted-foreground">{lot.manufacturerName ?? <span className="text-destructive">Not recorded</span>}</td>
-                    <td className="p-4 font-mono text-xs">{lot.quantityRemaining ?? '—'}</td>
-                    <td className="p-4 font-mono text-xs">{day(lot.retestDate)}</td>
+                    <td className="p-4 font-mono text-xs">
+                      {day(lot.receivedAt)}
+                    </td>
+                    <td className="p-4 text-muted-foreground">
+                      {lot.manufacturerName ?? (
+                        <span className="text-destructive">Not recorded</span>
+                      )}
+                    </td>
+                    <td className="p-4 font-mono text-xs">
+                      {lot.quantityRemaining ?? '—'}
+                    </td>
+                    <td className="p-4 font-mono text-xs">
+                      {day(lot.retestDate)}
+                    </td>
                     <td className="p-4">
-                      <span className={`inline-block px-2 py-1 font-mono text-[11px] uppercase tracking-[0.08em] ${STATUS_CLASS[lot.status as LotStatus] ?? ''}`}>
-                        {LOT_STATUS_LABEL[lot.status as LotStatus] ?? lot.status}
+                      <span
+                        className={`inline-block px-2 py-1 font-mono text-[11px] uppercase tracking-[0.08em] ${STATUS_CLASS[lot.status as LotStatus] ?? ''}`}
+                      >
+                        {LOT_STATUS_LABEL[lot.status as LotStatus] ??
+                          lot.status}
                       </span>
                     </td>
                   </tr>

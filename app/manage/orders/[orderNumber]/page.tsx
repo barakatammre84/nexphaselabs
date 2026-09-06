@@ -1,7 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { AlertCircle, ArrowLeft, CircleCheck, Download, FileText } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowLeft,
+  CircleCheck,
+  Download,
+  FileText,
+} from 'lucide-react';
 import {
   ORDER_STATUS_LABEL,
   orderNumberFromParam,
@@ -20,6 +26,10 @@ import { documentHistory } from '@/lib/issued-documents';
 import { canFulfil, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
 import { trackingUrl } from '@/lib/tracking';
 import { formatCents } from '@/lib/visibility-rules';
+import { reservationEligibility } from '@/lib/inventory-reservations';
+import { checkoutParcelForPacks } from '@/lib/checkout-quotes';
+import { OrderShippingDesk } from '@/components/manage/order-shipping-desk';
+import { currentShippingLabel } from '@/lib/shipping-labels';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -74,18 +84,32 @@ function Row({
 
 export default async function ManageOrderPage({ params, searchParams }: Props) {
   const { orderNumber } = await params;
-  const { paid, error, shipped, fulfilling, cancelled, refunded, returned, invoiced, slipped } =
-    await searchParams;
+  const {
+    paid,
+    error,
+    shipped,
+    fulfilling,
+    cancelled,
+    refunded,
+    returned,
+    invoiced,
+    slipped,
+  } = await searchParams;
   const staff = await requireStaff(`/manage/orders/${orderNumber}`);
   const number = orderNumberFromParam(orderNumber);
   if (!number) notFound();
   const detail = await getOrderByNumber(number);
   if (!detail) notFound();
   const { order, items, events } = detail;
-  const [invoice, slip, orderDocs] = await Promise.all([
+  const allocation = await reservationEligibility(order.id);
+  const checkoutParcel = checkoutParcelForPacks(
+    items.reduce((total, item) => total + item.quantity, 0),
+  );
+  const [invoice, slip, orderDocs, shippingLabel] = await Promise.all([
     previewInvoice(number),
     previewPackingSlip(number),
     documentHistory('order', order.orderNumber),
+    currentShippingLabel(order.id),
   ]);
   const invoiceHistory = orderDocs.filter((d) => d.kind === 'invoice');
   const slipHistory = orderDocs.filter((d) => d.kind === 'packing_slip');
@@ -112,14 +136,40 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
             state.
           </p>
         </div>
+        {allocation.tracked && (
+          <div className="mt-5 border border-border p-4 text-sm">
+            <p className="font-semibold">
+              Stock allocation {allocation.valid ? 'available' : 'needs review'}
+            </p>
+            <ul className="mt-2 space-y-1">
+              {allocation.rows.map(({ reservation, lot }) => (
+                <li key={reservation.itemId}>
+                  {items.find((it) => it.id === reservation.itemId)?.sku} ·
+                  reserved lot {lot.lotNumber}
+                  {['submitted', 'awaiting_payment'].includes(order.status)
+                    ? ` · held until ${reservation.expiresAt.toISOString()}`
+                    : ''}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {slipped && (
-          <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
-            <CircleCheck className="size-4 text-primary" /> Packing slip {slipped} issued.
+          <p
+            role="status"
+            className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm"
+          >
+            <CircleCheck className="size-4 text-primary" /> Packing slip{' '}
+            {slipped} issued.
           </p>
         )}
         {invoiced && (
-          <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
-            <CircleCheck className="size-4 text-primary" /> Invoice {invoiced} issued.
+          <p
+            role="status"
+            className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm"
+          >
+            <CircleCheck className="size-4 text-primary" /> Invoice {invoiced}{' '}
+            issued.
           </p>
         )}
         {paid && (
@@ -223,13 +273,31 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                 </li>
               ))}
             </ul>
-            <p className="mt-3 text-right font-mono text-sm">
-              Total{' '}
-              <span className="font-semibold">
-                {formatCents(order.totalCents)}
-              </span>{' '}
-              &middot; {order.priceTier} pricing
-            </p>
+            <dl className="ml-auto mt-4 max-w-sm space-y-2 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt>Materials</dt>
+                <dd className="font-mono">
+                  {formatCents(order.subtotalCents)}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt>
+                  Shipping
+                  {order.shippingService ? ` · ${order.shippingService}` : ''}
+                </dt>
+                <dd className="font-mono">
+                  {formatCents(order.shippingCents)}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt>Tax</dt>
+                <dd className="font-mono">{formatCents(order.taxCents)}</dd>
+              </div>
+              <div className="flex justify-between gap-4 border-t border-border pt-2 font-semibold">
+                <dt>Total · {order.priceTier} pricing</dt>
+                <dd className="font-mono">{formatCents(order.totalCents)}</dd>
+              </div>
+            </dl>
 
             <h2 className="mt-10 utility-label text-primary">Ship to</h2>
             <dl className="mt-4 border-t border-border">
@@ -377,9 +445,13 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                   <ul className="space-y-3">
                     {slipHistory.map((doc) => (
                       <li key={doc.id} className="text-sm">
-                        <span className="font-semibold">{doc.documentNumber}</span>
+                        <span className="font-semibold">
+                          {doc.documentNumber}
+                        </span>
                         {doc.supersededById && (
-                          <span className="ml-2 text-xs text-muted-foreground">superseded</span>
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            superseded
+                          </span>
                         )}
                         <a
                           href={`/api/manage/documents/${doc.id}`}
@@ -388,7 +460,8 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                           <Download className="size-3.5" /> Download
                         </a>
                         <span className="mt-1 block font-mono text-[11px] text-muted-foreground">
-                          {doc.issuedAt.toISOString().slice(0, 10)} &middot; {doc.issuedBy}
+                          {doc.issuedAt.toISOString().slice(0, 10)} &middot;{' '}
+                          {doc.issuedBy}
                         </span>
                       </li>
                     ))}
@@ -438,15 +511,17 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                           type="submit"
                           className="inline-flex h-11 items-center justify-center bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90"
                         >
-                          {slipHistory.length === 0 ? `Issue ${slip.documentNumber}` : 'Reissue'}
+                          {slipHistory.length === 0
+                            ? `Issue ${slip.documentNumber}`
+                            : 'Reissue'}
                         </button>
                       </form>
                     )}
                   </div>
                 )}
                 <p className="mt-4 text-xs leading-5 text-muted-foreground">
-                  Prints the lot and certificate against every line, and no prices. Print it for
-                  the box.
+                  Prints the lot and certificate against every line, and no
+                  prices. Print it for the box.
                 </p>
               </div>
             )}
@@ -464,9 +539,13 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                   <ul className="space-y-3">
                     {invoiceHistory.map((doc) => (
                       <li key={doc.id} className="text-sm">
-                        <span className="font-semibold">{doc.documentNumber}</span>
+                        <span className="font-semibold">
+                          {doc.documentNumber}
+                        </span>
                         {doc.supersededById && (
-                          <span className="ml-2 text-xs text-muted-foreground">superseded</span>
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            superseded
+                          </span>
                         )}
                         <a
                           href={`/api/manage/documents/${doc.id}`}
@@ -475,7 +554,8 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                           <Download className="size-3.5" /> Download
                         </a>
                         <span className="mt-1 block font-mono text-[11px] text-muted-foreground">
-                          {doc.issuedAt.toISOString().slice(0, 10)} &middot; {doc.issuedBy}
+                          {doc.issuedAt.toISOString().slice(0, 10)} &middot;{' '}
+                          {doc.issuedBy}
                         </span>
                         <span className="block break-all font-mono text-[11px] text-muted-foreground">
                           SHA-256 {doc.sha256}
@@ -533,15 +613,17 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                           type="submit"
                           className="inline-flex h-11 items-center justify-center bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90"
                         >
-                          {invoiceHistory.length === 0 ? `Issue ${invoice.documentNumber}` : 'Reissue'}
+                          {invoiceHistory.length === 0
+                            ? `Issue ${invoice.documentNumber}`
+                            : 'Reissue'}
                         </button>
                       </form>
                     )}
                   </div>
                 )}
                 <p className="mt-4 text-xs leading-5 text-muted-foreground">
-                  The customer can download the current invoice from their order page. A reissue
-                  supersedes the previous one; both are kept.
+                  The customer can download the current invoice from their order
+                  page. A reissue supersedes the previous one; both are kept.
                 </p>
               </div>
             )}
@@ -567,7 +649,15 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                 </p>
               ))}
             {order.status === 'fulfilling' && canFulfil(staff) && (
+              <OrderShippingDesk
+                orderNumber={order.orderNumber}
+                parcel={checkoutParcel.ok ? checkoutParcel.parcel : null}
+                initialLabel={shippingLabel}
+              />
+            )}
+            {order.status === 'fulfilling' && canFulfil(staff) && (
               <form
+                id="shipment-record"
                 method="post"
                 action={`/api/manage/orders/${order.orderNumber}/ship`}
                 className="mt-4 flex flex-col gap-4 border border-border bg-secondary p-5"
@@ -588,6 +678,11 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                       </span>
                       <select
                         name={`lot_${it.id}`}
+                        defaultValue={
+                          allocation.rows.find(
+                            (row) => row.reservation.itemId === it.id,
+                          )?.reservation.lotId ?? ''
+                        }
                         required
                         className="h-11 border border-foreground/20 bg-background px-3 font-mono text-sm"
                       >
@@ -616,6 +711,11 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                     <input
                       name="carrier"
                       required
+                      defaultValue={
+                        shippingLabel?.state === 'ready'
+                          ? shippingLabel.carrier
+                          : ''
+                      }
                       className="h-11 border border-foreground/20 bg-background px-3 text-sm"
                     />
                   </label>
@@ -624,6 +724,11 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                     <input
                       name="tracking"
                       required
+                      defaultValue={
+                        shippingLabel?.state === 'ready'
+                          ? (shippingLabel.trackingNumber ?? '')
+                          : ''
+                      }
                       className="h-11 border border-foreground/20 bg-background px-3 font-mono text-sm"
                     />
                   </label>
@@ -688,25 +793,37 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
               order.status === 'paid' ||
               order.status === 'fulfilling') &&
               canVerifyAccounts(staff) && (
-                <form
-                  method="post"
-                  action={`/api/manage/orders/${order.orderNumber}/cancel`}
-                  className="mt-6 flex flex-wrap items-center gap-3 text-sm"
-                >
-                  <input
-                    name="reason"
-                    required
-                    maxLength={300}
-                    placeholder="Reason sent to the customer"
-                    className="h-10 min-w-[18rem] border border-foreground/20 bg-background px-3 text-sm"
-                  />
-                  <button
-                    type="submit"
-                    className="h-10 border border-foreground/20 px-4 font-semibold hover:border-destructive hover:text-destructive"
+                <div className="mt-6">
+                  {shippingLabel?.state === 'ready' && !shippingLabel.test && (
+                    <p
+                      role="alert"
+                      className="mb-3 border border-destructive/40 bg-secondary p-3 text-sm"
+                    >
+                      A live carrier label exists. Void or refund it in the
+                      shipping provider before cancelling this order; cancelling
+                      here does not recover the carrier charge.
+                    </p>
+                  )}
+                  <form
+                    method="post"
+                    action={`/api/manage/orders/${order.orderNumber}/cancel`}
+                    className="mt-6 flex flex-wrap items-center gap-3 text-sm"
                   >
-                    Cancel order
-                  </button>
-                </form>
+                    <input
+                      name="reason"
+                      required
+                      maxLength={300}
+                      placeholder="Reason sent to the customer"
+                      className="h-10 min-w-[18rem] border border-foreground/20 bg-background px-3 text-sm"
+                    />
+                    <button
+                      type="submit"
+                      className="h-10 border border-foreground/20 px-4 font-semibold hover:border-destructive hover:text-destructive"
+                    >
+                      Cancel order
+                    </button>
+                  </form>
+                </div>
               )}
 
             {returnAllowed(order) && canFulfil(staff) && (

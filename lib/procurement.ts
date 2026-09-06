@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '@/db';
 import {
   lots,
@@ -14,6 +14,7 @@ import {
   type SupplierEvent,
 } from '@/db/schema';
 import { getProductByCode } from '@/lib/catalog-data';
+import { conditionalInsert } from '@/lib/conditional-insert';
 import { sumQuantities } from '@/lib/lot-quantities';
 import { compareQuantities } from '@/lib/procurement-quantities';
 import { PO_TRANSITIONS, formatPoNumber, landedCostByLine, type PoStatus, type PoValidation, type SupplierValidation } from '@/lib/procurement-rules';
@@ -83,8 +84,10 @@ export async function updateSupplier(current: Supplier, v: Ok<SupplierValidation
   const changed = (Object.keys(v) as (keyof typeof v)[]).filter((k) => (current[k] ?? null) !== (v[k] ?? null));
   if (changed.length === 0) return { ok: false, error: 'Nothing changed.' };
   try {
-    await db.batch([
-      db.update(suppliers).set({ ...v, updatedAt: now, lastChangeId: marker }).where(eq(suppliers.id, current.id)),
+    const [updated] = await db.batch([
+      db.update(suppliers).set({ ...v, updatedAt: now, lastChangeId: marker })
+        .where(and(eq(suppliers.id, current.id), sql`${suppliers.lastChangeId} IS ${current.lastChangeId}`))
+        .returning({ id: suppliers.id }),
       db.insert(supplierEvents).select(
         db
           .select({
@@ -99,6 +102,7 @@ export async function updateSupplier(current: Supplier, v: Ok<SupplierValidation
           .where(and(eq(suppliers.id, current.id), eq(suppliers.lastChangeId, marker))),
       ),
     ]);
+    if (!updated.length) return { ok: false, error: 'The supplier changed while you were editing. Reload and review again.' };
   } catch (error) {
     if (/UNIQUE constraint failed/i.test(error instanceof Error ? error.message : String(error))) return { ok: false, error: 'Another supplier already has that name.' };
     throw error;
@@ -118,7 +122,7 @@ export async function setSupplierQualification(current: Supplier, to: 'qualified
     db
       .update(suppliers)
       .set({ qualificationStatus: to, qualifiedBy: to === 'qualified' ? by(staff) : current.qualifiedBy, qualifiedAt: to === 'qualified' ? now : current.qualifiedAt, updatedAt: now, lastChangeId: marker })
-      .where(and(eq(suppliers.id, current.id), eq(suppliers.qualificationStatus, current.qualificationStatus)))
+      .where(and(eq(suppliers.id, current.id), eq(suppliers.qualificationStatus, current.qualificationStatus), sql`${suppliers.lastChangeId} IS ${current.lastChangeId}`))
       .returning({ id: suppliers.id }),
     db.insert(supplierEvents).select(
       db
@@ -173,7 +177,7 @@ export async function getPurchaseOrder(poNumber: string): Promise<PoDetail | nul
     ? await db
         .select({ lineId: lots.purchaseOrderLineId, lotNumber: lots.lotNumber, quantityReceived: lots.quantityReceived, status: lots.status })
         .from(lots)
-        .where(and(sql`${lots.purchaseOrderLineId} IN ${lineIds}`, isNull(lots.supersededById)))
+        .where(and(sql`${lots.purchaseOrderLineId} IN (SELECT value FROM json_each(${JSON.stringify(lineIds)}))`, isNull(lots.supersededById)))
     : [];
   return {
     order,
@@ -208,13 +212,22 @@ export async function createPurchaseOrder(v: Ok<PoValidation>['value'], staff: S
     lineRows.push({ id: id('pol'), lineNo: i + 1, productCode: product.code, productName: product.name, quantity: l.quantity, lineCostCents: l.lineCostCents });
   }
   const now = new Date();
+  const eligible = and(
+    eq(suppliers.id, supplier.id), eq(suppliers.active, true), eq(suppliers.qualificationStatus, 'qualified'),
+    eq(suppliers.name, supplier.name), sql`${suppliers.lastChangeId} IS ${supplier.lastChangeId}`,
+    sql`NOT EXISTS (SELECT 1 FROM json_each(${JSON.stringify(lineRows)}) expected
+      WHERE NOT EXISTS (SELECT 1 FROM products p
+        WHERE p.code = json_extract(expected.value, '$.productCode')
+        AND p.name = json_extract(expected.value, '$.productName') AND p.visibility != 'withdrawn'))`,
+  )!;
   // Retry once on a number collision (two orders raised in the same second).
   for (let attempt = 0; attempt < 2; attempt++) {
     const poNumber = await nextPoNumber(now);
     const poId = id('po');
     try {
-      await db.batch([
-        db.insert(purchaseOrders).values({
+      const parentExists = eq(purchaseOrders.id, poId);
+      const [created] = await db.batch([
+        conditionalInsert(purchaseOrders, {
           id: poId,
           poNumber,
           supplierId: supplier.id,
@@ -229,10 +242,11 @@ export async function createPurchaseOrder(v: Ok<PoValidation>['value'], staff: S
           createdBy: staff.id,
           createdAt: now,
           updatedAt: now,
-        }),
-        ...lineRows.map((l) => db.insert(purchaseOrderLines).values({ ...l, purchaseOrderId: poId, createdAt: now })),
-        db.insert(purchaseOrderEvents).values({ id: id('poe'), purchaseOrderId: poId, fromStatus: 'none', toStatus: 'draft', note: `${lineRows.length} line(s)`, actor: by(staff), createdAt: now }),
+        }, suppliers, eligible).returning({ id: purchaseOrders.id }),
+        ...lineRows.map((l) => conditionalInsert(purchaseOrderLines, { ...l, purchaseOrderId: poId, createdAt: now }, purchaseOrders, parentExists)),
+        conditionalInsert(purchaseOrderEvents, { id: id('poe'), purchaseOrderId: poId, fromStatus: 'none', toStatus: 'draft', note: `${lineRows.length} line(s)`, actor: by(staff), createdAt: now }, purchaseOrders, parentExists),
       ]);
+      if (!created.length) return { ok: false, error: 'The supplier or catalog changed while you were creating the order. Reload and review again.' };
       return { ok: true, poNumber };
     } catch (error) {
       if (attempt === 0 && /UNIQUE constraint failed/i.test(error instanceof Error ? error.message : String(error))) continue;
@@ -253,7 +267,12 @@ export async function transitionPurchaseOrder(order: PurchaseOrder, to: PoStatus
     db
       .update(purchaseOrders)
       .set({ status: to, lastTransitionId: marker, updatedAt: now, ...(to === 'sent' && !order.orderedOn ? { orderedOn: now } : {}) })
-      .where(and(eq(purchaseOrders.id, order.id), eq(purchaseOrders.status, order.status)))
+      .where(and(eq(purchaseOrders.id, order.id), eq(purchaseOrders.status, order.status),
+        to === 'sent' ? sql`EXISTS (SELECT 1 FROM suppliers s WHERE s.id = ${purchaseOrders.supplierId}
+          AND s.active = 1 AND s.qualification_status = 'qualified')
+          AND EXISTS (SELECT 1 FROM purchase_order_lines l WHERE l.purchase_order_id = ${purchaseOrders.id})
+          AND NOT EXISTS (SELECT 1 FROM purchase_order_lines l WHERE l.purchase_order_id = ${purchaseOrders.id}
+            AND NOT EXISTS (SELECT 1 FROM products p WHERE p.code = l.product_code AND p.visibility != 'withdrawn'))` : undefined))
       .returning({ id: purchaseOrders.id }),
     // Closing short (or cancelling) closes every open line, guarded on the transition having landed.
     ...(to === 'received' || to === 'cancelled'
@@ -279,7 +298,7 @@ export async function transitionPurchaseOrder(order: PurchaseOrder, to: PoStatus
         .where(and(eq(purchaseOrders.id, order.id), eq(purchaseOrders.lastTransitionId, marker))),
     ),
   ] as unknown as Parameters<typeof db.batch>[0]);
-  if (!changed || (changed as unknown[]).length === 0) return { ok: false, error: 'The order changed while you were working. Reload and try again.' };
+  if (!changed || (changed as unknown[]).length === 0) return { ok: false, error: 'The order, supplier eligibility or catalog changed while you were working. Reload and review again.' };
   return { ok: true, id: order.id };
 }
 
@@ -303,7 +322,7 @@ export type ExpectedReceipt = {
 };
 
 /** Open purchase-order lines (order sent, line not closed), with landed cost, for the intake form. */
-export async function openExpectedReceipts(): Promise<ExpectedReceipt[]> {
+export async function openExpectedReceipts(lineId?: string): Promise<ExpectedReceipt[]> {
   const db = getDb();
   const rows = await db
     .select({
@@ -313,7 +332,7 @@ export async function openExpectedReceipts(): Promise<ExpectedReceipt[]> {
     })
     .from(purchaseOrderLines)
     .innerJoin(purchaseOrders, eq(purchaseOrderLines.purchaseOrderId, purchaseOrders.id))
-    .where(and(isNull(purchaseOrderLines.closedAt), sql`${purchaseOrders.status} IN ('sent', 'partially_received')`))
+    .where(and(isNull(purchaseOrderLines.closedAt), sql`${purchaseOrders.status} IN ('sent', 'partially_received')`, lineId ? eq(purchaseOrderLines.id, lineId) : undefined))
     .orderBy(asc(purchaseOrders.expectedOn), asc(purchaseOrders.poNumber), asc(purchaseOrderLines.lineNo));
   const byOrder = new Map<string, { id: string; lineCostCents: number }[]>();
   for (const r of rows) byOrder.set(r.p.id, [...(byOrder.get(r.p.id) ?? []), { id: r.l.id, lineCostCents: r.l.lineCostCents }]);
@@ -321,7 +340,7 @@ export async function openExpectedReceipts(): Promise<ExpectedReceipt[]> {
   const allLinesByOrder = new Map<string, { id: string; lineCostCents: number }[]>();
   const orderIds = [...byOrder.keys()];
   if (orderIds.length) {
-    const all = await db.select({ id: purchaseOrderLines.id, purchaseOrderId: purchaseOrderLines.purchaseOrderId, lineCostCents: purchaseOrderLines.lineCostCents }).from(purchaseOrderLines).where(sql`${purchaseOrderLines.purchaseOrderId} IN ${orderIds}`);
+    const all = await db.select({ id: purchaseOrderLines.id, purchaseOrderId: purchaseOrderLines.purchaseOrderId, lineCostCents: purchaseOrderLines.lineCostCents }).from(purchaseOrderLines).where(sql`${purchaseOrderLines.purchaseOrderId} IN (SELECT value FROM json_each(${JSON.stringify(orderIds)}))`);
     for (const l of all) allLinesByOrder.set(l.purchaseOrderId, [...(allLinesByOrder.get(l.purchaseOrderId) ?? []), l]);
   }
   return rows.map((r) => {
@@ -343,8 +362,8 @@ export async function openExpectedReceipts(): Promise<ExpectedReceipt[]> {
 }
 
 export async function getExpectedReceipt(lineId: string): Promise<ExpectedReceipt | null> {
-  const all = await openExpectedReceipts();
-  return all.find((r) => r.lineId === lineId) ?? null;
+  const rows = await openExpectedReceipts(lineId);
+  return rows[0] ?? null;
 }
 
 /**
@@ -355,7 +374,7 @@ export async function getExpectedReceipt(lineId: string): Promise<ExpectedReceip
  * where that stamp landed, so two people receiving against one line at once
  * cannot both succeed and the line's totals stay consistent.
  */
-export function receiptStatements(lineId: string, lotId: string, quantityReceived: string, staff: StaffPrincipal, now: Date, expected: ExpectedReceipt) {
+export function receiptStatements(lineId: string, lotId: string, quantityReceived: string, staff: StaffPrincipal, now: Date, expected: ExpectedReceipt, additionalGuard?: SQL) {
   const db = getDb();
   const total = sumQuantities(expected.receivedQuantity ? [expected.receivedQuantity, quantityReceived] : [quantityReceived]);
   if (!total) throw new Error('Receipt quantity cannot be added to the line total.');
@@ -368,7 +387,13 @@ export function receiptStatements(lineId: string, lotId: string, quantityReceive
     claim: db
       .update(purchaseOrderLines)
       .set({ receivedQuantity: total, receivedCount: sql`${purchaseOrderLines.receivedCount} + 1`, lastReceiptLotId: lotId, ...(complete ? { closedAt: now } : {}) })
-      .where(and(eq(purchaseOrderLines.id, lineId), eq(purchaseOrderLines.receivedCount, expected.receivedCount), isNull(purchaseOrderLines.closedAt)))
+      .where(and(eq(purchaseOrderLines.id, lineId), eq(purchaseOrderLines.receivedCount, expected.receivedCount), isNull(purchaseOrderLines.closedAt),
+        eq(purchaseOrderLines.quantity, expected.quantity), eq(purchaseOrderLines.productCode, expected.productCode),
+        sql`${purchaseOrderLines.receivedQuantity} IS ${expected.receivedQuantity}`,
+        sql`(SELECT COALESCE(sum(x.cost_cents), 0) FROM lots x
+          WHERE x.purchase_order_line_id = ${purchaseOrderLines.id} AND x.superseded_by_id IS NULL) = ${expected.allocatedCents}`,
+        sql`EXISTS (SELECT 1 FROM purchase_orders p WHERE p.id = ${purchaseOrderLines.purchaseOrderId}
+          AND p.po_number = ${expected.poNumber} AND p.status IN ('sent', 'partially_received'))`, additionalGuard))
       .returning({ id: purchaseOrderLines.id }),
     /** Guard for the lot insert: the claim above stamped this lot id. */
     claimed: sql`${purchaseOrderLines.id} = ${lineId} AND ${purchaseOrderLines.lastReceiptLotId} = ${lotId}`,

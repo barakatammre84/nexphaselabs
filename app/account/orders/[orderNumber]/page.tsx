@@ -1,20 +1,27 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, CircleCheck, Download } from 'lucide-react';
+import { ArrowLeft, CircleCheck } from 'lucide-react';
 import { OrderHelp } from '@/components/site/order-help';
 import { orderNextStep } from '@/lib/workflow-display';
-import { requireAccount } from '@/lib/account-auth';
+import { currentDocument } from '@/lib/issued-documents';
+import { getBuyer } from '@/lib/buyer-session';
+import { cookies } from 'next/headers';
+import { recoveredOrder, RECOVERY_COOKIE } from '@/lib/guest-order-recovery';
+import { OrderRecoveryCode } from '@/components/site/order-recovery-code';
 import {
   ORDER_STATUS_LABEL,
   orderNumberFromParam,
   type OrderStatus,
 } from '@/lib/order-rules';
 import { getOrderForAccount, paymentInstructionsFor } from '@/lib/orders';
-import { currentDocument } from '@/lib/issued-documents';
-import { availablePaymentMethods } from '@/lib/payments';
+import {
+  availablePaymentMethods,
+  buyerSimulationEnabled,
+} from '@/lib/payments';
 import { trackingUrl } from '@/lib/tracking';
 import { formatCents } from '@/lib/visibility-rules';
+import { OrderProgress } from '@/components/site/order-progress';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -35,21 +42,29 @@ type Props = {
 
 export default async function OrderPage({ params, searchParams }: Props) {
   const { orderNumber } = await params;
-  const { submitted, payment, error, cancelled } = await searchParams;
-  const account = await requireAccount(`/account/orders/${orderNumber}`);
+  const { submitted, payment, error, cancelled, paid } = await searchParams;
+  const account = await getBuyer();
   const number = orderNumberFromParam(orderNumber);
   if (!number) notFound();
-  const detail = await getOrderForAccount(account.id, number);
+  const owned = account ? await getOrderForAccount(account.id, number) : null;
+  const detail =
+    owned ??
+    (await recoveredOrder(
+      (await cookies()).get(RECOVERY_COOKIE)?.value,
+      number,
+    ));
   if (!detail) notFound();
   const { order, items, events } = detail;
   const invoice = await currentDocument('invoice', 'order', order.orderNumber);
-  const methods = order.status === 'submitted' ? availablePaymentMethods() : [];
+  const methods =
+    owned && order.status === 'submitted' ? availablePaymentMethods() : [];
   const instructions =
-    order.status === 'awaiting_payment'
+    owned && order.status === 'awaiting_payment'
       ? await paymentInstructionsFor(order)
       : null;
   const cancellable =
-    order.status === 'submitted' || order.status === 'awaiting_payment';
+    Boolean(owned) &&
+    (order.status === 'submitted' || order.status === 'awaiting_payment');
 
   return (
     <main className="bg-background text-foreground">
@@ -81,6 +96,33 @@ export default async function OrderPage({ params, searchParams }: Props) {
             queued.
           </p>
         )}
+        {paid === 'simulated' &&
+          order.paymentStatus === 'paid' &&
+          order.paymentRef === `TEST-${order.orderNumber}` &&
+          buyerSimulationEnabled() && (
+            <p
+              role="status"
+              className="mt-6 rounded-lg border border-border bg-secondary p-5 text-sm"
+            >
+              Test purchase complete. Simulated payment recorded; no money was
+              charged.
+            </p>
+          )}
+        {account?.status === 'guest' && owned && (
+          <p className="mt-5 text-sm text-muted-foreground">
+            Guest order · save this order number and return in this browser. No
+            account or email verification is needed.
+          </p>
+        )}
+        {account?.status === 'guest' && owned && (
+          <OrderRecoveryCode number={number} />
+        )}
+        {!owned && (
+          <p className="mt-5 border border-border p-4 text-sm">
+            Read-only access to this order. Use your original browser or contact
+            support for payment or changes. This access expires within 24 hours.
+          </p>
+        )}
         {cancelled && (
           <p
             role="status"
@@ -106,6 +148,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
         <h1 className="mt-2 break-words font-display text-3xl font-semibold tracking-tight sm:text-4xl">
           {order.orderNumber}
         </h1>
+        <OrderProgress status={order.status} />
 
         <div className="mt-6 rounded-lg bg-secondary p-5">
           <h2 className="font-semibold">What happens next</h2>
@@ -114,6 +157,11 @@ export default async function OrderPage({ params, searchParams }: Props) {
               ? 'Payment instructions are unavailable. Contact order support below before sending payment.'
               : orderNextStep(order)}
           </p>
+          {order.status === 'submitted' && methods.length > 0 && (
+            <a href="#order-payment" className="action-primary mt-4">
+              Choose payment method
+            </a>
+          )}
         </div>
         <nav aria-label="Order sections" className="mt-5 flex flex-wrap gap-3">
           <a href="#order-materials" className="action-secondary">
@@ -171,10 +219,27 @@ export default async function OrderPage({ params, searchParams }: Props) {
             </li>
           ))}
         </ul>
-        <p className="mt-4 text-right font-mono text-sm">
-          Total{' '}
-          <span className="font-semibold">{formatCents(order.totalCents)}</span>
-        </p>
+        <dl className="ml-auto mt-5 max-w-xs space-y-2 text-sm">
+          <div className="flex justify-between gap-5">
+            <dt className="text-muted-foreground">Materials</dt>
+            <dd className="font-mono">{formatCents(order.subtotalCents)}</dd>
+          </div>
+          <div className="flex justify-between gap-5">
+            <dt className="text-muted-foreground">
+              Shipping
+              {order.shippingService ? ` · ${order.shippingService}` : ''}
+            </dt>
+            <dd className="font-mono">{formatCents(order.shippingCents)}</dd>
+          </div>
+          <div className="flex justify-between gap-5">
+            <dt className="text-muted-foreground">Tax</dt>
+            <dd className="font-mono">{formatCents(order.taxCents)}</dd>
+          </div>
+          <div className="flex justify-between gap-5 border-t border-border pt-3 font-semibold">
+            <dt>Total</dt>
+            <dd className="font-mono">{formatCents(order.totalCents)}</dd>
+          </div>
+        </dl>
         {order.returnedAt && (
           <p className="mt-3 text-sm text-muted-foreground">
             Returned material received{' '}
@@ -206,7 +271,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
           <form
             method="post"
             action={`/api/orders/${order.orderNumber}/pay`}
-            className="mt-10 border border-border bg-secondary p-6"
+            className="mt-5 border border-border bg-secondary p-6"
           >
             <h2 className="font-display text-xl font-bold tracking-tight">
               How will you pay?
@@ -217,7 +282,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
             </p>
             <div className="mt-4 flex flex-col gap-3">
               {methods.map((m, i) => (
-                <label key={m.id} className="flex items-start gap-3 text-sm">
+                <label key={m.id} className="shipping-choice text-sm">
                   <input
                     type="radio"
                     name="method"
@@ -251,21 +316,20 @@ export default async function OrderPage({ params, searchParams }: Props) {
         )}
 
         {invoice && (
-          <div className="mt-10 border border-border p-6">
-            <h2 className="font-display text-xl font-bold tracking-tight">Invoice</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {invoice.documentNumber} &middot; issued{' '}
+          <div className="mt-8 rounded-lg border border-border p-6">
+            <h2 className="font-display text-xl font-semibold">Invoice</h2>
+            <p className="mt-2 text-sm">
+              {invoice.documentNumber} · issued{' '}
               {invoice.issuedAt.toISOString().slice(0, 10)}
             </p>
             <a
+              className="action-secondary mt-4"
               href={`/api/orders/${encodeURIComponent(order.orderNumber)}/invoice`}
-              className="mt-4 inline-flex h-11 items-center gap-2 border border-foreground/20 px-5 text-sm font-bold hover:bg-secondary"
             >
-              <Download className="size-4" /> Download invoice
+              Download invoice
             </a>
           </div>
         )}
-
         {instructions && (
           <div className="mt-10 border border-border bg-secondary p-6">
             <h2 className="font-display text-xl font-bold tracking-tight">
@@ -288,6 +352,28 @@ export default async function OrderPage({ params, searchParams }: Props) {
           </div>
         )}
 
+        {owned &&
+          buyerSimulationEnabled() &&
+          order.status === 'awaiting_payment' &&
+          order.paymentMethod === 'invoice' &&
+          order.paymentRef === `TEST-${order.orderNumber}` && (
+            <form
+              method="post"
+              action={`/api/orders/${order.orderNumber}/simulate-payment`}
+              className="mt-6 rounded-lg border border-primary bg-secondary p-6"
+            >
+              <h2 className="font-display text-xl font-semibold">
+                Finish your test purchase
+              </h2>
+              <p className="mt-2 text-sm leading-6">
+                No card or bank details needed. This records a simulated payment
+                in staging only.
+              </p>
+              <button type="submit" className="action-primary mt-5">
+                Complete simulated payment
+              </button>
+            </form>
+          )}
         {cancellable && (
           <details className="mt-6 rounded-md border border-border p-4">
             <summary className="cursor-pointer py-2 text-sm font-semibold">

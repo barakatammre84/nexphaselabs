@@ -5,8 +5,9 @@ const { env } = vi.hoisted(() => ({ env: {} as { DB?: D1Database } }));
 vi.mock('cloudflare:workers', () => ({ env }));
 import { getDb } from '@/db';
 import { lots, lotTests } from '@/db/schema';
-import { addLotTest, attachLotDocument, getLot, setLotCost, setLotDisposition } from '@/lib/lots-admin';
-import { lotFamilyIds } from '@/lib/lot-family';
+import { addLotTest, attachLotDocument, getLot, getLotDetail, setLotCost, setLotDisposition } from '@/lib/lots-admin';
+import { lotFamilyIds, lotVersions } from '@/lib/lot-family';
+import { getPublicLot } from '@/lib/lots-public';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 
 let local: ReturnType<typeof localD1>;
@@ -90,13 +91,22 @@ describe('fresh migrations and lot transaction invariants', () => {
     expect((await getLot('TEST-001'))!.costCents).toBe(123);
     expect(local.sqlite.prepare('SELECT count(*) AS n FROM lot_status_events').get()!.n).toBe(1);
   });
-  it('includes more than 50 correction versions and terminates on corrupt cycles', async () => {
-    for (let i = 0; i < 55; i++) {
+  it('reads and releases a 111-version lot history within D1 limits, without exposing private records', async () => {
+    for (let i = 0; i < 110; i++) {
       local.sqlite.prepare("INSERT INTO lots (id, lot_number, product_code, product_name, cas_number, received_at, superseded_by_id) VALUES (?, 'TEST-001', 'NPL-001', 'Fixture', '50-00-0', 1, ?)")
         .run(`older_${i}`, i === 0 ? 'lot_test' : `older_${i - 1}`);
     }
-    expect(await lotFamilyIds('lot_test')).toHaveLength(56);
-    local.sqlite.exec("UPDATE lots SET superseded_by_id = 'older_54' WHERE id = 'lot_test'");
-    expect(await lotFamilyIds('lot_test')).toHaveLength(56);
+    expect(await lotFamilyIds('lot_test')).toHaveLength(111);
+    expect(await lotVersions('lot_test')).toHaveLength(111);
+    expect((await getLotDetail('TEST-001'))!.tests).toHaveLength(2);
+    expect(await getPublicLot('TEST-001')).toBeNull();
+    await addLotTest((await getLot('TEST-001'))!, { testType: 'heavy_metal', analyte: 'Lead', method: 'ICP-MS', result: 'Conforms', specification: null, passed: true, testedBy: null, testedAtDate: null }, staff);
+    await attachLotDocument((await getLot('TEST-001'))!, 'coa', { key: 'lots/TEST-001/coa/current.pdf', contentType: 'application/pdf', size: 10, uploadedAt: new Date() }, 'current.pdf', staff);
+    expect((await setLotDisposition((await getLot('TEST-001'))!, 'release', null, staff)).ok).toBe(true);
+    const publicLot = await getPublicLot('TEST-001');
+    expect(publicLot!.tests).toHaveLength(3);
+    expect(publicLot).not.toHaveProperty('movements'); expect(publicLot).not.toHaveProperty('releasedBy'); expect(publicLot).not.toHaveProperty('quantityRemaining');
+    local.sqlite.exec("UPDATE lots SET superseded_by_id = 'older_109' WHERE id = 'lot_test'");
+    expect(await lotFamilyIds('lot_test')).toHaveLength(111);
   });
 });

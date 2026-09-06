@@ -1,6 +1,11 @@
 import Link from 'next/link';
 import { Lock } from 'lucide-react';
-import { canManageStaff, requireStaff } from '@/lib/staff-auth';
+import {
+  canHandleFeedback,
+  canManageStaff,
+  requireStaff,
+} from '@/lib/staff-auth';
+import { feedbackCounts } from '@/lib/feedback';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +21,9 @@ export default async function ManageLayout({
   children: React.ReactNode;
 }) {
   const staff = await requireStaff();
+  const feedback = canHandleFeedback(staff)
+    ? await feedbackCounts()
+    : { unread: 0 };
 
   return (
     <div className="border-b border-border bg-background">
@@ -55,10 +63,21 @@ export default async function ManageLayout({
             <Link href="/manage/activity" className="hover:text-primary">
               Activity
             </Link>
+            {canHandleFeedback(staff) && (
+              <Link href="/manage/feedback" className="hover:text-primary">
+                Feedback{feedback.unread > 0 ? ` (${feedback.unread})` : ''}
+              </Link>
+            )}
             {canManageStaff(staff) && (
               <>
-                <Link href="/manage/notifications" className="hover:text-primary">
+                <Link
+                  href="/manage/notifications"
+                  className="hover:text-primary"
+                >
                   Notifications
+                </Link>
+                <Link href="/manage/readiness" className="hover:text-primary">
+                  Readiness
                 </Link>
                 <Link href="/manage/hazcom" className="hover:text-primary">
                   Hazard comms
@@ -77,7 +96,10 @@ export default async function ManageLayout({
             action="/api/staff/sign-out"
             className="flex items-center gap-4"
           >
-            <Link href="/staff/password" className="text-muted-foreground hover:text-primary">
+            <Link
+              href="/staff/password"
+              className="text-muted-foreground hover:text-primary"
+            >
               Password
             </Link>
             <span className="text-muted-foreground">

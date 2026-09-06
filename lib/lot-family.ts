@@ -30,6 +30,6 @@ export async function lotVersions(currentId: string): Promise<Lot[]> {
   const ids = await lotFamilyIds(currentId);
   if (ids.length === 0) return [];
   const db = getDb();
-  const rows = await db.select().from(lots).where(sql`${lots.id} IN ${ids}`);
+  const rows = await db.select().from(lots).where(sql`${lots.id} IN (SELECT value FROM json_each(${JSON.stringify(ids)}))`);
   return rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 }

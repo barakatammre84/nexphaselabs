@@ -225,6 +225,69 @@
       "when": 1788535296706,
       "tag": "0031_guest_checkout",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1788537915642,
+      "tag": "0032_commerce_readiness",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1788573449587,
+      "tag": "0033_checkout_quotes",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1788574259559,
+      "tag": "0034_shipping_labels",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1788580239372,
+      "tag": "0035_sticky_sharon_carter",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1788583249646,
+      "tag": "0036_dear_mulholland_black",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1788583876370,
+      "tag": "0037_faulty_texas_twister",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1788626651386,
+      "tag": "0038_special_toxin",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1788626709556,
+      "tag": "0039_powerful_invaders",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1788627287242,
+      "tag": "0040_chemical_logan",
+      "breakpoints": true
     }
   ]
 }

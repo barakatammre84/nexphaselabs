@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
+import { openCheckoutEnabled } from '@/lib/site-config';
 
 export const metadata: Metadata = {
   title: 'About',
@@ -35,66 +36,73 @@ const principles = [
 ];
 
 export default function AboutPage() {
+  const open = openCheckoutEnabled();
   return (
-    <main className="bg-background text-foreground">
-      <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12 lg:py-20">
-        <p className="utility-label flex items-center gap-3 text-primary">
-          <span className="h-px w-8 bg-primary" />
-          About NexPhase Labs
-        </p>
-        <h1 className="mt-7 max-w-4xl font-display text-[clamp(2.6rem,5vw,4.6rem)] font-extrabold leading-[0.92] tracking-[-0.06em]">
-          A supplier built around the record, not the pitch.
-        </h1>
-        <p className="mt-7 max-w-2xl text-lg leading-8 text-muted-foreground">
-          NexPhase Labs is an independent supplier of research materials to qualified laboratory organizations in
-          the United States. The catalog is deliberately narrow, the documentation is deliberately specific, and
-          access is deliberately reviewed.
-        </p>
+    <main className="text-foreground">
+      <section className="mx-auto max-w-[1280px] px-4 pb-8 pt-3 sm:px-6">
+        <div className="ion-page-hero px-7 py-14 sm:px-12 lg:px-16 lg:py-20">
+          <p className="ion-kicker">About NexPhase Labs</p>
+          <h1 className="ion-heading mt-7 max-w-4xl text-[clamp(3rem,6vw,5.5rem)]">
+            Research-grade confidence starts with the record.
+          </h1>
+          <p className="mt-7 max-w-2xl text-lg leading-8 text-muted-foreground">
+            NexPhase Labs is an independent U.S. supplier of research materials.
+            We pair clear chemical identity with lot-specific analytical records
+            and a straightforward customer experience.
+          </p>
+        </div>
       </section>
 
-      <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12">
-        <h2 className="max-w-2xl font-display text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
-          How we operate
+      <section className="mx-auto max-w-[1280px] px-4 py-12 sm:px-6">
+        <p className="ion-kicker">How we operate</p>
+        <h2 className="ion-heading mt-5 max-w-2xl text-4xl sm:text-5xl">
+          Quality assurance without the guesswork.
         </h2>
-        <div className="mt-10 grid gap-px bg-border sm:grid-cols-2">
+        <div className="mt-10 grid gap-5 sm:grid-cols-2">
           {principles.map((principle, index) => (
-            <article key={principle.title} className="bg-background p-7 lg:p-9">
-              <span className="font-mono text-[11px] text-muted-foreground">0{index + 1}</span>
-              <h3 className="mt-6 font-display text-xl font-bold tracking-tight">{principle.title}</h3>
-              <p className="mt-3 leading-7 text-muted-foreground">{principle.copy}</p>
+            <article key={principle.title} className="ion-panel p-7 lg:p-9">
+              <span className="grid size-9 place-items-center rounded-full bg-primary font-display text-xs font-extrabold text-white">0{index + 1}</span>
+              <h3 className="mt-6 font-display text-xl font-extrabold tracking-tight text-[var(--ion-navy)]">
+                {open && index === 1 ? 'Ordering stays straightforward' : principle.title}
+              </h3>
+              <p className="mt-3 leading-7 text-muted-foreground">
+                {open && index === 1
+                  ? 'Published prices and eligible released lots appear directly on the product page. Add a pack to the cart and complete delivery details without creating an account.'
+                  : principle.copy}
+              </p>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12">
-        <div className="grid gap-10 lg:grid-cols-[1fr_1fr] lg:items-center">
+      <section className="mx-auto max-w-[1280px] px-4 pb-20 pt-8 sm:px-6">
+        <div className="ion-panel grid gap-10 p-7 sm:p-10 lg:grid-cols-[1fr_1fr] lg:items-center lg:p-12">
           <div>
             <p className="utility-label text-primary">Working with us</p>
             <h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
-              Start with the catalog, then the account.
+              Start with the product. Keep the documentation close.
             </h2>
             <p className="mt-5 leading-8 text-muted-foreground">
-              Specifications, storage conditions, and the documentation package are public so a laboratory can
-              evaluate the fit before anyone fills in a form. Pricing and current lot availability open up once an
-              account is verified.
+              Product specifications, handling details, and the documentation
+              model are public so you can evaluate fit before ordering. Current
+              lot availability and commercial terms appear where access allows.
             </p>
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <Link
                 href="/catalog"
                 className="inline-flex h-12 items-center justify-center gap-3 bg-primary px-6 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
               >
-                View the catalog <ArrowRight className="size-4" />
+                Shop products <ArrowRight className="size-4" />
               </Link>
               <Link
-                href="/access"
+                href={open ? '/documentation/lot-lookup' : '/access'}
                 className="inline-flex h-12 items-center justify-center border border-foreground/20 px-6 text-sm font-bold transition-colors hover:border-primary hover:text-primary"
               >
-                Request access
+                {open ? 'View COAs' : 'Request access'}
               </Link>
             </div>
           </div>
-          <div className="border border-border bg-secondary p-7 lg:p-9">
+          <div className="rounded-[1.5rem] bg-secondary p-7 lg:p-9">
             <p className="utility-label text-muted-foreground">Contact</p>
             <p className="mt-4 font-display text-2xl font-bold tracking-tight">research@nexphaselabs.net</p>
             <p className="mt-4 leading-7 text-muted-foreground">

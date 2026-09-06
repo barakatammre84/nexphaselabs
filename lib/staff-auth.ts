@@ -247,6 +247,11 @@ export function canFulfil(staff: StaffPrincipal): boolean {
   return staff.role === 'admin' || staff.role === 'ops';
 }
 
+/** Customer feedback is handled by operations and administrators. */
+export function canHandleFeedback(staff: StaffPrincipal): boolean {
+  return staff.role === 'admin' || staff.role === 'ops';
+}
+
 /** Roles allowed to verify customer organisations. */
 export function canVerifyAccounts(staff: StaffPrincipal): boolean {
   return staff.role === 'admin';

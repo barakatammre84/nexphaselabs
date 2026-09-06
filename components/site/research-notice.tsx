@@ -1,3 +1,4 @@
+import { openCheckoutEnabled } from '@/lib/site-config';
 /**
  * The research-use boundary statement.
  *
@@ -8,35 +9,47 @@
  */
 export function ResearchNoticeBar() {
   return (
-    <div className="border-b border-border bg-secondary">
-      <p className="mx-auto max-w-[1500px] px-5 py-2.5 text-center font-mono text-[11px] leading-5 tracking-[0.04em] text-muted-foreground sm:px-8 lg:px-12">
-        All materials are supplied for laboratory research use only. Not for human or veterinary use, not for
-        clinical or diagnostic procedures, and not for consumption.
-      </p>
+    <div className="research-notice-bar">
+      <div className="mx-auto flex max-w-[1280px] flex-col items-center justify-center gap-x-5 gap-y-1 px-4 py-2 text-center text-[11px] font-semibold leading-5 sm:flex-row sm:px-6">
+        <span>Every released lot includes its own analytical record.</span>
+        <span className="hidden size-1 rounded-full bg-white/45 sm:block" />
+        <a href="/documentation/lot-lookup" className="font-extrabold text-white underline-offset-4 hover:underline">
+          Find a COA
+        </a>
+        <span className="hidden size-1 rounded-full bg-white/45 sm:block" />
+        <span className="text-white/72">Laboratory research use only.</span>
+      </div>
     </div>
   );
 }
 
 export function ResearchNoticeBlock() {
+  const open = openCheckoutEnabled();
   return (
-    <section id="research-only" className="bg-foreground px-5 py-14 text-background sm:px-8 lg:px-12">
+    <section
+      id="research-only"
+      className="mx-auto mb-6 max-w-[1280px] overflow-hidden rounded-[2rem] bg-[var(--ion-navy)] px-6 py-12 text-white sm:px-10 lg:px-12"
+    >
       <div className="mx-auto flex max-w-[1404px] flex-col justify-between gap-8 md:flex-row md:items-end">
         <div className="max-w-3xl">
-          <p className="utility-label text-[#5dd6ef]">Research-use boundary</p>
+          <p className="text-sm font-extrabold text-blue-200">Research-use boundary</p>
           <h2 className="mt-4 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-            For controlled laboratory research&mdash;not human or veterinary use.
+            For controlled laboratory research&mdash;not human or veterinary
+            use.
           </h2>
-          <p className="mt-4 max-w-2xl leading-7 text-background/65">
-            Research account requests are reviewed before ordering. Materials are not medicines, supplements, or
-            consumer products, and NexPhase Labs does not provide dosing guidance, protocols for administration, or
-            any form of medical advice.
+          <p className="mt-4 max-w-2xl leading-7 text-white/68">
+            {!open &&
+              'Research account requests are reviewed before ordering. '}
+            Materials are not medicines, supplements, or consumer products, and
+            NexPhase Labs does not provide dosing guidance, protocols for
+            administration, or any form of medical advice.
           </p>
         </div>
         <a
-          href="/access"
-          className="inline-flex h-12 shrink-0 items-center justify-center bg-[#5dd6ef] px-6 text-sm font-bold text-foreground transition-colors hover:bg-white"
+          href={open ? '/catalog' : '/access'}
+          className="inline-flex h-12 shrink-0 items-center justify-center rounded-full bg-white px-6 text-sm font-extrabold text-[var(--ion-navy)] transition-transform hover:-translate-y-0.5"
         >
-          Start an account request
+          {open ? 'Browse materials' : 'Start an account request'}
         </a>
       </div>
     </section>

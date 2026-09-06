@@ -1,0 +1,261 @@
+import { env } from 'cloudflare:workers';
+import { and, eq, gt } from 'drizzle-orm';
+import { getDb } from '@/db';
+import { checkoutQuotes } from '@/db/commerce-schema';
+import type { Cart } from '@/lib/cart';
+import type { ShipTo } from '@/lib/orders';
+import {
+  quoteShipping,
+  shippingConfiguration,
+  type ShippingAddress,
+} from '@/lib/shipping-provider';
+import { parcelError, type Parcel } from '@/lib/shipping-rates';
+import { quoteTax } from '@/lib/tax-provider';
+
+export const CHECKOUT_QUOTE_MINUTES = 30;
+
+export function checkoutQuotesRequired(): boolean {
+  return env.CHECKOUT_QUOTES_REQUIRED === 'true';
+}
+
+function hex(bytes: ArrayBuffer): string {
+  return [...new Uint8Array(bytes)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function fingerprint(value: unknown): Promise<string> {
+  return hex(
+    await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(JSON.stringify(value)),
+    ),
+  );
+}
+
+export async function cartFingerprint(cart: Cart): Promise<string> {
+  return fingerprint(
+    cart.lines
+      .map((line) => ({
+        item: line.itemId,
+        sku: line.variant.sku,
+        quantity: line.quantity,
+        price: line.unitPriceCents,
+      }))
+      .sort((a, b) => a.item.localeCompare(b.item)),
+  );
+}
+
+export async function addressFingerprint(
+  shipTo: ShipTo,
+  contactEmail: string | null,
+): Promise<string> {
+  return fingerprint({
+    email: contactEmail?.trim().toLowerCase() ?? null,
+    name: shipTo.consigneeName.trim(),
+    institution: shipTo.consigneeInstitution?.trim() ?? null,
+    line1: shipTo.line1.trim(),
+    line2: shipTo.line2?.trim() ?? null,
+    city: shipTo.city.trim(),
+    region: shipTo.region.trim().toUpperCase(),
+    postalCode: shipTo.postalCode.trim(),
+    country: shipTo.country.trim().toUpperCase(),
+    phone: shipTo.phone?.trim() ?? null,
+  });
+}
+
+type DefaultParcel = Parcel & { baseWeight: number; perPackWeight: number };
+
+export function checkoutParcelForPacks(
+  packs: number,
+): { ok: true; parcel: Parcel } | { ok: false; error: string } {
+  let value: Partial<DefaultParcel> | null = null;
+  try {
+    value = JSON.parse(
+      env.SHIPPING_DEFAULT_PARCEL_JSON ?? 'null',
+    ) as Partial<DefaultParcel> | null;
+  } catch {
+    return {
+      ok: false,
+      error: 'The standard checkout parcel profile is invalid.',
+    };
+  }
+  if (
+    !value ||
+    !Number.isFinite(value.baseWeight) ||
+    !Number.isFinite(value.perPackWeight) ||
+    value.baseWeight! <= 0 ||
+    value.perPackWeight! < 0
+  )
+    return {
+      ok: false,
+      error:
+        'Configure the standard packed dimensions and weight before quoting checkout.',
+    };
+  const parcel = {
+    length: Number(value.length),
+    width: Number(value.width),
+    height: Number(value.height),
+    weight: Number(
+      (value.baseWeight! + packs * value.perPackWeight!).toFixed(3),
+    ),
+  };
+  const problem = parcelError(parcel);
+  return problem ? { ok: false, error: problem } : { ok: true, parcel };
+}
+
+export function checkoutParcel(
+  cart: Cart,
+): { ok: true; parcel: Parcel } | { ok: false; error: string } {
+  return checkoutParcelForPacks(
+    cart.lines.reduce((total, line) => total + line.quantity, 0),
+  );
+}
+
+export function shippingAddress(shipTo: ShipTo): ShippingAddress {
+  return {
+    name: shipTo.consigneeName,
+    street1: shipTo.line1,
+    ...(shipTo.line2 ? { street2: shipTo.line2 } : {}),
+    city: shipTo.city,
+    state: shipTo.region.toUpperCase(),
+    zip: shipTo.postalCode,
+    country: shipTo.country,
+    ...(shipTo.phone ? { phone: shipTo.phone } : {}),
+    is_residential: !shipTo.consigneeInstitution,
+  };
+}
+
+export type CheckoutQuoteView = {
+  id: string;
+  carrier: 'UPS' | 'FedEx';
+  serviceName: string;
+  shippingCents: number;
+  taxCents: number;
+  totalCents: number;
+  estimatedDays: number | null;
+  expiresAt: string;
+  test: boolean;
+};
+
+export async function createCheckoutQuotes(
+  accountId: string,
+  cart: Cart,
+  shipTo: ShipTo,
+  contactEmail: string,
+): Promise<
+  | { ok: true; quotes: CheckoutQuoteView[]; warning: string | null }
+  | { ok: false; error: string }
+> {
+  if (!cart.orderable || cart.lines.length === 0)
+    return {
+      ok: false,
+      error: 'Add available, priced materials before comparing delivery.',
+    };
+  const packed = checkoutParcel(cart);
+  if (!packed.ok) return packed;
+  const to = shippingAddress(shipTo);
+  const shipping = await quoteShipping(to, packed.parcel, {
+    services: [],
+    maxEstimatedDays: 10,
+  });
+  if (!shipping.ok) return shipping;
+  const candidates = shipping.rates.slice(0, 4);
+  const withTax = await Promise.all(
+    candidates.map(async (rate) => ({
+      rate,
+      tax: await quoteTax({
+        to,
+        subtotalCents: cart.subtotalCents,
+        shippingCents: rate.cents,
+        lines: cart.lines.map((line) => ({
+          id: line.itemId,
+          sku: line.variant.sku,
+          description: `${line.product.name} ${line.variant.quantity}`,
+          quantity: line.quantity,
+          unitPriceCents: line.unitPriceCents!,
+        })),
+      }),
+    })),
+  );
+  const taxFailure = withTax.find((item) => !item.tax.ok);
+  if (taxFailure && !taxFailure.tax.ok) return taxFailure.tax;
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + CHECKOUT_QUOTE_MINUTES * 60_000);
+  const [cartHash, addressHash] = await Promise.all([
+    cartFingerprint(cart),
+    addressFingerprint(shipTo, contactEmail),
+  ]);
+  const provider = shippingConfiguration().simulated ? 'simulated' : 'shippo';
+  const rows = withTax.map(({ rate, tax }) => ({
+    id: `cq_${crypto.randomUUID().replace(/-/g, '')}`,
+    accountId,
+    cartFingerprint: cartHash,
+    addressFingerprint: addressHash,
+    provider,
+    shipmentId: rate.shipmentId,
+    rateId: rate.id,
+    carrier: rate.carrier,
+    service: rate.service,
+    serviceName: rate.serviceName,
+    shippingCents: rate.cents,
+    taxCents: tax.ok ? tax.cents : 0,
+    currency: 'USD',
+    estimatedDays: rate.estimatedDays,
+    test: shipping.test || (tax.ok && tax.test),
+    expiresAt,
+    createdAt: now,
+  }));
+  if (!rows.length)
+    return {
+      ok: false,
+      error: 'No eligible UPS or FedEx delivery options were returned.',
+    };
+  await getDb().insert(checkoutQuotes).values(rows);
+  return {
+    ok: true,
+    quotes: rows.map((row) => ({
+      id: row.id,
+      carrier: row.carrier,
+      serviceName: row.serviceName,
+      shippingCents: row.shippingCents,
+      taxCents: row.taxCents,
+      totalCents: cart.subtotalCents + row.shippingCents + row.taxCents,
+      estimatedDays: row.estimatedDays,
+      expiresAt: row.expiresAt.toISOString(),
+      test: row.test,
+    })),
+    warning: shipping.warning,
+  };
+}
+
+export async function acceptedCheckoutQuote(
+  id: string,
+  accountId: string,
+  cart: Cart,
+  shipTo: ShipTo,
+  contactEmail: string | null,
+  now = new Date(),
+) {
+  if (!/^cq_[a-f0-9]{32}$/.test(id)) return null;
+  const [row] = await getDb()
+    .select()
+    .from(checkoutQuotes)
+    .where(
+      and(
+        eq(checkoutQuotes.id, id),
+        eq(checkoutQuotes.accountId, accountId),
+        gt(checkoutQuotes.expiresAt, now),
+      ),
+    )
+    .limit(1);
+  if (!row || row.currency !== 'USD') return null;
+  const [cartHash, addressHash] = await Promise.all([
+    cartFingerprint(cart),
+    addressFingerprint(shipTo, contactEmail),
+  ]);
+  return row.cartFingerprint === cartHash &&
+    row.addressFingerprint === addressHash
+    ? row
+    : null;
+}

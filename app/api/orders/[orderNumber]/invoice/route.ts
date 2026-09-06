@@ -1,7 +1,8 @@
-import { getAccountFromRequest } from '@/lib/account-auth';
+import { getBuyerFromRequest } from '@/lib/buyer-session';
 import { documentResponse } from '@/lib/documents';
 import { currentDocument, getIssuedObject } from '@/lib/issued-documents';
 import { getOrderForAccount } from '@/lib/orders';
+import { recoveredOrder, recoveryTokenFromRequest } from '@/lib/guest-order-recovery';
 
 /**
  * The customer's own invoice.
@@ -16,8 +17,9 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ orderNumber: string }> },
 ) {
-  const account = await getAccountFromRequest(request);
-  if (!account) return new Response('Unauthorized', { status: 401 });
+  const account = await getBuyerFromRequest(request);
+  const recoveryToken = recoveryTokenFromRequest(request);
+  if (!account && !recoveryToken) return new Response('Unauthorized', { status: 401 });
 
   const { orderNumber } = await params;
   const normalised = decodeURIComponent(orderNumber).trim().toUpperCase();
@@ -27,7 +29,8 @@ export async function GET(
 
   let record;
   try {
-    const detail = await getOrderForAccount(account.id, normalised);
+    const detail = (account ? await getOrderForAccount(account.id, normalised) : null)
+      ?? await recoveredOrder(recoveryToken, normalised);
     if (!detail) return new Response('Not found', { status: 404 });
     record = await currentDocument('invoice', 'order', detail.order.orderNumber);
   } catch (error) {

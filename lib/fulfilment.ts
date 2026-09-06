@@ -1,16 +1,15 @@
 import { and, asc, eq, sql, isNull } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { returnAllowed, validateReturn } from '@/lib/order-rules';
-import { accounts, lotMovements, lotStatusEvents, lots, orderEvents, orderItems, orders, type Lot } from '@/db/schema';
-import { sendEmail } from '@/lib/email';
+import { lotMovements, lotStatusEvents, lots, orderEvents, orderItems, orders, type Lot } from '@/db/schema';
 import { isMassUnit, pickFromLot, sumQuantities } from '@/lib/lot-quantities';
 import { formatQuantity, parseQuantity } from '@/lib/lot-rules';
 import { recordedBy } from '@/lib/lots-admin';
 import { scanText } from '@/lib/catalog-rules';
 import { transitionOrder, type OrderDetail } from '@/lib/orders';
-import { publicOrigin } from '@/lib/site-config';
 import type { StaffPrincipal } from '@/lib/staff-auth';
-import { ENTITY_FOOTER } from '@/lib/entity';
+import { orderCustomerEligible } from '@/lib/order-eligibility';
+import { reservationEligibility, unreservedStockGuard } from '@/lib/inventory-reservations';
 
 /**
  * Fulfilment. The one place material leaves a lot.
@@ -62,6 +61,7 @@ export type ShipmentResult = { ok: true } | { ok: false; error: string };
 export async function recordShipment(detail: OrderDetail, input: ShipmentInput, staff: StaffPrincipal): Promise<ShipmentResult> {
   const { order, items } = detail;
   if (order.status !== 'fulfilling') return { ok: false, error: 'Start fulfilment before recording a shipment.' };
+  if (items.length === 0) return { ok: false, error: 'This order has no lines to ship. Review the order record.' };
 
   const carrier = input.carrier.trim().slice(0, 60);
   const trackingNumber = input.trackingNumber.trim().slice(0, 80);
@@ -73,13 +73,22 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
   if (Number.isNaN(shippedOn.getTime()) || shippedOn.toISOString().slice(0, 10) !== input.shippedOn) {
     return { ok: false, error: 'Ship date is not a real date.' };
   }
-  if (shippedOn.getTime() > Date.now() + 24 * 3600 * 1000) return { ok: false, error: 'Ship date cannot be in the future.' };
+  // These fields are calendar dates stored at UTC midnight, not timestamps
+  // needing a 24-hour tolerance. That tolerance admitted tomorrow's shipment.
+  if (input.shippedOn > new Date().toISOString().slice(0, 10)) return { ok: false, error: 'Ship date cannot be in the future.' };
+  if (input.shippedOn < order.submittedAt.toISOString().slice(0, 10)) return { ok: false, error: 'Ship date is before the order was submitted.' };
   const violation = scanText('note', note)[0];
   if (violation) return { ok: false, error: `Note contains ${violation.reason} ("${violation.match}").` };
 
   const db = getDb();
   const now = new Date();
   const by = recordedBy(staff);
+  const allocation = await reservationEligibility(order.id, now);
+  if (!allocation.valid) return { ok: false, error: 'The reserved lot is no longer available. Review the order with QC before shipping.' };
+  if (allocation.tracked && allocation.rows.some(row => input.picks[row.reservation.itemId] !== row.reservation.lotId))
+    return { ok: false, error: 'Use the lot reserved for each order line. A different lot requires an allocation review.' };
+  const [eligible] = await db.select({ id: orders.id }).from(orders).where(and(eq(orders.id, order.id), orderCustomerEligible(order))).limit(1);
+  if (!eligible) return { ok: false, error: 'The customer or institution is no longer approved for shipment. Ask an administrator to review the account.' };
 
   // Resolve every pick against a fresh read of the lot; group lines by lot so a
   // lot used twice is decremented once by the combined amount.
@@ -108,7 +117,6 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
     plans.set(lot.id, plan);
   }
 
-  const [account] = await db.select({ email: accounts.email, id: accounts.id }).from(accounts).where(eq(accounts.id, order.accountId)).limit(1);
   const shipToAddress = [order.shipToLine1, order.shipToLine2, order.shipToCity, order.shipToRegion, order.shipToPostalCode, order.shipToCountry]
     .filter(Boolean)
     .join(', ');
@@ -123,14 +131,13 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
   // lot or to none, and nothing below writes unless its lot carries the marker.
   const precondition = sql`(
     SELECT count(*) FROM ${lots}
-    WHERE ${sql.join(
-      planList.map(
-        (p) =>
-          sql`(${lots.id} = ${p.lot.id} AND ${lots.status} = 'released' AND ${lots.supersededById} IS NULL AND ${lots.quantityRemaining} = ${p.lot.quantityRemaining ?? ''})`,
-      ),
-      sql` OR `,
-    )}
-  ) = ${planList.length} AND (SELECT ${orders.status} FROM ${orders} WHERE ${orders.id} = ${order.id}) = 'fulfilling'`;
+    INNER JOIN json_each(${JSON.stringify(planList.map((plan) => ({ id: plan.lot.id, remaining: plan.lot.quantityRemaining ?? '' })))}) AS expected
+      ON ${lots.id} = json_extract(expected.value, '$.id')
+    WHERE ${lots.status} = 'released' AND ${lots.supersededById} IS NULL
+      AND ${lots.quantityRemaining} = json_extract(expected.value, '$.remaining')
+  ) = ${planList.length} AND (SELECT ${orders.status} FROM ${orders} WHERE ${orders.id} = ${order.id}) = 'fulfilling'
+    AND ${orderCustomerEligible(order)} AND ${allocation.guard}
+    AND ${unreservedStockGuard(planList.map(p => ({ lotId: p.lot.id, remaining: p.remaining })), order.id, now)}`;
 
   const stamped = (lotId: string) =>
     sql`EXISTS (SELECT 1 FROM ${lots} WHERE ${lots.id} = ${lotId} AND ${lots.lastMovementId} = ${shipmentId})`;
@@ -239,24 +246,6 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
     return { ok: false, error: 'A picked lot or the order changed while you were recording the shipment. Reload and pick again.' };
   }
 
-  if (account?.email) {
-    await sendEmail({
-      to: account.email,
-      subject: `Order ${order.orderNumber} has shipped — NexPhase Labs`,
-      text: [
-        `Order ${order.orderNumber} shipped on ${input.shippedOn} via ${carrier}.`,
-        `Tracking: ${trackingNumber}`,
-        '',
-        'Lots supplied:',
-        ...[...plans.values()].map((p) => `  ${p.lot.lotNumber} — ${publicOrigin()}/lots/${encodeURIComponent(p.lot.lotNumber)}`),
-        '',
-        'The certificate of analysis for each lot is in the parcel and at the link above.',
-        `Order details: ${publicOrigin()}/account/orders/${order.orderNumber}`,
-        '',
-        ENTITY_FOOTER,
-      ].join('\n'),
-    });
-  }
   return { ok: true };
 }
 

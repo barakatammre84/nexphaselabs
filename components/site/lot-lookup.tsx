@@ -93,7 +93,7 @@ export function LotLookup() {
 
   return (
     <div>
-      <form onSubmit={onSubmit} className="flex max-w-xl flex-col gap-3 sm:flex-row">
+      <form onSubmit={onSubmit} className="flex max-w-2xl flex-col gap-3 sm:flex-row">
         <label htmlFor="lot" className="sr-only">
           Lot number
         </label>
@@ -105,12 +105,12 @@ export function LotLookup() {
           placeholder="e.g. NPL1-260714-A"
           autoComplete="off"
           spellCheck={false}
-          className="h-12 flex-1 border border-foreground/20 bg-background px-4 font-mono text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+          className="h-12 flex-1 rounded-full border border-input bg-secondary px-5 font-mono text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
         />
         <button
           type="submit"
           disabled={state === 'loading' || !query.trim()}
-          className="inline-flex h-12 items-center justify-center gap-2 bg-primary px-6 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-bold text-primary-foreground shadow-[0_10px_24px_rgba(52,127,242,0.22)] transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {state === 'loading' ? (
             <Loader2 className="size-4 animate-spin" />
@@ -122,7 +122,7 @@ export function LotLookup() {
       </form>
 
       {(state === 'missing' || state === 'error') && (
-        <div className="mt-8 flex max-w-xl items-start gap-3 border border-border bg-secondary p-5">
+        <div className="mt-8 flex max-w-xl items-start gap-3 rounded-[1.25rem] border border-border bg-secondary p-5">
           <AlertCircle className="mt-0.5 size-4 shrink-0 text-primary" />
           <p className="text-sm leading-6">{message}</p>
         </div>

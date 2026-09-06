@@ -10,29 +10,27 @@ export const metadata: Metadata = {
 
 export default function LotLookupPage() {
   return (
-    <main className="bg-background text-foreground">
-      <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12 lg:py-20">
-        <p className="utility-label flex items-center gap-3 text-primary">
-          <span className="h-px w-8 bg-primary" />
-          Documentation
-        </p>
-        <h1 className="mt-7 max-w-3xl font-display text-[clamp(2.4rem,5vw,4.2rem)] font-extrabold leading-[0.94] tracking-[-0.055em]">
-          Look up any lot we have shipped.
+    <main className="text-foreground">
+      <section className="mx-auto max-w-[1280px] px-4 pb-8 pt-3 sm:px-6">
+        <div className="ion-hero px-7 py-14 sm:px-12 lg:px-16 lg:py-20">
+        <p className="inline-flex rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-extrabold">COA library</p>
+        <h1 className="mt-7 max-w-3xl font-display text-[clamp(3rem,6vw,5.5rem)] font-extrabold leading-[0.95] tracking-[-0.065em]">
+          Find your batch documentation.
         </h1>
-        <p className="mt-7 max-w-2xl text-lg leading-8 text-muted-foreground">
+        <p className="mt-7 max-w-2xl text-lg leading-8 text-white/72">
           Enter the lot number printed on the vial. The record returned is the one issued for that
           lot: the measured purity and the method used, the identity confirmation, the manufacturer
           of record, and the analytical files. No account is required to read it.
-        </p>
+        </p></div>
       </section>
 
-      <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12">
-        <LotLookup />
+      <section className="mx-auto max-w-[1080px] px-4 py-12 sm:px-6">
+        <div className="ion-panel p-7 sm:p-10"><LotLookup /></div>
       </section>
 
-      <section className="mx-auto max-w-[1500px] border-b border-border px-5 py-14 sm:px-8 lg:px-12">
-        <div className="grid gap-px bg-border lg:grid-cols-3">
-          <div className="bg-background p-7 lg:p-9">
+      <section className="mx-auto max-w-[1080px] px-4 pb-20 sm:px-6">
+        <div className="grid gap-5 lg:grid-cols-3">
+          <div className="ion-panel p-7 lg:p-9">
             <span className="font-mono text-[11px] text-muted-foreground">01</span>
             <h2 className="mt-6 font-display text-xl font-bold tracking-tight">
               The manufacturer, not the seller
@@ -44,7 +42,7 @@ export default function LotLookupPage() {
               sterile compounding.
             </p>
           </div>
-          <div className="bg-background p-7 lg:p-9">
+          <div className="ion-panel p-7 lg:p-9">
             <span className="font-mono text-[11px] text-muted-foreground">02</span>
             <h2 className="mt-6 font-display text-xl font-bold tracking-tight">
               Methods, not adjectives
@@ -55,7 +53,7 @@ export default function LotLookupPage() {
               mass. A number without a method is not a result.
             </p>
           </div>
-          <div className="bg-background p-7 lg:p-9">
+          <div className="ion-panel p-7 lg:p-9">
             <span className="font-mono text-[11px] text-muted-foreground">03</span>
             <h2 className="mt-6 font-display text-xl font-bold tracking-tight">
               Only released lots resolve
