@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { lotFamilyIds } from '@/lib/lot-family';
 import { lotTests, lots, type Lot } from '@/db/schema';
@@ -31,6 +31,11 @@ export type PublicLot = {
   identityMethod: string | null;
   waterContent: string | null;
   heavyMetalsSummary: string | null;
+  accessionNumber: string | null;
+  analyticalLab: string | null;
+  netPeptideContent: string | null;
+  appearance: string | null;
+  testingStandard: string | null;
   retestDate: string | null;
   storageCondition: string | null;
   releasedOn: string | null;
@@ -52,17 +57,28 @@ function iso(value: Date | null): string | null {
 /** The released lot row, or null. Never returns an unreleased lot. */
 export async function getReleasedLot(lotNumber: string): Promise<Lot | null> {
   const db = getDb();
-  const [lot] = await db.select().from(lots).where(and(eq(lots.lotNumber, lotNumber), isNull(lots.supersededById))).limit(1);
+  const [lot] = await db
+    .select()
+    .from(lots)
+    .where(and(eq(lots.lotNumber, lotNumber), isNull(lots.supersededById)))
+    .limit(1);
   if (!lot || lot.status !== 'released') return null;
   return lot;
 }
 
-export async function getPublicLot(lotNumber: string): Promise<PublicLot | null> {
+export async function getPublicLot(
+  lotNumber: string,
+): Promise<PublicLot | null> {
   const lot = await getReleasedLot(lotNumber);
   if (!lot) return null;
   const db = getDb();
   const family = await lotFamilyIds(lot.id);
-  const tests = await db.select().from(lotTests).where(sql`${lotTests.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)}))`);
+  const tests = await db
+    .select()
+    .from(lotTests)
+    .where(
+      sql`${lotTests.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)}))`,
+    );
 
   return {
     lotNumber: lot.lotNumber,
@@ -79,6 +95,11 @@ export async function getPublicLot(lotNumber: string): Promise<PublicLot | null>
     identityMethod: lot.identityMethod,
     waterContent: lot.waterContent,
     heavyMetalsSummary: lot.heavyMetalsSummary,
+    accessionNumber: lot.accessionNumber,
+    analyticalLab: lot.analyticalLab,
+    netPeptideContent: lot.netPeptideContent,
+    appearance: lot.appearance,
+    testingStandard: lot.testingStandard,
     retestDate: iso(lot.retestDate),
     storageCondition: lot.storageCondition,
     releasedOn: iso(lot.releasedAt),
@@ -116,19 +137,119 @@ export function publicDocumentKey(lot: Lot, type: DocumentType): string | null {
   }
 }
 
-export function publicDocumentPath(lotNumber: string, type: DocumentType): string {
+export function publicDocumentPath(
+  lotNumber: string,
+  type: DocumentType,
+): string {
   return `/api/lots/${encodeURIComponent(lotNumber)}/documents/${type}`;
 }
 
-export type ReleasedLotSummary = { lotNumber: string; releasedOn: string | null; retestDate: string | null; manufacturerName: string | null };
+export type ReleasedLotSummary = {
+  lotNumber: string;
+  releasedOn: string | null;
+  retestDate: string | null;
+  manufacturerName: string | null;
+};
 
 /** Released lots for a product, newest first. Quantities are not included; they are internal. */
-export async function listReleasedLotsForProduct(productCode: string): Promise<ReleasedLotSummary[]> {
+export async function listReleasedLotsForProduct(
+  productCode: string,
+): Promise<ReleasedLotSummary[]> {
   const db = getDb();
   const rows = await db
-    .select({ lotNumber: lots.lotNumber, releasedAt: lots.releasedAt, retestDate: lots.retestDate, manufacturerName: lots.manufacturerName })
+    .select({
+      lotNumber: lots.lotNumber,
+      releasedAt: lots.releasedAt,
+      retestDate: lots.retestDate,
+      manufacturerName: lots.manufacturerName,
+    })
     .from(lots)
-    .where(and(eq(lots.productCode, productCode), eq(lots.status, 'released'), isNull(lots.supersededById)))
+    .where(
+      and(
+        eq(lots.productCode, productCode),
+        eq(lots.status, 'released'),
+        isNull(lots.supersededById),
+      ),
+    )
     .orderBy(desc(lots.releasedAt));
-  return rows.map((r) => ({ lotNumber: r.lotNumber, releasedOn: iso(r.releasedAt), retestDate: iso(r.retestDate), manufacturerName: r.manufacturerName }));
+  return rows.map((r) => ({
+    lotNumber: r.lotNumber,
+    releasedOn: iso(r.releasedAt),
+    retestDate: iso(r.retestDate),
+    manufacturerName: r.manufacturerName,
+  }));
+}
+
+/**
+ * Public lot search — product name, lot number, or accession number.
+ *
+ * Three axes, matching what the best archive in this category offers. The
+ * accession axis is the important one: it is the analytical lab's reference,
+ * so a customer holding a certificate can confirm it resolves here, and can
+ * take that same number to the lab.
+ *
+ * Released lots only, and the same fields the single-lot lookup returns —
+ * never quantities, never movements, never who released it.
+ */
+export type LotSearchHit = {
+  lotNumber: string;
+  productCode: string;
+  productName: string;
+  casNumber: string;
+  accessionNumber: string | null;
+  analyticalLab: string | null;
+  purityResult: string | null;
+  releasedOn: string | null;
+};
+
+export const LOT_SEARCH_LIMIT = 25;
+
+export async function searchReleasedLots(
+  query: string,
+): Promise<LotSearchHit[]> {
+  const term = query.trim();
+  if (term.length < 2) return [];
+
+  // Escape LIKE wildcards so a user cannot turn the box into a full scan.
+  const escaped = term.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const pattern = `%${escaped}%`;
+  const db = getDb();
+
+  const rows = await db
+    .select({
+      lotNumber: lots.lotNumber,
+      productCode: lots.productCode,
+      productName: lots.productName,
+      casNumber: lots.casNumber,
+      accessionNumber: lots.accessionNumber,
+      analyticalLab: lots.analyticalLab,
+      purityResult: lots.purityResult,
+      releasedAt: lots.releasedAt,
+    })
+    .from(lots)
+    .where(
+      and(
+        eq(lots.status, 'released'),
+        isNull(lots.supersededById),
+        or(
+          sql`upper(${lots.lotNumber}) LIKE upper(${pattern}) ESCAPE '\\'`,
+          sql`upper(${lots.productName}) LIKE upper(${pattern}) ESCAPE '\\'`,
+          sql`upper(${lots.productCode}) LIKE upper(${pattern}) ESCAPE '\\'`,
+          sql`upper(${lots.accessionNumber}) LIKE upper(${pattern}) ESCAPE '\\'`,
+        ),
+      ),
+    )
+    .orderBy(desc(lots.releasedAt))
+    .limit(LOT_SEARCH_LIMIT);
+
+  return rows.map((r) => ({
+    lotNumber: r.lotNumber,
+    productCode: r.productCode,
+    productName: r.productName,
+    casNumber: r.casNumber,
+    accessionNumber: r.accessionNumber,
+    analyticalLab: r.analyticalLab,
+    purityResult: r.purityResult,
+    releasedOn: iso(r.releasedAt),
+  }));
 }

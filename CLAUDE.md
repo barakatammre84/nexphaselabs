@@ -122,6 +122,56 @@ The lot is the unit of truth. Schema in `db/schema.ts`.
   lots only**. A quarantined, held, rejected or withdrawn lot returns 404 rather
   than leaking its existence and status. Keep it that way.
 
+## Competitor findings that shape this build (teardown 2026-09-03)
+
+Source studied: simplepeptide.com — the category's highest-traffic site
+(~311.6K visits/mo), operated by **Melex Technologies Inc** (FL P19000056045).
+
+**Copied deliberately:**
+
+- Lot COA archive searchable by **accession number** — the testing lab's own
+  reference for the sample. It is what lets a customer verify a certificate
+  with the lab rather than trusting us. `lots.accessionNumber`.
+- Explicit **testing-standard versioning** — records issued under an earlier
+  panel say so, rather than being silently back-filled. `lots.testingStandard`.
+- Same-business-day dispatch with a published cut-off.
+
+**Deliberately NOT copied — each is an enforcement trigger:**
+
+- **Oral/sublingual strips, capsules, flavoured products, nebulisers, nasal
+  sprays.** 18 of their 96 SKUs are dissolving strips. A flavoured 80 mg strip
+  in a pocket tin has no bench use case; dosage form is itself evidence of
+  intended human use.
+- **Ancillaries**: bacteriostatic water, insulin syringes (31G × 8 mm), mixing
+  syringes, vial cases. Bacteriostatic water was a cited product in five of
+  FDA's seven 31 Mar 2026 letters.
+- **Outcome-named categories**: Sleep, Immunity, Libido, Anti-Aging, Longevity,
+  Passion and Performance. Category names are claims.
+- **Sterility and endotoxin as headline release specs.** These are
+  pharmaceutical specs. There is no bench reason to endotoxin-test a compound
+  that will never enter a body — advertising them signals injectable intent.
+- **A login wall as compliance theatre.** Their catalog is gated but every
+  product URL is publicly indexed with price and Add-to-Cart, and the only
+  attestation is static "you confirm you are 21" text with no checkbox and no
+  research-use affirmation anywhere in the funnel. Our gate must be real
+  verification or it is worth nothing.
+- **Unnamed testing lab.** Theirs (Freedom Diagnostics) appears only inside PDF
+  metadata. `lots.analyticalLab` is public here — an unnamed lab is an
+  unverifiable claim.
+- **Suppressed manufacturer attribution.** They print `Manufacturer: Remetide`
+  (a China-based synthesiser) on low-risk SKUs and "Source: see lot
+  documentation" on GLP-1s, while the homepage claims "U.S.-manufactured."
+  `manufacturerName`/`manufacturerAddress` are required before release here,
+  which is also what CA 16 CCR 1736.9(d) demands.
+
+**The risk vector that changed in August 2026:** on 12 Aug 2026 Eli Lilly filed
+six suits against RUO peptide sellers over retatrutide. They did **not** plead
+patents — they pleaded **state consumer-protection statutes**, alleging the RUO
+designation was itself deceptive. That theory needs no patent, and it starts
+from a **test purchase**, so a login wall provides no protection against it.
+Assume any public claim on this site can be read by a plaintiff who bought a
+vial.
+
 ## Stack
 
 Next.js 15 (async route params) / React 19 / TypeScript 5.9, Tailwind, lucide
