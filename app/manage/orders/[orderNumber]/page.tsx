@@ -29,7 +29,14 @@ import { formatCents } from '@/lib/visibility-rules';
 import { reservationEligibility } from '@/lib/inventory-reservations';
 import { checkoutParcelForPacks } from '@/lib/checkout-quotes';
 import { OrderShippingDesk } from '@/components/manage/order-shipping-desk';
-import { currentShippingLabel } from '@/lib/shipping-labels';
+import {
+  currentShippingLabel,
+  shippingLabelHistory,
+} from '@/lib/shipping-labels';
+import { shippingOriginOptions } from '@/lib/shipping-provider';
+import { assignableStaff } from '@/lib/operational-controls';
+import { OrderHandoffForm } from '@/components/manage/order-handoff-form';
+import { handoffOrderAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -43,6 +50,7 @@ type Props = {
     paid?: string;
     error?: string;
     shipped?: string;
+    delivered?: string;
     fulfilling?: string;
     cancelled?: string;
     refunded?: string;
@@ -88,6 +96,7 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
     paid,
     error,
     shipped,
+    delivered,
     fulfilling,
     cancelled,
     refunded,
@@ -105,11 +114,21 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
   const checkoutParcel = checkoutParcelForPacks(
     items.reduce((total, item) => total + item.quantity, 0),
   );
-  const [invoice, slip, orderDocs, shippingLabel] = await Promise.all([
+  const shippingOrigins = shippingOriginOptions();
+  const [
+    invoice,
+    slip,
+    orderDocs,
+    shippingLabel,
+    shippingHistory,
+    people,
+  ] = await Promise.all([
     previewInvoice(number),
     previewPackingSlip(number),
     documentHistory('order', order.orderNumber),
     currentShippingLabel(order.id),
+    shippingLabelHistory(order.id),
+    assignableStaff(),
   ]);
   const invoiceHistory = orderDocs.filter((d) => d.kind === 'invoice');
   const slipHistory = orderDocs.filter((d) => d.kind === 'packing_slip');
@@ -118,6 +137,11 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
     for (const code of new Set(items.map((it) => it.productCode)))
       lotsByProduct.set(code, await pickableLots(code));
   }
+  const serializeShippingLabel = (label: (typeof shippingHistory)[number]) => ({
+    ...label,
+    createdAt: label.createdAt.toISOString(),
+    refundRequestedAt: label.refundRequestedAt?.toISOString() ?? null,
+  });
 
   return (
     <main className="bg-background text-foreground">
@@ -135,8 +159,32 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
             Actions below remain limited by your role and the order’s current
             state.
           </p>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Current owner: {order.assignedName ?? 'unassigned'}
+            {order.serviceDueAt
+              ? ` · due ${order.serviceDueAt.toISOString().slice(0, 16).replace('T', ' ')} UTC`
+              : ''}
+          </p>
+          <OrderHandoffForm
+            action={handoffOrderAction.bind(null, order.orderNumber)}
+            initial={{
+              assignedTo: order.assignedTo ?? '',
+              serviceDueAt: order.serviceDueAt
+                ? order.serviceDueAt.toISOString().slice(0, 16)
+                : '',
+            }}
+            people={people}
+            currentStaffId={staff.id}
+            editable={
+              order.status !== 'cancelled' &&
+              (staff.role === 'admin' ||
+                !order.assignedTo ||
+                order.assignedTo === staff.id)
+            }
+          />
         </div>
-        {allocation.tracked && (
+        {allocation.tracked &&
+          !['shipped', 'cancelled'].includes(order.status) && (
           <div className="mt-5 border border-border p-4 text-sm">
             <p className="font-semibold">
               Stock allocation {allocation.valid ? 'available' : 'needs review'}
@@ -178,7 +226,7 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
             className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm"
           >
             <CircleCheck className="size-4 text-primary" /> Payment recorded.
-            The customer has been emailed.
+            The customer notification was queued.
           </p>
         )}
         {fulfilling && (
@@ -195,7 +243,8 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
             role="status"
             className="mt-6 border border-border bg-secondary p-4 text-sm"
           >
-            Order cancelled. The customer has been emailed the reason.
+            Order cancelled. A customer notification containing the reason was
+            queued.
           </p>
         )}
         {shipped && (
@@ -204,8 +253,17 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
             className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm"
           >
             <CircleCheck className="size-4 text-primary" /> Shipment recorded in
-            the movement ledger. The customer has been emailed the tracking
-            number and lot links.
+            the movement ledger. A customer notification containing the
+            tracking number and lot links was queued.
+          </p>
+        )}
+        {delivered && (
+          <p
+            role="status"
+            className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm"
+          >
+            <CircleCheck className="size-4 text-primary" /> Delivery
+            confirmation recorded. A customer notification was queued.
           </p>
         )}
         {refunded && (
@@ -214,7 +272,7 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
             className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm"
           >
             <CircleCheck className="size-4 text-primary" /> Refund recorded and
-            the customer emailed.
+            a customer notification was queued.
           </p>
         )}
         {returned && (
@@ -323,7 +381,14 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
           <div>
             <h2 className="utility-label text-primary">Payment</h2>
             <dl className="mt-4 border-t border-border">
-              <Row label="Method" value={order.paymentMethod} />
+              <Row
+                label="Method"
+                value={
+                  order.paymentRef?.startsWith('TEST-')
+                    ? 'simulated payment'
+                    : order.paymentMethod
+                }
+              />
               <Row label="Reference" value={order.paymentRef} />
               <Row
                 label="Status"
@@ -389,8 +454,8 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                     Only after the money has actually been sent. The amount owed
                     is the returned lines&rsquo; value (or the order total on a
                     cancellation); a partial refund can be topped up later with
-                    its own reference. Emailed to the customer and carried into
-                    the accounting export.
+                    its own reference. The customer notice is queued and the
+                    refund is carried into the accounting export.
                   </p>
                 </form>
               ) : (
@@ -423,7 +488,7 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                   </button>
                   <p className="text-xs text-muted-foreground">
                     Only after the funds have cleared. This moves the order to
-                    paid and emails the customer.
+                    paid and queues the customer notice.
                   </p>
                 </form>
               ) : (
@@ -652,7 +717,11 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
               <OrderShippingDesk
                 orderNumber={order.orderNumber}
                 parcel={checkoutParcel.ok ? checkoutParcel.parcel : null}
-                initialLabel={shippingLabel}
+                initialLabel={
+                  shippingLabel ? serializeShippingLabel(shippingLabel) : null
+                }
+                initialHistory={shippingHistory.map(serializeShippingLabel)}
+                origins={shippingOrigins}
               />
             )}
             {order.status === 'fulfilling' && canFulfil(staff) && (
@@ -759,7 +828,7 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                 </button>
                 <p className="text-xs leading-5 text-muted-foreground">
                   Writes one movement per lot with the consignee and this ship
-                  date, decrements each lot, and emails the customer.
+                  date, decrements each lot, and queues the customer notice.
                 </p>
               </form>
             )}
@@ -775,6 +844,18 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                       : null
                   }
                 />
+                <Row
+                  label="Delivered on"
+                  value={
+                    order.deliveredAt
+                      ? order.deliveredAt.toISOString().slice(0, 10)
+                      : null
+                  }
+                />
+                <Row
+                  label="Delivery evidence"
+                  value={order.deliveryEvidence}
+                />
                 {trackingUrl(order.carrier, order.trackingNumber) && (
                   <div className="py-3">
                     <a
@@ -788,41 +869,86 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                 )}
               </dl>
             )}
+            {order.status === 'shipped' &&
+              !order.deliveredAt &&
+              canFulfil(staff) && (
+                <form
+                  method="post"
+                  action={`/api/manage/orders/${order.orderNumber}/delivery`}
+                  className="mt-6 flex flex-col gap-4 border border-border bg-secondary p-5"
+                >
+                  <p className="text-sm font-semibold">Confirm delivery</p>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Record delivery only after carrier tracking, a delivery
+                    scan, or a signed receipt confirms the parcel arrived.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="flex flex-col gap-1.5 text-sm">
+                      Delivered on
+                      <input
+                        name="deliveredOn"
+                        type="date"
+                        required
+                        defaultValue={new Date().toISOString().slice(0, 10)}
+                        className="h-11 border border-foreground/20 bg-background px-3 font-mono text-sm"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1.5 text-sm">
+                      Delivery evidence
+                      <input
+                        name="evidence"
+                        required
+                        maxLength={300}
+                        placeholder="Carrier tracking event, scan, or signed receipt reference"
+                        className="h-11 border border-foreground/20 bg-background px-3 text-sm"
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="submit"
+                    className="inline-flex h-11 w-fit items-center bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90"
+                  >
+                    Record delivery
+                  </button>
+                </form>
+              )}
             {(order.status === 'submitted' ||
               order.status === 'awaiting_payment' ||
               order.status === 'paid' ||
               order.status === 'fulfilling') &&
               canVerifyAccounts(staff) && (
                 <div className="mt-6">
-                  {shippingLabel?.state === 'ready' && !shippingLabel.test && (
+                  {shippingLabel && shippingLabel.state !== 'voided' && (
                     <p
                       role="alert"
                       className="mb-3 border border-destructive/40 bg-secondary p-3 text-sm"
                     >
-                      A live carrier label exists. Void or refund it in the
-                      shipping provider before cancelling this order; cancelling
-                      here does not recover the carrier charge.
+                      An active carrier-label record exists. Cancel it or
+                      reconcile it in the shipping desk before cancelling this
+                      order.
                     </p>
                   )}
-                  <form
-                    method="post"
-                    action={`/api/manage/orders/${order.orderNumber}/cancel`}
-                    className="mt-6 flex flex-wrap items-center gap-3 text-sm"
-                  >
-                    <input
-                      name="reason"
-                      required
-                      maxLength={300}
-                      placeholder="Reason sent to the customer"
-                      className="h-10 min-w-[18rem] border border-foreground/20 bg-background px-3 text-sm"
-                    />
-                    <button
-                      type="submit"
-                      className="h-10 border border-foreground/20 px-4 font-semibold hover:border-destructive hover:text-destructive"
+                  {(!shippingLabel || shippingLabel.state === 'voided') && (
+                    <form
+                      method="post"
+                      action={`/api/manage/orders/${order.orderNumber}/cancel`}
+                      className="mt-6 flex flex-wrap items-center gap-3 text-sm"
                     >
-                      Cancel order
-                    </button>
-                  </form>
+                      <input
+                        name="reason"
+                        required
+                        maxLength={300}
+                        placeholder="Reason sent to the customer"
+                        className="h-10 min-w-[18rem] border border-foreground/20 bg-background px-3 text-sm"
+                      />
+                      <button
+                        type="submit"
+                        className="h-10 border border-foreground/20 px-4 font-semibold hover:border-destructive hover:text-destructive"
+                      >
+                        Cancel order
+                      </button>
+                    </form>
+                  )}
                 </div>
               )}
 

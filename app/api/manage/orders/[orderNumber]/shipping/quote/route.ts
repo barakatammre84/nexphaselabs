@@ -50,6 +50,7 @@ export async function POST(
       weight: value('weight'),
     },
     staff,
+    String(form.get('origin') ?? ''),
   );
   return reply(result, result.ok ? 200 : 422);
 }

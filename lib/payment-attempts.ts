@@ -64,6 +64,9 @@ export async function attachPaymentAttempt(orderId: string): Promise<Order | nul
   const [attempt] = await db.select().from(paymentAttempts).where(eq(paymentAttempts.orderId, orderId)).limit(1);
   if (!attempt?.reference || !['ready', 'attached'].includes(attempt.state)) return null;
   const marker = `otr_${crypto.randomUUID().replace(/-/g, '')}`;
+  const paymentMethodNote = attempt.reference.startsWith('TEST-')
+    ? 'Payment method: simulated payment.'
+    : `Payment method: ${attempt.method}.`;
   const current = and(eq(orders.id, orderId), eq(orders.lastTransitionId, marker))!;
   await db.batch([
     db.update(orders).set({
@@ -82,7 +85,7 @@ export async function attachPaymentAttempt(orderId: string): Promise<Order | nul
       id: sql<string>`${`oev_${crypto.randomUUID().replace(/-/g, '')}`}`.as('id'), orderId: orders.id,
       fromStatus: sql<string>`CASE WHEN ${orders.status} = 'cancelled' THEN 'cancelled' ELSE 'submitted' END`.as('from_status'),
       toStatus: orders.status,
-      note: sql<string>`CASE WHEN ${orders.status} = 'cancelled' THEN 'Payment reference recovered after cancellation. Do not pay; reconcile any incoming settlement.' ELSE ${`Payment method: ${attempt.method}.`} END`.as('note'),
+      note: sql<string>`CASE WHEN ${orders.status} = 'cancelled' THEN 'Payment reference recovered after cancellation. Do not pay; reconcile any incoming settlement.' ELSE ${paymentMethodNote} END`.as('note'),
       actor: sql<string>`${attempt.actor}`.as('actor'), createdAt: sql<number>`unixepoch()`.as('created_at'),
     }).from(orders).where(current)),
     db.update(paymentAttempts).set({ state: 'attached', updatedAt: new Date() }).where(and(

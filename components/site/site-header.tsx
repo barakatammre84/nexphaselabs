@@ -17,14 +17,16 @@ const navigation = [
 export async function SiteHeader() {
   const open = openCheckoutEnabled();
   let signedIn = false;
-  try {
-    const account = await getAccount();
-    signedIn = Boolean(account);
-  } catch (error) {
-    console.error(
-      '[header] account lookup failed',
-      error instanceof Error ? error.message : error,
-    );
+  if (!open) {
+    try {
+      const account = await getAccount();
+      signedIn = Boolean(account);
+    } catch (error) {
+      console.error(
+        '[header] account lookup failed',
+        error instanceof Error ? error.message : error,
+      );
+    }
   }
   const accountHref = open
     ? '/account/orders'

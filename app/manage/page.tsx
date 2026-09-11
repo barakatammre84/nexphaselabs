@@ -12,6 +12,11 @@ import {
 import { loadCatalog } from '@/lib/catalog-data';
 import { lotAlerts } from '@/lib/lot-alerts';
 import { notificationCounts } from '@/lib/notifications';
+import {
+  listOperationalControls,
+  operationalControlSummary,
+} from '@/lib/operational-controls';
+import { caseSummary } from '@/lib/operational-cases';
 import { canFulfil, canManageStaff, requireStaff } from '@/lib/staff-auth';
 
 export const dynamic = 'force-dynamic';
@@ -28,12 +33,17 @@ export default async function DashboardPage({ searchParams }: Props) {
   const { denied, digest } = await searchParams;
   const admin = canManageStaff(staff);
   const domains = domainsForRole(staff);
-  const loaded = await loadCatalog(async () => ({
-    counts: await queueCounts(),
-    alerts: await lotAlerts(),
-    recent: await activityTimeline(domains, 15, 15),
-    notices: admin ? await notificationCounts() : {},
-  }));
+  const loaded = await loadCatalog(async () => {
+    const controls = await listOperationalControls();
+    return {
+      counts: await queueCounts(),
+      alerts: await lotAlerts(),
+      recent: await activityTimeline(domains, 15, 15),
+      notices: admin ? await notificationCounts() : {},
+      controls: operationalControlSummary(controls, staff.id),
+      cases: await caseSummary(staff.id),
+    };
+  });
   const c = loaded.data?.counts;
   const tiles = c
     ? [
@@ -106,6 +116,30 @@ export default async function DashboardPage({ searchParams }: Props) {
                 label: 'customer notifications needing attention',
                 href: '/manage/notifications?status=attention',
                 urgent: (loaded.data?.notices.attention ?? 0) > 0,
+              },
+            ]
+          : []),
+        {
+          n: loaded.data?.controls.mine ?? 0,
+          label: 'operating controls assigned to me',
+          href: '/manage/controls',
+          urgent: (loaded.data?.controls.overdue ?? 0) > 0,
+        },
+        {
+          n: loaded.data?.cases.mine ?? 0,
+          label: 'open operational cases assigned to me',
+          href: '/manage/cases',
+          urgent:
+            (loaded.data?.cases.overdue ?? 0) > 0 ||
+            (loaded.data?.cases.critical ?? 0) > 0,
+        },
+        ...(admin
+          ? [
+              {
+                n: loaded.data?.controls.launchOpen ?? 0,
+                label: 'launch-critical controls still open',
+                href: '/manage/controls',
+                urgent: (loaded.data?.controls.launchOpen ?? 0) > 0,
               },
             ]
           : []),

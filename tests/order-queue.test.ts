@@ -74,6 +74,11 @@ describe('order queue database queries', () => {
     expect(
       (await listOrderQueue('refund_due', '')).rows.map((o) => o.id),
     ).toEqual(['order001']));
+  it('finds unassigned active work without treating shipped orders as work', async () => {
+    expect((await listOrderQueue('unassigned', '')).rows.map((o) => o.id)).toEqual([
+      'order000',
+    ]);
+  });
   it('normalizes invalid page values', () => {
     for (const raw of ['-1', '0', '1.5', 'NaN', 'Infinity', ''])
       expect(queuePage(raw)).toBe(1);

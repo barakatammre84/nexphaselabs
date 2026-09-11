@@ -30,6 +30,26 @@ describe('durable payment setup', () => {
     expect(await beginClaimedPayment(snapshot, method, 'Test')).toMatchObject({ ok: true });
     expect(method.begin).toHaveBeenCalledTimes(1);
   });
+  it('records simulated payment language instead of calling it an invoice', async () => {
+    const simulated: PaymentMethod = {
+      id: 'invoice',
+      label: 'Simulated payment',
+      description: 'Synthetic',
+      enabled: () => true,
+      begin: vi.fn(async () => ({
+        method: 'invoice' as const,
+        title: 'Synthetic',
+        lines: [],
+        url: null,
+        reference: 'TEST-NX-260904-0001',
+      })),
+    };
+    expect((await beginClaimedPayment(await order(), simulated, 'Test')).ok).toBe(true);
+    const event = local.sqlite
+      .prepare('SELECT note FROM order_events ORDER BY created_at DESC LIMIT 1')
+      .get() as { note: string };
+    expect(event.note).toBe('Payment method: simulated payment.');
+  });
   it('does not recreate an invoice after an uncertain response, even with another method', async () => {
     vi.mocked(method.begin).mockRejectedValue(new Error('Timed out after provider commit'));
     expect((await beginClaimedPayment(await order(), method, 'Test')).ok).toBe(false);

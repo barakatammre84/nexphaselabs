@@ -14,7 +14,7 @@ import {
   orderNumberFromParam,
   type OrderStatus,
 } from '@/lib/order-rules';
-import { getOrderForAccount, paymentInstructionsFor } from '@/lib/orders';
+import { getOrderForAccount } from '@/lib/order-reads';
 import {
   availablePaymentMethods,
   buyerSimulationEnabled,
@@ -60,7 +60,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
     owned && order.status === 'submitted' ? availablePaymentMethods() : [];
   const instructions =
     owned && order.status === 'awaiting_payment'
-      ? await paymentInstructionsFor(order)
+      ? await (await import('@/lib/orders')).paymentInstructionsFor(order)
       : null;
   const cancellable =
     Boolean(owned) &&
@@ -148,7 +148,10 @@ export default async function OrderPage({ params, searchParams }: Props) {
         <h1 className="mt-2 break-words font-display text-3xl font-semibold tracking-tight sm:text-4xl">
           {order.orderNumber}
         </h1>
-        <OrderProgress status={order.status} />
+        <OrderProgress
+          status={order.status}
+          delivered={Boolean(order.deliveredAt)}
+        />
 
         <div className="mt-6 rounded-lg bg-secondary p-5">
           <h2 className="font-semibold">What happens next</h2>
@@ -449,6 +452,11 @@ export default async function OrderPage({ params, searchParams }: Props) {
                 {order.shippedAt ? (
                   <span className="block text-xs text-muted-foreground">
                     Shipped {order.shippedAt.toISOString().slice(0, 10)}
+                  </span>
+                ) : null}
+                {order.deliveredAt ? (
+                  <span className="block text-xs font-semibold text-primary">
+                    Delivered {order.deliveredAt.toISOString().slice(0, 10)}
                   </span>
                 ) : null}
               </p>

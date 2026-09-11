@@ -63,6 +63,12 @@ export default async function ManageLayout({
             <Link href="/manage/activity" className="hover:text-primary">
               Activity
             </Link>
+            <Link href="/manage/controls" className="hover:text-primary">
+              Controls
+            </Link>
+            <Link href="/manage/cases" className="hover:text-primary">
+              Cases
+            </Link>
             {canHandleFeedback(staff) && (
               <Link href="/manage/feedback" className="hover:text-primary">
                 Feedback{feedback.unread > 0 ? ` (${feedback.unread})` : ''}

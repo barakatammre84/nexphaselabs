@@ -78,8 +78,54 @@ describe('purchasing and receiving transactions', () => {
     const value = validateSupplier({ name: stale.name, notes: 'New evidence' });
     if (!value.ok) throw new Error('Invalid fixture');
     await updateSupplier(stale, value.value, staff);
-    expect((await setSupplierQualification(stale, 'qualified', 'Reviewed old evidence', staff)).ok).toBe(false);
+    expect(
+      (
+        await setSupplierQualification(
+          stale,
+          'qualified',
+          {
+            reason: 'Reviewed old evidence',
+            scope: 'Synthetic materials',
+            evidenceUrl: 'https://example.invalid/evidence/supplier',
+            reviewDueOn: '2099-01-01',
+          },
+          staff,
+        )
+      ).ok,
+    ).toBe(false);
     expect((await supplier()).qualificationStatus).toBe('unqualified');
+  });
+  it('requires structured evidence and a future review for a new qualification', async () => {
+    local.sqlite.exec("UPDATE suppliers SET qualification_status = 'unqualified'");
+    const current = await supplier();
+    expect(
+      (
+        await setSupplierQualification(
+          current,
+          'qualified',
+          { reason: 'Reviewed qualification file' },
+          staff,
+        )
+      ).ok,
+    ).toBe(false);
+    const result = await setSupplierQualification(
+      current,
+      'qualified',
+      {
+        reason: 'Identity, quality records, and references reviewed',
+        scope: 'Supply of synthetic research material',
+        evidenceUrl: 'https://example.invalid/evidence/supplier-current',
+        reviewDueOn: '2027-09-04',
+      },
+      staff,
+    );
+    expect(result.ok).toBe(true);
+    expect(await supplier()).toMatchObject({
+      qualificationStatus: 'qualified',
+      qualificationScope: 'Supply of synthetic research material',
+      qualificationEvidenceUrl:
+        'https://example.invalid/evidence/supplier-current',
+    });
   });
   it('allows cancelling a draft even when its supplier is suspended', async () => {
     const po = await draft(); local.sqlite.exec("UPDATE suppliers SET qualification_status = 'suspended'");

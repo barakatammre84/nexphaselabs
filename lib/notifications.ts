@@ -12,8 +12,8 @@ import { ENTITY_FOOTER } from '@/lib/entity';
 
 const LEASE_SECONDS = 120;
 export const MAX_NOTIFICATION_ATTEMPTS = 8;
-// Resend retains keys for 24h. Stop before that boundary rather than risk
-// duplicating a message whose response was lost.
+// The alternative Resend adapter retains keys for 24h. Keep the common queue
+// inside that window; Gmail ambiguous sends are marked attention immediately.
 export const RETRY_WINDOW_SECONDS = 23 * 3600;
 const id = () => crypto.randomUUID();
 

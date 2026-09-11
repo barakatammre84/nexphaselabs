@@ -14,7 +14,7 @@
 - Clients reconnect with bounded exponential backoff and send an application heartbeat every 25 seconds. If the socket is unavailable, both clients poll the D1-backed transcript every ten seconds. A socket failure cannot lose or duplicate the saved message.
 - Operations and admin staff use `/manage/feedback` to search and filter, reply, set queue state and priority, apply labels, save internal notes and resolution text, link a developer issue, copy a ready-to-paste developer brief, or open a prefilled GitHub issue draft. Management navigation shows unread feedback across the internal workspace.
 - Staff can open the affected public page from a report; the latest recorded selectors are highlighted for that authenticated staff session.
-- Staging email is restricted to Sam, Mel, and Tima through `TEST_EMAIL_ALLOWLIST`. When a Resend key is configured, new visitor messages create durable alerts for active operations/admin staff. Visitor-address replies remain blocked in staging unless that exact address is deliberately added to the allowlist. The in-app unread queue remains the no-email fallback.
+- Staging email is restricted to exact approved mailboxes through `TEST_EMAIL_ALLOWLIST`. When Google Workspace or Resend is configured, new visitor messages create durable alerts for active operations/admin staff. Visitor-address replies remain blocked in staging unless that exact address is deliberately added to the allowlist. The in-app unread queue remains the no-email fallback.
 - `/api/feedback/archive` is a bounded, read-only JSON archive for an approved ChatGPT Action. `/api/feedback/openapi` provides its OpenAPI schema.
 
 ## Safety and privacy boundaries

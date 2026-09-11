@@ -5,6 +5,7 @@ import { AlertCircle, ArrowLeft, CircleCheck, Download, FileText } from 'lucide-
 import { LotDispositionForm } from '@/components/manage/lot-disposition-form';
 import { LotCorrectionForm } from '@/components/manage/lot-correction-form';
 import { LotTestForm } from '@/components/manage/lot-test-form';
+import { InventoryMovementForm } from '@/components/manage/inventory-movement-form';
 import { DOCUMENT_LABEL, DOCUMENT_TYPES, isDocumentType } from '@/lib/documents';
 import { previewCoa } from '@/lib/coa';
 import { LABEL_SIZES } from '@/lib/hazard';
@@ -13,15 +14,15 @@ import { documentHistory } from '@/lib/issued-documents';
 import { ALLOWED_TRANSITIONS, TEST_TYPE_LABEL, lotNumberFromParam, releaseBlockers, type TestType } from '@/lib/lot-rules';
 import { lotVersions } from '@/lib/lot-family';
 import { LOT_STATUS_LABEL, currentDocumentKey, getLotDetail, lotToIntakeInput, type LotStatus } from '@/lib/lots-admin';
-import { canRecordResults, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
-import { addLotTestAction, correctLotAction, setLotDispositionAction } from '../actions';
+import { canFulfil, canRecordResults, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
+import { addLotTestAction, correctLotAction, recordInventoryMovementAction, setLotDispositionAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Lot', robots: { index: false, follow: false } };
 
 type Props = {
   params: Promise<{ lotNumber: string }>;
-  searchParams: Promise<{ received?: string; uploaded?: string; error?: string; tested?: string; decided?: string; cost?: string; corrected?: string; issued?: string }>;
+  searchParams: Promise<{ received?: string; uploaded?: string; error?: string; tested?: string; decided?: string; cost?: string; corrected?: string; issued?: string; movement?: string }>;
 };
 
 const UPLOAD_ERROR: Record<string, string> = {
@@ -65,7 +66,7 @@ const MOVEMENT_LABEL: Record<string, string> = {
 
 export default async function LotDetailPage({ params, searchParams }: Props) {
   const { lotNumber } = await params;
-  const { received, uploaded, error, tested, decided, cost, corrected, issued } = await searchParams;
+  const { received, uploaded, error, tested, decided, cost, corrected, issued, movement } = await searchParams;
   const staff = await requireStaff(`/manage/lots/${encodeURIComponent(lotNumber)}`);
 
   const normalised = lotNumberFromParam(lotNumber);
@@ -100,6 +101,11 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
         {tested && (
           <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
             <CircleCheck className="size-4 text-primary" /> Test result recorded.
+          </p>
+        )}
+        {movement && (
+          <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
+            <CircleCheck className="size-4 text-primary" /> Inventory movement recorded and on-hand quantity reconciled.
           </p>
         )}
         {cost && (
@@ -579,6 +585,13 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
         </div>
 
         <h2 className="mt-12 utility-label text-primary">Movement ledger ({movements.length})</h2>
+        {canFulfil(staff) && (
+          <InventoryMovementForm
+            today={new Date().toISOString().slice(0, 10)}
+            canIncrease={canVerifyAccounts(staff)}
+            action={recordInventoryMovementAction.bind(null, lot.lotNumber)}
+          />
+        )}
         <div className="mt-4 overflow-x-auto border border-border">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
@@ -596,10 +609,19 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
                 <tr key={m.id} className="border-b border-border last:border-b-0">
                   <td className="p-3 font-mono text-xs">{day(m.occurredAt)}</td>
                   <td className="p-3">{MOVEMENT_LABEL[m.movementType] ?? m.movementType}</td>
-                  <td className="p-3 font-mono text-xs">{m.quantity}</td>
+                  <td className="p-3 font-mono text-xs">
+                    {m.direction === 'increase' ? '+' : m.direction === 'decrease' ? '−' : ''}{m.quantity}
+                  </td>
                   <td className="p-3">{m.consigneeName ?? '—'}{m.consigneeInstitution ? ` · ${m.consigneeInstitution}` : ''}</td>
                   <td className="p-3">{m.recordedBy}</td>
-                  <td className="p-3 text-muted-foreground">{m.note ?? '—'}</td>
+                  <td className="p-3 text-muted-foreground">
+                    {m.note ?? '—'}
+                    {(m.witnessOne || m.witnessTwo) && (
+                      <span className="mt-1 block text-xs">
+                        Witnesses: {[m.witnessOne, m.witnessTwo].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

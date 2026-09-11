@@ -25,12 +25,14 @@ export default async function ManageOrdersPage({
 }: {
   searchParams: Promise<{ queue?: string; q?: string; page?: string }>;
 }) {
-  await requireStaff('/manage/orders');
+  const staff = await requireStaff('/manage/orders');
   const params = await searchParams;
   const queue = orderQueue(params.queue);
   const query = searchQuery(params.q);
   const page = queuePage(params.page);
-  const loaded = await loadCatalog(() => listOrderQueue(queue, query, page));
+  const loaded = await loadCatalog(() =>
+    listOrderQueue(queue, query, page, staff.id),
+  );
   const list = loaded.data?.rows ?? [];
   const pageHref = (n: number) =>
     '/manage/orders?' +
@@ -102,6 +104,7 @@ export default async function ManageOrdersPage({
                   <th className="p-4 font-semibold">Consignee</th>
                   <th className="p-4 font-semibold">Total</th>
                   <th className="p-4 font-semibold">Payment</th>
+                  <th className="p-4 font-semibold">Owner / due</th>
                   <th className="p-4 font-semibold">Status / next action</th>
                 </tr>
               </thead>
@@ -138,6 +141,20 @@ export default async function ManageOrdersPage({
                       {o.paymentStatus === 'refund_due'
                         ? 'refund due'
                         : o.paymentStatus}
+                    </td>
+                    <td className="p-4">
+                      {o.assignedName ?? 'Unassigned'}
+                      {o.serviceDueAt && (
+                        <span
+                          className={`mt-1 block font-mono text-xs ${
+                            o.status !== 'cancelled' && o.serviceDueAt < new Date()
+                              ? 'font-semibold text-destructive'
+                              : 'text-muted-foreground'
+                          }`}
+                        >
+                          due {o.serviceDueAt.toISOString().slice(0, 16).replace('T', ' ')} UTC
+                        </span>
+                      )}
                     </td>
                     <td className="p-4">
                       {ORDER_STATUS_LABEL[o.status as OrderStatus] ?? o.status}

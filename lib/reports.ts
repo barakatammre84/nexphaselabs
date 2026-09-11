@@ -1,4 +1,4 @@
-import { asc, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, isNull, lt } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { refundShares } from '@/lib/refund-shares';
 import { accounts, lotMovements, lots, orderItems, orders, organizations } from '@/db/schema';
@@ -19,6 +19,7 @@ export type OrderLineRow = {
   paymentStatus: string;
   paidOn: Date | null;
   shippedOn: Date | null;
+  deliveredOn: Date | null;
   customerName: string;
   customerEmail: string;
   organization: string | null;
@@ -47,48 +48,130 @@ export type OrderLineRow = {
   refundShareCents: number;
 };
 
-export async function orderLines(): Promise<OrderLineRow[]> {
+export type ReportPeriod = {
+  from: Date;
+  toExclusive: Date;
+  fromText: string;
+  toText: string;
+};
+
+function dateValue(value: string | null | undefined): Date | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value
+    ? null
+    : date;
+}
+
+/** A closed-open UTC range; defaults to the current calendar month. */
+export function reportPeriod(
+  fromValue?: string | null,
+  toValue?: string | null,
+  now = new Date(),
+): ReportPeriod {
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const from = dateValue(fromValue) ?? monthStart;
+  const defaultTo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
+  const to = dateValue(toValue) ?? defaultTo;
+  const safeTo = to < from ? from : to;
+  const toExclusive = new Date(safeTo.getTime() + 24 * 60 * 60 * 1000);
+  return {
+    from,
+    toExclusive,
+    fromText: from.toISOString().slice(0, 10),
+    toText: safeTo.toISOString().slice(0, 10),
+  };
+}
+
+export async function orderLines(period?: ReportPeriod): Promise<OrderLineRow[]> {
   const db = getDb();
   const rows = await db
-    .select({ o: orders, it: orderItems, a: accounts, org: organizations })
+    .select({
+      orderId: orders.id,
+      orderNumber: orders.orderNumber,
+      submittedAt: orders.submittedAt,
+      status: orders.status,
+      paymentMethod: orders.paymentMethod,
+      paymentStatus: orders.paymentStatus,
+      paidAt: orders.paidAt,
+      shippedAt: orders.shippedAt,
+      deliveredAt: orders.deliveredAt,
+      consigneeName: orders.consigneeName,
+      shipToLine1: orders.shipToLine1,
+      shipToLine2: orders.shipToLine2,
+      shipToCity: orders.shipToCity,
+      shipToRegion: orders.shipToRegion,
+      shipToPostalCode: orders.shipToPostalCode,
+      shipToCountry: orders.shipToCountry,
+      totalCents: orders.totalCents,
+      shippingCents: orders.shippingCents,
+      refundDueCents: orders.refundDueCents,
+      refundCents: orders.refundCents,
+      refundRef: orders.refundRef,
+      refundedAt: orders.refundedAt,
+      returnedAt: orders.returnedAt,
+      itemId: orderItems.id,
+      sku: orderItems.sku,
+      productCode: orderItems.productCode,
+      productName: orderItems.productName,
+      packSize: orderItems.packSize,
+      quantity: orderItems.quantity,
+      unitPriceCents: orderItems.unitPriceCents,
+      lineTotalCents: orderItems.lineTotalCents,
+      lotId: orderItems.lotId,
+      lotNumber: orderItems.lotNumber,
+      returnedPacks: orderItems.returnedPacks,
+      customerName: accounts.name,
+      customerEmail: accounts.email,
+      organization: organizations.legalName,
+    })
     .from(orderItems)
     .innerJoin(orders, eq(orderItems.orderId, orders.id))
     .innerJoin(accounts, eq(orders.accountId, accounts.id))
     .leftJoin(organizations, eq(orders.organizationId, organizations.id))
+    .where(
+      period
+        ? and(
+            gte(orders.submittedAt, period.from),
+            lt(orders.submittedAt, period.toExclusive),
+          )
+        : undefined,
+    )
     .orderBy(desc(orders.submittedAt), asc(orderItems.createdAt));
   const lotCosts = await lotUnitCosts();
-  const shares = refundShares(rows.map(({ o, it }) => ({ orderId: o.id, itemId: it.id, refundCents: o.refundCents, returnedAt: o.returnedAt, lineTotalCents: it.lineTotalCents, returnedPacks: it.returnedPacks, unitPriceCents: it.unitPriceCents })));
-  return rows.map(({ o, it, a, org }) => ({
-    orderNumber: o.orderNumber,
-    submittedOn: o.submittedAt,
-    status: o.status,
-    paymentMethod: o.paymentMethod,
-    paymentStatus: o.paymentStatus,
-    paidOn: o.paidAt,
-    shippedOn: o.shippedAt,
-    customerName: a.name,
-    customerEmail: a.email,
-    organization: org?.legalName ?? null,
-    consignee: o.consigneeName,
-    shipTo: [o.shipToLine1, o.shipToLine2, o.shipToCity, o.shipToRegion, o.shipToPostalCode, o.shipToCountry].filter(Boolean).join(', '),
-    sku: it.sku,
-    productCode: it.productCode,
-    productName: it.productName,
-    packSize: it.packSize,
-    quantity: it.quantity,
-    unitPriceCents: it.unitPriceCents,
-    lineTotalCents: it.lineTotalCents,
-    lotNumber: it.lotNumber,
-    costCents: it.lotId ? allocatedCost(lotCosts.get(it.lotId), it.packSize, it.quantity) : null,
-    orderTotalCents: o.totalCents,
-    orderShippingCents: o.shippingCents,
-    refundOutstandingCents: o.paymentStatus === 'refund_due' ? Math.max(0, (o.refundDueCents ?? o.totalCents) - (o.refundCents ?? 0)) : 0,
-    refundCents: o.refundCents,
-    refundedOn: o.refundedAt,
-    refundRef: o.refundRef,
-    returnedOn: o.returnedAt,
-    returnedPacks: it.returnedPacks,
-    refundShareCents: shares.get(it.id) ?? 0,
+  const shares = refundShares(rows.map((row) => ({ orderId: row.orderId, itemId: row.itemId, refundCents: row.refundCents, returnedAt: row.returnedAt, lineTotalCents: row.lineTotalCents, returnedPacks: row.returnedPacks, unitPriceCents: row.unitPriceCents })));
+  return rows.map((row) => ({
+    orderNumber: row.orderNumber,
+    submittedOn: row.submittedAt,
+    status: row.status,
+    paymentMethod: row.paymentMethod,
+    paymentStatus: row.paymentStatus,
+    paidOn: row.paidAt,
+    shippedOn: row.shippedAt,
+    deliveredOn: row.deliveredAt,
+    customerName: row.customerName,
+    customerEmail: row.customerEmail,
+    organization: row.organization,
+    consignee: row.consigneeName,
+    shipTo: [row.shipToLine1, row.shipToLine2, row.shipToCity, row.shipToRegion, row.shipToPostalCode, row.shipToCountry].filter(Boolean).join(', '),
+    sku: row.sku,
+    productCode: row.productCode,
+    productName: row.productName,
+    packSize: row.packSize,
+    quantity: row.quantity,
+    unitPriceCents: row.unitPriceCents,
+    lineTotalCents: row.lineTotalCents,
+    lotNumber: row.lotNumber,
+    costCents: row.lotId ? allocatedCost(lotCosts.get(row.lotId), row.packSize, row.quantity) : null,
+    orderTotalCents: row.totalCents,
+    orderShippingCents: row.shippingCents,
+    refundOutstandingCents: row.paymentStatus === 'refund_due' ? Math.max(0, (row.refundDueCents ?? row.totalCents) - (row.refundCents ?? 0)) : 0,
+    refundCents: row.refundCents,
+    refundedOn: row.refundedAt,
+    refundRef: row.refundRef,
+    returnedOn: row.returnedAt,
+    returnedPacks: row.returnedPacks,
+    refundShareCents: shares.get(row.itemId) ?? 0,
   }));
 }
 
@@ -122,6 +205,7 @@ function allocatedCost(unit: UnitCost | undefined, packSize: string, packs: numb
 export type ShipmentRow = {
   occurredOn: Date;
   movementType: string;
+  direction: string | null;
   lotNumber: string;
   productCode: string;
   productName: string;
@@ -135,16 +219,25 @@ export type ShipmentRow = {
   note: string | null;
 };
 
-export async function movementLedger(): Promise<ShipmentRow[]> {
+export async function movementLedger(period?: ReportPeriod): Promise<ShipmentRow[]> {
   const db = getDb();
   const rows = await db
     .select({ m: lotMovements, l: lots })
     .from(lotMovements)
     .innerJoin(lots, eq(lotMovements.lotId, lots.id))
+    .where(
+      period
+        ? and(
+            gte(lotMovements.occurredAt, period.from),
+            lt(lotMovements.occurredAt, period.toExclusive),
+          )
+        : undefined,
+    )
     .orderBy(desc(lotMovements.occurredAt), desc(lotMovements.createdAt));
   return rows.map(({ m, l }) => ({
     occurredOn: m.occurredAt,
     movementType: m.movementType,
+    direction: m.direction,
     lotNumber: l.lotNumber,
     productCode: l.productCode,
     productName: l.productName,
@@ -199,8 +292,8 @@ export async function lotInventory(): Promise<LotRow[]> {
 export type RevenueRow = { productCode: string; productName: string; lines: number; packs: number; revenueCents: number; refundedCents: number; costCents: number | null };
 
 /** Paid, preparing and shipped orders; refunds are netted against the lines that came back (pro rata for cancellations). */
-export async function revenueByProduct(): Promise<RevenueRow[]> {
-  const lines = await orderLines();
+export async function revenueByProduct(period?: ReportPeriod): Promise<RevenueRow[]> {
+  const lines = await orderLines(period);
   const counted = lines.filter((l) => l.status === 'paid' || l.status === 'fulfilling' || l.status === 'shipped');
   const map = new Map<string, RevenueRow>();
   for (const l of counted) {
@@ -215,8 +308,8 @@ export async function revenueByProduct(): Promise<RevenueRow[]> {
   return [...map.values()].sort((a, b) => b.revenueCents - a.revenueCents);
 }
 
-export async function movementsForConsignee(query: string): Promise<ShipmentRow[]> {
-  const all = await movementLedger();
+export async function movementsForConsignee(query: string, period?: ReportPeriod): Promise<ShipmentRow[]> {
+  const all = await movementLedger(period);
   const q = query.trim().toLowerCase();
   if (!q) return all;
   return all.filter((r) => [r.consigneeName, r.consigneeInstitution, r.shipToAddress].some((v) => v?.toLowerCase().includes(q)));

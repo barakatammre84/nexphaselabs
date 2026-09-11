@@ -9,7 +9,7 @@ Updated: 4 September 2026 UTC. Last rehearsal: local synthetic data, 4 September
 Order events enqueue a customer notice in the same database transaction. The notice directs the customer to their authenticated order page; it does not include private staff notes or bank details. This queue covers order submission, payment changes, cancellation, fulfilment, shipment, returns and refunds. Verification, password-reset, institutional-decision emails and the operations digest are separate and are not durably retried by this feature.
 
 - Sign in with an admin role. Ops and QC roles cannot inspect recipients or handle notices.
-- A configured Resend account and permitted sender are needed for actual email. Never paste its API key into handling notes.
+- A completed Google Workspace Gmail API setup (recommended) or configured Resend account and permitted sender are needed for actual email. Never paste credentials into handling notes.
 - Outside production, the exact recipient must be in TEST_EMAIL_ALLOWLIST. A copied live key does not bypass this restriction. Never add real customers merely to make a staging test pass.
 - Staff need access to provider history to resolve uncertain delivery. No provider account or sender verification has been configured by this code change.
 
@@ -24,7 +24,7 @@ Order events enqueue a customer notice in the same database transaction. The not
 ## Verification and limits
 
 - Provider accepted means the API returned a message identifier. It does **not** prove inbox delivery. Bounce/delivery webhooks are not integrated in this queue.
-- Retries preserve the exact original provider payload and idempotency key. Resend retains keys for 24 hours; automatic and manual retries stop at 23 hours after the first recorded attempt, or eight attempts, whichever comes first. Source: [Resend idempotency documentation](https://resend.com/docs/dashboard/emails/idempotency-keys).
+- Retries preserve the exact original provider payload and stable message key. Resend retains idempotency keys for 24 hours, so the common queue stops at 23 hours or eight attempts. Gmail rate limits can retry, but an uncertain Gmail send goes directly to attention for Sent-mail reconciliation. Sources: [Resend idempotency](https://resend.com/docs/dashboard/emails/idempotency-keys) and [Gmail API sending](https://developers.google.com/workspace/gmail/api/guides/sending).
 - Pending/retry capacity is at most 60 attempts per hour at this schedule. A growing backlog needs capacity review; admin processing can drain additional bounded batches. Do not solve it by duplicating records.
 - A worker interrupted while sending leaves a two-minute lease. A later run can reclaim it using the same key and payload. No email body, recipient or credential is logged by the scheduled handler; its log contains counts only.
 - Database tests cover atomic enqueue, competing workers, uncertain responses, backoff, expired leases, exhausted limits, invalid payloads and administrator attribution. Local workerd and browser rehearsal additionally cover the built handler, missing-provider failure and manual handling. Actual provider/inbox delivery remains unverified until configured.
@@ -33,7 +33,8 @@ Order events enqueue a customer notice in the same database transaction. The not
 
 | Symptom | Check and action |
 | --- | --- |
-| Email provider is not configured | Deployment administrator configures RESEND_API_KEY for the intended environment. Retry with an attributed note. |
+| Email provider is not configured | Deployment administrator completes the selected Google Workspace or Resend settings for the intended environment. Retry with an attributed note. |
+| Gmail response is uncertain | Search the delegated sender's Sent mail for the subject, recipient and deterministic Message-ID before any resend. Resolve with the reconciliation evidence. |
 | Recipient is not allowed | Confirm this is an approved synthetic tester; update TEST_EMAIL_ALLOWLIST only with the owner's approved test addresses. |
 | Provider rejection (4xx except 408/429) | Check sender/domain/account configuration. Do not repeatedly retry unchanged requests. |
 | Network uncertainty, 408, 429 or 5xx | Automatic retries back off. At the limit, inspect provider history before separate contact. |

@@ -179,6 +179,7 @@ export async function createLot(
     id: movementId(),
     lotId: id,
     movementType: 'receipt',
+    direction: 'increase',
     quantity: validated.quantityReceived,
     consigneeName: supplierName,
     occurredAt: validated.receivedAtDate,

@@ -234,6 +234,8 @@ export const lotMovements = sqliteTable(
     lotId: text('lot_id').notNull(),
     /** receipt | shipment | return | destruction | adjustment | sample */
     movementType: text('movement_type').notNull(),
+    /** increase | decrease. Legacy receipt/return are increases; shipment is a decrease. */
+    direction: text('direction'),
     quantity: text('quantity').notNull(),
 
     accountId: text('account_id'),
@@ -965,6 +967,9 @@ export const orders = sqliteTable(
     submittedAt: integer('submitted_at', { mode: 'timestamp' }).notNull(),
     paidAt: integer('paid_at', { mode: 'timestamp' }),
     shippedAt: integer('shipped_at', { mode: 'timestamp' }),
+    /** Carrier or staff-confirmed delivery date and the supporting reference. */
+    deliveredAt: integer('delivered_at', { mode: 'timestamp' }),
+    deliveryEvidence: text('delivery_evidence'),
     cancelledAt: integer('cancelled_at', { mode: 'timestamp' }),
     cancelReason: text('cancel_reason'),
     /** What is owed back: the order total on a cancelled paid order, the value of the returned lines on a return. */
@@ -975,6 +980,10 @@ export const orders = sqliteTable(
     refundedAt: integer('refunded_at', { mode: 'timestamp' }),
     /** When returned material was received back (ledger has the movement). */
     returnedAt: integer('returned_at', { mode: 'timestamp' }),
+    /** Current internal owner and target for the next service action. */
+    assignedTo: text('assigned_to'),
+    assignedName: text('assigned_name'),
+    serviceDueAt: integer('service_due_at', { mode: 'timestamp' }),
     /** Id of the transition that produced the current status; guards the event row. */
     lastTransitionId: text('last_transition_id'),
     /** Random token from the rendered cart form; unique, so a double submit cannot create two orders. */
@@ -993,6 +1002,8 @@ export const orders = sqliteTable(
     ),
     accountIdx: index('orders_account_idx').on(table.accountId),
     statusIdx: index('orders_status_idx').on(table.status),
+    assignedIdx: index('orders_assigned_idx').on(table.assignedTo),
+    serviceDueIdx: index('orders_service_due_idx').on(table.serviceDueAt),
   }),
 );
 
@@ -1075,6 +1086,14 @@ export const suppliers = sqliteTable(
       .default('unqualified'),
     qualifiedBy: text('qualified_by'),
     qualifiedAt: integer('qualified_at', { mode: 'timestamp' }),
+    /** What products/services the qualification decision covers. */
+    qualificationScope: text('qualification_scope'),
+    /** Controlled evidence folder or record reviewed for the decision. */
+    qualificationEvidenceUrl: text('qualification_evidence_url'),
+    /** Date the named qualification must be reviewed again. */
+    qualificationReviewDueOn: integer('qualification_review_due_on', {
+      mode: 'timestamp',
+    }),
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
     lastChangeId: text('last_change_id'),
     createdBy: text('created_by').notNull(),
@@ -1289,3 +1308,151 @@ export const settings = sqliteTable('settings', {
 });
 
 export type Setting = typeof settings.$inferSelect;
+
+/* -------------------------------------------------------------------------- */
+/* Operating controls                                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The current owner/evidence state of a business operating control.
+ *
+ * Definitions (title, area and whether a control blocks launch) live in code
+ * so a deploy can add or clarify a control without silently marking it done.
+ * This table contains only facts recorded by staff. Missing rows therefore
+ * mean "not started", never "not applicable" or "ready".
+ */
+export const operationalControls = sqliteTable(
+  'operational_controls',
+  {
+    key: text('key').primaryKey(),
+    /** not_started | in_progress | blocked | awaiting_review | ready | not_applicable */
+    status: text('status').notNull().default('not_started'),
+    ownerId: text('owner_id'),
+    ownerName: text('owner_name'),
+    dueOn: integer('due_on', { mode: 'timestamp' }),
+    evidenceUrl: text('evidence_url'),
+    note: text('note'),
+    lastChangeId: text('last_change_id'),
+    updatedBy: text('updated_by').notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    statusIdx: index('operational_controls_status_idx').on(table.status),
+    ownerIdx: index('operational_controls_owner_idx').on(table.ownerId),
+    dueIdx: index('operational_controls_due_idx').on(table.dueOn),
+  }),
+);
+
+/** Append-only history for every control update. */
+export const operationalControlEvents = sqliteTable(
+  'operational_control_events',
+  {
+    id: text('id').primaryKey(),
+    controlKey: text('control_key').notNull(),
+    fromStatus: text('from_status').notNull(),
+    toStatus: text('to_status').notNull(),
+    ownerId: text('owner_id'),
+    ownerName: text('owner_name'),
+    dueOn: integer('due_on', { mode: 'timestamp' }),
+    evidenceUrl: text('evidence_url'),
+    note: text('note'),
+    actor: text('actor').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    controlIdx: index('operational_control_events_control_idx').on(
+      table.controlKey,
+      table.createdAt,
+    ),
+  }),
+);
+
+export type OperationalControl = typeof operationalControls.$inferSelect;
+export type OperationalControlEvent =
+  typeof operationalControlEvents.$inferSelect;
+
+/* -------------------------------------------------------------------------- */
+/* Operational cases                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One accountable record for an operational exception. The current row is a
+ * working summary; every mutation is also written to operational_case_events.
+ */
+export const operationalCases = sqliteTable(
+  'operational_cases',
+  {
+    id: text('id').primaryKey(),
+    caseNumber: text('case_number').notNull(),
+    /** complaint | deviation | supplier_issue | incident | capa | recall */
+    type: text('type').notNull(),
+    /** low | medium | high | critical */
+    severity: text('severity').notNull(),
+    /** open | contained | investigating | action_required | effectiveness_review | closed */
+    status: text('status').notNull().default('open'),
+    title: text('title').notNull(),
+    summary: text('summary').notNull(),
+    ownerId: text('owner_id').notNull(),
+    ownerName: text('owner_name').notNull(),
+    dueOn: integer('due_on', { mode: 'timestamp' }).notNull(),
+    linkedLotNumber: text('linked_lot_number'),
+    linkedOrderNumber: text('linked_order_number'),
+    linkedSupplierId: text('linked_supplier_id'),
+    containment: text('containment'),
+    rootCause: text('root_cause'),
+    correctiveAction: text('corrective_action'),
+    preventiveAction: text('preventive_action'),
+    evidenceUrl: text('evidence_url'),
+    effectivenessCheck: text('effectiveness_check'),
+    closureSummary: text('closure_summary'),
+    createdBy: text('created_by').notNull(),
+    lastChangeId: text('last_change_id').notNull(),
+    closedAt: integer('closed_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    numberIdx: uniqueIndex('operational_cases_number_idx').on(table.caseNumber),
+    statusIdx: index('operational_cases_status_idx').on(table.status),
+    ownerIdx: index('operational_cases_owner_idx').on(table.ownerId),
+    dueIdx: index('operational_cases_due_idx').on(table.dueOn),
+    lotIdx: index('operational_cases_lot_idx').on(table.linkedLotNumber),
+    orderIdx: index('operational_cases_order_idx').on(table.linkedOrderNumber),
+  }),
+);
+
+/** Append-only snapshots of every case creation, update, handoff and closure. */
+export const operationalCaseEvents = sqliteTable(
+  'operational_case_events',
+  {
+    id: text('id').primaryKey(),
+    caseId: text('case_id').notNull(),
+    fromStatus: text('from_status'),
+    toStatus: text('to_status').notNull(),
+    ownerId: text('owner_id').notNull(),
+    ownerName: text('owner_name').notNull(),
+    action: text('action').notNull(),
+    note: text('note'),
+    actor: text('actor').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    caseIdx: index('operational_case_events_case_idx').on(
+      table.caseId,
+      table.createdAt,
+    ),
+  }),
+);
+
+export type OperationalCase = typeof operationalCases.$inferSelect;
+export type OperationalCaseEvent = typeof operationalCaseEvents.$inferSelect;

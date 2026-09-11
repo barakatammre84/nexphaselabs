@@ -61,7 +61,13 @@ export async function saveSupplierAction(mode: { kind: 'create' } | { kind: 'upd
 
 /** Qualification decisions are admin only. */
 export async function supplierQualificationAction(supplierId: string, _prev: ProcurementFormState, data: FormData): Promise<ProcurementFormState> {
-  const values = read(data, ['to', 'reason']);
+  const values = read(data, [
+    'to',
+    'reason',
+    'scope',
+    'evidenceUrl',
+    'reviewDueOn',
+  ]);
   const fail = (message: string): ProcurementFormState => ({ values, errors: [message], violations: [] });
   if (!(await sameOriginAction())) return fail('Request rejected: cross-origin.');
   const staff = await getStaff();
@@ -73,7 +79,17 @@ export async function supplierQualificationAction(supplierId: string, _prev: Pro
   if (!current) return fail('Unknown supplier.');
   let outcome;
   try {
-    outcome = await setSupplierQualification(current.supplier, values.to, values.reason, staff);
+    outcome = await setSupplierQualification(
+      current.supplier,
+      values.to,
+      {
+        reason: values.reason,
+        scope: values.scope,
+        evidenceUrl: values.evidenceUrl,
+        reviewDueOn: values.reviewDueOn,
+      },
+      staff,
+    );
   } catch (error) {
     console.error('[procurement] qualification failed', error instanceof Error ? error.message : error);
     return fail('The decision could not be recorded. Try again shortly.');

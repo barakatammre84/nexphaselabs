@@ -7,13 +7,14 @@ vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 import { getDb } from '@/db';
 import { accounts, lots, orderItems, orders, organizations } from '@/db/schema';
 import { getOrderByNumber, markOrderPaid, recordRefund } from '@/lib/orders';
-import { recordReturn, recordShipment, startFulfilment } from '@/lib/fulfilment';
+import { recordDelivery, recordReturn, recordShipment, startFulfilment } from '@/lib/fulfilment';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 
 let local: ReturnType<typeof localD1>;
 const staff = { id: 'staff_test', name: 'Synthetic Ops', role: 'admin' } as StaffPrincipal;
 const detail = async () => (await getOrderByNumber('LOCAL-ORDER'))!;
 const shipment = { picks: { line1: 'lot1' }, carrier: 'Test carrier', trackingNumber: 'TEST-ONLY', shippedOn: '2026-09-04' };
+const delivery = { deliveredOn: '2026-09-05', evidence: 'Synthetic carrier delivery event' };
 const returns = { packs: { line1: 1 }, receivedOn: '2026-09-05', condition: 'Sealed test container', note: 'Synthetic return' };
 const count = (table: string) => local.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get()!.n;
 beforeEach(async () => {
@@ -35,6 +36,26 @@ async function readyToShip() {
 }
 
 describe('order, shipment, return and refund transactions', () => {
+  it('records delivery once with evidence and a queued customer notice', async () => {
+    await readyToShip();
+    await recordShipment(await detail(), shipment, staff);
+    const stale = await detail();
+    expect(await recordDelivery(stale, delivery, staff)).toEqual({ ok: true });
+    expect((await detail()).order).toMatchObject({
+      deliveryEvidence: delivery.evidence,
+      deliveredAt: new Date('2026-09-05T00:00:00.000Z'),
+    });
+    expect((await recordDelivery(stale, delivery, staff)).ok).toBe(false);
+    expect(count('order_events')).toBe(4);
+    expect(count('notifications')).toBe(4);
+  });
+  it('rejects delivery before shipment, in the future, or without evidence', async () => {
+    await readyToShip();
+    await recordShipment(await detail(), shipment, staff);
+    expect((await recordDelivery(await detail(), { ...delivery, deliveredOn: '2026-09-03' }, staff)).ok).toBe(false);
+    expect((await recordDelivery(await detail(), { ...delivery, deliveredOn: '2026-09-06' }, staff)).ok).toBe(false);
+    expect((await recordDelivery(await detail(), { ...delivery, evidence: ' ' }, staff)).ok).toBe(false);
+  });
   it('completes payment → pick → ship → partial return → refund with conserved stock and queued notices', async () => {
     await readyToShip();
     expect(await recordShipment(await detail(), shipment, staff)).toEqual({ ok: true });

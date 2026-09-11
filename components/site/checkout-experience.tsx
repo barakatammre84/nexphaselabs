@@ -13,7 +13,7 @@ import { CheckoutFields } from '@/components/site/checkout-fields';
 
 type Quote = {
   id: string;
-  carrier: 'UPS' | 'FedEx';
+  carrier: 'USPS' | 'UPS' | 'FedEx';
   serviceName: string;
   shippingCents: number;
   taxCents: number;
@@ -78,7 +78,7 @@ export function CheckoutExperience({
         if (quoteRequired && !selected) {
           event.preventDefault();
           setMessage(
-            'Compare delivery options and choose UPS or FedEx before continuing.',
+            'Compare delivery options and choose an eligible service before continuing.',
           );
         }
       }}
@@ -110,7 +110,7 @@ export function CheckoutExperience({
                 Where should the order go?
               </h2>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Enter the receiving address, then compare eligible UPS and FedEx
+                Enter the receiving address, then compare eligible carrier
                 services. No account or email verification is required.
               </p>
             </div>
@@ -178,7 +178,9 @@ export function CheckoutExperience({
               ) : (
                 <Truck className="size-4" />
               )}
-              {busy ? 'Comparing UPS and FedEx…' : 'Compare UPS and FedEx'}
+              {busy
+                ? 'Comparing delivery services…'
+                : 'Compare delivery services'}
             </button>
             <div aria-live="polite" aria-busy={busy}>
               {message && (

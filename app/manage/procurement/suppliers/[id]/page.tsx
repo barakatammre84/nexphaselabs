@@ -44,7 +44,18 @@ export default async function SupplierPage({ params, searchParams }: Props) {
           <SupplierForm initial={initial} mode="update" action={saveSupplierAction.bind(null, { kind: 'update', id: supplier.id })} />
           <div className="flex flex-col gap-6">
             {canVerifyAccounts(staff) ? (
-              <QualificationForm status={supplier.qualificationStatus} action={supplierQualificationAction.bind(null, supplier.id)} />
+              <QualificationForm
+                status={supplier.qualificationStatus}
+                initial={{
+                  scope: supplier.qualificationScope ?? '',
+                  evidenceUrl: supplier.qualificationEvidenceUrl ?? '',
+                  reviewDueOn:
+                    supplier.qualificationReviewDueOn
+                      ?.toISOString()
+                      .slice(0, 10) ?? '',
+                }}
+                action={supplierQualificationAction.bind(null, supplier.id)}
+              />
             ) : (
               <p className="border border-border bg-secondary p-4 text-sm text-muted-foreground">Only an admin can qualify or suspend a supplier.</p>
             )}
@@ -64,6 +75,11 @@ export default async function SupplierPage({ params, searchParams }: Props) {
             </div>
           </div>
         </div>
+        <dl className="mt-8 grid gap-4 border border-border p-5 text-sm sm:grid-cols-3">
+          <div><dt className="font-semibold">Qualified scope</dt><dd className="mt-1 text-muted-foreground">{supplier.qualificationScope ?? '—'}</dd></div>
+          <div><dt className="font-semibold">Evidence</dt><dd className="mt-1">{supplier.qualificationEvidenceUrl ? <a className="text-primary underline" href={supplier.qualificationEvidenceUrl} target="_blank" rel="noreferrer">Open evidence</a> : '—'}</dd></div>
+          <div><dt className="font-semibold">Next review</dt><dd className="mt-1 text-muted-foreground">{supplier.qualificationReviewDueOn?.toISOString().slice(0, 10) ?? '—'}</dd></div>
+        </dl>
         <h2 className="mt-12 utility-label text-primary">History</h2>
         <ul className="mt-4 divide-y divide-border border border-border text-sm">
           {events.map((e) => (

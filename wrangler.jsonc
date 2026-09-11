@@ -17,41 +17,47 @@
   "assets": {
     "directory": "dist/client",
     "not_found_handling": "none",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
   },
   "observability": { "enabled": true },
   "durable_objects": {
-    "bindings": [{ "name": "FEEDBACK_ROOMS", "class_name": "FeedbackRoom" }]
+    "bindings": [{ "name": "FEEDBACK_ROOMS", "class_name": "FeedbackRoom" }],
   },
-  "migrations": [{ "tag": "v1_feedback_rooms", "new_sqlite_classes": ["FeedbackRoom"] }],
+  "migrations": [
+    { "tag": "v1_feedback_rooms", "new_sqlite_classes": ["FeedbackRoom"] },
+  ],
   "triggers": { "crons": ["*/5 * * * *"] },
   "vars": {
     "APP_ENV": "production",
     "PUBLIC_ORIGIN": "https://nexphaselabs.net",
     "CONSUMER_TIER_ENABLED": "false",
-    "EMAIL_FROM": "NexPhase Labs <research@nexphaselabs.net>"
+    "EMAIL_FROM": "NexPhase Labs <research@nexphaselabs.net>",
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "nexphase-labs",
       "database_id": "70e80fa9-cd27-4fd7-b0ee-1fea56c5778d",
-      "migrations_dir": "drizzle"
-    }
+      "migrations_dir": "drizzle",
+    },
   ],
   "r2_buckets": [
     {
       "binding": "DOCS",
-      "bucket_name": "nexphase-documents"
-    }
+      "bucket_name": "nexphase-documents",
+    },
   ],
   "env": {
     "staging": {
       "name": "nexphaselabs-staging",
       "durable_objects": {
-        "bindings": [{ "name": "FEEDBACK_ROOMS", "class_name": "FeedbackRoom" }]
+        "bindings": [
+          { "name": "FEEDBACK_ROOMS", "class_name": "FeedbackRoom" },
+        ],
       },
-      "migrations": [{ "tag": "v1_feedback_rooms", "new_sqlite_classes": ["FeedbackRoom"] }],
+      "migrations": [
+        { "tag": "v1_feedback_rooms", "new_sqlite_classes": ["FeedbackRoom"] },
+      ],
       "triggers": { "crons": ["*/5 * * * *"] },
       "vars": {
         "APP_ENV": "staging",
@@ -60,32 +66,32 @@
         // variable identical; staging email links and payment return URLs are built from this.
         "PUBLIC_ORIGIN": "https://nexphaselabs-staging.ammre.workers.dev",
         "CONSUMER_TIER_ENABLED": "false",
-        // Fully testable checkout without contacting or charging a carrier/tax account.
-        // Replace these simulation values with Shippo test carrier accounts before rate acceptance testing.
-        "SHIPPING_PROVIDER": "simulated",
-        "SHIPPING_SIMULATION_ENABLED": "true",
-        "SHIPPING_FROM_JSON": "{\"name\":\"NexPhase Labs staging\",\"street1\":\"1 Test Laboratory Way\",\"city\":\"Oakland\",\"state\":\"CA\",\"zip\":\"94612\",\"country\":\"US\",\"is_residential\":false}",
+        // Shippo test mode obtains real carrier test rates without buying live postage.
+        // The API key and private ship-from contact are protected Worker secrets.
+        "SHIPPING_PROVIDER": "shippo",
+        "SHIPPO_CARRIER_ACCOUNTS": "256b9f9e2b784b0fb2ee5971d31e3c5e",
         "SHIPPING_DEFAULT_PARCEL_JSON": "{\"length\":8,\"width\":6,\"height\":4,\"baseWeight\":0.4,\"perPackWeight\":0.1}",
+        "SHIPPING_ALLOWED_SERVICES": "usps_ground_advantage,usps_priority",
         "CHECKOUT_QUOTES_REQUIRED": "true",
         "INVENTORY_RESERVATION_MINUTES": "30",
         "TAX_PROVIDER": "simulated",
         "TAX_SIMULATED_RATE_BPS": "825",
-        "EMAIL_FROM": "NexPhase Labs <research@nexphaselabs.net>"
+        "EMAIL_FROM": "NexPhase Labs <research@nexphaselabs.net>",
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "nexphase-labs-staging",
           "database_id": "d24c1b97-1517-4ac4-a019-bed2a2a39c2b",
-          "migrations_dir": "drizzle"
-        }
+          "migrations_dir": "drizzle",
+        },
       ],
       "r2_buckets": [
         {
           "binding": "DOCS",
-          "bucket_name": "nexphase-documents-staging"
-        }
-      ]
-    }
-  }
+          "bucket_name": "nexphase-documents-staging",
+        },
+      ],
+    },
+  },
 }

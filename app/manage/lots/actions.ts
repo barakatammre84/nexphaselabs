@@ -16,6 +16,11 @@ import { addLotTest, correctLot, createLot, getLot, lotToIntakeInput, setLotDisp
 import { getExpectedReceipt } from '@/lib/procurement';
 import type { Violation } from '@/lib/catalog-rules';
 import { canFulfil, canRecordResults, canVerifyAccounts, getStaff } from '@/lib/staff-auth';
+import {
+  recordInventoryMovement,
+  validateInventoryMovement,
+  type InventoryMovementInput,
+} from '@/lib/inventory-movements';
 
 export type LotFormState = {
   values: Record<string, string>;
@@ -203,4 +208,67 @@ export async function correctLotAction(lotNumber: string, _prev: LotFormState, d
   }
   if (!outcome.ok) return fail(outcome.error);
   redirect(`/manage/lots/${encodeURIComponent(number)}?corrected=1`);
+}
+
+const MOVEMENT_FIELDS = [
+  'movementType',
+  'direction',
+  'quantity',
+  'occurredOn',
+  'reason',
+  'witnessOne',
+  'witnessTwo',
+] as const;
+
+/** Record sample use, witnessed destruction, or a reconciled stock adjustment. */
+export async function recordInventoryMovementAction(
+  lotNumber: string,
+  _previous: LotFormState,
+  data: FormData,
+): Promise<LotFormState> {
+  const values: Record<string, string> = {};
+  for (const field of MOVEMENT_FIELDS) {
+    const raw = data.get(field);
+    values[field] = typeof raw === 'string' ? raw : '';
+  }
+  const fail = (message: string): LotFormState => ({
+    values,
+    errors: [message],
+    violations: [],
+  });
+  if (!(await sameOriginAction())) return fail('Request rejected: cross-origin.');
+  const staff = await getStaff();
+  if (!staff) redirect('/staff/sign-in?return_to=%2Fmanage%2Flots');
+  if (!canFulfil(staff)) {
+    return fail('Only operations and admin roles can record inventory movements.');
+  }
+  if (
+    values.movementType === 'adjustment' &&
+    values.direction === 'increase' &&
+    !canVerifyAccounts(staff)
+  ) {
+    return fail('Only an administrator can approve an increase to recorded stock.');
+  }
+  const number = lotNumberFromParam(lotNumber);
+  if (!number) return fail('Unknown lot.');
+  const lot = await getLot(number);
+  if (!lot) return fail('Unknown lot.');
+  const validated = validateInventoryMovement(
+    values as unknown as InventoryMovementInput,
+    lot,
+  );
+  if (!validated.ok) {
+    return { values, errors: validated.errors, violations: [] };
+  }
+  try {
+    const result = await recordInventoryMovement(lot, validated.value, staff);
+    if (!result.ok) return fail(result.error);
+  } catch (error) {
+    console.error(
+      '[lots] inventory movement failed',
+      error instanceof Error ? error.message : error,
+    );
+    return fail('The inventory movement could not be recorded. Try again shortly.');
+  }
+  redirect(`/manage/lots/${encodeURIComponent(number)}?movement=1`);
 }

@@ -3,7 +3,12 @@
 import { useActionState } from 'react';
 import { AlertCircle, KeyRound } from 'lucide-react';
 import type { StaffFormState } from '@/app/manage/staff/actions';
-import { STAFF_ROLES } from '@/lib/staff-roles';
+import {
+  STAFF_ROLES,
+  STAFF_ROLE_PERMISSIONS,
+  STAFF_ROLE_TITLES,
+  STAFF_PERMISSION_LABELS,
+} from '@/lib/staff-roles';
 
 const input = 'h-11 w-full border border-foreground/20 bg-background px-3 text-sm outline-none focus:border-primary';
 const help = 'text-xs leading-5 text-muted-foreground';
@@ -11,9 +16,9 @@ const button = 'inline-flex h-11 items-center justify-center bg-primary px-5 tex
 const quiet = 'inline-flex h-11 items-center justify-center border border-foreground/20 px-5 text-sm font-semibold hover:border-primary hover:text-primary disabled:opacity-50';
 
 const ROLE_HELP: Record<string, string> = {
-  admin: 'Everything, including verification decisions, payments, reports and staff accounts.',
-  qc: 'Catalog, lot intake, test results, documents and lot release.',
-  ops: 'Lot intake, fulfilment and shipping, suppliers and purchase orders.',
+  admin: 'Access, business approvals, finance, systems, and recorded emergency coverage.',
+  qc: 'Catalog science, analytical records, quality documents, and lot disposition.',
+  ops: 'Purchasing, customer support, fulfillment, shipping, returns, and inventory decreases.',
 };
 
 function Problems({ state }: { state: StaffFormState }) {
@@ -67,7 +72,7 @@ export function CreateStaffForm({ action }: { action: (prev: StaffFormState, dat
             <select name="role" key={`k-${v.role ?? 'ops'}`} defaultValue={v.role ?? 'ops'} className={input}>
               {STAFF_ROLES.map((r) => (
                 <option key={r} value={r}>
-                  {r}
+                  {STAFF_ROLE_TITLES[r]} ({r})
                 </option>
               ))}
             </select>
@@ -77,6 +82,11 @@ export function CreateStaffForm({ action }: { action: (prev: StaffFormState, dat
           {STAFF_ROLES.map((r) => (
             <li key={r}>
               <span className="font-mono">{r}</span> — {ROLE_HELP[r]}
+              <span className="mt-1 block">
+                {STAFF_ROLE_PERMISSIONS[r]
+                  .map((permission) => STAFF_PERMISSION_LABELS[permission])
+                  .join('; ')}
+              </span>
             </li>
           ))}
         </ul>
@@ -110,7 +120,7 @@ export function StaffAccountForms({ action, role, active, isSelf, activeSessions
           <select name="role" key={`k-${role}`} defaultValue={role} disabled={isSelf} className={input}>
             {STAFF_ROLES.map((r) => (
               <option key={r} value={r}>
-                {r}
+                {STAFF_ROLE_TITLES[r]} ({r})
               </option>
             ))}
           </select>

@@ -8,6 +8,13 @@ import { loadCatalog } from '@/lib/catalog-data';
 import { listStaff } from '@/lib/staff-admin';
 import { canManageStaff, requireStaff } from '@/lib/staff-auth';
 import { createStaffAction } from './actions';
+import {
+  STAFF_PERMISSION_KEYS,
+  STAFF_PERMISSION_LABELS,
+  STAFF_ROLES,
+  STAFF_ROLE_PERMISSIONS,
+  STAFF_ROLE_TITLES,
+} from '@/lib/staff-roles';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Staff accounts', robots: { index: false, follow: false } };
@@ -77,6 +84,47 @@ export default async function StaffPage() {
           <h2 className="utility-label text-primary">Add a staff account</h2>
           <div className="mt-6 max-w-4xl">
             <CreateStaffForm action={createStaffAction} />
+          </div>
+        </section>
+        <section className="mt-14 border-t border-border pt-10">
+          <h2 className="utility-label text-primary">
+            Three-person authority matrix
+          </h2>
+          <p className="mt-4 max-w-3xl text-sm leading-6 text-muted-foreground">
+            Assign one primary account to each role. Shared logins are not
+            allowed. The admin role keeps emergency coverage, but normal work
+            should remain with the named quality or operations owner so the
+            history shows meaningful separation.
+          </p>
+          <div className="mt-6 overflow-x-auto border border-border">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-border bg-secondary">
+                  <th className="p-3">Authority</th>
+                  {STAFF_ROLES.map((role) => (
+                    <th key={role} className="p-3">
+                      {STAFF_ROLE_TITLES[role]}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {STAFF_PERMISSION_KEYS.map((permission) => (
+                  <tr key={permission} className="border-b border-border last:border-b-0">
+                    <th className="p-3 font-medium">
+                      {STAFF_PERMISSION_LABELS[permission]}
+                    </th>
+                    {STAFF_ROLES.map((role) => (
+                      <td key={role} className="p-3">
+                        {STAFF_ROLE_PERMISSIONS[role].includes(permission)
+                          ? 'Allowed'
+                          : 'No access'}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       </section>

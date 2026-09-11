@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, lt, notInArray, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { orders } from '@/db/schema';
 import type { OrderQueue } from '@/lib/workflow-display';
@@ -12,11 +12,26 @@ export async function listOrderQueue(
   queue: OrderQueue,
   query: string,
   page = 1,
+  staffId?: string,
 ) {
   const search = query.trim().slice(0, 120).toLowerCase();
   const status =
     queue === 'all'
       ? undefined
+      : queue === 'mine'
+        ? staffId
+          ? eq(orders.assignedTo, staffId)
+          : sql`0 = 1`
+        : queue === 'overdue'
+          ? and(
+              lt(orders.serviceDueAt, new Date()),
+              notInArray(orders.status, ['cancelled']),
+            )
+          : queue === 'unassigned'
+            ? and(
+                isNull(orders.assignedTo),
+                notInArray(orders.status, ['shipped', 'cancelled']),
+              )
       : queue === 'refund_due'
         ? eq(orders.paymentStatus, queue)
         : eq(orders.status, queue);

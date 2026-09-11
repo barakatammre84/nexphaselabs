@@ -40,7 +40,9 @@ describe('tax calculation boundary', () => {
       TAX_PROVIDER: 'taxjar',
       TAXJAR_API_KEY: 'synthetic_taxjar_key_123456',
       TAXJAR_SANDBOX: 'true',
-      SHIPPING_FROM_JSON: JSON.stringify(address),
+      SHIPPO_ORIGINS_JSON: JSON.stringify([
+        { id: 'oakland-1', label: 'Oakland', address },
+      ]),
     });
     vi.stubGlobal(
       'fetch',
@@ -61,6 +63,9 @@ describe('tax calculation boundary', () => {
     expect(vi.mocked(fetch).mock.calls[0][0]).toBe(
       'https://api.sandbox.taxjar.com/v2/taxes',
     );
+    expect(
+      JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string),
+    ).toMatchObject({ from_city: 'Oakland', from_zip: '94612' });
   });
 
   it('refuses malformed or implausible provider amounts', async () => {
