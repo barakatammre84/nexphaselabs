@@ -11,7 +11,7 @@ import { previewCoa } from '@/lib/coa';
 import { LABEL_SIZES } from '@/lib/hazard';
 import { labelPreviewForLot } from '@/lib/hazard-label';
 import { documentHistory } from '@/lib/issued-documents';
-import { ALLOWED_TRANSITIONS, TEST_TYPE_LABEL, lotNumberFromParam, releaseBlockers, type TestType } from '@/lib/lot-rules';
+import { ALLOWED_TRANSITIONS, TEST_TYPE_LABEL, lotNumberFromParam, publicationBlockers, publicationWarnings, releaseBlockers, type TestType } from '@/lib/lot-rules';
 import { lotVersions } from '@/lib/lot-family';
 import { LOT_STATUS_LABEL, currentDocumentKey, getLotDetail, lotToIntakeInput, type LotStatus } from '@/lib/lots-admin';
 import { canFulfil, canRecordResults, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
@@ -77,6 +77,8 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
   const versions = await lotVersions(lot.id);
   const correctionInitial = Object.fromEntries(Object.entries(lotToIntakeInput(lot)).map(([k, v]) => [k, v ?? '']));
   const blockers = releaseBlockers(lot, tests);
+  const pubBlockers = publicationBlockers(lot);
+  const pubWarnings = publicationWarnings(lot);
   const allowed = ALLOWED_TRANSITIONS[lot.status] ?? [];
   const uploadError = error ? (UPLOAD_ERROR[error] ?? UPLOAD_ERROR.store) : null;
   const [coa, issuedDocs, label] = await Promise.all([
@@ -181,6 +183,7 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
               <Row label="Retest date" value={day(lot.retestDate)} />
               <Row label="Storage location" value={lot.storageLocation} />
               <Row label="Storage condition" value={lot.storageCondition} />
+              <Row label="Container size" value={lot.containerSize} />
               <Row label="Landed cost" value={lot.costCents === null ? null : `$${(lot.costCents / 100).toFixed(2)}${lot.costNote ? ` — ${lot.costNote}` : ''}`} />
             </dl>
             {canVerifyAccounts(staff) && (
@@ -527,6 +530,35 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
             <LotTestForm today={new Date().toISOString().slice(0, 10)} action={addLotTestAction.bind(null, lot.lotNumber)} />
           </div>
         )}
+
+        <h2 className="mt-12 utility-label text-primary">Publication</h2>
+        <div className={`mt-4 border p-5 text-sm ${lot.status === 'released' && pubBlockers.length > 0 ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-secondary'}`}>
+          <p className="font-semibold">
+            {lot.status !== 'released'
+              ? 'Not public: the lot is not released.'
+              : pubBlockers.length === 0
+                ? 'Public: this lot appears on the product page, the lot page and in lookup, and can be allocated to orders.'
+                : 'Released but NOT public and NOT allocatable to orders.'}
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            Release covers the legal minimum. Publication additionally requires a certificate a customer can check: the testing
+            laboratory named, the laboratory&rsquo;s own accession number, and the testing standard it was tested under.
+          </p>
+          {lot.status === 'released' && pubBlockers.length > 0 && (
+            <ul className="mt-3 list-disc space-y-1 pl-5">
+              {pubBlockers.filter((b) => b !== 'Lot is not released.').map((b) => (
+                <li key={b}>{b}</li>
+              ))}
+            </ul>
+          )}
+          {pubWarnings.length > 0 && (
+            <ul className="mt-3 space-y-1 text-muted-foreground">
+              {pubWarnings.map((w) => (
+                <li key={w}>Advisory: {w}</li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         <h2 className="mt-12 utility-label text-primary">Disposition</h2>
         <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_1fr]">

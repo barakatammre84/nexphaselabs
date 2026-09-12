@@ -59,6 +59,6 @@ describe('environment safety', () => {
     env.APP_ENV = 'staging';
     expect(robots().rules).toEqual([{ userAgent: '*', disallow: '/' }]);
     env.APP_ENV = 'production';
-    expect(robots().rules).toEqual([{ userAgent: '*', allow: '/', disallow: ['/manage', '/staff', '/api'] }]);
+    expect(robots().rules).toEqual([{ userAgent: '*', allow: '/', disallow: ['/manage', '/staff', '/api', '/account'] }]);
   });
 });

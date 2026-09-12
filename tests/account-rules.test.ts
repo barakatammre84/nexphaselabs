@@ -38,8 +38,8 @@ describe('validateSignUp', () => {
   });
 
   it('refuses consumer accounts unless the owner enables the tier', () => {
-    expect(validateSignUp({ ...good, tier: 'consumer', email: 'ada@gmail.com' }, false).ok).toBe(false);
-    expect(validateSignUp({ ...good, tier: 'consumer', email: 'ada@gmail.com' }, true).ok).toBe(true);
+    expect(validateSignUp({ ...good, tier: 'researcher', email: 'ada@gmail.com' }, false).ok).toBe(false);
+    expect(validateSignUp({ ...good, tier: 'researcher', email: 'ada@gmail.com' }, true).ok).toBe(true);
   });
 
   it('requires both acknowledgements, a name, and a 12+ character password', () => {

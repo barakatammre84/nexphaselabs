@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { RESEARCH_SETTINGS } from '@/lib/account-rules';
 import { redirect } from 'next/navigation';
 import { AlertCircle } from 'lucide-react';
 import { getAccount } from '@/lib/account-auth';
 import { AccessProgress } from '@/components/site/access-progress';
 import { RUO_ACKNOWLEDGEMENT } from '@/lib/policy';
-import { consumerTierEnabled } from '@/lib/site-config';
+import { researcherTierEnabled } from '@/lib/site-config';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -30,7 +31,7 @@ const input =
 export default async function SignUpPage({ searchParams }: Props) {
   const params = await searchParams;
   if (await getAccount()) redirect('/account');
-  const consumer = consumerTierEnabled();
+  const consumer = researcherTierEnabled();
 
   const errors =
     params.error === 'validation' && params.codes
@@ -135,7 +136,7 @@ export default async function SignUpPage({ searchParams }: Props) {
                   type="radio"
                   name="tier"
                   value="institutional"
-                  defaultChecked={params.tier !== 'consumer'}
+                  defaultChecked={params.tier !== 'researcher'}
                   className="mt-1"
                 />
                 <span>
@@ -150,14 +151,16 @@ export default async function SignUpPage({ searchParams }: Props) {
                 <input
                   type="radio"
                   name="tier"
-                  value="consumer"
-                  defaultChecked={params.tier === 'consumer'}
+                  value="researcher"
+                  defaultChecked={params.tier === 'researcher'}
                   className="mt-1"
                 />
                 <span>
-                  <span className="font-semibold">Individual researcher</span>
+                  <span className="font-semibold">Researcher</span>
                   <span className="block text-muted-foreground">
-                    Laboratory research use only.
+                    Laboratory research use only, in any research setting — including an
+                    independent or home laboratory. We ask what you research with, not
+                    whether you work alone.
                   </span>
                 </span>
               </label>
@@ -165,6 +168,29 @@ export default async function SignUpPage({ searchParams }: Props) {
           ) : (
             <input type="hidden" name="tier" value="institutional" />
           )}
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="research_setting" className="text-sm font-semibold">
+              Research setting <span className="font-normal text-muted-foreground">(optional)</span>
+            </label>
+            <select
+              id="research_setting"
+              name="research_setting"
+              defaultValue=""
+              className="h-11 rounded-xl border border-border bg-background px-3 text-sm"
+            >
+              <option value="">Choose one</option>
+              {RESEARCH_SETTINGS.map((setting) => (
+                <option key={setting} value={setting}>
+                  {setting}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Helps us route documentation requests. It is not a verification step and does not
+              restrict where we ship.
+            </p>
+          </div>
 
           <div className="rounded-[1.4rem] border border-border bg-secondary p-5">
             <p className="utility-label text-primary">

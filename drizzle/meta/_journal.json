@@ -351,6 +351,27 @@
       "when": 1788971309924,
       "tag": "0049_flat_wiccan",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1789249554340,
+      "tag": "0050_launch_attestation_tier",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "6",
+      "when": 1789251633346,
+      "tag": "0051_document_hash",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "6",
+      "when": 1789252232749,
+      "tag": "0052_container_size",
+      "breakpoints": true
     }
   ]
 }

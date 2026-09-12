@@ -1,6 +1,6 @@
-import { env } from 'cloudflare:workers';
 import { appEnv } from '@/lib/site-config';
 import { deliverEmail, emailProviderConfigurationError } from '@/lib/email-provider';
+import { senderFor, type SenderPurpose } from '@/lib/senders';
 
 /**
  * Transactional email.
@@ -18,14 +18,15 @@ export type EmailMessage = {
   to: string;
   subject: string;
   text: string;
+  /** Which mailbox this comes from and where replies go. Defaults to accounts@ — most sendEmail callers are account notices. */
+  purpose?: SenderPurpose;
 };
 
 export type EmailResult = { ok: true; id: string | null } | { ok: false; error: string };
 
-const FROM_DEFAULT = 'NexPhase Labs <research@nexphaselabs.net>';
 
 export async function sendEmail(message: EmailMessage): Promise<EmailResult> {
-  const from = env.EMAIL_FROM || FROM_DEFAULT;
+  const from = senderFor(message.purpose ?? 'accounts');
   const configurationError = emailProviderConfigurationError(message.to);
   if (configurationError) {
     if (

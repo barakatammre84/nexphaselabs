@@ -44,7 +44,7 @@ export async function guestForToken(
         verificationStatus: row.account.verificationStatus,
         termsVersion: row.account.termsVersion,
         ruoVersion: row.account.ruoVersion,
-        tier: 'consumer',
+        tier: 'researcher',
         sessionId: row.session.id,
       }
     : null;
@@ -91,7 +91,7 @@ export async function createGuestBuyer(secure: boolean) {
         email: `${accountId}@guest.invalid`,
         name: 'Guest checkout',
         passwordHash: '!guest-no-password-login',
-        tier: 'consumer',
+        tier: 'researcher',
         status: 'guest',
         verificationStatus: 'none',
       }),

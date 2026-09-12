@@ -52,6 +52,6 @@ const ALL_DOMAINS = ACTIVITY_DOMAINS.filter((d) => d !== 'staff');
 
 export async function sendDigest(to: string, now = new Date()): Promise<{ ok: boolean; error?: string }> {
   const { subject, text } = await composeDigest(now);
-  const result = await sendEmail({ to, subject, text });
+  const result = await sendEmail({ to, subject, text, purpose: 'quality' });
   return result.ok ? { ok: true } : { ok: false, error: result.error };
 }

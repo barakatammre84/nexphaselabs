@@ -531,7 +531,7 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
                   'Pricing and lot availability appear here once your organisation has been verified.'}
                 {visibility.reason === 'acknowledgement' &&
                   'Confirm the current terms and research-use acknowledgement on your account page to see pricing.'}
-                {visibility.reason === 'consumer_disabled' &&
+                {visibility.reason === 'researcher_tier_closed' &&
                   'Pricing is available to verified research organisations. Contact research@nexphaselabs.net to submit one.'}
               </p>
             </div>

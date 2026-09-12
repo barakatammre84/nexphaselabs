@@ -107,6 +107,8 @@ export const lots = sqliteTable(
     costNote: text('cost_note'),
     storageLocation: text('storage_location'),
     storageCondition: text('storage_condition'),
+    /** Labeled content of ONE container for count-tracked lots (vials/units), e.g. '50 mg'. A count-tracked lot can only supply a pack of exactly this size. */
+    containerSize: text('container_size'),
     retestDate: integer('retest_date', { mode: 'timestamp' }),
 
     supersededById: text('superseded_by_id'),
@@ -204,6 +206,8 @@ export const lotDocuments = sqliteTable(
     originalName: text('original_name'),
     uploadedBy: text('uploaded_by').notNull(),
     uploadedAt: integer('uploaded_at', { mode: 'timestamp' }).notNull(),
+    /** SHA-256 (hex) of the stored bytes, computed at upload. Copied onto order lines at dispatch so the customer's copy is provably the one that shipped. */
+    sha256: text('sha256'),
     supersededAt: integer('superseded_at', { mode: 'timestamp' }),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .notNull()
@@ -593,7 +597,7 @@ export const staffSessions = sqliteTable(
  * Customer accounts. One row per person; the organisation and its
  * verification live in `organizations` (Phase 4.3). `tier` decides what the
  * account can see: 'institutional' after verification, 'consumer' only if the
- * consumer tier is enabled by the owner (CONSUMER_TIER_ENABLED). The site
+ * researcher tier is enabled by the owner (RESEARCHER_TIER_ENABLED). The site
  * ships institutional-only.
  *
  * Every acknowledgement is recorded with the time and the document version
@@ -607,8 +611,11 @@ export const accounts = sqliteTable(
     email: text('email').notNull(),
     name: text('name').notNull(),
     passwordHash: text('password_hash').notNull(),
-    /** consumer | institutional */
+    /** researcher | institutional. 'researcher' replaced 'consumer' 2026-09-12: the qualifying question is only
+     *  whether the buyer is a researcher, never whether they are an individual or an organisation. */
     tier: text('tier').notNull().default('institutional'),
+    /** Self-described research setting from a fixed list; descriptive, never gating. */
+    researchSetting: text('research_setting'),
     /** pending_email | active | suspended */
     status: text('status').notNull().default('pending_email'),
     emailVerifiedAt: integer('email_verified_at', { mode: 'timestamp' }),
@@ -943,8 +950,22 @@ export const orders = sqliteTable(
     shippingQuoteId: text('shipping_quote_id'),
     shippingRateId: text('shipping_rate_id'),
     shippingService: text('shipping_service'),
-    /** Tier the prices were taken from: institutional | consumer */
+    /** Tier the prices were taken from: institutional | researcher */
     priceTier: text('price_tier').notNull(),
+    /**
+     * Structured research-use attestation for THIS order, written at submission. Account holders already
+     * carry versions on the account; guests did not, so the evidence lived only as prose in an event note.
+     * These columns make it queryable and exportable for every order regardless of account.
+     */
+    ruoVersion: text('ruo_version'),
+    termsVersion: text('terms_version'),
+    /** Lowercase hex SHA-256 of the exact acknowledgement wording shown, so a later revision cannot make it ambiguous. */
+    acknowledgementHash: text('acknowledgement_hash'),
+    acknowledgedAt: integer('acknowledged_at', { mode: 'timestamp' }),
+    /** Connecting address at submission, as e-sign evidence. */
+    acknowledgedFrom: text('acknowledged_from'),
+    /** Snapshot of the buyer's stated research setting at the time of the order. */
+    researchSetting: text('research_setting'),
     // Ship-to snapshot
     consigneeName: text('consignee_name').notNull(),
     consigneeInstitution: text('consignee_institution'),
@@ -1027,6 +1048,15 @@ export const orderItems = sqliteTable(
     /** Packs received back on this line (written by the return batch; null until a return). */
     returnedPacks: integer('returned_packs'),
     lotNumber: text('lot_number'),
+    /**
+     * Documents pinned to this line at fulfilment. The COA binds to the LOT in issued_documents, so a later
+     * correction or a reorder from a new lot would otherwise change what an old order shows. The pin is
+     * written once at shipment and never updated; the customer document path resolves only through it.
+     */
+    coaDocumentId: text('coa_document_id'),
+    coaSha256: text('coa_sha256'),
+    sdsDocumentId: text('sds_document_id'),
+    sdsSha256: text('sds_sha256'),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .notNull()
       .default(sql`(unixepoch())`),

@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { senderFor, type SenderPurpose } from '@/lib/senders';
 import {
   deliverEmail,
   emailProviderConfigurationError,
@@ -12,9 +13,14 @@ export function notificationConfigurationError(recipient: string): string | null
   return emailProviderConfigurationError(recipient);
 }
 
-export function notificationEnvelope(recipient: string, subject: string, text: string): NotificationEnvelope {
+export function notificationEnvelope(
+  recipient: string,
+  subject: string,
+  text: string,
+  purpose: SenderPurpose = 'orders',
+): NotificationEnvelope {
   return {
-    from: env.EMAIL_FROM || 'NexPhase Labs <research@nexphaselabs.net>',
+    from: senderFor(purpose),
     to: [recipient],
     subject: env.APP_ENV === 'production' ? subject : `[TEST] ${subject}`,
     text,

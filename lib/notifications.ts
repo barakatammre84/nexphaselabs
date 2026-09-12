@@ -95,6 +95,7 @@ export async function dispatchNotifications(limit = 5, now = new Date()) {
             row.recipient,
             row.subject,
             `${row.body}\n\n${actionLabel}: ${actionUrl}\n\n${ENTITY_FOOTER}`,
+            row.category === 'feedback' ? 'support' : 'orders',
           );
       if (
         !envelope ||

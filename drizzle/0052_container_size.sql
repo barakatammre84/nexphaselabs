@@ -1,0 +1,1 @@
+ALTER TABLE `lots` ADD `container_size` text;

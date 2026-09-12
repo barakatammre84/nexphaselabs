@@ -15,8 +15,12 @@ declare namespace Cloudflare {
     /** Canonical origin for absolute URLs in email and metadata. */
     PUBLIC_ORIGIN: string;
     /** "true" to allow consumer-tier sign-ups. Owner decision; ships "false". */
+    /** Researcher (non-institutional) tier switch. CONSUMER_TIER_ENABLED is the legacy alias. */
+    RESEARCHER_TIER_ENABLED?: string;
     CONSUMER_TIER_ENABLED?: string;
     OPEN_CHECKOUT_ENABLED?: string;
+    /** Basic-auth password for the non-production storefront. Unset = open, with a logged warning. */
+    STAGING_ACCESS_PASSWORD?: string;
     SHIPPING_PROVIDER?: string;
     SHIPPO_API_KEY?: string;
     /** Secret URL token for Shippo webhook calls; at least 32 random characters. */
@@ -39,6 +43,12 @@ declare namespace Cloudflare {
     INVENTORY_RESERVATION_MINUTES?: string;
     /** Sender for transactional email, e.g. "NexPhase Labs <research@nexphaselabs.net>". */
     EMAIL_FROM?: string;
+    /** 'purpose' switches on per-purpose senders (lib/senders.ts); anything else = EMAIL_FROM for everything. */
+    EMAIL_SENDER_SCHEME?: string;
+    EMAIL_FROM_ORDERS?: string;
+    EMAIL_FROM_SUPPORT?: string;
+    EMAIL_FROM_ACCOUNTS?: string;
+    EMAIL_FROM_QUALITY?: string;
     /** "google_workspace" (recommended) or "resend". */
     EMAIL_PROVIDER?: string;
     /** Optional Google Workspace service account with domain-wide delegation. */

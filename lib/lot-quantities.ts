@@ -1,6 +1,21 @@
 import { formatQuantity, parseQuantity, type QuantityUnit } from '@/lib/lot-rules';
 
 /**
+ * Whether one pack of `packSize` can be picked from this lot: a mass-tracked lot
+ * needs enough weight; a count-tracked lot needs a container and a labeled
+ * container size equal to the pack. A count-tracked lot with no recorded
+ * container size supplies nothing — it is unknown what is in the vial.
+ */
+export function lotSuppliesPack(lot: { quantityRemaining: string | null; containerSize?: string | null }, packSize: string): boolean {
+  const have = lot.quantityRemaining ? parseQuantity(lot.quantityRemaining) : null;
+  const pack = parseQuantity(packSize);
+  if (!have || !pack || have.amount <= 0) return false;
+  if (isMassUnit(have.unit)) return pickFromLot(lot.quantityRemaining, packSize, 1).ok;
+  const container = lot.containerSize ? parseQuantity(lot.containerSize) : null;
+  return Boolean(container && isMassUnit(container.unit) && isMassUnit(pack.unit) && toUg(container.amount, container.unit) === toUg(pack.amount, pack.unit));
+}
+
+/**
  * Quantity arithmetic for picking. Lots are tracked either by mass (µg, mg,
  * g, kg) or by count (vials, units). A pack size is always a mass ("5 mg").
  *

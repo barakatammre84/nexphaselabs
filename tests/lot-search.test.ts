@@ -25,6 +25,7 @@ beforeEach(async () => {
         casNumber: '50-00-0',
         accessionNumber: 'ACC-2026-001',
         analyticalLab: 'Synthetic Analytical Lab',
+        testingStandard: 'Fixture panel v1',
         status: 'released',
         receivedAt: new Date(),
       },

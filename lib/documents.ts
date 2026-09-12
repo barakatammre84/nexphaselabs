@@ -81,7 +81,14 @@ export type StoredDocument = {
   contentType: string;
   size: number;
   uploadedAt: Date;
+  /** SHA-256 hex of the bytes as stored. */
+  sha256: string;
 };
+
+export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 /**
  * Store a file for a lot. Returns the object key to record on the lot row.
@@ -106,20 +113,24 @@ export async function putLotDocument(
   const key = documentKey(lotNumber, type, uploadId, ext);
   const uploadedAt = new Date();
 
-  await bucket().put(key, file.stream(), {
+  // Read once, hash, store the same bytes: the hash is of what the bucket holds.
+  const bytes = await file.arrayBuffer();
+  const sha256 = await sha256Hex(bytes);
+  await bucket().put(key, bytes, {
     httpMetadata: { contentType },
     customMetadata: {
       lotNumber: assertLotNumber(lotNumber),
       documentType: type,
       uploadedBy: meta.uploadedBy,
       uploadedAt: uploadedAt.toISOString(),
+      sha256,
       ...(meta.originalName
         ? { originalName: meta.originalName.slice(0, 200) }
         : {}),
     },
   });
 
-  return { key, contentType, size: file.size, uploadedAt };
+  return { key, contentType, size: file.size, uploadedAt, sha256 };
 }
 
 /**
@@ -194,7 +205,7 @@ export async function putOrganizationDocument(
         : {}),
     },
   });
-  return { key, contentType, size: file.size, uploadedAt };
+  return { key, contentType, size: file.size, uploadedAt, sha256: await sha256Hex(await file.arrayBuffer()) };
 }
 
 export async function getOrganizationDocument(
@@ -240,7 +251,7 @@ export async function putProductDocument(
         : {}),
     },
   });
-  return { key, contentType: 'application/pdf', size: file.size, uploadedAt };
+  return { key, contentType: 'application/pdf', size: file.size, uploadedAt, sha256: await sha256Hex(await file.arrayBuffer()) };
 }
 
 const IMAGE_TYPES: Record<string, string> = {
@@ -308,7 +319,7 @@ export async function putProductImage(
         : {}),
     },
   });
-  return { key, contentType: sniffed, size: file.size, uploadedAt };
+  return { key, contentType: sniffed, size: file.size, uploadedAt, sha256: await sha256Hex(await file.arrayBuffer()) };
 }
 
 export async function getProductDocument(

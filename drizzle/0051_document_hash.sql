@@ -1,0 +1,1 @@
+ALTER TABLE `lot_documents` ADD `sha256` text;

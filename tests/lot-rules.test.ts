@@ -151,7 +151,11 @@ describe('validateLotIntake', () => {
     expect(validateLotIntake({ ...base, quantityReceived: '0.001 mg' }).ok).toBe(true);
     expect(validateLotIntake({ ...base, quantityReceived: '9.985 g' }).ok).toBe(true);
     expect(validateLotIntake({ ...base, quantityReceived: '0.999999999 kg' }).ok).toBe(true);
-    expect(validateLotIntake({ ...base, quantityReceived: '40 vials' }).ok).toBe(true);
+    // Counted stock must say what one container holds: it is the only pack size the lot can supply.
+    expect(validateLotIntake({ ...base, quantityReceived: '40 vials' }).ok).toBe(false);
+    expect(validateLotIntake({ ...base, quantityReceived: '40 vials', containerSize: '50 mg' }).ok).toBe(true);
+    expect(validateLotIntake({ ...base, quantityReceived: '40 vials', containerSize: '3 mL' }).ok).toBe(false);
+    expect(validateLotIntake({ ...base, quantityReceived: '10 mg', containerSize: '50 mg' }).ok).toBe(false);
     expect(validateLotIntake({ ...base, receivedAt: '' }).ok).toBe(false);
     expect(validateLotIntake({ ...base, receivedAt: '2026-02-30' }).ok).toBe(false);
     expect(validateLotIntake({ ...base, receivedAt: '2030-01-01' }, new Date('2026-09-02')).ok).toBe(false);

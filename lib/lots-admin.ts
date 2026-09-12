@@ -169,6 +169,7 @@ export async function createLot(
     costNote,
     storageLocation: validated.storageLocation ?? null,
     storageCondition: validated.storageCondition ?? null,
+    containerSize: validated.containerSize ?? null,
     retestDate: validated.retestDateValue,
     // status is left to its default: 'quarantine'
     statusReason: 'Received; awaiting documents, testing and release.',
@@ -460,6 +461,7 @@ export async function attachLotDocument(
       originalName,
       uploadedBy: recordedBy(staff),
       uploadedAt: stored.uploadedAt,
+      sha256: stored.sha256,
       createdAt: now,
     }, lots, sql`${lots.id} = ${lot.id} AND ${claimed}`),
   ]);
@@ -511,6 +513,7 @@ export function lotToIntakeInput(lot: Lot): LotIntakeInput {
     quantityReceived: lot.quantityReceived ?? '',
     storageLocation: lot.storageLocation,
     storageCondition: lot.storageCondition,
+    containerSize: lot.containerSize,
     retestDate: day(lot.retestDate),
   };
 }
@@ -560,6 +563,7 @@ export async function correctLot(
     ...(validated.changes.some((c) => c.field === 'quantityReceived') ? { quantityRemaining: v.quantityReceived } : {}),
     storageLocation: v.storageLocation ?? null,
     storageCondition: v.storageCondition ?? null,
+    containerSize: v.containerSize ?? null,
     retestDate: v.retestDateValue,
     supersededById: null,
     lastMovementId: null,

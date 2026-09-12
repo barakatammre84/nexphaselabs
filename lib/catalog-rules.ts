@@ -108,7 +108,7 @@ const FORBIDDEN: Rule[] = [
   // Approved-drug brand names and approval references.
   {
     pattern:
-      /\b(ozempic|wegovy|mounjaro|zepbound|egrifta|saxenda|victoza|rybelsus|trulicity|semaglutide|tirzepatide|liraglutide|tesamorelin|fda[\s-]?approv\w*|approved\s+by|prescription|pharmaceutical\s+grade|human\s+grade)\b/i,
+      /\b(ozempic|wegovy|mounjaro|zepbound|egrifta|saxenda|victoza|rybelsus|trulicity|fda[\s-]?approv\w*|approved\s+by|prescription|pharmaceutical\s+grade|human\s+grade)\b/i,
     reason: 'approved-drug brand name or approval reference',
   },
   // Human or animal use.
@@ -152,6 +152,35 @@ function stripAllowed(text: string): string {
 export type Violation = { field: string; reason: string; match: string };
 
 /** Scan one free-text field. Returns every violation found. */
+/* ------------------------------------------------------------------------ */
+/* Counsel hold                                                              */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Compounds that may be RECORDED under their real chemical name (identity is
+ * chemistry, and a codename would be worse — FDA issued seven letters in one
+ * day against "-2T / -3R" style names) but may not be PUBLISHED until a
+ * regulatory-counsel disposition is on record. The word itself is not the
+ * hazard; the offer is. lib/catalog-admin.ts refuses `published` for these
+ * while the legal.counsel operating control is not Ready.
+ */
+export const COUNSEL_HOLD: { pattern: RegExp; reason: string }[] = [
+  { pattern: /\btirzepatide\b/i, reason: 'active ingredient of FDA-approved drugs; named in FDA warning letters of 31 Mar 2026' },
+  { pattern: /\bretatrutide\b/i, reason: 'investigational compound named in FDA warning letters of 31 Mar 2026 and in Eli Lilly consumer-protection suits of 12 Aug 2026' },
+  { pattern: /\bsemaglutide\b/i, reason: 'active ingredient of FDA-approved drugs' },
+  { pattern: /\bliraglutide\b/i, reason: 'active ingredient of FDA-approved drugs' },
+  { pattern: /\btesamorelin\b/i, reason: 'active ingredient of an approved biologic (BLA 022505); withdrawn from this catalog' },
+];
+
+/** The first counsel-hold reason that applies to a product's identity fields, or null. */
+export function counselHold(identity: { name: string; formalName?: string | null; synonyms?: readonly string[] }): string | null {
+  const texts = [identity.name, identity.formalName ?? '', ...(identity.synonyms ?? [])];
+  for (const rule of COUNSEL_HOLD) {
+    if (texts.some((t) => rule.pattern.test(t))) return rule.reason;
+  }
+  return null;
+}
+
 export function scanText(
   field: string,
   text: string | null | undefined,

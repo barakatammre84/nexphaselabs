@@ -14,7 +14,19 @@ export function acknowledgementsCurrent(account: { termsVersion: string | null; 
  * in vitest and in the Worker alike.
  */
 
-export const ACCOUNT_TIERS = ['institutional', 'consumer'] as const;
+export const ACCOUNT_TIERS = ['institutional', 'researcher'] as const;
+
+/** Fixed research-setting list. Descriptive only — never a gate, never a tier. */
+export const RESEARCH_SETTINGS = [
+  'University or academic institution',
+  'Hospital or clinical research facility',
+  'Commercial or industrial laboratory',
+  'Contract research organisation',
+  'Government or national laboratory',
+  'Independent or home laboratory',
+  'Other research setting',
+] as const;
+export type ResearchSetting = (typeof RESEARCH_SETTINGS)[number];
 export type AccountTier = (typeof ACCOUNT_TIERS)[number];
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -67,15 +79,17 @@ export type SignUpInput = {
   email: string;
   password: string;
   tier: string;
+  /** Optional self-description of where the research happens; one of RESEARCH_SETTINGS or empty. */
+  researchSetting?: string;
   acceptTerms: boolean;
   acceptRuo: boolean;
 };
 
 export type SignUpValidation =
-  | { ok: true; value: { name: string; email: string; password: string; tier: AccountTier } }
+  | { ok: true; value: { name: string; email: string; password: string; tier: AccountTier; researchSetting: ResearchSetting | null } }
   | { ok: false; errors: string[] };
 
-export function validateSignUp(raw: SignUpInput, consumerTierEnabled: boolean): SignUpValidation {
+export function validateSignUp(raw: SignUpInput, researcherTierEnabled: boolean): SignUpValidation {
   const errors: string[] = [];
   const name = raw.name.trim().replace(/\s+/g, ' ');
   const email = normaliseEmail(raw.email);
@@ -89,7 +103,7 @@ export function validateSignUp(raw: SignUpInput, consumerTierEnabled: boolean): 
 
   if (!(ACCOUNT_TIERS as readonly string[]).includes(tier)) {
     errors.push('Choose an account type.');
-  } else if (tier === 'consumer' && !consumerTierEnabled) {
+  } else if (tier === 'researcher' && !researcherTierEnabled) {
     errors.push('Accounts are currently opened for research organisations only.');
   } else if (tier === 'institutional' && EMAIL_PATTERN.test(email) && isFreeMailDomain(email)) {
     errors.push(
@@ -100,8 +114,12 @@ export function validateSignUp(raw: SignUpInput, consumerTierEnabled: boolean): 
   if (!raw.acceptTerms) errors.push('You must accept the terms of sale.');
   if (!raw.acceptRuo) errors.push('You must confirm the research-use acknowledgement.');
 
+  const settingRaw = (raw.researchSetting ?? '').trim();
+  const researchSetting = (RESEARCH_SETTINGS as readonly string[]).includes(settingRaw) ? (settingRaw as ResearchSetting) : null;
+  if (settingRaw && !researchSetting) errors.push('Choose a research setting from the list.');
+
   if (errors.length) return { ok: false, errors };
-  return { ok: true, value: { name, email, password, tier } };
+  return { ok: true, value: { name, email, password, tier, researchSetting } };
 }
 
 export function validateSignIn(raw: { email: string; password: string }): { email: string; password: string } | null {

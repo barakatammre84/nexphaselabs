@@ -144,6 +144,7 @@ export function LotForm({ products, expected = [], today, canRecordCost = false,
         <h2 className="utility-label text-primary lg:col-span-2">Storage</h2>
         <Field name="storageLocation" title="Storage location" values={v} hint="Freezer or shelf identifier." />
         <Field name="storageCondition" title="Storage condition" values={v} hint='e.g. "Minus 20 C, desiccated".' />
+        <Field name="containerSize" title="Container size (vials/units only)" values={v} hint='Labeled content of ONE container, e.g. "50 mg". Required when the quantity is counted in vials or units; it is the only pack size the lot can supply.' />
         <Field name="retestDate" title="Retest date" values={v} type="date" />
         <Field name="note" title="Receiving note" values={v} multiline hint="Condition on arrival, seal integrity, discrepancies. Goes on the receipt movement." />
       </section>

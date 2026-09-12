@@ -51,9 +51,10 @@ jobs:
           npx wrangler d1 execute nexphase-labs --remote --file drizzle/seed/classes.sql
       - name: Deploy the built worker
         env:
+          NX_CONFIRM_PRODUCTION: "yes"
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy --config dist/server/wrangler.json
+        run: node scripts/deploy-guard.mjs production && npx wrangler deploy --config dist/server/wrangler.json
       - name: Smoke test
         run: |
           for i in 1 2 3 4 5 6; do

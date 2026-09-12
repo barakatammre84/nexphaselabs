@@ -7,10 +7,15 @@ export { RUO_ACKNOWLEDGEMENT, RUO_VERSION, TERMS_VERSION } from '@/lib/policy';
  * institutional-only posture in CLAUDE.md; nothing here is decided in code.
  */
 
-/** Whether consumer (non-institutional) accounts may sign up and see consumer pricing. */
-export function consumerTierEnabled(): boolean {
-  return env.CONSUMER_TIER_ENABLED === 'true';
+/**
+ * Whether researcher (non-institutional) accounts may sign up and see list pricing.
+ * Reads RESEARCHER_TIER_ENABLED; CONSUMER_TIER_ENABLED is honoured as a legacy alias.
+ */
+export function researcherTierEnabled(): boolean {
+  return env.RESEARCHER_TIER_ENABLED === 'true' || env.CONSUMER_TIER_ENABLED === 'true';
 }
+/** @deprecated use researcherTierEnabled */
+export const consumerTierEnabled = researcherTierEnabled;
 
 /** Owner-requested guest checkout. Rollout is explicit per environment. */
 export function openCheckoutEnabled(): boolean {

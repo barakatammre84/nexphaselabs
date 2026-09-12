@@ -30,7 +30,7 @@
   "vars": {
     "APP_ENV": "production",
     "PUBLIC_ORIGIN": "https://nexphaselabs.net",
-    "CONSUMER_TIER_ENABLED": "false",
+    "RESEARCHER_TIER_ENABLED": "false",
     "EMAIL_FROM": "NexPhase Labs <research@nexphaselabs.net>",
   },
   "d1_databases": [
@@ -65,7 +65,7 @@
         // Real staging origin on the account's workers.dev subdomain. Keep the STAGING_URL repository
         // variable identical; staging email links and payment return URLs are built from this.
         "PUBLIC_ORIGIN": "https://nexphaselabs-staging.ammre.workers.dev",
-        "CONSUMER_TIER_ENABLED": "false",
+        "RESEARCHER_TIER_ENABLED": "false",
         // Shippo test mode obtains real carrier test rates without buying live postage.
         // The API key and private ship-from contact are protected Worker secrets.
         "SHIPPING_PROVIDER": "shippo",

@@ -4,7 +4,7 @@ import { getCart } from '@/lib/cart';
 import { createCheckoutQuotes } from '@/lib/checkout-quotes';
 import { validateCheckout } from '@/lib/checkout-input';
 import { allow, rateLimitKey } from '@/lib/rate-limit';
-import { consumerTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
+import { researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
 import { sameOrigin } from '@/lib/staff-auth';
 import { visibilityFor } from '@/lib/visibility-rules';
 
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       verificationStatus: account.verificationStatus,
       acknowledgementsCurrent: acknowledgementsCurrent(account),
     },
-    consumerTierEnabled(),
+    researcherTierEnabled(),
     true,
   );
   try {

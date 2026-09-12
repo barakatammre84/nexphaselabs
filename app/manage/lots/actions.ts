@@ -41,6 +41,7 @@ const FIELDS = [
   'quantityReceived',
   'storageLocation',
   'storageCondition',
+  'containerSize',
   'retestDate',
   'note',
   'cost',

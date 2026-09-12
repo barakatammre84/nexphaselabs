@@ -16,14 +16,14 @@ describe('visibilityFor', () => {
     expect(visibilityFor({ ...base, acknowledgementsCurrent: false }, false)).toMatchObject({ pricing: 'none', reason: 'acknowledgement' });
   });
   it('shows consumer pricing only while the owner enables the tier', () => {
-    const c = { tier: 'consumer' as const, verificationStatus: 'none', acknowledgementsCurrent: true };
-    expect(visibilityFor(c, false)).toMatchObject({ pricing: 'none', reason: 'consumer_disabled' });
-    expect(visibilityFor(c, true)).toMatchObject({ pricing: 'consumer', availability: true });
+    const c = { tier: 'researcher' as const, verificationStatus: 'none', acknowledgementsCurrent: true };
+    expect(visibilityFor(c, false)).toMatchObject({ pricing: 'none', reason: 'researcher_tier_closed' });
+    expect(visibilityFor(c, true)).toMatchObject({ pricing: 'researcher', availability: true });
   });
   it('picks the right price column', () => {
     const v = { listPriceCents: 6000, institutionalPriceCents: 4500 };
     expect(priceFor(v, 'institutional')).toBe(4500);
-    expect(priceFor(v, 'consumer')).toBe(6000);
+    expect(priceFor(v, 'researcher')).toBe(6000);
     expect(priceFor(v, 'none')).toBeNull();
     expect(formatCents(4500)).toBe('$45.00');
     expect(formatCents(123456)).toBe('$1,234.56');

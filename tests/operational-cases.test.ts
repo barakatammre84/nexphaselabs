@@ -105,6 +105,7 @@ describe('operational case workflow', () => {
       casNumber: '50-00-0',
       receivedAt: new Date('2026-09-01'),
       status: 'released',
+      analyticalLab: 'Fixture lab', accessionNumber: 'ACC-FIXTURE', testingStandard: 'Fixture panel v1',
     });
     const recall = { ...base, type: 'recall', linkedLotNumber: 'RECALL-LOT' };
     expect((await createOperationalCase(recall, admin)).ok).toBe(false);

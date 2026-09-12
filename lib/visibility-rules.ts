@@ -5,33 +5,33 @@
  *  - Anonymous and unverified visitors see chemistry and documentation only.
  *  - A verified institutional account (organisation approved by a person)
  *    sees institutional pricing and released-lot availability.
- *  - A consumer account sees consumer pricing only while the owner has the
- *    consumer tier enabled; with the flag off it sees nothing extra.
+ *  - A researcher account sees list pricing only while the owner has the
+ *    researcher tier enabled; with the flag off it sees nothing extra.
  *  - Stale terms or acknowledgement hide everything until re-accepted.
  */
 
 export type ViewerInput = {
-  tier: 'institutional' | 'consumer';
+  tier: 'institutional' | 'researcher';
   verificationStatus: string;
   acknowledgementsCurrent: boolean;
 } | null;
 
 export type Visibility = {
   signedIn: boolean;
-  pricing: 'none' | 'consumer' | 'institutional';
+  pricing: 'none' | 'researcher' | 'institutional';
   availability: boolean;
   /** Why pricing is hidden, for the page to explain. */
   reason:
     | 'anonymous'
     | 'acknowledgement'
     | 'unverified'
-    | 'consumer_disabled'
+    | 'researcher_tier_closed'
     | null;
 };
 
 export function visibilityFor(
   viewer: ViewerInput,
-  consumerTierEnabled: boolean,
+  researcherTierEnabled: boolean,
   openCheckout = false,
 ): Visibility {
   if (openCheckout)
@@ -41,7 +41,7 @@ export function visibilityFor(
         viewer?.tier === 'institutional' &&
         viewer.verificationStatus === 'approved'
           ? 'institutional'
-          : 'consumer',
+          : 'researcher',
       availability: true,
       reason: null,
     };
@@ -76,10 +76,10 @@ export function visibilityFor(
       reason: 'unverified',
     };
   }
-  if (consumerTierEnabled)
+  if (researcherTierEnabled)
     return {
       signedIn: true,
-      pricing: 'consumer',
+      pricing: 'researcher',
       availability: true,
       reason: null,
     };
@@ -87,7 +87,7 @@ export function visibilityFor(
     signedIn: true,
     pricing: 'none',
     availability: false,
-    reason: 'consumer_disabled',
+    reason: 'researcher_tier_closed',
   };
 }
 
@@ -99,7 +99,7 @@ export function priceFor(
   pricing: Visibility['pricing'],
 ): number | null {
   if (pricing === 'institutional') return variant.institutionalPriceCents;
-  if (pricing === 'consumer') return variant.listPriceCents;
+  if (pricing === 'researcher') return variant.listPriceCents;
   return null;
 }
 

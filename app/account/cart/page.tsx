@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { RESEARCH_SETTINGS } from '@/lib/account-rules';
 import Link from 'next/link';
 import { AlertCircle, ArrowLeft, CircleCheck, Trash2 } from 'lucide-react';
 import { getBuyer } from '@/lib/buyer-session';
@@ -242,6 +243,25 @@ export default async function CartPage({ searchParams }: Props) {
                     .
                   </p>
                 )}
+                <label className="mt-5 block text-sm">
+                  <span className="font-semibold">Research setting</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    Where the material will be used. Descriptive only — it does not affect eligibility.
+                  </span>
+                  <select
+                    name="research_setting"
+                    id="research_setting"
+                    defaultValue=""
+                    className="mt-2 w-full border border-foreground/20 bg-background p-3 text-sm"
+                  >
+                    <option value="">Choose one (optional)</option>
+                    {RESEARCH_SETTINGS.map((setting) => (
+                      <option key={setting} value={setting}>
+                        {setting}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label className="mt-5 block text-sm">
                   <span className="font-semibold">Note for this order</span>
                   <textarea

@@ -136,6 +136,17 @@ export async function listPublishedProductLinks(): Promise<
     .orderBy(asc(products.sortOrder), asc(products.code));
 }
 
+/** Published product slugs with their last change, for the sitemap. Draft, withdrawn and enquire-only products are excluded. */
+export async function listPublishedProductsForSitemap(): Promise<
+  { slug: string; updatedAt: Date | null }[]
+> {
+  return getDb()
+    .select({ slug: products.slug, updatedAt: products.updatedAt })
+    .from(products)
+    .where(eq(products.visibility, 'published'))
+    .orderBy(asc(products.sortOrder), asc(products.code));
+}
+
 export type CatalogLoad<T> = { data: T; unavailable: false } | { data: null; unavailable: true };
 
 /**

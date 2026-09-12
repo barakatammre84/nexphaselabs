@@ -17,6 +17,7 @@ import {
   TERMS_VERSION,
   GUEST_CHECKOUT_TERMS_VERSION,
 } from '@/lib/policy';
+import { buildOrderAttestation } from '@/lib/attestation';
 import {
   btcpayCheckoutUrl,
   getPaymentMethod,
@@ -141,6 +142,10 @@ export async function createOrderFromCart(
   submissionToken: string,
   contactEmail: string | null = null,
   checkoutQuoteId: string | null = null,
+  evidence: { from: string | null; researchSetting: string | null } = {
+    from: null,
+    researchSetting: null,
+  },
 ): Promise<CreateOrderResult> {
   if (visibility.pricing === 'none')
     return {
@@ -257,6 +262,13 @@ export async function createOrderFromCart(
   if (allocation && !allocation.ok) return allocation;
   const plan = allocation?.ok ? allocation.plan : null;
 
+  const attestation = await buildOrderAttestation({
+    guest: openCheckoutEnabled() && !organizationId,
+    now,
+    from: evidence.from,
+    researchSetting: evidence.researchSetting,
+  });
+
   for (let attempt = 0; attempt < 3; attempt++) {
     const orderNumber = await nextOrderNumber(now);
     try {
@@ -294,6 +306,12 @@ export async function createOrderFromCart(
             shipToCountry: shipTo.country,
             shipToPhone: shipTo.phone,
             customerNote,
+            ruoVersion: attestation.ruoVersion,
+            termsVersion: attestation.termsVersion,
+            acknowledgementHash: attestation.acknowledgementHash,
+            acknowledgedAt: attestation.acknowledgedAt,
+            acknowledgedFrom: attestation.acknowledgedFrom,
+            researchSetting: attestation.researchSetting,
             submittedAt: now,
             createdAt: now,
             updatedAt: now,

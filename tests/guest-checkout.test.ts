@@ -123,6 +123,7 @@ beforeEach(async () => {
       productName: 'Synthetic',
       casNumber: '50-00-0',
       status: 'released',
+      analyticalLab: 'Fixture lab', accessionNumber: 'ACC-FIXTURE', testingStandard: 'Fixture panel v1',
       receivedAt: new Date(),
       quantityReceived: '20 mg',
       quantityRemaining: '20 mg',

@@ -212,6 +212,33 @@ export default async function OrderPage({ params, searchParams }: Props) {
                     </>
                   ) : null}
                 </p>
+                {it.coaDocumentId || it.sdsDocumentId ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Documents as shipped:{' '}
+                    {it.coaDocumentId ? (
+                      <a
+                        href={`/api/orders/${encodeURIComponent(order.orderNumber)}/items/${encodeURIComponent(it.id)}/documents/coa`}
+                        className="font-semibold text-primary"
+                      >
+                        Certificate of analysis
+                      </a>
+                    ) : null}
+                    {it.coaDocumentId && it.sdsDocumentId ? ' · ' : null}
+                    {it.sdsDocumentId ? (
+                      <a
+                        href={`/api/orders/${encodeURIComponent(order.orderNumber)}/items/${encodeURIComponent(it.id)}/documents/sds`}
+                        className="font-semibold text-primary"
+                      >
+                        Safety data sheet
+                      </a>
+                    ) : null}
+                    {it.coaSha256 ? (
+                      <span className="block font-mono text-[10px] text-muted-foreground/80">
+                        COA SHA-256 {it.coaSha256.slice(0, 16)}… — the copy served here is the one recorded at dispatch, even if the lot record is later updated.
+                      </span>
+                    ) : null}
+                  </p>
+                ) : null}
               </div>
               <span className="font-mono text-xs">
                 {it.quantity} × {formatCents(it.unitPriceCents)}

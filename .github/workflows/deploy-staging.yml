@@ -63,6 +63,8 @@ jobs:
         run: |
           npm run db:seed:generate
           npx wrangler d1 execute nexphase-labs-staging --remote --env staging --file drizzle/seed/classes.sql
+      - name: Deploy guard (built config must target staging)
+        run: node scripts/deploy-guard.mjs staging
       - name: Deploy the built worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
