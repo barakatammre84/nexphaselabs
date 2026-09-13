@@ -8,6 +8,13 @@ diffed when the artifact changes.
 This file is the working copy. The artifact is the owner's view; this is the engineering record
 that says what was actually done, where the evidence is, and what is still waiting on a person.
 
+Chapter 16 is one of eighteen. The parent — NexPhase Launch Register, artifact
+`997fc7b6-a540-4deb-88d0-abc3ddcff2be`, Rev. 7 — holds the client-journey chapters (01 Discovery …
+10 Customer record), the operating registers (11 Cutover, 12 Product posture, 13 Inventory,
+14 Governance, 15 Quality system, **16 Release engineering**, 17 Finance) and 18 Launch handover,
+with roughly 330 open items in total. Read the parent's **Corrections** section before trusting any
+number quoted in a chapter: one of them lands directly on this one (see #11).
+
 ## How this register is kept
 
 - **One item at a time.** An item is not left half-done to start the next one.
@@ -33,7 +40,7 @@ Status values: `done` · `built, unproven` · `in progress` · `owner action` ·
 | 8 | `c16-witness` | Witness the recovery result and record business acceptance | Melissa + Wisam | blocks order #1 | owner action |
 | 9 | `c16-controls` | Seed the thirty launch-critical controls with owners and due dates | Ammre | blocks order #1 | **built** · one screen, needs the admin to apply it |
 | 10 | `c16-evidence` | Attach evidence and record approval for each launch-critical control | Melissa + Wisam | blocks order #1 | owner action |
-| 11 | `c16-1102` | Fix the cold-asset waterfall | Ammre | blocks order #1 | **largely done** · re-measure on staging |
+| 11 | `c16-1102` | Fix the cold-asset waterfall | Ammre | ~~blocks order #1~~ · downgraded by Correction 5 | **prefetch pile-up fixed** · chunk count is a modest optimisation |
 | 12 | `c16-plan` | Confirm the Cloudflare Workers plan and read the persisted logs | Ammre | first month | owner action |
 | 13 | `c16-man002` | Write deploy, rollback and restore into MAN-002 as exact commands | Ammre | blocks order #1 | **done** |
 | 14 | `c16-creds` | Record where every credential lives and who can obtain it | Ammre | blocks order #1 | **done** |
@@ -332,6 +339,20 @@ Proven on the running staging build:
 148 requests per page, 36 chunks of ~19KB each stalling 21–23s, 78s to interactive on a cold load.
 Precondition for the cutover.
 
+> **The 78 seconds were withdrawn.** The parent register's Correction 5 retracts this item's headline
+> number: measured again with `curl` from a second vantage, the document arrives in 2.2s cold and
+> 1.2s warm, and all 36 chunks complete concurrently in 2.07s wall time. The stall was the networking
+> path of the browser pane it was first measured in, not the site. What still stands there: the
+> 11 September 1102 errors are Worker CPU and the plan should be confirmed (#12), a 1–2s server
+> render on product pages is worth trimming, and 36 chunks is a modest optimisation rather than a
+> blocker. So this item is no longer a cutover precondition.
+>
+> The work below was done before that correction was read, and it stands on its own evidence: the
+> eleven RSC prefetch renders are a separate finding, measured from the worker's own request log
+> rather than from a browser's timings, and each one is server CPU on the Worker — which is the
+> thing Correction 5 says *is* real. Treat the request-count improvements as verified and the
+> "78s → x" framing as withdrawn.
+
 **12 September 2026 — measured, and the largest cause was not the chunks.**
 
 Loading the built production worker and reading the network log showed what a cold homepage actually
@@ -375,9 +396,10 @@ group set in `vite.config.ts` is ignored. That was tested, not assumed: with a g
 left in as configuration that does nothing. Reducing the count further means reducing the number of
 distinct `'use client'` components and lucide icons on a page, or a framework change.
 
-**Still to do:** re-measure on the deployed staging worker once the gate secret is set, with a cold
-isolate, and record the number beside the 78s that started this item. Local timings cannot stand in
-for a cold edge load.
+**Still to do:** re-measure on the deployed staging worker once the gate secret is set — from two
+vantages, per the rule the parent register adopted after Correction 5: no performance finding enters
+the register from a single vantage. What to look for is Worker CPU per page, not wall-clock in a
+browser pane.
 
 ### 12. `c16-plan` — Cloudflare plan and persisted logs
 
@@ -467,6 +489,10 @@ shared login, and record them in the credential file with the date.
 
 ## Change log
 
+- **2026-09-12 (parent register read)** — Pulled the parent (artifact `997fc7b6…`, Rev. 7) and
+  applied its Correction 5 to #11: the 78-second cold load was an artifact of the measuring tool and
+  is withdrawn, so #11 is no longer a cutover precondition. The eleven-prefetch finding recorded
+  below is independent of it and stands. Chapter index added at the top of this file.
 - **2026-09-12 (later)** — Worked the register in order. Closed `c16-guard`, `c16-tagonly`,
   `c16-noindex`, `c16-man002`, `c16-creds`, and the new `c16-new-1`. Closed `c16-protect` in code
   (the gate had been failing open, which is why staging was browsable) and `c16-1102` apart from a
