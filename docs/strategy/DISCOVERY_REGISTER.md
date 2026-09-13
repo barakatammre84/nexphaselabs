@@ -31,7 +31,7 @@ Found during this pass:
 
 | # | id | Item | Owner | When | Status |
 |---|----|------|-------|------|--------|
-| — | — | — | — | — | — |
+| 15 | `c1-new-1` | The redirect map sent `/about`, `/faq` and `/contact` to themselves — an infinite loop on three pages that exist today | Ammre | blocks order #1 | **fixed** |
 
 ## Item detail
 
@@ -159,8 +159,26 @@ would leave the old URLs indexed indefinitely — the exact opposite of the inte
 number, product code and product name, case-insensitively, and `tests/lot-search.test.ts` covers it.
 Shipped with the lot provenance search; nothing to build.
 
+### 15. `c1-new-1` — three redirects that pointed at themselves
+
+**Found 13 September 2026** by `npm run cutover:verify` on its first real run against the built
+worker: `/faq` answered 301 instead of 200.
+
+The map sent `/about/`, `/faq/` and `/contact/` to `/about`, `/faq` and `/contact` — but it
+normalises the trailing slash *before* looking a path up, so it matched the new site's own pages as
+well and redirected each to itself, forever. The unit tests asserted the old URLs redirected
+correctly and never asked what the new URLs did.
+
+Fixed by removing the three entries: those pages live at the same address on both sites, so the
+framework's own trailing-slash 308 handles the old URL in one hop and no entry is needed.
+`legacyDecision()` now also refuses to return a redirect whose target equals its source, so the loop
+cannot be reintroduced by a future edit, and tests cover both. Recorded in full in
+[CUTOVER_REGISTER.md](CUTOVER_REGISTER.md) as `c11-new-1`.
+
 ## Change log
 
+- **2026-09-13** — `c1-new-1` found and fixed: three entries in the redirect map pointed at
+  themselves. Found by the cutover verifier built for chapter 11, not by the unit tests.
 - **2026-09-12 (worked)** — Closed `c1-redirects`, `c1-410`, `c1-robots`, and verified
   `c1-sitemap`, `c1-lotpages` and `c1-accession` with tests rather than assumption. The cutover no
   longer 404s a single indexed URL. What remains in this chapter is Search Console (`c1-gsc`,

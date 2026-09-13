@@ -35,8 +35,12 @@ describe('the indexed URL list', () => {
   });
 
   it('decides every indexed path — nothing is left to 404', () => {
+    // Paths the new build serves at the same address need no decision: the old
+    // URL differs only by a trailing slash and the framework normalises it.
+    const servedAtTheSameAddress = ['/about/', '/faq/', '/contact/'];
     const undecided = INDEXED.filter((path) => {
       if (path === '/') return false; // the home page still exists
+      if (servedAtTheSameAddress.includes(path)) return false;
       if (path.startsWith('/product/')) return false; // decided against the catalog
       return decisionFor(path) === null;
     });
@@ -50,11 +54,8 @@ describe('301 targets', () => {
       entry[1]?.status === 301,
   );
 
-  it('sends the pages that have an equivalent to that equivalent', () => {
+  it('sends the pages whose address changed to the new address', () => {
     expect(Object.fromEntries(redirects.map(([from, to]) => [from, to.location]))).toEqual({
-      '/about/': '/about',
-      '/faq/': '/faq',
-      '/contact/': '/contact',
       '/shop/': '/catalog',
       '/privacy-policy/': '/legal/privacy',
       '/shipping-policy/': '/legal/shipping',
@@ -69,6 +70,20 @@ describe('301 targets', () => {
   it('never redirects to the homepage — a search engine reads that as a soft 404', () => {
     for (const [from, to] of redirects) {
       expect(to.location, `${from} must not land on the homepage`).not.toBe('/');
+    }
+  });
+
+  it('never sends a path to itself', () => {
+    // /about/, /faq/ and /contact/ exist on both sites. An entry for them would
+    // match the NEW page too and redirect it to itself forever; the framework's
+    // own trailing-slash 308 handles the old URLs in one hop instead.
+    for (const path of legacyPaths()) {
+      const decision = legacyDecision(path);
+      if (decision?.status === 301) expect(decision.location, path).not.toBe(path);
+    }
+    for (const path of ['/about', '/faq', '/contact']) {
+      expect(legacyDecision(path), path).toBeNull();
+      expect(legacyDecision(`${path}/`), `${path}/`).toBeNull();
     }
   });
 
@@ -127,6 +142,9 @@ describe('what the map must not touch', () => {
   it('leaves the new site alone', () => {
     for (const path of [
       '/',
+      '/about',
+      '/faq',
+      '/contact',
       '/catalog',
       '/catalog/bpc-157',
       '/documentation/lot-lookup',

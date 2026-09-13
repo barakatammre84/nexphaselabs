@@ -19,6 +19,7 @@ import {
   checkoutQuotesRequired,
 } from '@/lib/checkout-quotes';
 import { taxConfiguration } from '@/lib/tax-provider';
+import { paymentRailStatus } from '@/lib/payments';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -262,6 +263,34 @@ export default async function ReadinessPage() {
           </ul>
         )}
       </section>
+      <section className="mt-10 border-t border-border pt-6">
+        <h2 className="text-2xl font-bold">Payment rails</h2>
+        <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+          Which rails a customer can actually choose in this environment. Configuration only —
+          a live rail is not evidence of settlement, and no secret value is shown here.
+        </p>
+        <ul className="mt-4 divide-y divide-border border-y border-border">
+          {paymentRailStatus().map((rail) => (
+            <li key={rail.id} className="flex flex-wrap items-baseline gap-3 py-3 text-sm">
+              <span
+                className={`border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                  rail.live ? 'border-border' : 'border-destructive/40 text-destructive'
+                }`}
+              >
+                {rail.live ? 'live' : 'off'}
+              </span>
+              <span className="font-semibold">{rail.label}</span>
+              {rail.missing.length > 0 && (
+                <span className="text-muted-foreground">
+                  waiting on {rail.missing.join(', ')}
+                </span>
+              )}
+              {rail.note && <span className="w-full text-xs text-muted-foreground">{rail.note}</span>}
+            </li>
+          ))}
+        </ul>
+      </section>
+
       <section className="mt-10 border-t border-border pt-6">
         <h2 className="text-2xl font-bold">
           Still requires operational evidence

@@ -1,5 +1,37 @@
 # nexphaselabs.net — DNS zone snapshot and migration sheet
 
+> ## Superseded in part — verified live 13 September 2026
+>
+> The zone below is the 3 September snapshot. It is kept because it records what
+> the old zone held, but **the zone has since been changed and most of the mail
+> section no longer describes reality.** Verified from three public resolvers
+> (1.1.1.1, 8.8.8.8, 9.9.9.9) with `node scripts/dns-verify.mjs`:
+>
+> | | 3 Sep snapshot | Live, 13 Sep |
+> |---|---|---|
+> | Nameservers | `dns1/dns2.namecheaphosting.com` | **`dns1/dns2.registrar-servers.com`** |
+> | MX | `mx1/mx2.privateemail.com`, priority 10 | **`smtp.google.com`, priority 1** — mail is Google Workspace now |
+> | SPF | `v=spf1 include:spf.privateemail.com` | **absent** |
+> | DMARC | `v=DMARC1; p=none; rua=…brevo…` | **absent (NXDOMAIN)** |
+> | DKIM | `brevo1`/`brevo2` CNAMEs, `default` TXT | **no selector resolves** — none of `google`, `default`, `selector1`, `selector2`, `brevo1`, `brevo2` |
+> | A `@` | `162.254.39.126` | unchanged — still the WordPress store |
+> | Apex TXT | SPF + brevo-code | only `google-site-verification=…` |
+>
+> **So the Brevo and privateemail rows below must not be recreated.** Mail moved
+> to Google Workspace and the authentication records were lost with the old zone.
+> What to add now — SPF, a Workspace-generated DKIM key, and DMARC — is printed
+> by the verifier, and is in `docs/CUTOVER.md` and chapter 7 of the launch
+> register. Run it before and after any DNS change:
+>
+> ```bash
+> node scripts/dns-verify.mjs
+> ```
+>
+> This is additive and independent of the cutover: adding these records cannot
+> break anything that works today, and nothing downstream — order confirmations,
+> email verification, password resets, recall notices — can be tested until it is
+> done.
+
 Captured 3 September 2026 directly from the authoritative nameservers
 (dns1/dns2.namecheaphosting.com = 156.154.132.200 / 156.154.133.200).
 

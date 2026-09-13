@@ -1,0 +1,208 @@
+NexPhase Cutover Register 
+
+ ← NexPhase Launch Register 
+
+ Operating register 11 · taking WordPress dark and moving the domain
+
+ NexPhase Cutover Register
+
+ Nine hub items and one irreversible step. The "78-second cold load" that revision 1 made a
+ precondition was a measurement artifact and is withdrawn in §11.4 (hub Correction 5). What decides
+ the date now is the sequence itself and the email records that do not yet exist. This sequence has to be
+ run in order, and one step in it cannot be undone.
+
+ built decision open gap or defect 
+
+ 11.1 The sequence 11.2 The export 11.3 What breaks 11.4 Cold cache (withdrawn) 11.5 Rollback Checklist 
+
+ 11.1 The sequence, and where it stops being reversible
+ order matters 
+
+ docs/CUTOVER.md has the mechanics. What it does not carry is the ordering
+ against everything else in this register, which is what actually determines whether the day goes well.
+
+ # Step Reversible? 
+
+ 0 Export WordPress customers, orders and payment history (11.2) the data is gone if skipped 
+
+ 1 Confirm the Workers plan and read the 11 Sep 1102 logs (11.4, hub F-08) yes 
+
+ 2 Add the DNS mail records — additive, independent, do it today (Ch 7) yes 
+
+ 3 Ship the sitemap and the redirect map (Ch 1) yes 
+
+ 4 Clear the synthetic lot data and protect staging (Ch 4) yes 
+
+ 5 Tell existing WordPress account holders cannot un-send 
+
+ 6 Point the domain at the worker one DNS record back 
+
+ 7 Decide the old store's fate and cancel hosting final 
+
+ The ordering rule
+
+ Everything reversible happens before anything irreversible, and the export happens before all of it.
+ Step 7 should sit weeks after step 6, not hours — the WordPress host running untouched is the entire
+ rollback plan.
+
+ 11.2 The export that cannot be undone
+ do first 
+
+ The new application and the old store share only a domain name. No data moves between
+ them. When the hosting is cancelled, whatever was in WordPress is gone.
+
+ What to export before anything else
+
+ Customers — including anyone who registered but never ordered.
+
+ Orders and their line items, whatever the store shows.
+
+ Payment records from SureCart, including any partial or abandoned transactions.
+
+ Products, so the withdrawn ones are documented as having existed.
+
+ The full page and post content, in case a redirect decision needs reversing.
+
+ The media library.
+
+ Keep it somewhere durable in the company's name and record what was exported and when. If anyone
+ ever asks what was sold before launch — a regulator, an insurer, an acquirer — this export is the
+ only answer that will exist.
+
+ 11.3 What breaks the moment the domain moves
+ plan for it 
+
+ Four things, all foreseeable
+
+ Every indexed URL. Handled by the redirect map in Chapter 1 — 301 where an equivalent exists, 410 where the thing is genuinely gone.
+
+ Existing logins. Anyone with a WordPress account cannot get in, and there is no migration path. They need telling before, with a plain explanation and a route to their order history.
+
+ Selling stops. Accepted deliberately: no rail is configured, so the site becomes a catalogue until Chapter 6 lands. Worth turning on bank transfer and BTCPay first so it is not literally zero.
+
+ Search ranking. The old title targets a query the new site deliberately abandons. Record it as an accepted consequence so nobody treats it as a fault in three weeks.
+
+ 11.4 The cold-cache precondition is withdrawn
+ corrected 12 Sep · Correction 5 
+
+ Revision 1 of this chapter said a cold page load took 78 seconds and made fixing it a
+ precondition for the cutover. That number was produced by the measuring tool, not by the site.
+
+ What the second vantage showed
+
+ Measured again with curl from a different machine: the document arrives in
+ 2.2 s cold and 1.2 s warm , and all 36 JavaScript chunks fetched concurrently and
+ cache-busted complete in 2.07 s (slowest 1.3 s, median 1.0 s). Assets are
+ served by Workers Assets with edge cache hits and a one-year immutable cache. The 21–23 s per-chunk
+ stalls reproduced only inside the browser pane the first measurement was taken in.
+
+ What still applies to the cutover
+
+ A new domain is still a cold edge cache, so the first visitor to each page pays the 2 s render once.
+ That is ordinary. Warming the top twenty paths right after the switch is cheap and worth doing, and the
+ 11 September 1102 errors (Worker CPU, see hub F-08) should be understood and the Workers plan
+ confirmed before the date is set. Neither holds the cutover.
+
+ Rule carried into every later chapter: no timing measured from a single vantage goes into a register.
+
+ 11.5 Rollback, and how to know you need it
+ prepare 
+
+ The plan is one DNS record
+
+ Point the root back at the WordPress host. That works only while the host is still running and
+ unchanged, which is why step 7 sits weeks after step 6.
+
+ Decide the triggers before the day, not during it
+
+ What page-load time is unacceptable, and who is watching it?
+
+ What error rate triggers a rollback rather than a fix-forward?
+
+ Who can make the call, at what hour, without waiting for anyone else? This is technical launch readiness — Ammre's veto — not a member decision.
+
+ Mail is the thing to watch in the first hour: send from each mailbox to an outside address and back.
+
+ 11.0 What this chapter adds to the register
+
+ Twelve items. Read 11.4 before scheduling a date — it is a precondition nobody had identified.
+
+ Signing as 
+ choose your name Melissa Wisam Fatima Ammre 
+
+ 0 of 12 complete
+
+ Export WordPress customers, orders, payments, products, content and media
+ Before anything else. The data does not move to the new system and is gone when hosting is cancelled. 11.2
+ blocks order #1 c11-export 
+
+ Ammre 
+
+ Record what was exported, when, and where it is stored
+ In the company's name. If anyone asks what was sold before launch, this is the only answer that will exist. 11.2
+ blocks order #1 c11-exportrec 
+
+ Ammre 
+
+ Understand the 11 Sep 1102 errors and confirm the Workers plan before setting a date
+ The 78-second cold-load precondition was withdrawn on 12 Sep (hub Correction 5): curl from a second machine fetched the document in 2.2 s cold and all 36 chunks in 2.07 s. The 1102 resource-limit errors are Worker CPU and still need to be understood. 11.4
+ first month c11-cold 
+
+ Ammre 
+
+ Warm the top twenty paths right after the switch and measure from two vantages
+ Cheap and worth doing; not a fix for anything and not a precondition. Never record a timing from a single browser pane. 11.4
+ first month c11-coldmeasure 
+
+ Ammre 
+
+ Add the DNS mail records first — they are additive and independent
+ SPF, DKIM, DMARC. Nothing downstream can be tested until mail authenticates. Chapter 7. 11.1
+ blocks order #1 c11-dns 
+
+ Ammre 
+
+ Tell existing WordPress account holders before the switch
+ Their logins stop working and there is no migration path. Plain explanation plus a route to their order history. 11.3
+ blocks order #1 c11-tell 
+
+ Fatima 
+
+ Turn on bank transfer and BTCPay before the domain moves
+ So the site is a catalogue people can actually buy from rather than literally zero. 11.3
+ blocks order #1 c11-rails 
+
+ Ammre 
+
+ Point the domain at the worker as a Workers custom domain
+ Reversible by editing one DNS record — but only while the WordPress host is still running. 11.1
+ blocks order #1 c11-domain 
+
+ Ammre 
+
+ Keep the WordPress host running and unchanged for weeks after the switch
+ It is the entire rollback plan. Step 7 sits weeks after step 6, not hours. 11.5
+ blocks order #1 c11-keephost 
+
+ Ammre 
+
+ Write the rollback triggers before the day
+ What load time and error rate trigger a rollback, who calls it, at what hour. Technical launch readiness is his veto, not a member decision. 11.5
+ blocks order #1 c11-triggers 
+
+ Ammre 
+
+ Watch mail for the first hour after the nameserver switch
+ Send from each mailbox to an outside address and back. 11.5
+ blocks order #1 c11-mailwatch 
+
+ Ammre 
+
+ Decide the old store's fate and the retention period
+ After the export, weeks after the domain moves. Cancelling hosting is the final irreversible step. 11.1
+ first month c11-decom 
+
+ Melissa + Wisam 
+
+ Chapter 11 · NexPhase Launch Register · updated 12 September 2026 
+ Not legal, tax or regulatory advice.

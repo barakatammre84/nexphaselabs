@@ -3,7 +3,7 @@ import { emailRecipientAllowed, livePaymentsAllowed } from '@/lib/environment-sa
 
 const { env } = vi.hoisted(() => ({ env: {} as Record<string, string> }));
 vi.mock('cloudflare:workers', () => ({ env }));
-import { availablePaymentMethods, btcpayCheckoutUrl, invalidateBtcpayInvoice } from '@/lib/payments';
+import { availablePaymentMethods, btcpayCheckoutUrl, invalidateBtcpayInvoice, paymentRailStatus } from '@/lib/payments';
 import { sendEmail } from '@/lib/email';
 import robots from '@/app/robots';
 import type { Order } from '@/db/schema';
@@ -65,5 +65,61 @@ describe('environment safety', () => {
     expect(rule.disallow).toEqual(
       expect.arrayContaining(['/manage', '/staff', '/api', '/account']),
     );
+  });
+});
+
+describe('which payment rails are live', () => {
+  it('reports every rail off outside production, whatever is configured', () => {
+    Object.assign(env, {
+      APP_ENV: 'staging',
+      PAYMENT_BANK_INSTRUCTIONS: 'LIVE BANK DETAILS',
+      BTCPAY_HOST: 'https://pay.example.org',
+      BTCPAY_STORE_ID: 'store',
+      BTCPAY_API_KEY: 'key',
+      BTCPAY_WEBHOOK_SECRET: 'secret',
+    });
+    const rails = paymentRailStatus();
+    expect(rails.find((rail) => rail.id === 'bank_transfer')!.live).toBe(false);
+    expect(rails.find((rail) => rail.id === 'btcpay')!.live).toBe(false);
+    expect(rails.find((rail) => rail.id === 'bank_transfer')!.note).toContain('APP_ENV=staging');
+  });
+
+  it('names what each rail is still waiting for, without printing any of it', () => {
+    Object.assign(env, { APP_ENV: 'production', BTCPAY_HOST: 'https://pay.example.org' });
+    const rails = paymentRailStatus();
+    expect(rails.find((rail) => rail.id === 'bank_transfer')!.missing).toEqual([
+      'PAYMENT_BANK_INSTRUCTIONS',
+    ]);
+    expect(rails.find((rail) => rail.id === 'btcpay')!.missing).toEqual([
+      'BTCPAY_STORE_ID',
+      'BTCPAY_API_KEY',
+      'BTCPAY_WEBHOOK_SECRET',
+    ]);
+    expect(JSON.stringify(rails)).not.toContain('pay.example.org');
+  });
+
+  it('turns a rail on when production has everything it needs', () => {
+    Object.assign(env, {
+      APP_ENV: 'production',
+      PAYMENT_BANK_INSTRUCTIONS: 'Bank: Example\nAccount: 123',
+      BTCPAY_HOST: 'https://pay.example.org',
+      BTCPAY_STORE_ID: 'store',
+      BTCPAY_API_KEY: 'key',
+      BTCPAY_WEBHOOK_SECRET: 'secret',
+    });
+    const rails = paymentRailStatus();
+    expect(rails.filter((rail) => rail.live).map((rail) => rail.id)).toEqual([
+      'bank_transfer',
+      'btcpay',
+      'invoice',
+    ]);
+    expect(JSON.stringify(rails)).not.toContain('Account: 123');
+  });
+
+  it('always leaves the invoice fallback available, so an order is never stranded', () => {
+    Object.assign(env, { APP_ENV: 'production' });
+    const invoice = paymentRailStatus().find((rail) => rail.id === 'invoice')!;
+    expect(invoice.live).toBe(true);
+    expect(invoice.note).toContain('records the payment by hand');
   });
 });

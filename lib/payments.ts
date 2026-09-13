@@ -227,6 +227,56 @@ export function getPaymentMethod(id: string): PaymentMethod | null {
   return availablePaymentMethods().find((m) => m.id === id) ?? null;
 }
 
+/**
+ * Which rails are live in this environment, and what each one is still waiting
+ * for (chapter 11 c11-rails: "turn on bank transfer and BTCPay before the domain
+ * moves, so the site is a catalogue people can actually buy from rather than
+ * literally zero").
+ *
+ * Reports presence only. No secret value is ever read into the result, so this
+ * is safe to render on a staff screen.
+ */
+export type PaymentRailStatus = {
+  id: PaymentMethodId;
+  label: string;
+  live: boolean;
+  missing: string[];
+  note?: string;
+};
+
+export function paymentRailStatus(): PaymentRailStatus[] {
+  const set = (name: keyof Cloudflare.Env) => Boolean(String(env[name] ?? '').trim());
+  const production = livePaymentsAllowed(env.APP_ENV);
+  const environmentNote = production
+    ? undefined
+    : `Not production (APP_ENV=${env.APP_ENV ?? 'unset'}), so every rail stays simulated whatever is configured.`;
+  return [
+    {
+      id: 'bank_transfer',
+      label: bankTransfer.label,
+      live: bankTransfer.enabled(),
+      missing: set('PAYMENT_BANK_INSTRUCTIONS') ? [] : ['PAYMENT_BANK_INSTRUCTIONS'],
+      note: environmentNote,
+    },
+    {
+      id: 'btcpay',
+      label: btcpay.label,
+      live: btcpay.enabled(),
+      missing: (['BTCPAY_HOST', 'BTCPAY_STORE_ID', 'BTCPAY_API_KEY', 'BTCPAY_WEBHOOK_SECRET'] as const).filter(
+        (name) => !set(name),
+      ),
+      note: environmentNote,
+    },
+    {
+      id: 'invoice',
+      label: invoice.label,
+      live: true,
+      missing: [],
+      note: 'Always available. An order still reaches awaiting-payment and a staff member records the payment by hand.',
+    },
+  ];
+}
+
 export async function lookupBtcpayInvoice(reference: string, order: Order, attemptId: string): Promise<boolean> {
   if (!btcpay.enabled() || !/^[A-Za-z0-9]{6,64}$/.test(reference)) return false;
   const host = String(env.BTCPAY_HOST).replace(/\/$/, '');

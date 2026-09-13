@@ -25,12 +25,17 @@ export type LegacyDecision =
   | { status: 301; location: string }
   | { status: 410 };
 
-/** Exact paths, normalised: lower-case, no trailing slash. */
+/**
+ * Exact paths, normalised: lower-case, no trailing slash.
+ *
+ * `/about/`, `/faq/` and `/contact/` are deliberately absent. The new build has
+ * pages at those same paths, so a map entry would match the new page as well as
+ * the old URL and redirect it to itself forever. The old URLs differ only by a
+ * trailing slash, and the framework already answers that with its own 308 —
+ * one hop, no entry needed. An identity redirect is a loop, not a redirect.
+ */
 const EXACT: Record<string, LegacyDecision> = {
-  // Pages with a direct equivalent in the new build.
-  '/about': { status: 301, location: '/about' },
-  '/faq': { status: 301, location: '/faq' },
-  '/contact': { status: 301, location: '/contact' },
+  // Pages whose address changed.
   '/shop': { status: 301, location: '/catalog' },
   '/privacy-policy': { status: 301, location: '/legal/privacy' },
   '/shipping-policy': { status: 301, location: '/legal/shipping' },
@@ -93,7 +98,9 @@ export function legacyDecision(pathname: string): LegacyDecision | null {
   if (path === '/') return null;
   if (path.startsWith(PRODUCT_PREFIX)) return null; // decided against the catalog
   const exact = EXACT[path];
-  if (exact) return exact;
+  // Belt and braces for the rule above: a path is never sent to itself, whatever
+  // a future edit puts in the map.
+  if (exact) return exact.status === 301 && exact.location === path ? null : exact;
   for (const { prefix, decide } of PREFIXES) {
     if (path.startsWith(prefix)) return decide(path.slice(prefix.length));
   }
