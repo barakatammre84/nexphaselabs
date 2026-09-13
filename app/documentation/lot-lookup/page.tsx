@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import { LotLookup } from '@/components/site/lot-lookup';
+import { LotLibrary } from '@/components/site/lot-library';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
+import { loadCatalog } from '@/lib/catalog-data';
+import { releasedLotsByProduct } from '@/lib/lots-public';
 
 export const metadata: Metadata = {
   title: 'Lot lookup',
@@ -8,7 +11,11 @@ export const metadata: Metadata = {
     'Search released NexPhase Labs lots by lot number, accession number, or material and retrieve their analytical documentation.',
 };
 
-export default function LotLookupPage() {
+export const dynamic = 'force-dynamic';
+
+export default async function LotLookupPage() {
+  // A database that is briefly unavailable costs the browse list, not the page.
+  const library = (await loadCatalog(releasedLotsByProduct)).data ?? [];
   return (
     <main className="text-foreground">
       <section className="mx-auto max-w-[1280px] px-4 pb-8 pt-3 sm:px-6">
@@ -32,6 +39,17 @@ export default function LotLookupPage() {
       <section className="mx-auto max-w-[1080px] px-4 py-12 sm:px-6">
         <div className="ion-panel p-7 sm:p-10">
           <LotLookup />
+        </div>
+
+        <div className="ion-panel mt-6 p-7 sm:p-10">
+          <span className="ion-kicker">Certificate library</span>
+          <h2 className="ion-heading mt-4 text-3xl">Browse released lots by material.</h2>
+          <p className="mt-4 max-w-2xl leading-7 text-muted-foreground">
+            Every lot released for sale, with the laboratory that tested it and that
+            laboratory&apos;s accession number. Open one to read the certificate that was issued
+            for it.
+          </p>
+          <LotLibrary products={library} />
         </div>
       </section>
 

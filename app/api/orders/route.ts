@@ -1,5 +1,6 @@
 import { getBuyerFromRequest } from '@/lib/buyer-session';
 import { rememberOrderAddress } from '@/lib/account-addresses';
+import { requestContactVerification } from '@/lib/order-contact-verification';
 import { acknowledgementsCurrent } from '@/lib/account-rules';
 import { createOrderFromCart, shipToFromOrganization } from '@/lib/orders';
 import { getOrganizationForAccount } from '@/lib/organizations';
@@ -68,9 +69,20 @@ export async function POST(request: Request) {
         },
       );
       if (!result.ok) return back(result.error);
-      // Only after the order is accepted, and only when asked: a saved address
-      // must never be a side effect of an attempt that failed. Guests have no
-      // account to save against, so this is a no-op for them.
+      // Both of these happen only after the order is accepted, never as a side
+      // effect of an attempt that failed.
+      //
+      // The verification request is a recall requirement (chapter 10 §10.6), not
+      // a gate: the order is already placed, nothing waits on the customer
+      // clicking, and a guest is asked exactly like anyone else.
+      if (result.orderId) {
+        try {
+          await requestContactVerification(result.orderId);
+        } catch (error) {
+          console.error('[orders] verification not requested', error instanceof Error ? error.message : error);
+        }
+      }
+      // A saved address needs an account to save against; guests have none.
       if (form.get('save_address') === 'on' && account.status !== 'guest') {
         try {
           await rememberOrderAddress(

@@ -20,6 +20,7 @@ import {
 import { pickableLots, type PickableLot } from '@/lib/fulfilment';
 import { orderNextStep } from '@/lib/workflow-display';
 import { getOrderByNumber } from '@/lib/orders';
+import { contactVerification } from '@/lib/order-contact-verification';
 import { previewInvoice } from '@/lib/invoice';
 import { previewPackingSlip } from '@/lib/packing-slip';
 import { documentHistory } from '@/lib/issued-documents';
@@ -36,7 +37,7 @@ import {
 import { shippingOriginOptions } from '@/lib/shipping-provider';
 import { assignableStaff } from '@/lib/operational-controls';
 import { OrderHandoffForm } from '@/components/manage/order-handoff-form';
-import { handoffOrderAction } from '../actions';
+import { handoffOrderAction, resendContactVerificationAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -110,7 +111,10 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
   const detail = await getOrderByNumber(number);
   if (!detail) notFound();
   const { order, items, events } = detail;
-  const allocation = await reservationEligibility(order.id);
+  const [allocation, verification] = await Promise.all([
+    reservationEligibility(order.id),
+    contactVerification(order.id),
+  ]);
   const checkoutParcel = checkoutParcelForPacks(
     items.reduce((total, item) => total + item.quantity, 0),
   );
@@ -377,6 +381,42 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
               <Row label="Phone" value={order.shipToPhone} />
               <Row label="Customer note" value={order.customerNote} />
             </dl>
+
+            {/* Reachability, before the parcel leaves (chapter 10 §10.6). Not a
+                dispatch block: an unverified address is a warning and a resend,
+                because refusing to ship a paid order over an unclicked link is a
+                members' decision rather than a default. */}
+            <div className="mt-6 border border-border p-4 text-sm">
+              <p className="font-semibold">
+                Contact {verification.verifiedAt ? 'verified' : 'not verified'}
+              </p>
+              <p className="mt-2 leading-6 text-muted-foreground">
+                {verification.email ?? 'No contact email on this order.'}
+                {verification.verifiedAt
+                  ? ` — confirmed ${verification.verifiedAt.toISOString().slice(0, 10)}.`
+                  : verification.sentCount > 0
+                    ? ` — asked ${verification.sentCount} time${verification.sentCount === 1 ? '' : 's'}${
+                        verification.expired ? ', link expired' : ', not yet confirmed'
+                      }.`
+                    : ' — not yet asked.'}
+              </p>
+              {!verification.verifiedAt && (
+                <p className="mt-2 leading-6 text-muted-foreground">
+                  If this lot were recalled, this is the address the notice would go to. Ask again
+                  before dispatch if it has never been confirmed.
+                </p>
+              )}
+              {!verification.verifiedAt && verification.email && canFulfil(staff) && (
+                <form action={resendContactVerificationAction.bind(null, order.orderNumber)} className="mt-3">
+                  <button
+                    type="submit"
+                    className="h-10 border border-foreground/20 px-3 text-sm font-semibold hover:border-primary hover:text-primary"
+                  >
+                    {verification.sentCount > 0 ? 'Send the request again' : 'Ask the customer to confirm'}
+                  </button>
+                </form>
+              )}
+            </div>
           </div>
           <div>
             <h2 className="utility-label text-primary">Payment</h2>

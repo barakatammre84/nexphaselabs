@@ -663,6 +663,36 @@ export const accounts = sqliteTable(
 );
 
 /**
+ * One outstanding "is this address really yours" request per order.
+ *
+ * The token is stored hashed, expires, and is single-use. Verifying does not
+ * change what was ordered or where it ships — it records that the consignee can
+ * be reached, which is what a recall depends on.
+ */
+export const orderContactVerifications = sqliteTable(
+  'order_contact_verifications',
+  {
+    id: text('id').primaryKey(),
+    orderId: text('order_id').notNull(),
+    email: text('email').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    verifiedAt: integer('verified_at', { mode: 'timestamp' }),
+    sentCount: integer('sent_count').notNull().default(1),
+    lastSentAt: integer('last_sent_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    orderIdx: index('order_contact_verifications_order_idx').on(table.orderId),
+    tokenIdx: uniqueIndex('order_contact_verifications_token_idx').on(table.tokenHash),
+  }),
+);
+
+export type OrderContactVerification = typeof orderContactVerifications.$inferSelect;
+
+/**
  * Addresses a customer has used, kept so a repeat order is not retyped.
  *
  * Ship-to detail is copied onto the order at submission and the order's copy is
@@ -997,6 +1027,12 @@ export const orders = sqliteTable(
     accountId: text('account_id').notNull(),
     /** Checkout contact, not a verified identity or a login credential. */
     contactEmail: text('contact_email'),
+  /**
+   * When the person who placed this order proved the address reaches them.
+   * Verification is asked for AFTER the order is accepted — it is a recall
+   * requirement, not a gate on the sale (chapter 10 §10.6).
+   */
+  contactVerifiedAt: integer('contact_verified_at', { mode: 'timestamp' }),
     organizationId: text('organization_id'),
     /** research_direct | (future) prescribed */
     channel: text('channel').notNull().default('research_direct'),

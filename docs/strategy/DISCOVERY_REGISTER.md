@@ -32,6 +32,7 @@ Found during this pass:
 | # | id | Item | Owner | When | Status |
 |---|----|------|-------|------|--------|
 | 15 | `c1-new-1` | The redirect map sent `/about`, `/faq` and `/contact` to themselves — an infinite loop on three pages that exist today | Ammre | blocks order #1 | **fixed** |
+| 16 | `c1-new-2` | Certificates could be searched but not browsed, so a visitor deciding whether to buy could not see that they exist | Ammre | first month | **done** |
 
 ## Item detail
 
@@ -175,8 +176,25 @@ framework's own trailing-slash 308 handles the old URL in one hop and no entry i
 cannot be reintroduced by a future edit, and tests cover both. Recorded in full in
 [CUTOVER_REGISTER.md](CUTOVER_REGISTER.md) as `c11-new-1`.
 
+### 16. `c1-new-2` — the certificate library
+
+Searching by lot number assumes the reader already holds a vial. Chapter 1 §1.4 lists per-lot COA
+pages as content that earns traffic honestly, and the category's highest-traffic sites all let a
+visitor *browse* certificates by product — which is how someone deciding whether to buy sees that
+the certificates exist at all, and that they name a laboratory.
+
+`/documentation/lot-lookup` now carries a library grouped by material: every released lot with its
+release date, purity, testing laboratory and that laboratory's accession number, each linking to the
+lot page. `releasedLotsByProduct()` composes the same `publishableLot()` rule as the sitemap and the
+public lookup, so nothing quarantined, held, rejected, withdrawn, superseded or missing its
+laboratory reference can appear — and a test asserts the returned row carries no quantity, no
+movement and no releasing person. Three tests in `tests/sitemap.test.ts`.
+
+Recorded in [ION_PARITY_2026-09-13.md](ION_PARITY_2026-09-13.md) with the rest of that comparison.
+
 ## Change log
 
+- **2026-09-13 (later)** — Added the browsable certificate library (`c1-new-2`).
 - **2026-09-13** — `c1-new-1` found and fixed: three entries in the redirect map pointed at
   themselves. Found by the cutover verifier built for chapter 11, not by the unit tests.
 - **2026-09-12 (worked)** — Closed `c1-redirects`, `c1-410`, `c1-robots`, and verified

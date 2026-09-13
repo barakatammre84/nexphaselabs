@@ -124,7 +124,7 @@ async function releasedProductCodes(codes: string[]): Promise<Set<string>> {
 }
 
 export type CreateOrderResult =
-  | { ok: true; orderNumber: string; duplicate?: boolean }
+  | { ok: true; orderNumber: string; orderId?: string; duplicate?: boolean }
   | { ok: false; error: string };
 
 /**
@@ -182,7 +182,7 @@ export async function createOrderFromCart(
   const db = getDb();
   // Idempotent: the same rendered cart form can only ever produce one order.
   const [already] = await db
-    .select({ orderNumber: orders.orderNumber })
+    .select({ orderNumber: orders.orderNumber, id: orders.id })
     .from(orders)
     .where(
       and(
@@ -192,7 +192,7 @@ export async function createOrderFromCart(
     )
     .limit(1);
   if (already)
-    return { ok: true, orderNumber: already.orderNumber, duplicate: true };
+    return { ok: true, orderNumber: already.orderNumber, orderId: already.id, duplicate: true };
   const cart: Cart = await getCart(account.id, visibility);
   if (cart.lines.length === 0)
     return { ok: false, error: 'Your cart is empty.' };
@@ -411,12 +411,12 @@ export async function createOrderFromCart(
             'Your account, delivery address, cart or available offer changed. Reload and review before submitting again.',
         };
       }
-      return { ok: true, orderNumber };
+      return { ok: true, orderNumber, orderId };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (/UNIQUE constraint failed: orders\.submission_token/i.test(message)) {
         const [dup] = await db
-          .select({ orderNumber: orders.orderNumber })
+          .select({ orderNumber: orders.orderNumber, id: orders.id })
           .from(orders)
           .where(
             and(
@@ -426,7 +426,7 @@ export async function createOrderFromCart(
           )
           .limit(1);
         if (dup)
-          return { ok: true, orderNumber: dup.orderNumber, duplicate: true };
+          return { ok: true, orderNumber: dup.orderNumber, orderId: dup.id, duplicate: true };
         return { ok: false, error: 'This cart was already submitted.' };
       }
       if (/UNIQUE constraint failed/i.test(message) && attempt < 2) continue;

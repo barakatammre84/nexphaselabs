@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft, FileText, Lock } from 'lucide-react';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { ProductImage } from '@/components/site/product-image';
+import { SupportStrip } from '@/components/site/support-strip';
 import { ProductPurchasePanel } from '@/components/site/product-purchase-panel';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
 import {
@@ -475,6 +476,8 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
             );
           })}
         </div>
+
+        <SupportStrip className="mt-9 max-w-2xl" />
 
         {visibility.pricing !== 'none' ? (
           <div className="mt-9 max-w-2xl">

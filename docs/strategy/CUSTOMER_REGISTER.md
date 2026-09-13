@@ -13,10 +13,10 @@ it you cannot identify who received a bad lot.
 | # | id | Item | Owner | When | Status |
 |---|----|------|-------|------|--------|
 | 1 | `c10-policy` | Write the customer profile data policy | Fatima | critical path | owner action |
-| 2 | `c10-verify` | Verify the customer email before the order ships | Ammre | critical path | open |
+| 2 | `c10-verify` | Verify the customer email before the order ships | Ammre | critical path | **done** |
 | 3 | `c10-reach` | Add a reachability state to every customer record | Ammre | critical path | **done** |
 | 4 | `c10-mockrecall` | Run the mock recall against seeded records and count who you could reach | Melissa | critical path | **now answerable** · owner action to run |
-| 5 | `c10-addresses` | Build saved addresses | Ammre | critical path | open |
+| 5 | `c10-addresses` | Build saved addresses | Ammre | critical path | **done** |
 | 6 | `c10-history` | Show the customer their orders, lines and their own lot numbers | Ammre | first month | **already built** — verify |
 | 7 | `c10-reorder` | Build reorder as start-a-new-order-from-this-one | Ammre | first month | open |
 | 8 | `c10-pin` | COA and SDS pinned to the order line at dispatch | Ammre | critical path | **built 12 Sep** |
@@ -124,6 +124,44 @@ populated and the query still answers from orders.
 **Still an owner action:** running the rehearsal and recording the number. The tool now exists; the
 rehearsal is Melissa's.
 
+### 2. `c10-verify` — verification, after the order and before the parcel
+
+**Done 13 September 2026.** `lib/order-contact-verification.ts`.
+
+The chapter's reframing is what decides the design: this is a **recall requirement**, not an account
+feature. So the request goes out *after* the order is accepted — nothing is blocked at the point of
+sale, and the owner's direction on guest checkout stands: no registration, no verification gate, no
+approval before ordering. A guest is asked exactly like anyone else, and the mail says so in as many
+words: *"Nothing is held up while you do this."*
+
+- The token is random, stored only as a SHA-256, single-use, and expires in 30 days. A resend issues
+  a fresh one and retires the old, so a link forwarded to the wrong person stops working.
+- Confirming marks that order, and any other unverified order of the same buyer carrying exactly the
+  same address — never anybody else's.
+- It is **not a dispatch block.** `/manage/orders/<number>` shows the state beside the ship-to
+  address with a one-click resend, and says plainly that this is the address a recall notice would
+  go to. Refusing to ship a paid order over an unclicked link is a members' decision, not a default
+  this code should impose.
+- A confirmed contact turns an `unproven` consignee into a `reachable` one in the recall query —
+  which is how a guest becomes reachable without ever holding an account.
+
+`tests/order-contact-verification.test.ts` — 10 tests, including that a clicked link is idempotent,
+an expired one says so, and a second buyer at the same address is untouched.
+
+### 5. `c10-addresses` — saved addresses
+
+**Done 13 September 2026.** `lib/account-addresses.ts`, the picker in checkout, and management on
+the account page. Up to twelve per customer, one default, "save this address" at checkout, and the
+address remembered only after an order is accepted.
+
+Two boundaries are in the code and in the interface: this is a convenience, never the record — the
+order keeps its own immutable copy and the recall query reads orders — and removing an address
+archives it rather than deleting it. Saving the same address twice is treated as using it again.
+Every operation is scoped to the signed-in account inside the query, so an id belonging to someone
+else does not resolve. 17 tests.
+
+This is the dependency `c10-reorder` was waiting on.
+
 ### 6. `c10-history` — already built
 
 `app/account/orders/[orderNumber]/page.tsx` already shows the customer their own lot number for each
@@ -132,6 +170,10 @@ Nothing to build; worth keeping in the register so the boundary rule is not lost
 
 ## Change log
 
+- **2026-09-13 (later)** — Closed `c10-verify` and `c10-addresses`, the two remaining critical-path
+  engineering items in this chapter. What is left here is `c10-reorder` (now unblocked), the
+  document locker UI, the staff customer page and notes, and the items that are Fatima's, Melissa's
+  or counsel's.
 - **2026-09-13** — Closed `c10-pintest` (the test that gates the document locker; it passed against
   the real supersession path), `c10-supersede` (migration 0053 plus the write that fills it), and
   `c10-reach` with the consignee panel that makes `c10-mockrecall` answerable. Confirmed `c10-history`

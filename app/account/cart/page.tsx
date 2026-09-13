@@ -17,6 +17,7 @@ import { formatCents } from '@/lib/visibility-rules';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { checkoutQuotesRequired } from '@/lib/checkout-quotes';
 import { CustomerNav } from '@/components/site/customer-nav';
+import { SupportStrip } from '@/components/site/support-strip';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -195,6 +196,8 @@ export default async function CartPage({ searchParams }: Props) {
                 {formatCents(cart.subtotalCents)}
               </span>
             </p>
+
+            <SupportStrip className="mt-8" />
 
             {open ? (
               <CheckoutExperience

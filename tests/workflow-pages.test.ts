@@ -33,6 +33,8 @@ vi.mock('@/lib/organizations', () => ({
   getOrganizationForAccount: async () => ({ reviewNote: state.note }),
 }));
 vi.mock('@/lib/orders', () => ({ listOrdersForAccount: async () => [] }));
+// Saved addresses read the database; this test is about what the page renders.
+vi.mock('@/lib/account-addresses', () => ({ listAddresses: async () => [] }));
 vi.mock('@/lib/catalog-data', () => ({
   loadCatalog: async (fn: () => Promise<unknown>) => ({
     data: await fn(),

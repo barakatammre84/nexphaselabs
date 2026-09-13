@@ -393,6 +393,13 @@
       "when": 1789309955054,
       "tag": "0055_account_addresses",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "6",
+      "when": 1789310288293,
+      "tag": "0056_order_contact_verification",
+      "breakpoints": true
     }
   ]
 }

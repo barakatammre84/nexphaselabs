@@ -4,9 +4,13 @@ import { lots, products, productVariants } from '@/db/schema';
 import { lotSuppliesPack } from '@/lib/lot-quantities';
 import { publishableLot } from '@/lib/lots-public';
 
-export function purchasabilityIssues(price: number | null, packSize: string, stock: { quantityRemaining: string | null; retestDate: Date | null; containerSize?: string | null }[], now = new Date()): string[] {
+export function purchasabilityIssues(price: number | null, packSize: string, stock: { quantityRemaining: string | null; retestDate: Date | null; containerSize?: string | null }[], now = new Date(), image?: string | null): string[] {
   const issues: string[] = [];
   if (price === null || !Number.isSafeInteger(price) || price <= 0) issues.push('Approved public price needed');
+  // Not a blocker — a product page without a photograph says so rather than
+  // borrowing another compound's vial (CLAUDE.md rule 5). It is listed because
+  // every competitor has one and the absence is invisible from the manager.
+  if (image !== undefined && !image) issues.push('No photograph uploaded');
   if (!stock.length) issues.push('No released, publishable lot (released + named lab, accession and standard)');
   else if (!stock.some(lot => (!lot.retestDate || lot.retestDate.getTime() > now.getTime()) && lotSuppliesPack(lot, packSize)))
     issues.push('No usable quantity for one pack, or retest due');
@@ -27,6 +31,6 @@ export async function catalogReadiness() {
   return { truncated, rows: rows.slice(0, 500).map(({ product, variant }) => ({
     code: product.code, name: product.name, sku: variant.sku, packSize: variant.quantity,
     priceCents: variant.listPriceCents,
-    issues: purchasabilityIssues(variant.listPriceCents, variant.quantity, stock.filter(l => l.productCode === product.code)),
+    issues: purchasabilityIssues(variant.listPriceCents, variant.quantity, stock.filter(l => l.productCode === product.code), new Date(), product.image),
   })) };
 }

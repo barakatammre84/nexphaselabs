@@ -167,6 +167,7 @@ export async function lotConsignees(lotNumber: string): Promise<Consignee[]> {
       country: orders.shipToCountry,
       phone: orders.shipToPhone,
       contactEmail: orders.contactEmail,
+      contactVerifiedAt: orders.contactVerifiedAt,
       accountId: orders.accountId,
       accountEmail: accounts.email,
       emailVerifiedAt: accounts.emailVerifiedAt,
@@ -193,12 +194,16 @@ export async function lotConsignees(lotNumber: string): Promise<Consignee[]> {
       accountId: row.accountId,
       reachability: reachability({
         email,
-        // A guest contact is an order snapshot, not a verified identity (§10.8),
-        // so verification only counts when it belongs to the same address.
+        // Two ways an address can be proved, and neither is inherited: the
+        // account's own verification only counts when the order used that same
+        // address, and the order's own confirmation stands on its own — which is
+        // how a guest contact becomes reachable without ever holding an account
+        // (§10.6, §10.8).
         emailVerifiedAt:
-          email && row.accountEmail && email.toLowerCase() === row.accountEmail.toLowerCase()
+          row.contactVerifiedAt ??
+          (email && row.accountEmail && email.toLowerCase() === row.accountEmail.toLowerCase()
             ? row.emailVerifiedAt
-            : null,
+            : null),
         phone: row.phone,
         lastNotice: notices.get((email ?? '').trim().toLowerCase()) ?? null,
       }),

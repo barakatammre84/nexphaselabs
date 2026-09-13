@@ -10,6 +10,7 @@ import { getDb } from '@/db';
 import { lots, products } from '@/db/schema';
 import sitemap from '@/app/sitemap';
 import robots from '@/app/robots';
+import { releasedLotsByProduct } from '@/lib/lots-public';
 
 /**
  * Chapter 1 §1.3. The sitemap is the discovery surface for a business whose
@@ -217,5 +218,48 @@ describe('robots', () => {
       expect(Array.isArray(rules) ? rules[0].disallow : rules.disallow).toBe('/');
       expect(robots().sitemap).toBeUndefined();
     }
+  });
+});
+
+describe('the certificate library', () => {
+  it('groups released lots by product, newest first', async () => {
+    const library = await releasedLotsByProduct();
+    expect(library).toHaveLength(1);
+    expect(library[0].productCode).toBe('GHK-CU');
+    expect(library[0].lots.map((lot) => lot.lotNumber)).toEqual(['GHK-2601']);
+    expect(library[0].lots[0].accessionNumber).toBe('ACC-GHK-2601');
+    expect(library[0].lots[0].analyticalLab).toBe('Independent Lab Services');
+  });
+
+  it('applies exactly the same publication rule as the sitemap and the lookup', async () => {
+    const listed = (await releasedLotsByProduct()).flatMap((entry) =>
+      entry.lots.map((lot) => lot.lotNumber),
+    );
+    for (const hidden of [
+      'GHK-2602',
+      'GHK-2603',
+      'GHK-2604',
+      'GHK-2605',
+      'GHK-2606',
+      'GHK-2607',
+      'GHK-2608',
+      'GHK-2609',
+    ]) {
+      expect(listed, hidden).not.toContain(hidden);
+    }
+  });
+
+  it('never carries a quantity, a movement or who released it', async () => {
+    const [entry] = await releasedLotsByProduct();
+    expect(Object.keys(entry.lots[0]).sort()).toEqual([
+      'accessionNumber',
+      'analyticalLab',
+      'casNumber',
+      'lotNumber',
+      'productCode',
+      'productName',
+      'purityResult',
+      'releasedOn',
+    ]);
   });
 });

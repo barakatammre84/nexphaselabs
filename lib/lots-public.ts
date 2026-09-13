@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { lotFamilyIds } from '@/lib/lot-family';
 import { lotTests, lots, type Lot } from '@/db/schema';
@@ -227,6 +227,66 @@ export type LotSearchHit = {
 };
 
 export const LOT_SEARCH_LIMIT = 25;
+
+export type LotCatalogueEntry = {
+  productCode: string;
+  productName: string;
+  casNumber: string;
+  lots: LotSearchHit[];
+};
+
+/** How many released lots the library shows per product before it says "and N more". */
+export const LOT_LIBRARY_PER_PRODUCT = 6;
+
+/**
+ * The certificate library, grouped by product.
+ *
+ * Searching by lot number assumes the customer already holds a vial. Browsing by
+ * product is how someone deciding whether to buy sees that the certificates
+ * exist at all — which is the whole argument this business makes. It composes
+ * publishableLot() exactly like every other public read, so nothing quarantined,
+ * held, rejected, withdrawn, superseded or missing its laboratory reference can
+ * appear here.
+ */
+export async function releasedLotsByProduct(): Promise<LotCatalogueEntry[]> {
+  const rows = await getDb()
+    .select({
+      lotNumber: lots.lotNumber,
+      productCode: lots.productCode,
+      productName: lots.productName,
+      casNumber: lots.casNumber,
+      accessionNumber: lots.accessionNumber,
+      analyticalLab: lots.analyticalLab,
+      purityResult: lots.purityResult,
+      releasedAt: lots.releasedAt,
+    })
+    .from(lots)
+    .where(publishableLot())
+    .orderBy(asc(lots.productName), desc(lots.releasedAt));
+
+  const byProduct = new Map<string, LotCatalogueEntry>();
+  for (const row of rows) {
+    const entry = byProduct.get(row.productCode) ?? {
+      productCode: row.productCode,
+      productName: row.productName,
+      casNumber: row.casNumber,
+      lots: [],
+    };
+    entry.lots.push({
+      lotNumber: row.lotNumber,
+      productCode: row.productCode,
+      productName: row.productName,
+      casNumber: row.casNumber,
+      accessionNumber: row.accessionNumber,
+      analyticalLab: row.analyticalLab,
+      purityResult: row.purityResult,
+      releasedOn: row.releasedAt ? row.releasedAt.toISOString().slice(0, 10) : null,
+    });
+    byProduct.set(row.productCode, entry);
+  }
+  return [...byProduct.values()];
+}
+
 
 export async function searchReleasedLots(
   query: string,
