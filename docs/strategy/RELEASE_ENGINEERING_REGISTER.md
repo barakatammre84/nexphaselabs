@@ -30,7 +30,7 @@ Status values: `done` · `built, unproven` · `in progress` · `owner action` ·
 
 | # | id | Item | Owner | When | Status |
 |---|----|------|-------|------|--------|
-| 1 | `c16-merge` | Merge the operations-repair branch deliberately, with someone watching | Ammre | blocks order #1 | owner action |
+| 1 | `c16-merge` | Merge the operations-repair branch deliberately, with someone watching | Ammre | blocks order #1 | **merged** · staging deploy blocked by #18 |
 | 2 | `c16-guard` | Add the deploy guard | Ammre | blocks order #1 | **done** |
 | 3 | `c16-tagonly` | Make the v\* tag the only path to production | Ammre | blocks order #1 | **done** |
 | 4 | `c16-protect` | Protect staging | Ammre | blocks order #1 | **done in code** · secret is an owner action |
@@ -52,6 +52,7 @@ Found during this pass and added to the register:
 | # | id | Item | Owner | When | Status |
 |---|----|------|-------|------|--------|
 | 17 | `c16-new-1` | The staging gate did not cover static assets — Workers Assets serves them ahead of the worker | Ammre | blocks order #1 | **done** |
+| 18 | `c16-new-2` | **There is no `CLOUDFLARE_API_TOKEN` repository secret.** Neither deploy workflow can authenticate, and it is the same cause as the backup rehearsal's error 10000 | Ammre | blocks order #1 | **owner action** |
 
 ## Item detail
 
@@ -69,6 +70,21 @@ Migrations 0041–0050 are involved. 0041–0049 are already applied to staging;
 
 **Completion:** `main` carries the launch branch, the staging deploy ran green, and the smoke test
 passed. Requires the owner to say go.
+
+**12 September 2026 — merged on the owner's instruction; the deploy did not complete.** `main` is at
+`ffaba2b` and carries the launch pass and this pass. The Deploy staging workflow ran and failed at
+**Apply migrations**, which is #18: there is no `CLOUDFLARE_API_TOKEN` secret in the repository.
+
+What that means in practice, and it is better news than it sounds:
+
+- Nothing was applied and nothing was deployed. The run stopped before the database was touched —
+  which is the order the workflow was rearranged into earlier today.
+- Staging is unchanged and still serving the previous worker.
+- Everything before the migration passed: checks, the staging build, the origin match, and the
+  **deploy guard**, which confirmed the built configuration targets staging.
+
+This item stays open until the token exists and the run is repeated: `gh run rerun 34736986650` or
+a fresh push.
 
 ### 2. `c16-guard` — deploy guard
 
@@ -487,8 +503,50 @@ What remains is the decision and the access: name the person — a member or an 
 standby for the cutover window — give them their own Cloudflare and GitHub accounts rather than a
 shared login, and record them in the credential file with the date.
 
+### 18. `c16-new-2` — there is no Cloudflare API token in the repository
+
+**Found 12 September 2026** by merging and watching the run. The Deploy staging job printed:
+
+```
+env:
+  CLOUDFLARE_API_TOKEN:
+  CLOUDFLARE_ACCOUNT_ID: ***
+✘ [ERROR] In a non-interactive environment, it's necessary to set a CLOUDFLARE_API_TOKEN
+  environment variable for wrangler to work.
+```
+
+`gh secret list` confirms it: the repository has `CLOUDFLARE_ACCOUNT_ID` and the `STAGING_URL`
+variable, and **no `CLOUDFLARE_API_TOKEN` at all**.
+
+Consequences, all of which were invisible until something actually tried to deploy:
+
+- `deploy-staging.yml` has never been able to migrate or deploy. Whatever is running on staging was
+  put there by hand from a laptop, which is the deploy path this chapter is trying to retire.
+- `deploy-production.yml` would fail in exactly the same place. The v\* tag path is correct and
+  proven in every other respect, and it cannot authenticate.
+- It is almost certainly the **same cause as the backup rehearsal's Cloudflare error 10000** (#6).
+  Two separate items blamed on "auth", one missing secret.
+
+**Owner action**, and not one Claude can do: creating an API token means handling a credential.
+
+1. Cloudflare dashboard → My Profile → API Tokens → Create Token → Custom token, scoped to the
+   account holding `nexphase-labs` and `nexphase-labs-staging`, with **Account · D1 · Edit**,
+   **Account · Workers R2 Storage · Edit**, and **Account · Workers Scripts · Edit**.
+2. Add it as the repository secret — `gh secret set CLOUDFLARE_API_TOKEN` will prompt for the value,
+   or use GitHub → Settings → Secrets and variables → Actions.
+3. Re-run the failed job: `gh run rerun 34736986650`.
+4. Export the same token in the shell for the recovery rehearsal (#6), or make a second one scoped
+   the same way.
+
+Record it in `docs/operations/CREDENTIAL_LOCATIONS.md` once it exists — that file already names the
+scopes and says where it belongs.
+
 ## Change log
 
+- **2026-09-12 (merged)** — Merged the launch branch to `main` on the owner's instruction and
+  watched the run. It failed at Apply migrations and surfaced `c16-new-2`: the repository has no
+  `CLOUDFLARE_API_TOKEN`, so neither deploy workflow has ever been able to authenticate. Nothing was
+  applied or deployed; staging is unchanged. `c16-merge` stays open behind it.
 - **2026-09-12 (parent register read)** — Pulled the parent (artifact `997fc7b6…`, Rev. 7) and
   applied its Correction 5 to #11: the 78-second cold load was an artifact of the measuring tool and
   is withdrawn, so #11 is no longer a cutover precondition. The eleven-prefetch finding recorded
