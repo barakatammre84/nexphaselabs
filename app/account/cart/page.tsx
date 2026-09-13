@@ -158,10 +158,16 @@ export default async function CartPage({ searchParams }: Props) {
                     </button>
                   </form>
                   <div className="flex items-center justify-between gap-4 sm:justify-end">
-                    <span className="font-mono text-sm">
+                    <span className="text-right font-mono text-sm">
                       {line.unitPriceCents === null
                         ? '—'
                         : formatCents(line.unitPriceCents * line.quantity)}
+                      {line.listUnitPriceCents !== null && line.unitPriceCents !== null && (
+                        <span className="block text-xs font-semibold text-primary">
+                          volume price {formatCents(line.unitPriceCents)} per unit, was{' '}
+                          {formatCents(line.listUnitPriceCents)}
+                        </span>
+                      )}
                     </span>
                     <form method="post" action="/api/cart/update">
                       <input type="hidden" name="item" value={line.itemId} />

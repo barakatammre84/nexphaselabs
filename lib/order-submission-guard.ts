@@ -30,6 +30,27 @@ export function orderSubmissionGuard(
   const priceColumn = open
     ? sql`CASE WHEN ${accounts.tier} = 'institutional' AND ${accounts.verificationStatus} = 'approved' THEN ${productVariants.institutionalPriceCents} ELSE ${productVariants.listPriceCents} END`
     : productVariants.institutionalPriceCents;
+  /**
+   * The same volume price the cart showed, re-derived here from the catalog's
+   * own ladder in the accepting statement. A cart cannot present a discount the
+   * catalog does not carry, and a ladder edited between review and submission
+   * makes the order fail rather than bill at the stale price.
+   *
+   * The break column is JSON on the variant; json_each yields one row per entry
+   * and the deepest threshold at or below the ordered quantity wins. Rows whose
+   * price for this tier is null, or not below the tier price, are ignored —
+   * exactly what effectiveUnitPrice() does in TypeScript.
+   */
+  const breakPrice = open
+    ? sql`CASE WHEN ${accounts.tier} = 'institutional' AND ${accounts.verificationStatus} = 'approved'
+        THEN json_extract(brk.value, '$.institutionalPriceCents') ELSE json_extract(brk.value, '$.listPriceCents') END`
+    : sql`json_extract(brk.value, '$.institutionalPriceCents')`;
+  const effectivePrice = sql`COALESCE((
+      SELECT ${breakPrice} FROM json_each(COALESCE(${productVariants.priceBreaks}, '[]')) AS brk
+      WHERE json_extract(brk.value, '$.minQuantity') <= ${cartItems.quantity}
+        AND ${breakPrice} IS NOT NULL AND ${breakPrice} < ${priceColumn}
+      ORDER BY json_extract(brk.value, '$.minQuantity') DESC LIMIT 1
+    ), ${priceColumn})`;
   return sql`${accounts.id} = ${account.id} AND ${customer}
     AND ${accounts.email} = ${account.email} AND ${accounts.name} = ${account.name}
     AND ${open ? sql`1 = 1` : sql`${accounts.termsVersion} = ${TERMS_VERSION} AND ${accounts.ruoVersion} = ${RUO_VERSION}`}
@@ -70,7 +91,7 @@ export function orderSubmissionGuard(
         AND ${productVariants.id} = json_extract(expected.value, '$.variantId')
         AND ${products.id} = json_extract(expected.value, '$.productId') AND ${products.visibility} = 'published'
         AND ${products.code} = json_extract(expected.value, '$.code') AND ${products.name} = json_extract(expected.value, '$.name')
-        AND ${productVariants.active} = 1 AND ${priceColumn} = json_extract(expected.value, '$.price')
+        AND ${productVariants.active} = 1 AND ${effectivePrice} = json_extract(expected.value, '$.price')
         AND ${productVariants.quantity} = json_extract(expected.value, '$.packSize') AND ${productVariants.sku} = json_extract(expected.value, '$.sku')
         AND ${productVariants.presentation} = json_extract(expected.value, '$.presentation')
         AND EXISTS (SELECT 1 FROM ${lots} WHERE ${lots.productCode} = ${products.code}

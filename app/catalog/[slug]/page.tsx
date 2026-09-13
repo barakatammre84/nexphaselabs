@@ -163,6 +163,7 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
                   quantity: variant.quantity,
                   presentation: variant.presentation,
                   priceCents: priceFor(variant, visibility.pricing),
+                  priceBreaks: variant.priceBreaks,
                 }))}
               />
             )}

@@ -12,6 +12,12 @@
  */
 
 import { validateHazard, type Hazard, type HazardInput } from '@/lib/hazard';
+import {
+  parsePriceBreaks,
+  readPriceBreaks,
+  validatePriceBreaks,
+  type PriceBreak,
+} from '@/lib/price-breaks';
 import type { ChemicalClass, ProductStatus } from '@/lib/catalog';
 
 /* ------------------------------------------------------------------------ */
@@ -215,9 +221,12 @@ export type VariantInput = {
   /** Dollars as typed, e.g. "45" or "45.00"; blank means not priced. */
   listPrice?: string | null;
   institutionalPrice?: string | null;
+  /** Volume prices as typed, e.g. "4:52.65, 10:43.88"; blank means one price at any quantity. */
+  priceBreaksText?: string | null;
   /** Normalised on validation. */
   listPriceCents?: number | null;
   institutionalPriceCents?: number | null;
+  priceBreaks?: PriceBreak[];
 };
 
 const PRICE_PATTERN = /^\d{1,6}(?:\.\d{1,2})?$/;
@@ -426,6 +435,8 @@ export function validateProductInput(
       institutionalPrice: t(v.institutionalPrice) || null,
       listPriceCents: v.listPriceCents ?? null,
       institutionalPriceCents: v.institutionalPriceCents ?? null,
+      priceBreaksText: t(v.priceBreaksText) || null,
+      priceBreaks: readPriceBreaks(v.priceBreaks),
     })),
   };
 
@@ -628,6 +639,19 @@ export function validateProductInput(
           `${label} for ${v.quantity} must be a dollar amount such as 45 or 45.00.`,
         );
       else v[target] = cents;
+    }
+    // Volume pricing. Nothing here invents a tier: an empty cell means one
+    // price at any quantity, exactly as before (lib/price-breaks.ts).
+    if (v.priceBreaksText != null) {
+      const { breaks, issues } = parsePriceBreaks(v.priceBreaksText);
+      for (const issue of issues) errors.push(`Volume price for ${v.quantity}: ${issue}`);
+      v.priceBreaks = breaks;
+    }
+    for (const issue of validatePriceBreaks(v.priceBreaks ?? [], {
+      listPriceCents: v.listPriceCents ?? null,
+      institutionalPriceCents: v.institutionalPriceCents ?? null,
+    })) {
+      errors.push(`Volume price for ${v.quantity}: ${issue}`);
     }
   }
 

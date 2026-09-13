@@ -263,7 +263,7 @@ export function ProductForm({ initial, mode, classes, action }: Props) {
           values={v}
           multiline
           required
-          hint={`One per line: quantity | presentation | list price | institutional price (dollars, optional). Quantity is a mass (5 mg, 1 g). Presentations: ${PRESENTATIONS.join('; ')}. Prices render only to accounts the visibility rule allows. A line removed here retires that SKU; it is never deleted.`}
+          hint={`One per line: quantity | presentation | list price | institutional price | volume prices (all prices in dollars, all optional). Quantity is a mass (5 mg, 1 g). Presentations: ${PRESENTATIONS.join('; ')}. Volume prices are "units:price" separated by commas — 4:52.65, 6:49.14, 10:43.88 — and may carry both tiers as 4:52.65/48.00. Each must be below the price above it; leave the cell empty for one price at any quantity. Prices render only to accounts the visibility rule allows. A line removed here retires that SKU; it is never deleted.`}
         />
         <div className="flex flex-col gap-1.5">
           <label htmlFor="status" className={label}>

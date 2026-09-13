@@ -1,4 +1,5 @@
 import type { CatalogProduct } from '@/lib/catalog-data';
+import { priceBreaksToCell } from '@/lib/price-breaks';
 import { DEFAULT_PRESENTATION, type ProductInput } from '@/lib/catalog-rules';
 
 /**
@@ -147,6 +148,7 @@ export function valuesToInput(v: FormValues): ProductInput {
         presentation = '',
         listPrice = '',
         institutionalPrice = '',
+        priceBreaks = '',
       ] = cells(line);
       return {
         quantity,
@@ -154,6 +156,7 @@ export function valuesToInput(v: FormValues): ProductInput {
         sortOrder: i,
         listPrice: listPrice || null,
         institutionalPrice: institutionalPrice || null,
+        priceBreaksText: priceBreaks || '',
       };
     }),
   };
@@ -226,6 +229,7 @@ export function productToValues(p: CatalogProduct): FormValues {
           v.presentation,
           dollars(v.listPriceCents),
           dollars(v.institutionalPriceCents),
+          priceBreaksToCell(v.priceBreaks ?? []),
         ];
         while (cells.length > 2 && cells[cells.length - 1] === '') cells.pop();
         return cells.join(' | ');

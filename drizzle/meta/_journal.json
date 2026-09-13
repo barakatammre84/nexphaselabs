@@ -379,6 +379,13 @@
       "when": 1789278777558,
       "tag": "0053_document_supersede_pointer",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "6",
+      "when": 1789309473245,
+      "tag": "0054_variant_price_breaks",
+      "breakpoints": true
     }
   ]
 }

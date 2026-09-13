@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { cartItems, productVariants, products, type ProductRow, type ProductVariantRow } from '@/db/schema';
 import { MAX_CART_LINES, MAX_LINE_QUANTITY } from '@/lib/order-rules';
+import { effectiveUnitPrice, readPriceBreaks } from '@/lib/price-breaks';
 import { priceFor, type Visibility } from '@/lib/visibility-rules';
 
 /**
@@ -19,7 +20,10 @@ export type CartLine = {
   variant: ProductVariantRow;
   product: ProductRow;
   quantity: number;
+  /** What this line is actually charged per unit — the volume price when one applies. */
   unitPriceCents: number | null;
+  /** The one-unit price, present only when a volume price is bringing it down. */
+  listUnitPriceCents: number | null;
   /** Why the line cannot be ordered right now, if it cannot. */
   problem: string | null;
 };
@@ -37,13 +41,31 @@ export async function getCart(accountId: string, visibility: Visibility): Promis
     .orderBy(cartItems.createdAt);
 
   const lines: CartLine[] = rows.map(({ item, variant, product }) => {
-    const unitPriceCents = priceFor(variant, visibility.pricing);
+    const listUnit = priceFor(variant, visibility.pricing);
+    // Volume pricing is applied here, on the server, from the catalog's own
+    // ladder — the same computation the order guard repeats in SQL, so a cart
+    // can never carry a price the catalog does not agree with.
+    const unitPriceCents = effectiveUnitPrice(
+      variant,
+      readPriceBreaks(variant.priceBreaks),
+      item.quantity,
+      visibility.pricing,
+    );
     let problem: string | null = null;
     if (product.visibility !== 'published') problem = 'This material is no longer listed.';
     else if (!variant.active) problem = 'This pack size has been retired.';
     else if (visibility.pricing === 'none') problem = 'Pricing is not available to your account.';
     else if (unitPriceCents === null) problem = 'This pack size is priced on request. Email research@nexphaselabs.net.';
-    return { itemId: item.id, variant, product, quantity: item.quantity, unitPriceCents, problem };
+    return {
+      itemId: item.id,
+      variant,
+      product,
+      quantity: item.quantity,
+      unitPriceCents,
+      listUnitPriceCents:
+        listUnit !== null && unitPriceCents !== null && unitPriceCents < listUnit ? listUnit : null,
+      problem,
+    };
   });
   const subtotalCents = lines.reduce((s, l) => s + (l.problem ? 0 : (l.unitPriceCents ?? 0) * l.quantity), 0);
   return { lines, subtotalCents, orderable: lines.length > 0 && lines.every((l) => !l.problem) };

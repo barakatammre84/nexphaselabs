@@ -1,0 +1,1 @@
+ALTER TABLE `product_variants` ADD `price_breaks` text;

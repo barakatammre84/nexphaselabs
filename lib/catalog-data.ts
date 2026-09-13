@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '@/db';
+import { readPriceBreaks, type PriceBreak } from '@/lib/price-breaks';
 import { productVariants, products, type ProductRow, type ProductVariantRow } from '@/db/schema';
 import type { ChemicalClass, Product, ProductStatus } from '@/lib/catalog';
 import type { Visibility } from '@/lib/catalog-rules';
@@ -20,6 +21,7 @@ export type CatalogVariant = {
   quantity: string;
   presentation: string;
   listPriceCents: number | null;
+  priceBreaks: PriceBreak[];
   institutionalPriceCents: number | null;
   active: boolean;
   sortOrder: number;
@@ -42,6 +44,7 @@ function toVariant(v: ProductVariantRow): CatalogVariant {
     quantity: v.quantity,
     presentation: v.presentation,
     listPriceCents: v.listPriceCents,
+    priceBreaks: readPriceBreaks(v.priceBreaks),
     institutionalPriceCents: v.institutionalPriceCents,
     active: v.active,
     sortOrder: v.sortOrder,

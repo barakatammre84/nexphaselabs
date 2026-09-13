@@ -18,6 +18,7 @@ function asCatalogProduct(i: number): CatalogProduct {
       quantity: s.quantity,
       presentation: DEFAULT_PRESENTATION,
       listPriceCents: null,
+      priceBreaks: [],
       institutionalPriceCents: null,
       active: true,
       sortOrder: n,
@@ -60,8 +61,8 @@ describe('catalog form round trip', () => {
       { solvent: 'Water', concentration: '1 mg/mL', source: 'MCE 9', note: undefined },
     ]);
     expect(input.variants).toEqual([
-      { quantity: '5 mg', presentation: DEFAULT_PRESENTATION, sortOrder: 0, listPrice: null, institutionalPrice: null },
-      { quantity: '25 mg', presentation: 'Solid, amber vial', sortOrder: 1, listPrice: null, institutionalPrice: null },
+      { quantity: '5 mg', presentation: DEFAULT_PRESENTATION, sortOrder: 0, listPrice: null, institutionalPrice: null, priceBreaksText: '' },
+      { quantity: '25 mg', presentation: 'Solid, amber vial', sortOrder: 1, listPrice: null, institutionalPrice: null, priceBreaksText: '' },
     ]);
   });
 

@@ -2,12 +2,14 @@
 
 import { FileCheck2, Minus, Plus, ShoppingCart } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { effectiveUnitPrice, nextBreak, priceLadder, type PriceBreak } from '@/lib/price-breaks';
 
 type PurchaseVariant = {
   sku: string;
   quantity: string;
   presentation: string;
   priceCents: number | null;
+  priceBreaks: PriceBreak[];
 };
 
 function money(cents: number) {
@@ -33,6 +35,15 @@ export function ProductPurchasePanel({
   );
   if (!selected) return null;
   const available = hasReleasedLot && selected.priceCents !== null;
+
+  // Volume pricing, computed from the same module the cart and the order guard
+  // use. With no ladder entered for this pack size, every value below is the
+  // single price and nothing extra renders.
+  const asVariant = { listPriceCents: selected.priceCents, institutionalPriceCents: null };
+  const unitPrice = effectiveUnitPrice(asVariant, selected.priceBreaks, quantity, 'researcher');
+  const ladder = priceLadder(asVariant, selected.priceBreaks, 'researcher', quantity);
+  const next = nextBreak(asVariant, selected.priceBreaks, quantity, 'researcher');
+  const listPrice = selected.priceCents;
 
   return (
     <div className="mt-7 rounded-[1.5rem] border border-border bg-white p-5 shadow-[0_16px_38px_rgba(34,46,113,0.08)]">
@@ -71,7 +82,16 @@ export function ProductPurchasePanel({
         <div>
           <p className="text-xs font-bold text-muted-foreground">Selected format</p>
           <p className="mt-1 font-display font-extrabold text-[var(--ion-navy)]">{selected.presentation}</p>
-          {selected.priceCents !== null && <p className="mt-1 text-lg font-extrabold text-primary">{money(selected.priceCents)} per unit</p>}
+          {unitPrice !== null && (
+            <p className="mt-1 flex flex-wrap items-baseline gap-2">
+              <span className="text-lg font-extrabold text-primary">{money(unitPrice)} per unit</span>
+              {listPrice !== null && unitPrice < listPrice && (
+                <span className="text-sm font-semibold text-muted-foreground line-through">
+                  {money(listPrice)}
+                </span>
+              )}
+            </p>
+          )}
         </div>
         <div>
           <p className="mb-2 text-xs font-bold text-muted-foreground">Quantity</p>
@@ -86,13 +106,48 @@ export function ProductPurchasePanel({
           </div>
         </div>
       </div>
+      {ladder.length > 0 && (
+        <div className="mt-4 rounded-[1.2rem] border border-border p-4">
+          <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-muted-foreground">
+            Price per unit
+          </p>
+          <ul className="mt-3 grid gap-1 text-sm">
+            {ladder.map((row) => (
+              <li
+                key={row.minQuantity}
+                className={`flex items-baseline justify-between gap-3 rounded-lg px-2 py-1 ${
+                  row.applies ? 'bg-secondary font-extrabold text-[var(--ion-navy)]' : 'text-muted-foreground'
+                }`}
+              >
+                <span>
+                  {row.minQuantity === 1 ? '1–' : `${row.minQuantity}+`}
+                  {row.minQuantity === 1 && ladder[1] ? ladder[1].minQuantity - 1 : ''} units
+                </span>
+                <span className="font-mono">
+                  {money(row.unitPriceCents)}
+                  {row.savingPercent > 0 && (
+                    <span className="ml-2 text-xs font-bold text-primary">−{row.savingPercent}%</span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {next && (
+            <p className="mt-3 text-xs font-semibold text-primary">
+              Add {next.unitsAway} more to reach {money(next.unitPriceCents)} per unit.
+            </p>
+          )}
+        </div>
+      )}
       <form method="post" action="/api/cart" className="mt-4">
         <input type="hidden" name="sku" value={selected.sku} />
         <input type="hidden" name="quantity" value={quantity} />
         <input type="hidden" name="return_to" value={`/catalog/${productSlug}`} />
         <button type="submit" disabled={!available} className="action-primary w-full justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50">
           <ShoppingCart className="size-4" />
-          {available && selected.priceCents !== null ? `Add to cart · ${money(selected.priceCents * quantity)}` : 'Not currently available'}
+          {available && unitPrice !== null
+            ? `Add to cart · ${money(unitPrice * quantity)}`
+            : 'Not currently available'}
         </button>
       </form>
       <p className="mt-3 text-center text-xs font-semibold text-muted-foreground">

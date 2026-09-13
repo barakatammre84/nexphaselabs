@@ -420,6 +420,17 @@ export const productVariants = sqliteTable(
     presentation: text('presentation').notNull(),
     listPriceCents: integer('list_price_cents'),
     institutionalPriceCents: integer('institutional_price_cents'),
+    /**
+     * Volume prices, owner-entered, as a JSON array:
+     * [{ minQuantity, listPriceCents, institutionalPriceCents }]. Empty or absent
+     * means one price at any quantity, and nothing in code invents a tier.
+     *
+     * Deliberately NOT a json-mode column: drizzle parses those eagerly, so one
+     * malformed row would throw on every cart read. It is parsed defensively by
+     * readPriceBreaks() in lib/price-breaks.ts, which prices at list rather than
+     * failing.
+     */
+    priceBreaks: text('price_breaks'),
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: integer('created_at', { mode: 'timestamp' })
