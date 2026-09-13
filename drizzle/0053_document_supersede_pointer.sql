@@ -1,0 +1,1 @@
+ALTER TABLE `lot_documents` ADD `superseded_by_id` text;

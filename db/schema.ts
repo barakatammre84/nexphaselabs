@@ -209,6 +209,14 @@ export const lotDocuments = sqliteTable(
     /** SHA-256 (hex) of the stored bytes, computed at upload. Copied onto order lines at dispatch so the customer's copy is provably the one that shipped. */
     sha256: text('sha256'),
     supersededAt: integer('superseded_at', { mode: 'timestamp' }),
+    /**
+     * The document that replaced this one. `supersededAt` alone said a document
+     * had been replaced without saying by what, so the chain broke here even
+     * though issued_documents models it correctly — a customer's pinned
+     * certificate could be shown as superseded with no way to name the revision.
+     * Written once, when the replacement is attached.
+     */
+    supersededById: text('superseded_by_id'),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .notNull()
       .default(sql`(unixepoch())`),

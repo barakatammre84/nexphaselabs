@@ -443,16 +443,20 @@ export async function attachLotDocument(
   // The unique upload key is the claim marker. A correction that wins first
   // must not leave a history entry saying a document was attached when it was not.
   const claimed = sql`EXISTS (SELECT 1 FROM ${lots} WHERE ${lots.id} = ${lot.id} AND ${lots.supersededById} IS NULL AND ${lots[column]} = ${stored.key})`;
+  // The replacement's id is needed before the update that supersedes the old
+  // rows, so the chain records what replaced what rather than only that
+  // something did (chapter 10 c10-supersede).
+  const documentId = `doc_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`;
   const [changed] = await db.batch([
     db.update(lots).set({ [column]: stored.key, updatedAt: now })
       .where(and(eq(lots.id, lot.id), isNull(lots.supersededById)))
       .returning({ id: lots.id }),
     db
       .update(lotDocuments)
-      .set({ supersededAt: now })
+      .set({ supersededAt: now, supersededById: documentId })
       .where(and(sql`${lotDocuments.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)}))`, eq(lotDocuments.documentType, type), isNull(lotDocuments.supersededAt), claimed)),
     insertWhere(lotDocuments, {
-      id: `doc_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
+      id: documentId,
       lotId: lot.id,
       documentType: type,
       objectKey: stored.key,

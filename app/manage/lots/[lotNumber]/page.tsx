@@ -15,6 +15,7 @@ import { ALLOWED_TRANSITIONS, TEST_TYPE_LABEL, lotNumberFromParam, publicationBl
 import { lotVersions } from '@/lib/lot-family';
 import { LOT_STATUS_LABEL, currentDocumentKey, getLotDetail, lotToIntakeInput, type LotStatus } from '@/lib/lots-admin';
 import { canFulfil, canRecordResults, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
+import { lotConsignees, reachabilityLabel, reachabilitySummary } from '@/lib/customer-reachability';
 import { addLotTestAction, correctLotAction, recordInventoryMovementAction, setLotDispositionAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
@@ -81,11 +82,13 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
   const pubWarnings = publicationWarnings(lot);
   const allowed = ALLOWED_TRANSITIONS[lot.status] ?? [];
   const uploadError = error ? (UPLOAD_ERROR[error] ?? UPLOAD_ERROR.store) : null;
-  const [coa, issuedDocs, label] = await Promise.all([
+  const [coa, issuedDocs, label, consignees] = await Promise.all([
     previewCoa(normalised),
     documentHistory('lot', lot.lotNumber),
     labelPreviewForLot(normalised),
+    lotConsignees(lot.lotNumber),
   ]);
+  const reach = reachabilitySummary(consignees);
   const coaHistory = issuedDocs.filter((d) => d.kind === 'coa');
 
   return (
@@ -615,6 +618,96 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
             )}
           </div>
         </div>
+
+        <h2 className="mt-12 utility-label text-primary">
+          Who received this lot ({consignees.length})
+        </h2>
+        <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+          The recall question, answered from the order lines stamped at dispatch — not from the
+          movement ledger below. If this lot had to be recalled today, these are the people to
+          notify and this is how well you could reach them.
+        </p>
+        {consignees.length === 0 ? (
+          <p className="mt-4 border border-border p-4 text-sm text-muted-foreground">
+            No shipped order line carries this lot.
+          </p>
+        ) : (
+          <>
+            <p className="mt-4 flex flex-wrap gap-4 border border-border bg-secondary p-4 text-sm">
+              <span>
+                <strong>{reach.reachable}</strong> reachable
+              </span>
+              <span>
+                <strong>{reach.unproven}</strong> unproven
+              </span>
+              <span className={reach.unreachable ? 'text-destructive' : undefined}>
+                <strong>{reach.unreachable}</strong> not reachable
+              </span>
+              <span>
+                <strong>{reach.withSecondRoute}</strong> with a phone number
+              </span>
+            </p>
+            <div className="mt-4 overflow-x-auto border border-border">
+              <table className="w-full min-w-[820px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-secondary">
+                    <th className="p-3 font-semibold">Shipped</th>
+                    <th className="p-3 font-semibold">Order</th>
+                    <th className="p-3 font-semibold">Consignee</th>
+                    <th className="p-3 font-semibold">Destination</th>
+                    <th className="p-3 font-semibold">Packs</th>
+                    <th className="p-3 font-semibold">Reachable</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {consignees.map((consignee) => (
+                    <tr key={`${consignee.orderNumber}-${consignee.sku}`} className="border-b border-border/60 align-top">
+                      <td className="p-3 whitespace-nowrap">
+                        {consignee.shippedAt?.toISOString().slice(0, 10) ?? '—'}
+                      </td>
+                      <td className="p-3">
+                        <Link
+                          href={`/manage/orders/${encodeURIComponent(consignee.orderNumber)}`}
+                          className="font-mono text-xs text-primary underline"
+                        >
+                          {consignee.orderNumber}
+                        </Link>
+                      </td>
+                      <td className="p-3">
+                        {consignee.consigneeName}
+                        {consignee.consigneeInstitution && (
+                          <span className="block text-xs text-muted-foreground">
+                            {consignee.consigneeInstitution}
+                          </span>
+                        )}
+                        <span className="block text-xs text-muted-foreground">
+                          {consignee.reachability.email ?? 'no email on the record'}
+                          {consignee.reachability.phone ? ` · ${consignee.reachability.phone}` : ''}
+                        </span>
+                      </td>
+                      <td className="p-3">{consignee.destination}</td>
+                      <td className="p-3">{consignee.packs}</td>
+                      <td className="p-3">
+                        <span
+                          className={`border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                            consignee.reachability.state === 'unreachable'
+                              ? 'border-destructive/40 text-destructive'
+                              : 'border-border'
+                          }`}
+                        >
+                          {reachabilityLabel(consignee.reachability.state)}
+                        </span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {consignee.reachability.reasons[0]}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
 
         <h2 className="mt-12 utility-label text-primary">Movement ledger ({movements.length})</h2>
         {canFulfil(staff) && (

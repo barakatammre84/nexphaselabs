@@ -1,0 +1,530 @@
+NexPhase Customer Register 
+
+ ← NexPhase Launch Register 
+
+ Chapter 10 of the NexPhase Launch Register · returning customers & the client profile
+
+ NexPhase Customer Register
+
+ You asked for this as a sales feature — track what people bought so they can reorder. It is that.
+ But the customer profile is first a recall asset: without it you cannot identify who received
+ a bad lot, and a recall you cannot execute is the failure mode that ends companies in this
+ category. Building it for the commercial reason gets you the compliance one free, which is
+ why it moves off the post-launch list and onto the critical path.
+
+ already in the schema 
+ decision open 
+ to build 
+
+ 10.1 What it is 10.2 What exists 10.3 History 
+ 10.4 Reorder 10.5 Their documents 10.6 Recall 
+ 10.7 Segmentation 10.8 Retention 10.9 Staff view 
+ Checklist 
+
+ 10.1 What a customer profile is here — and the two things it must never hold
+ define first 
+
+ In most businesses a customer profile is a commercial object and the only question is how much to put
+ in it. Here it is also a piece of evidence, and what you choose to record becomes a record of what you
+ knew. That makes the exclusions as important as the contents, and they should be written down before
+ anyone builds a field.
+
+ What belongs in it
+
+ Identity as stated: name, email, the research context they gave, their tier.
+
+ The attestation record: which version of the research-use affirmation they accepted, and when.
+
+ Every order, every line, and the specific lot each line shipped from.
+
+ Addresses used, and whether each was residential or commercial.
+
+ Documents issued to them: invoices, packing slips, the COA for each lot they received.
+
+ Every interaction: support threads, complaints, returns, refunds — with who handled it.
+
+ What must never go in it
+
+ Purpose in any therapeutic sense. No condition field, no outcome dropdown, no "what are you researching" that invites a disease name. A free-text box where customers volunteer this is the same problem with extra steps — if you keep one, it needs a stated rule about what gets recorded and what gets discarded.
+
+ Anything you inferred about use. "Reorders every 4 weeks" is a commercial fact. "Likely self-administering" is a conclusion, and writing it down turns a suspicion into a document a plaintiff can quote. Record behaviour; do not record theories about behaviour.
+
+ Recommendation
+
+ Write a one-page profile data policy naming every field, why it exists and how long it is kept, and put the two exclusions above at the top of it. Fatima should own it as the person who will actually be typing notes into customer records, and it should be the thing that gets pointed at when someone asks "can I just add a field for…".
+
+ 10.2 Most of it already exists
+ good news 
+
+ This is a smaller build than it sounds. The data model already holds the hard parts; what is missing is
+ mostly surface and a few fields.
+
+ Piece Exists? Where / what is missing 
+
+ Account identity Yes accounts: id, email, name, tier, status, lastLoginAt, createdAt 
+
+ Attestation record Yes accounts: ruoAcceptedAt/ruoVersion, termsAcceptedAt/termsVersion — but see 5.2, the guest path skips it 
+
+ Account history Yes accountEvents — append-only, named actor, never deleted 
+
+ Orders per customer Yes orders.accountId with an index already on it 
+
+ Order lines Yes orderItems with line totals 
+
+ Line to lot Yes reservations and lotMovements carry the consignee — never public 
+
+ Documents issued Yes issuedDocuments: invoices, packing slips 
+
+ Support history Partly Feedback and operational cases exist but are not joined to the customer record as one view 
+
+ Saved addresses No Address is captured per order and never reused. This is the main reason reorder is friction today 
+
+ Customer notes No Nowhere for Fatima to record "asked about pack sizes, following up Tuesday" 
+
+ Contact preferences No No consent record for anything beyond transactional mail 
+
+ Reorder No The customer re-types everything 
+
+ 10.3 Purchase history, and the lot link that makes it worth more than a receipt list
+ surface it 
+
+ The data to show a customer every order, every line and the exact lot each vial came from is already
+ there. Nobody in this category shows that, and for a researcher it is the difference between a shop
+ and a supplier — it means a year later they can reconstruct exactly which certificate applies to the
+ material in an experiment they are writing up.
+
+ One real decision
+
+ Lot movements are append-only and deliberately never exposed publicly — the lookup API has no access
+ to them at all, which is correct. Showing a customer the lot number on their own line is not
+ the same thing as exposing the ledger, but the boundary has to be drawn explicitly in code rather than
+ assumed, or someone will later "helpfully" widen it.
+
+ Recommendation
+
+ Show the customer their own lot numbers and link each to the public released-lot page. Read it through a narrow query that returns only lines belonging to the signed-in account, never through the movement ledger. Write the rule down next to the one that already protects the lookup API.
+
+ 10.4 Reorder
+ to build 
+
+ Independent researchers buy the same compound in the same pack size on a rhythm. Reorder is the single
+ highest-return thing on this page commercially, and it is a small build because the order already
+ holds everything needed to reconstruct itself.
+
+ What reorder must re-check, not copy
+
+ Price. Never carry the old price forward. Totals are immutable per order by design; a reorder is a new offer at current prices.
+
+ Lot. The original lot is probably gone or withdrawn. Reorder allocates from whatever is released now.
+
+ Availability. The pack size may no longer exist.
+
+ Attestation version. If the wording has changed since their last order, re-prompt.
+
+ Their standing. A suspended account reordering should fail the same guard as a new order.
+
+ Recommendation
+
+ Build it as "start a new order from this one" — it pre-fills the cart and the address and then runs the full normal checkout including every guard. Do not build a one-click repeat that bypasses checks; the guards in 5.2 and 5.3 are the whole point and a reorder path that skips them quietly undoes them.
+
+ Saved addresses (10.2) are the dependency. Build those first and reorder becomes almost free.
+
+ 10.5 Their documents — pinned to the order, for good
+ defect found 
+
+ The requirement is exact: a customer coming back in two years must get the certificate that shipped
+ with their order — not a later revision, not the certificate for whatever lot you happen to be
+ shipping now. As the schema stands today that is not what happens, and a reorder is the case
+ that breaks it. 
+
+ The defect, precisely
+
+ issuedDocuments binds a COA with subjectType = 'lot' and
+ subjectId = lotId . So "the COA for this order" can only be answered by walking
+ order → line → lot → the current non-superseded COA for that lot . That last step is a live
+ lookup, and it is where the record stops being historical.
+
+ Two ways it goes wrong:
+
+ A correction rewrites history. The lot's COA is re-issued — a transcription fix, a re-test, an added panel. supersededById is set, the live lookup now returns v2, and the customer's two-year-old order silently shows a document they never received.
+
+ A reorder contaminates the old order. The customer reorders; the new order ships from a different lot with a different certificate. Any view that resolves documents by product rather than by order line will show the newest certificate against every past purchase of that compound. This is the exact failure you asked about.
+
+ What is already right, and makes the fix small
+
+ issuedDocuments.sha256 stores a SHA-256 of the issued bytes. Any pinned document is byte-verifiable forever.
+
+ documentNumber is unique for all time and never reused.
+
+ objectKey is uniquely indexed, so an issued file has its own immutable storage slot.
+
+ supersededById , supersededAt and supersedeReason already model correction-by-supersession rather than overwrite — which is the same principle the lot records use.
+
+ Everything needed for a permanent record exists. What is missing is the pin.
+
+ The fix — pin at fulfilment, resolve only through the pin
+
+ 1. Pin the document to the order line. At the moment a line is allocated to a lot
+ and shipped, write coaDocumentId (the issuedDocuments.id ) and
+ coaSha256 onto the order line. Do the same for the SDS in force that day. The pin is
+ written once and never updated.
+
+ 2. The customer view reads the pin and nothing else. No query in the customer
+ document path may select "current COA for lot X" or "COA for product Y". If the pin is absent the page
+ says the record is unavailable — it does not fall back to a live lookup, because a plausible wrong
+ document is worse than an honest gap.
+
+ 3. Never delete or overwrite an issued object. Supersession writes a new object and
+ a new row; the superseded file stays in storage permanently. Put that in the R2 lifecycle rules, not
+ just in a convention.
+
+ 4. Show a revision without swapping to it. When a pinned document has been
+ superseded, show the pinned one as the primary — "Certificate issued with order NX-260908-0001" — and
+ beneath it, clearly secondary: "a revised certificate for this lot was issued on 4 March 2027."
+ The customer chooses. The page never decides for them.
+
+ 5. Add supersededById to lotDocuments . It has
+ supersededAt but no pointer to the replacement, so the chain is broken at the lot-document
+ level even though issuedDocuments models it correctly.
+
+ The acceptance test to write
+
+ Issue COA v1 for lot L. Ship order A from lot L. Supersede with COA v2. Ship order B from lot L.
+ Then assert: order A returns v1 and its stored sha256 matches the bytes served; order B returns v2;
+ neither order's view changes if v3 is issued tomorrow. Run it against a real supersession, not a
+ mocked one.
+
+ Until that test passes, treat the document locker as unbuilt — the whole point of it is that it
+ cannot be wrong.
+
+ What the locker then contains
+
+ Every invoice and packing slip, by number.
+
+ The exact COA that shipped with each order line, with its accession number so they can verify it with the testing lab directly rather than trusting you.
+
+ The SDS in force on the shipment date, plus the current one where it has changed — both labelled, never substituted.
+
+ Their own attestation record, with the version they accepted.
+
+ The accession number is the detail that matters most. Showing it says you expect to be checked,
+ which is the most credible thing a supplier in this category can say — and it costs nothing, because
+ the field is already on the lot record.
+
+ 10.6 Recall reachability — the reason this is launch-critical
+ the real case 
+
+ A lot fails a retest, or a supplier discloses a problem, or a customer reports something wrong. You
+ hold the lot and open a case. Then you have to answer one question: who received material from
+ this lot, and how do I reach them today? 
+
+ The recall workflow is built — containment, consignee identification, communication, action tracking,
+ effectiveness and controlled closure. It has never been rehearsed against real data, and it depends
+ entirely on the customer record being complete and reachable. A guest order with a typo'd email and no
+ phone number is a consignee you cannot notify.
+
+ What makes a consignee unreachable today
+
+ Phone is optional at checkout, so many records will have email only.
+
+ Email is unverified on the guest path — a typo is indistinguishable from a real address.
+
+ Domain mail is unauthenticated, so even a correct address may not receive your notice.
+
+ No second contact route and no record of a failed notification attempt.
+
+ Recommendation
+
+ Treat email verification as a recall requirement rather than an account feature — that reframing is what justifies the friction to a team worried about conversion. Verify the address before the order ships, not before it is placed, so nothing is blocked at the point of sale.
+
+ Then run the mock recall against seeded customer records and count how many you could actually reach. That number is the honest measure of whether this chapter is done.
+
+ 10.7 Segmentation, and the line you cannot cross
+ rules first 
+
+ Once you can see what people bought, the obvious next step is to group them and market accordingly.
+ Some of that is ordinary business. Some of it manufactures evidence against you, and the distinction is
+ sharp enough to write as a rule.
+
+ Segment Allowed? Why 
+
+ By compound purchased Yes A factual record of what you sold. 
+
+ By order frequency or value Yes Ordinary commercial fact. Useful for terms and stock planning. 
+
+ By tier or institution Yes Stated by the customer. 
+
+ By lot received Yes — required This is the recall query. It is the most important one you have. 
+
+ By research setting, as they stated it Yes Their own answer from a fixed list. Descriptive, never gating. 
+
+ By inferred purpose or outcome No Creates a written record that you believed the material was for human use. 
+
+ By residential address No — dropped See below. A home lab is a research setting, not a risk signal. 
+
+ Campaigns framed on an effect No A claim in an email is a claim. The swap test applies to marketing exactly as it applies to the site. 
+
+ Correction — the residential-address flag comes out entirely
+
+ Chapter 5 originally proposed capturing residential-versus-commercial from the address validator and
+ recording it. On your direction that is withdrawn , and on reflection you are right for
+ a better reason than convenience.
+
+ Independent researchers increasingly work from home labs and home offices — that is the whole premise
+ of the buyer you are selling to. A field that separates them from institutional addresses is a field
+ whose only possible use is to treat one group as more suspicious than the other. And it fails this
+ chapter's own rule from 10.1: do not record theories about behaviour. A residential flag is precisely
+ the kind of field a plaintiff would point at and ask what you did with it.
+
+ So: no capture, no flag, no restriction, and no shipping rule that turns on it. Where a carrier needs
+ a residential indicator to rate a parcel correctly, that is a shipping API parameter resolved at
+ label time — not a stored attribute of the customer.
+
+ Recommendation — dropdowns, not free text
+
+ Replace the free-text institution field with a fixed list the customer picks from. A dropdown gives
+ you data you can actually group, it stops people typing things into your records that you would rather
+ not hold, and it makes the home-lab researcher a first-class option rather than an unclassifiable
+ outlier:
+
+ University or academic institution
+
+ Hospital or clinical research facility
+
+ Commercial or industrial laboratory
+
+ Contract research organisation
+
+ Government or national laboratory
+
+ Independent or home laboratory
+
+ Other research setting
+
+ Alongside it, an optional free-text organisation name for anyone who wants to give one — needed for
+ an invoice anyway. Neither field gates anything.
+
+ Then segment on what was bought and when, never on why. The honest version also performs better:
+ "your lot's retest is due" and "this compound is back in stock" are genuinely useful to a researcher
+ and carry no claim at all.
+
+ 10.8 Who counts as a researcher — and why you should stop counting heads
+ corrected 
+
+ Rev. 1 of this chapter opened by saying individual researchers are individuals, so privacy obligations
+ apply differently than they would to a university purchase order. That framing was wrong and
+ you were right to push back on it. It quietly made you classify every customer as a person or
+ an organisation, which is a determination you do not want to make, cannot make reliably, and gain
+ nothing from making.
+
+ The qualifying question is one question
+
+ Are you a researcher? That is the whole gate. Not "are you an individual or a
+ group", not "how big is your lab", not "is this a home address". A sole researcher with a bench in a
+ converted garage and a four-person startup lab are the same customer to you, and the difference between
+ them is none of your business.
+
+ Scale is a descriptive attribute, captured from the 10.7 dropdown because it is useful for stocking
+ and pack sizes — never a gate, never a tier, never a permission.
+
+ What this changes in the tier design
+
+ Chapter 5 proposed replacing consumer with independent_researcher . On this
+ correction, drop the "independent": the tier is simply researcher . "Independent" is exactly
+ the individual-versus-group judgement you have just said you do not want to encode, and it would sit in
+ the schema making that judgement on every row.
+
+ tier: 'researcher' — everyone who passes the attestation. One class of customer.
+
+ Commercial arrangement is a separate field, not a tier: self-serve checkout, or purchase order with net terms. A one-person lab can be on net terms; a big institution can pay by card. Those are billing facts, not customer classes.
+
+ Research setting from the 10.7 dropdown — descriptive, never gating.
+
+ This is simpler than what you have now and it removes a determination rather than adding one.
+
+ Consent, retention and deletion — one standard for everyone
+
+ The same logic resolves the privacy question. Rather than deciding who gets individual-level
+ protection, apply the stronger standard to every customer record. It costs almost
+ nothing, it is what a home-lab researcher would expect, and it means you never have to defend a
+ classification you did not want to make.
+
+ Consent. Transactional mail needs none. Anything else needs a recorded opt-in with a timestamp and an unsubscribe that actually works.
+
+ Retention. Two clocks, written as two rules. Order and lot records are the traceability chain and a recall depends on them — they are kept. Marketing data is not, and should expire.
+
+ Deletion. A customer can ask you to delete their data; you cannot delete the distribution record without breaking the lot chain. Say plainly up front what is kept as a regulatory record and why. Decide it now, not during the first request.
+
+ Guest records. A guest contact is an order snapshot, not a verified identity. Say so in the profile policy so nobody later treats one as a confirmed customer.
+
+ 10.9 What staff should see on a customer
+ to build 
+
+ Fatima picks up an email from someone who ordered three months ago. Today she has an orders list she can
+ filter. What she needs is one page.
+
+ The customer page
+
+ Who they are, their tier, their stated research context, and when they last ordered.
+
+ Their attestation: which version, accepted when. Flagged if out of date.
+
+ Every order with status, and every lot they hold.
+
+ Open cases, past complaints, returns and refunds.
+
+ Notes, attributed and dated.
+
+ Whether they are reachable — email verified, phone present, last notice delivered or bounced.
+
+ Who sees what
+
+ Customer data is a permissions question and the current three-role matrix does not answer it cleanly
+ (finding F-03 in the main register). Fulfilment needs the address; quality needs the lot-to-consignee
+ link for a recall; finance needs payment history. Nobody needs all three routinely.
+
+ 10.0 What this chapter adds to the register
+
+ 22 items. Five of them are the document-pinning work from 10.5 — the record-integrity requirement — and three more are recall items wearing a customer-profile coat. That is why this chapter sits on the critical path.
+
+ Signing as 
+
+ choose your name 
+ Melissa Wisam Fatima Ammre 
+
+ 0 of 22 complete
+
+ Write the customer profile data policy
+ Every field, why it exists, how long it is kept, and the two exclusions at the top: no therapeutic purpose field, no inferred-use notes. 10.1
+ critical path c10-policy 
+
+ Fatima 
+
+ Verify the customer email before the order ships
+ Recall reachability requirement, not an account feature. Placed after checkout so nothing blocks the sale. 10.6
+ critical path c10-verify 
+
+ Ammre 
+
+ Add a reachability state to every customer record
+ Email verified, phone present, last notice delivered or bounced. This is what a recall depends on. 10.6
+ critical path c10-reach 
+
+ Ammre 
+
+ Run the mock recall against seeded customer records and count who you could reach
+ That number is the honest measure of whether this chapter is done. 10.6
+ critical path c10-mockrecall 
+
+ Melissa 
+
+ Build saved addresses
+ The dependency for reorder, and the main friction in a repeat purchase today. 10.2
+ critical path c10-addresses 
+
+ Ammre 
+
+ Show the customer their orders, lines and their own lot numbers
+ Read through a narrow account-scoped query, never the movement ledger. Write the boundary rule in code. 10.3
+ first month c10-history 
+
+ Ammre 
+
+ Build reorder as start-a-new-order-from-this-one
+ Re-checks price, lot, availability, attestation version and account standing. Never a one-click bypass. 10.4
+ first month c10-reorder 
+
+ Ammre 
+
+ BUILT 12 Sep — COA and SDS pinned to the order line at dispatch
+ coa_document_id + coa_sha256 (and sds_*) written once at shipment, never updated; documents are hashed at upload (migration 0051). Proved on NX-260912-0001: the line carries a994b1c0…. Chapter 18. 10.5
+ critical path c10-pin 
+
+ Ammre 
+
+ BUILT 12 Sep — the customer document route resolves only through the pin
+ /api/orders/:order/items/:line/documents/coa serves the pinned document id; it never selects current-COA-for-lot, and it does not consult lot status. Unauthenticated requests get 401. 10.5
+ critical path c10-pinonly 
+
+ Ammre 
+
+ Write the supersession acceptance test
+ Issue v1, ship order A, supersede with v2, ship order B, assert A still returns v1 with matching sha256. Until it passes, treat the locker as unbuilt. 10.5
+ critical path c10-pintest 
+
+ Ammre 
+
+ Make issued document objects permanent in R2 lifecycle rules
+ Supersession writes a new object; the superseded file stays forever. A rule, not a convention. 10.5
+ critical path c10-immutable 
+
+ Ammre 
+
+ Add supersededById to lotDocuments
+ It has supersededAt but no pointer to the replacement, so the chain breaks at the lot-document level even though issuedDocuments models it correctly. 10.5
+ first month c10-supersede 
+
+ Ammre 
+
+ Build the customer document locker on top of the pins
+ Invoices, packing slips, the exact COA that shipped with each line plus its accession number, the SDS in force that day, their attestation record. 10.5
+ first month c10-docs 
+
+ Ammre 
+
+ BUILT 12 Sep — research-setting dropdown replaces free-text institution at sign-up
+ Seven options including independent or home laboratory; optional; stored on the account and the order. Free-text company stays on the shipping form as the consignee institution. 10.7
+ first month c10-dropdown 
+
+ Fatima 
+
+ BUILT 12 Sep — no residential-address flag anywhere
+ Withdrawn entirely on owner direction: no capture, no storage, no shipping rule. 10.7
+ first month c10-noresid 
+
+ Ammre 
+
+ BUILT 12 Sep — the tier is researcher
+ Not independent_researcher. Migration 0050; sign-up says Researcher. 10.8
+ critical path c10-tier 
+
+ Ammre 
+
+ Build the staff customer page
+ One page: identity, attestation state, orders, lots held, open cases, notes, reachability. 10.9
+ first month c10-staffpage 
+
+ Ammre 
+
+ Add attributed, dated customer notes
+ With the profile policy's exclusions enforced in the interface, not just written down. 10.9
+ first month c10-notes 
+
+ Ammre 
+
+ Approve the segmentation rules
+ By compound, frequency, research setting and lot received: yes. By inferred purpose: never. Residential address is out entirely. Claim governance is hers. 10.7
+ first month c10-segments 
+
+ Melissa 
+
+ Build the consent record for anything beyond transactional mail
+ Recorded opt-in with timestamp and a working unsubscribe. 10.8
+ first month c10-consent 
+
+ Fatima 
+
+ Get retention and deletion advised
+ One standard for every customer, so no individual-versus-organisation call is ever needed. Two clocks: traceability records kept, marketing data expires. Resolve the deletion conflict before the first request. 10.8
+ first month c10-retention 
+
+ Counsel 
+
+ Define who sees which customer data
+ Fulfilment needs the address, quality needs lot-to-consignee, finance needs payment history. Nobody needs all three routinely. Depends on F-03. 10.9
+ first month c10-perms 
+
+ Ammre 
+
+ Chapter 10 · NexPhase Launch Register · 12 September 2026 
+ Privacy and retention obligations are a counsel question, not an engineering one.
