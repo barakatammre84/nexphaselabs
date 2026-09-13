@@ -663,6 +663,49 @@ export const accounts = sqliteTable(
 );
 
 /**
+ * Addresses a customer has used, kept so a repeat order is not retyped.
+ *
+ * Ship-to detail is copied onto the order at submission and the order's copy is
+ * immutable — this table is a convenience for the next order, never the record
+ * of where something was sent. Editing one changes nothing that has shipped.
+ *
+ * Nothing is hard-deleted: removing an address sets `archivedAt`, so an order
+ * that referenced it can still be explained.
+ */
+export const accountAddresses = sqliteTable(
+  'account_addresses',
+  {
+    id: text('id').primaryKey(),
+    accountId: text('account_id').notNull(),
+    /** What the customer calls it: "Lab", "Home bench". Optional. */
+    label: text('label'),
+    consigneeName: text('consignee_name').notNull(),
+    consigneeInstitution: text('consignee_institution'),
+    line1: text('line1').notNull(),
+    line2: text('line2'),
+    city: text('city').notNull(),
+    region: text('region').notNull(),
+    postalCode: text('postal_code').notNull(),
+    country: text('country').notNull().default('US'),
+    phone: text('phone'),
+    isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+    lastUsedAt: integer('last_used_at', { mode: 'timestamp' }),
+    archivedAt: integer('archived_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    accountIdx: index('account_addresses_account_idx').on(table.accountId, table.archivedAt),
+  }),
+);
+
+export type AccountAddress = typeof accountAddresses.$inferSelect;
+
+/**
  * Customer account history: password resets, suspensions, staff-triggered
  * emails, session revocations. Append-only; the actor is 'self', 'system' or
  * "Name (stf_id)".

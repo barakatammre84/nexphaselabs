@@ -7,6 +7,7 @@ import { openCheckoutEnabled } from '@/lib/site-config';
 import { CheckoutExperience } from '@/components/site/checkout-experience';
 import { requireAccount } from '@/lib/account-auth';
 import { getCart } from '@/lib/cart';
+import { listAddresses } from '@/lib/account-addresses';
 import { loadCatalog } from '@/lib/catalog-data';
 import { MAX_LINE_QUANTITY } from '@/lib/order-rules';
 import { getOrganizationForAccount } from '@/lib/organizations';
@@ -38,6 +39,10 @@ export default async function CartPage({ searchParams }: Props) {
       : Promise.resolve({ lines: [], subtotalCents: 0, orderable: false }),
   );
   const cart = loaded.data;
+  // Saved addresses belong to a signed-in customer; a guest has no account to
+  // save against and sees the plain form.
+  const savedAddresses =
+    account && account.status !== 'guest' ? await listAddresses(account.id) : [];
   const organization =
     account?.tier === 'institutional'
       ? await loadCatalog(() => getOrganizationForAccount(account.id))
@@ -200,6 +205,8 @@ export default async function CartPage({ searchParams }: Props) {
                 name={account?.status === 'guest' ? '' : account?.name}
                 quoteRequired={checkoutQuotesRequired()}
                 orderable={cart.orderable}
+                addresses={savedAddresses}
+                canSaveAddress={Boolean(account && account.status !== 'guest')}
               />
             ) : (
               <form

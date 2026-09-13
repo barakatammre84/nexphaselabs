@@ -5,6 +5,8 @@ import { AccessProgress } from '@/components/site/access-progress';
 import { getOrganizationForAccount } from '@/lib/organizations';
 import { AcknowledgementForm } from '@/components/site/acknowledgement-form';
 import { requireAccount } from '@/lib/account-auth';
+import { listAddresses } from '@/lib/account-addresses';
+import { SavedAddresses } from '@/components/site/saved-addresses';
 import { acknowledgementsCurrent } from '@/lib/account-rules';
 import { loadCatalog } from '@/lib/catalog-data';
 import { ORDER_STATUS_LABEL, type OrderStatus } from '@/lib/order-rules';
@@ -18,7 +20,15 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-type Props = { searchParams: Promise<{ ack?: string }> };
+type Props = {
+  searchParams: Promise<{
+    ack?: string;
+    saved?: string;
+    removed?: string;
+    defaulted?: string;
+    address_error?: string;
+  }>;
+};
 
 const VERIFICATION_TEXT: Record<string, { title: string; body: string }> = {
   none: {
@@ -49,7 +59,7 @@ const VERIFICATION_TEXT: Record<string, { title: string; body: string }> = {
 
 export default async function AccountPage({ searchParams }: Props) {
   const account = await requireAccount('/account');
-  const { ack } = await searchParams;
+  const { ack, saved, removed, defaulted, address_error: addressError } = await searchParams;
   const current = acknowledgementsCurrent(account);
   const verification =
     VERIFICATION_TEXT[account.verificationStatus] ?? VERIFICATION_TEXT.none;
@@ -60,6 +70,7 @@ export default async function AccountPage({ searchParams }: Props) {
     : null;
   const recent =
     (await loadCatalog(() => listOrdersForAccount(account.id, 5))).data ?? [];
+  const addresses = await listAddresses(account.id);
 
   return (
     <main className="text-foreground">
@@ -235,6 +246,14 @@ export default async function AccountPage({ searchParams }: Props) {
           </div>
         </dl>
         </div>
+
+        <SavedAddresses
+          addresses={addresses}
+          saved={saved === '1'}
+          removed={removed === '1'}
+          defaulted={defaulted === '1'}
+          error={addressError ?? null}
+        />
         </div>
       </section>
     </main>

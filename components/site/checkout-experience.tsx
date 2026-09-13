@@ -9,7 +9,7 @@ import {
   ShieldCheck,
   Truck,
 } from 'lucide-react';
-import { CheckoutFields } from '@/components/site/checkout-fields';
+import { CheckoutFields, type PickableAddress } from '@/components/site/checkout-fields';
 
 type Quote = {
   id: string;
@@ -34,6 +34,8 @@ export function CheckoutExperience({
   name,
   quoteRequired,
   orderable,
+  addresses = [],
+  canSaveAddress = false,
 }: {
   subtotalCents: number;
   token: string;
@@ -42,6 +44,8 @@ export function CheckoutExperience({
   name?: string;
   quoteRequired: boolean;
   orderable: boolean;
+  addresses?: PickableAddress[];
+  canSaveAddress?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -115,7 +119,7 @@ export function CheckoutExperience({
               </p>
             </div>
           </div>
-          <CheckoutFields email={email} name={name} />
+          <CheckoutFields email={email} name={name} addresses={addresses} canSave={canSaveAddress} />
 
           <div className="mt-8 border-t border-border pt-7">
             <div className="flex items-start gap-3">

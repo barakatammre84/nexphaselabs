@@ -1,4 +1,5 @@
 import { getBuyerFromRequest } from '@/lib/buyer-session';
+import { rememberOrderAddress } from '@/lib/account-addresses';
 import { acknowledgementsCurrent } from '@/lib/account-rules';
 import { createOrderFromCart, shipToFromOrganization } from '@/lib/orders';
 import { getOrganizationForAccount } from '@/lib/organizations';
@@ -67,6 +68,20 @@ export async function POST(request: Request) {
         },
       );
       if (!result.ok) return back(result.error);
+      // Only after the order is accepted, and only when asked: a saved address
+      // must never be a side effect of an attempt that failed. Guests have no
+      // account to save against, so this is a no-op for them.
+      if (form.get('save_address') === 'on' && account.status !== 'guest') {
+        try {
+          await rememberOrderAddress(
+            account.id,
+            checkout.details.shipTo,
+            String(form.get('address_label') ?? '').trim().slice(0, 40) || null,
+          );
+        } catch (error) {
+          console.error('[orders] address not saved', error instanceof Error ? error.message : error);
+        }
+      }
       return Response.redirect(
         new URL(
           `/account/orders/${result.orderNumber}?submitted=${result.duplicate ? 'already' : '1'}`,
