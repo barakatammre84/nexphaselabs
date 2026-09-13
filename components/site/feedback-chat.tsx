@@ -187,7 +187,17 @@ export function FeedbackChat() {
   }, [screenshot]);
 
   useEffect(() => {
-    if (available) void load(false, undefined, true);
+    if (!available) return;
+    // 16.1: this fired on every page load, so every visitor's first impression
+    // included a server round-trip for a support widget they had not opened. The
+    // unread badge and saved draft can arrive once the browser is idle.
+    const start = () => void load(false, undefined, true);
+    if (typeof window.requestIdleCallback === 'function') {
+      const handle = window.requestIdleCallback(start, { timeout: 3000 });
+      return () => window.cancelIdleCallback?.(handle);
+    }
+    const timer = window.setTimeout(start, 1200);
+    return () => window.clearTimeout(timer);
   }, [available, load]);
 
   useEffect(() => {

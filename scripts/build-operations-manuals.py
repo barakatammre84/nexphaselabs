@@ -201,6 +201,33 @@ def bullets(doc, items, numbered=False):
         p.add_run(item)
 
 
+def commands(doc, lines):
+    """Literal commands, monospaced and shaded so they are copied exactly.
+
+    16.6: MAN 002 described the deployment and recovery procedures rather than
+    stating them. A description is not something a second person can follow at
+    two in the morning. Anything in one of these blocks is typed verbatim.
+    """
+    for line in lines:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(2)
+        p.paragraph_format.left_indent = Inches(0.18)
+        run = p.add_run(line)
+        run.font.name = "Cascadia Mono"
+        run.font.size = Pt(9)
+        r_pr = run._r.get_or_add_rPr()
+        r_fonts = r_pr.find(qn("w:rFonts"))
+        if r_fonts is None:
+            r_fonts = OxmlElement("w:rFonts")
+            r_pr.append(r_fonts)
+        for attribute in ("w:ascii", "w:hAnsi", "w:cs"):
+            r_fonts.set(qn(attribute), "Cascadia Mono")
+        shd = OxmlElement("w:shd")
+        shd.set(qn("w:val"), "clear")
+        shd.set(qn("w:fill"), PALE)
+        r_pr.append(shd)
+
+
 def section(doc, title, paragraphs=None, bullets_list=None):
     doc.add_heading(title, level=1)
     for text in paragraphs or []:
@@ -572,6 +599,137 @@ def build_technical():
         ["7", "Run health and a non destructive smoke test. Monitor logs, provider queues, and operational cases.", "Post change verification"],
         ["8", "If acceptance fails, stop, preserve evidence, roll back code, and follow the database recovery decision. Never improvise destructive data reversal.", "Rollback or incident record"],
     ])
+    doc.add_heading("Exact commands", level=1)
+    doc.add_paragraph(
+        "Type these verbatim. Everything in this section has been run. A second person should be able to follow it without asking a question, which is the only reason it exists: on 12 September 2026 nobody except the technology seat could deploy, roll back, or restore, and the cutover is the worst moment for that to still be true."
+    )
+    doc.add_paragraph(
+        "Before anything else, confirm which account and environment the shell is pointed at. Never deploy from a shell whose target you have not just checked."
+    )
+    commands(doc, [
+        "cd /path/to/nexphaselabs.net",
+        "npx wrangler whoami                      # account and token scope",
+        "git status --porcelain                   # must be empty before a release",
+        "git log --oneline -3",
+    ])
+
+    doc.add_heading("Deploy to staging", level=2)
+    doc.add_paragraph(
+        "Staging deploys from main. Pushing or merging to main is itself a deployment: the Deploy staging workflow runs checks, build, staging migrations, seed, deploy, and two smoke tests. Do it while someone is watching, never as a side effect of tidying up."
+    )
+    commands(doc, [
+        "git checkout main && git pull",
+        "git merge --no-ff <branch>               # this is a deployment",
+        "git push origin main                     # triggers .github/workflows/deploy-staging.yml",
+        "",
+        "# watch it, and read the last two steps in particular",
+        "gh run watch",
+        "",
+        "# the same thing by hand, if GitHub is unavailable",
+        "npm run check                            # typecheck, lint, tests, build",
+        "npm run db:migrate:staging",
+        "npm run deploy:staging                   # builds, runs the guard, deploys",
+    ])
+    doc.add_paragraph(
+        "The deploy guard refuses to hand wrangler a build that does not target the environment named on the command line, and prints every field it checked. If it refuses, rebuild; never bypass it. The staging smoke steps then require the health endpoint to report ok and the storefront to answer 401 to an anonymous request. A 200 there means staging is open to the internet and the deploy has failed."
+    )
+
+    doc.add_heading("Release to production", level=2)
+    doc.add_paragraph(
+        "A version tag is the only path to production. There is no other way in: the workflow refuses any run whose ref is not a v tag, and the guard refuses a local deploy unless HEAD is at a v tag with a clean tree."
+    )
+    commands(doc, [
+        "# release what is already green on staging",
+        "git checkout main && git pull",
+        "git tag -a v1.2.3 -m \"Launch release\"",
+        "git push origin v1.2.3                   # triggers deploy-production.yml",
+        "gh run watch",
+        "",
+        "# break glass only: GitHub unavailable, HEAD at the tag, clean tree",
+        "NX_CONFIRM_PRODUCTION=yes npm run deploy",
+    ])
+
+    doc.add_heading("Roll back", level=2)
+    doc.add_paragraph(
+        "Code rolls back. Migrations do not: they are written to be backward compatible so the previous worker keeps running against the new schema. If a migration has made the data itself wrong, this is an incident and the database decision below applies, not a rollback."
+    )
+    commands(doc, [
+        "npx wrangler deployments list                       # production",
+        "npx wrangler deployments list --env staging",
+        "npx wrangler rollback --message \"Reason, case number\"",
+        "npx wrangler rollback <deployment-id> --env staging",
+        "",
+        "# prove the rollback landed",
+        "curl -fsS https://nexphaselabs.net/api/health",
+        "npx wrangler tail                                   # live log, Ctrl-C to stop",
+    ])
+    doc.add_paragraph(
+        "Record the rollback in an operational case with the deployment identifier, the reason, who approved it, and what the health check said afterwards."
+    )
+
+    doc.add_heading("Back up and restore", level=2)
+    doc.add_paragraph(
+        "One command runs the whole rehearsal, times every phase, and writes a report with a witness block. It checks credentials before it touches anything. Without R2 credentials the document half is skipped and the result is reported incomplete, because a database restored without its evidence files is not a recovery."
+    )
+    commands(doc, [
+        "export CLOUDFLARE_API_TOKEN=...          # D1 Edit + R2 Edit, correct account",
+        "export R2_ACCESS_KEY_ID=...              # R2 S3 credentials",
+        "export R2_SECRET_ACCESS_KEY=...",
+        "",
+        "npm run ops:rehearsal:staging -- /absolute/private/recovery-dir",
+        "",
+        "# production, inside an approved maintenance window only",
+        "NEXPHASE_CONFIRM_PRODUCTION_BACKUP=yes \\",
+        "  npm run ops:rehearsal:production /absolute/private/recovery-dir",
+        "",
+        "# the individual steps, if you need them separately",
+        "npm run ops:backup:staging -- /absolute/private/recovery-dir",
+        "npm run ops:restore:verify -- /absolute/private/recovery-dir/<export>.sql",
+    ])
+    doc.add_paragraph(
+        "Authentication error 10000 means the token was rejected, not that the database is missing. Check that the token exists and has not expired, that it carries D1 Edit and R2 Edit, that it is scoped to the account holding the database, and that the shell really has it exported. The rehearsal reports this for you."
+    )
+    doc.add_paragraph(
+        "Cloudflare Time Travel restores a D1 database to a point in the last thirty days. It is a data decision, not a technical one: it discards everything written since that timestamp. It requires the administrator's approval and an incident case, and the export above is taken first."
+    )
+    commands(doc, [
+        "npx wrangler d1 time-travel info nexphase-labs",
+        "npx wrangler d1 time-travel restore nexphase-labs --timestamp <ISO-8601>",
+    ])
+
+    doc.add_heading("Staging access", level=2)
+    doc.add_paragraph(
+        "The staging storefront is closed by password. Without the secret the environment refuses every request with 503 and the deploy smoke test fails, which is deliberate: a missing secret should be a broken deploy rather than an open shop."
+    )
+    commands(doc, [
+        "npx wrangler secret put STAGING_ACCESS_PASSWORD --env staging",
+        "npx wrangler secret list --env staging",
+        "",
+        "# prove it from outside, unauthenticated",
+        "curl -s -o /dev/null -w '%{http_code}\\n' https://<staging-host>/     # expect 401",
+        "curl -sI https://<staging-host>/ | grep -i x-robots-tag              # expect noindex",
+    ])
+
+    doc.add_heading("Where the credentials live", level=1)
+    doc.add_paragraph(
+        "Locations and who can obtain them. No value is ever written here, in any other manual, in a case, or in source. If a credential must be replaced, rotate it at the provider and set it again through the command that owns it."
+    )
+    add_table(doc, ["Credential", "Where it lives", "Who can obtain it", "Used by"], [
+        ["Cloudflare account access", "Cloudflare dashboard login with the account owner's own 2FA", "Business and Systems lead", "Every deploy, D1, R2, logs"],
+        ["CLOUDFLARE_API_TOKEN", "GitHub repository secret, and the operator's own shell for manual runs", "Business and Systems lead, from the Cloudflare dashboard", "Both deploy workflows, D1 export"],
+        ["CLOUDFLARE_ACCOUNT_ID", "GitHub repository secret and wrangler.jsonc (not secret)", "Anyone with repository access", "Deploy workflows"],
+        ["R2 S3 access key and secret", "Cloudflare R2 API tokens page, held by the operator for a rehearsal", "Business and Systems lead", "Recovery rehearsal only"],
+        ["Worker secrets", "Cloudflare Workers secret store, per environment, set by wrangler secret put", "Business and Systems lead", "Payments, email, Shippo, digest, staging access"],
+        ["STAGING_ACCESS_PASSWORD", "Worker secret on the staging environment; shared with testers through the approved password manager", "Business and Systems lead", "Staging storefront access"],
+        ["Google Workspace sending credentials", "Workspace admin console and the Worker secret store", "Business and Systems lead", "Customer email"],
+        ["Shippo API key", "Shippo dashboard and the Worker secret store", "Business and Systems lead", "Rates, labels, tracking"],
+        ["Payment provider credentials", "Provider dashboard and the Worker secret store", "Business and Systems lead with banking owner approval", "Checkout and refunds"],
+        ["Domain and DNS", "Registrar and Cloudflare DNS", "Business and Systems lead", "Cutover"],
+    ], [1.5, 2.2, 1.6, 1.45])
+    doc.add_paragraph(
+        "A second person cannot obtain these today. Until a named fallback exists with their own access, a single unavailable person is a single point of failure for deployment and recovery. Record the fallback and their access path here when it is agreed."
+    )
+
     doc.add_heading("Provider activation", level=1)
     add_table(doc, ["Provider area", "Required staging evidence", "Production gate"], [
         ["USPS UPS FedEx through Shippo", "Named origins, approved parcels and services, sandbox rates, one label, refund reconciliation, replacement after void, tracking, dangerous goods decision", "Carrier accounts, each origin, service policy, return and handoff procedure approved"],

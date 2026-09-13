@@ -1,6 +1,10 @@
 # A version tag (v1.2.3) → checks and build → migrate the production database → deploy the built worker → smoke test.
 # The `production` GitHub environment can require a reviewer before this job runs.
 # Needs repository secrets CLOUDFLARE_API_TOKEN (Workers, D1, R2 edit) and CLOUDFLARE_ACCOUNT_ID.
+#
+# The tag is the only way in. workflow_dispatch stays available so an interrupted release can be
+# re-run, but the first step refuses any ref that is not a v* tag — dispatching a branch does not
+# deploy it. scripts/deploy-guard.mjs enforces the same rule again from a laptop.
 name: Deploy production
 
 on:
@@ -23,6 +27,20 @@ jobs:
       name: production
       url: https://nexphaselabs.net
     steps:
+      - name: Release must be a v* tag
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$REF_TYPE" != "tag" ]; then
+            echo "Refusing: this run is on $REF_TYPE '$REF_NAME'. Production is released from a version tag."
+            echo "Tag the reviewed commit (git tag -a v1.2.3 -m '...' && git push origin v1.2.3)."
+            exit 1
+          fi
+          case "$REF_NAME" in
+            v*) echo "Releasing $REF_NAME" ;;
+            *) echo "Refusing: tag '$REF_NAME' is not a v* version tag."; exit 1 ;;
+          esac
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -37,6 +55,11 @@ jobs:
       - name: Build (production configuration)
         # The build must succeed BEFORE the database is touched: a migration cannot be undone by a rollback.
         run: npm run build
+      - name: Deploy guard (built config must target production)
+        # Before the database is touched: a migration cannot be undone by a rollback.
+        env:
+          NX_CONFIRM_PRODUCTION: "yes"
+        run: node scripts/deploy-guard.mjs production
       - name: Apply migrations (production D1)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

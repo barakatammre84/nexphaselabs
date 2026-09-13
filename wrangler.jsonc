@@ -50,6 +50,18 @@
   "env": {
     "staging": {
       "name": "nexphaselabs-staging",
+      // Workers Assets serves static files ahead of the worker, so without this the
+      // staging password gate would cover the pages and APIs but not the bundles,
+      // product images or the client manifest. Staging runs the worker first for
+      // everything; worker.ts hands real assets back to the asset store. Production
+      // deliberately does NOT set this — there the files are public anyway and every
+      // asset should be served without a worker invocation.
+      "assets": {
+        "directory": "dist/client",
+        "not_found_handling": "none",
+        "binding": "ASSETS",
+        "run_worker_first": true,
+      },
       "durable_objects": {
         "bindings": [
           { "name": "FEEDBACK_ROOMS", "class_name": "FeedbackRoom" },

@@ -19,8 +19,10 @@ declare namespace Cloudflare {
     RESEARCHER_TIER_ENABLED?: string;
     CONSUMER_TIER_ENABLED?: string;
     OPEN_CHECKOUT_ENABLED?: string;
-    /** Basic-auth password for the non-production storefront. Unset = open, with a logged warning. */
+    /** Basic-auth password for a deployed non-production storefront. Unset = the environment refuses every request with 503. */
     STAGING_ACCESS_PASSWORD?: string;
+    /** "true" deliberately opens a deployed non-production storefront to anyone. A stated choice, never a default. */
+    STAGING_ACCESS_OPEN?: string;
     SHIPPING_PROVIDER?: string;
     SHIPPO_API_KEY?: string;
     /** Secret URL token for Shippo webhook calls; at least 32 random characters. */

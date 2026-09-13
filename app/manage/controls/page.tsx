@@ -2,15 +2,17 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { AlertCircle, ArrowLeft, ExternalLink } from 'lucide-react';
 import { ControlForm } from '@/components/manage/control-form';
+import { ControlSeedForm } from '@/components/manage/control-seed-form';
 import {
   CONTROL_STATUS_LABEL,
   assignableStaff,
   controlHistory,
   listOperationalControls,
   operationalControlSummary,
+  planControlAssignments,
 } from '@/lib/operational-controls';
 import { requireStaff } from '@/lib/staff-auth';
-import { updateOperationalControlAction } from './actions';
+import { seedControlOwnersAction, updateOperationalControlAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -29,6 +31,13 @@ export default async function ControlsPage() {
   ]);
   const summary = operationalControlSummary(controls, staff.id);
   const areas = [...new Set(controls.map((control) => control.area))];
+  const unassigned =
+    staff.role === 'admin'
+      ? planControlAssignments(controls, people).filter(
+          (proposal) => proposal.basis !== 'already-assigned',
+        )
+      : [];
+  const inTwoWeeks = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
 
   return (
     <main className="bg-background text-foreground">
@@ -68,6 +77,13 @@ export default async function ControlsPage() {
             {summary.launchOpen === 1 ? ' remains' : 's remain'} open.
           </p>
         )}
+
+        <ControlSeedForm
+          proposals={unassigned}
+          people={people}
+          defaultDueOn={inTwoWeeks}
+          action={seedControlOwnersAction}
+        />
 
         {areas.map((area) => (
           <section key={area} className="mt-12" aria-labelledby={`area-${area}`}>

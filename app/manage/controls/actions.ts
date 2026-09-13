@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
+  assignControlOwners,
   updateOperationalControl,
   type ControlUpdateInput,
 } from '@/lib/operational-controls';
@@ -63,5 +64,59 @@ export async function updateOperationalControlAction(
       error instanceof Error ? error.message : error,
     );
     return fail('The control could not be saved. Try again shortly.');
+  }
+}
+
+export type ControlSeedState = {
+  errors: string[];
+  assigned: number;
+  unchanged: number;
+};
+
+/**
+ * Assign owners and a due date to many controls at once (16.5). Owner and date
+ * only: each row still goes through the single-control rules, so every
+ * assignment is attributed and recorded in the append-only history.
+ */
+export async function seedControlOwnersAction(
+  _previous: ControlSeedState,
+  data: FormData,
+): Promise<ControlSeedState> {
+  const fail = (error: string): ControlSeedState => ({
+    errors: [error],
+    assigned: 0,
+    unchanged: 0,
+  });
+  if (!(await sameOriginAction())) return fail('Request rejected: cross-origin.');
+  const staff = await getStaff();
+  if (!staff) redirect('/staff/sign-in?return_to=%2Fmanage%2Fcontrols');
+  if (staff.role !== 'admin') return fail('Only an administrator assigns control owners.');
+
+  const dueOn = String(data.get('dueOn') ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueOn)) {
+    return fail('Choose the date these controls are due, in YYYY-MM-DD format.');
+  }
+  const assignments: { key: string; ownerId: string; dueOn: string }[] = [];
+  for (const [field, value] of data.entries()) {
+    if (!field.startsWith('owner:') || typeof value !== 'string' || !value.trim()) continue;
+    assignments.push({ key: field.slice(6), ownerId: value.trim(), dueOn });
+  }
+  if (assignments.length === 0) return fail('Choose an owner for at least one control.');
+
+  try {
+    const result = await assignControlOwners(assignments, staff);
+    revalidatePath('/manage');
+    revalidatePath('/manage/controls');
+    return {
+      errors: result.failures.map((failure) => `${failure.key}: ${failure.error}`),
+      assigned: result.assigned.length,
+      unchanged: result.unchanged.length,
+    };
+  } catch (error) {
+    console.error(
+      '[controls] assignment failed',
+      error instanceof Error ? error.message : error,
+    );
+    return fail('The assignment could not be saved. Try again shortly.');
   }
 }

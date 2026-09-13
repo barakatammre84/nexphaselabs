@@ -12,7 +12,11 @@
  *
  *   node scripts/deploy-guard.mjs staging
  *   node scripts/deploy-guard.mjs production
+ *
+ * A second argument names a different built configuration to check; it exists so
+ * tests/deploy-guard.test.ts can prove the refusals rather than trusting them.
  */
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 const EXPECT = {
@@ -40,12 +44,13 @@ if (!EXPECT[target]) {
   process.exit(2);
 }
 const want = EXPECT[target];
+const configPath = process.argv[3] ?? 'dist/server/wrangler.json';
 
 let built;
 try {
-  built = JSON.parse(readFileSync('dist/server/wrangler.json', 'utf8'));
-} catch (e) {
-  console.error('deploy-guard: no built configuration at dist/server/wrangler.json — run the build first.');
+  built = JSON.parse(readFileSync(configPath, 'utf8'));
+} catch {
+  console.error(`deploy-guard: no built configuration at ${configPath} — run the build first.`);
   process.exit(2);
 }
 
@@ -69,8 +74,54 @@ if (mismatches.length) {
   console.error(`Rebuild with ${target === 'staging' ? 'CLOUDFLARE_ENV=staging ' : ''}vinext build and run the guard again.`);
   process.exit(1);
 }
-if (target === 'production' && process.env.NX_CONFIRM_PRODUCTION !== 'yes') {
-  console.error('\ndeploy-guard: production deploys require NX_CONFIRM_PRODUCTION=yes in the environment, so a production release is never a side effect.');
-  process.exit(1);
+if (target === 'production') {
+  if (process.env.NX_CONFIRM_PRODUCTION !== 'yes') {
+    console.error('\ndeploy-guard: production deploys require NX_CONFIRM_PRODUCTION=yes in the environment, so a production release is never a side effect.');
+    process.exit(1);
+  }
+  const release = releaseTag();
+  if (!release.tag || !release.tag.startsWith('v')) {
+    console.error('\ndeploy-guard: REFUSING to deploy. Production is released from a version tag and nothing else.');
+    console.error(release.tag
+      ? `HEAD is at "${release.tag}", which is not a v* tag.`
+      : 'HEAD is not at a tag. Tag the reviewed commit (git tag -a v1.2.3 -m "…" && git push origin v1.2.3) and let deploy-production.yml run it.');
+    process.exit(1);
+  }
+  if (release.fromGit && workingTreeDirty()) {
+    console.error(`\ndeploy-guard: REFUSING to deploy. HEAD is at ${release.tag} but the working tree has uncommitted changes,`);
+    console.error('so what would be uploaded is not what the tag names. Commit or stash, then re-tag if the content changed.');
+    process.exit(1);
+  }
+  console.log(`  ok  releaseTag         ${release.tag}`);
 }
 console.log(`deploy-guard: configuration targets ${target}. Proceeding.`);
+
+/**
+ * Where the release tag comes from, most explicit first:
+ *   NX_RELEASE_TAG   stated outright (also how the tests pin this deterministically;
+ *                    set and empty means "no tag", which is a refusal)
+ *   GITHUB_REF_*     a tag push or a workflow_dispatch whose ref is a tag
+ *   git              a local deploy — the break-glass path, which also has to be clean
+ */
+function releaseTag() {
+  if (process.env.NX_RELEASE_TAG !== undefined) {
+    return { tag: process.env.NX_RELEASE_TAG.trim() || null, fromGit: false };
+  }
+  if (process.env.GITHUB_REF_TYPE === 'tag') {
+    return { tag: (process.env.GITHUB_REF_NAME ?? '').trim() || null, fromGit: false };
+  }
+  return { tag: git(['describe', '--tags', '--exact-match', 'HEAD']), fromGit: true };
+}
+
+function workingTreeDirty() {
+  const status = git(['status', '--porcelain']);
+  return status === null ? false : status.length > 0;
+}
+
+function git(args) {
+  try {
+    return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return null;
+  }
+}
