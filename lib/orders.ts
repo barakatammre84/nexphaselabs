@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, like, sql, isNull } from 'drizzle-orm';
+import { and, desc, eq, like, sql, isNull } from 'drizzle-orm';
 import { getDb } from '@/db';
 import {
   accounts,
@@ -8,8 +8,6 @@ import {
   orderItems,
   orders,
   type Order,
-  type OrderEvent,
-  type OrderItem,
   type Organization,
 } from '@/db/schema';
 import type { AccountPrincipal } from '@/lib/account-auth';
@@ -19,6 +17,7 @@ import {
   TERMS_VERSION,
   GUEST_CHECKOUT_TERMS_VERSION,
 } from '@/lib/policy';
+import { buildOrderAttestation } from '@/lib/attestation';
 import {
   btcpayCheckoutUrl,
   getPaymentMethod,
@@ -54,6 +53,13 @@ import {
   acceptedCheckoutQuote,
   checkoutQuotesRequired,
 } from '@/lib/checkout-quotes';
+import { getOrderByNumber, type OrderDetail } from '@/lib/order-reads';
+
+export {
+  getOrderByNumber,
+  getOrderForAccount,
+  type OrderDetail,
+} from '@/lib/order-reads';
 
 function id(prefix: string): string {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`;
@@ -136,6 +142,10 @@ export async function createOrderFromCart(
   submissionToken: string,
   contactEmail: string | null = null,
   checkoutQuoteId: string | null = null,
+  evidence: { from: string | null; researchSetting: string | null } = {
+    from: null,
+    researchSetting: null,
+  },
 ): Promise<CreateOrderResult> {
   if (visibility.pricing === 'none')
     return {
@@ -252,6 +262,13 @@ export async function createOrderFromCart(
   if (allocation && !allocation.ok) return allocation;
   const plan = allocation?.ok ? allocation.plan : null;
 
+  const attestation = await buildOrderAttestation({
+    guest: openCheckoutEnabled() && !organizationId,
+    now,
+    from: evidence.from,
+    researchSetting: evidence.researchSetting,
+  });
+
   for (let attempt = 0; attempt < 3; attempt++) {
     const orderNumber = await nextOrderNumber(now);
     try {
@@ -289,6 +306,12 @@ export async function createOrderFromCart(
             shipToCountry: shipTo.country,
             shipToPhone: shipTo.phone,
             customerNote,
+            ruoVersion: attestation.ruoVersion,
+            termsVersion: attestation.termsVersion,
+            acknowledgementHash: attestation.acknowledgementHash,
+            acknowledgedAt: attestation.acknowledgedAt,
+            acknowledgedFrom: attestation.acknowledgedFrom,
+            researchSetting: attestation.researchSetting,
             submittedAt: now,
             createdAt: now,
             updatedAt: now,
@@ -413,12 +436,6 @@ export async function createOrderFromCart(
   return { ok: false, error: 'The order could not be numbered. Try again.' };
 }
 
-export type OrderDetail = {
-  order: Order;
-  items: OrderItem[];
-  events: OrderEvent[];
-};
-
 export async function listOrdersForAccount(
   accountId: string,
   limit = 200,
@@ -430,52 +447,6 @@ export async function listOrdersForAccount(
     .where(eq(orders.accountId, accountId))
     .orderBy(desc(orders.submittedAt))
     .limit(limit);
-}
-
-export async function getOrderForAccount(
-  accountId: string,
-  orderNumber: string,
-): Promise<OrderDetail | null> {
-  const db = getDb();
-  const [order] = await db
-    .select()
-    .from(orders)
-    .where(
-      and(eq(orders.orderNumber, orderNumber), eq(orders.accountId, accountId)),
-    )
-    .limit(1);
-  if (!order) return null;
-  return withDetail(order);
-}
-
-export async function getOrderByNumber(
-  orderNumber: string,
-): Promise<OrderDetail | null> {
-  const db = getDb();
-  const [order] = await db
-    .select()
-    .from(orders)
-    .where(eq(orders.orderNumber, orderNumber))
-    .limit(1);
-  if (!order) return null;
-  return withDetail(order);
-}
-
-async function withDetail(order: Order): Promise<OrderDetail> {
-  const db = getDb();
-  const [items, events] = await Promise.all([
-    db
-      .select()
-      .from(orderItems)
-      .where(eq(orderItems.orderId, order.id))
-      .orderBy(asc(orderItems.createdAt)),
-    db
-      .select()
-      .from(orderEvents)
-      .where(eq(orderEvents.orderId, order.id))
-      .orderBy(asc(orderEvents.createdAt)),
-  ]);
-  return { order, items, events };
 }
 
 export async function listAllOrders(): Promise<Order[]> {

@@ -72,7 +72,7 @@ afterEach(() => {
 });
 
 describe('server-owned checkout quotes', () => {
-  it('compares UPS and FedEx, includes tax, and accepts the matching lowest option', async () => {
+  it('compares USPS, UPS and FedEx, includes tax, and accepts the matching lowest option', async () => {
     const guest = await syntheticBuyer();
     const cart = await getCart(
       guest.buyer.id,
@@ -87,7 +87,7 @@ describe('server-owned checkout quotes', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.quotes.map((quote) => quote.carrier)).toEqual(
-      expect.arrayContaining(['UPS', 'FedEx']),
+      expect.arrayContaining(['USPS', 'UPS', 'FedEx']),
     );
     expect(result.quotes[0]).toMatchObject({
       carrier: 'UPS',

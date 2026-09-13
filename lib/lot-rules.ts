@@ -12,6 +12,9 @@ import { scanText, type Violation } from '@/lib/catalog-rules';
 
 export const LOT_NUMBER_PATTERN = /^[A-Z0-9-]{3,32}$/;
 export const QUANTITY_UNITS = ['ug', 'mg', 'g', 'kg', 'vials', 'units'] as const;
+export function isMassQuantityUnit(unit: string): boolean {
+  return unit === 'ug' || unit === 'mg' || unit === 'g' || unit === 'kg';
+}
 export type QuantityUnit = (typeof QUANTITY_UNITS)[number];
 const QUANTITY_PATTERN = /^(\d+(?:\.\d+)?)\s?(ug|mg|g|kg|vials|units)$/;
 
@@ -28,6 +31,8 @@ export type LotIntakeInput = {
   quantityReceived: string;
   storageLocation?: string | null;
   storageCondition?: string | null;
+  /** Required when quantityReceived is counted in vials/units: the labeled content of one container, e.g. "50 mg". */
+  containerSize?: string | null;
   retestDate?: string | null; // YYYY-MM-DD
   note?: string | null;
   /** Landed cost in dollars as typed, optional. */
@@ -222,6 +227,50 @@ export function releaseBlockers(lot: ReleaseSubject, tests: ReleaseTest[]): stri
   return blockers;
 }
 
+/**
+ * Publication blockers — separate from, and additional to, release blockers.
+ *
+ * Release enforces the legal minimum (16 CCR 1736.9(d), a COA, a passing
+ * identity test, a purity result). Publication enforces the claim the business
+ * is built on: a certificate a customer can CHECK. A lot may be released with
+ * the legal minimum, but it may not appear on a public product page, lot page,
+ * or lookup result — and may not be allocated to an order — until the testing
+ * laboratory is named, the lab's own accession number is recorded, and the
+ * testing standard it was tested under is stated. An unnamed lab is an
+ * unverifiable claim; an accession number is what lets a customer verify the
+ * certificate with the lab rather than trust us.
+ *
+ * Added 2026-09-12 after the live staging lot was found released and public
+ * with every one of these fields null.
+ */
+export type PublicationSubject = {
+  status: string;
+  analyticalLab: string | null;
+  accessionNumber: string | null;
+  testingStandard: string | null;
+  netPeptideContent: string | null;
+};
+
+export function publicationBlockers(lot: PublicationSubject): string[] {
+  const blockers: string[] = [];
+  if (lot.status !== 'released') blockers.push('Lot is not released.');
+  if (!lot.analyticalLab?.trim()) blockers.push('Testing laboratory is not named.');
+  if (!lot.accessionNumber?.trim()) blockers.push("Laboratory accession number is not recorded.");
+  if (!lot.testingStandard?.trim()) blockers.push('Testing standard and version are not recorded.');
+  return blockers;
+}
+
+/** Advisory only — shown to staff, never a blocker. */
+export function publicationWarnings(lot: PublicationSubject): string[] {
+  const warnings: string[] = [];
+  if (!lot.netPeptideContent?.trim()) warnings.push('Net peptide content is not reported. Purity alone does not tell a researcher how much peptide is in the vial.');
+  return warnings;
+}
+
+export function isPublishable(lot: PublicationSubject): boolean {
+  return publicationBlockers(lot).length === 0;
+}
+
 export type DispositionValidation =
   | { ok: true; value: { decision: Disposition; reason: string | null } }
   | { ok: false; errors: string[]; violations: Violation[] };
@@ -328,6 +377,7 @@ export function validateLotIntake(raw: LotIntakeInput, now = new Date()): LotInt
     quantityReceived: t(raw.quantityReceived),
     storageLocation: t(raw.storageLocation) || null,
     storageCondition: t(raw.storageCondition) || null,
+    containerSize: t(raw.containerSize) || null,
     retestDate: t(raw.retestDate) || null,
     note: t(raw.note) || null,
     cost: t(raw.cost) || null,
@@ -351,6 +401,16 @@ export function validateLotIntake(raw: LotIntakeInput, now = new Date()): LotInt
     errors.push('Quantity received cannot be finer than one microgram (the ledger resolution).');
   } else {
     value.quantityReceived = normalizeQuantity(quantity.amount, quantity.unit);
+    if (!isMassQuantityUnit(quantity.unit)) {
+      const container = value.containerSize ? parseQuantity(value.containerSize) : null;
+      if (!container || !isMassQuantityUnit(container.unit) || container.amount <= 0) {
+        errors.push('A lot counted in vials or units needs the labeled content of one container, e.g. "50 mg" — that is the only pack size it can supply.');
+      } else {
+        value.containerSize = normalizeQuantity(container.amount, container.unit);
+      }
+    } else if (value.containerSize) {
+      errors.push('Container size applies only to lots counted in vials or units; a mass-tracked lot is picked by weight.');
+    }
   }
 
   const receivedAtDate = parseDate(value.receivedAt, 'Date received', errors, true);
@@ -381,6 +441,7 @@ export function validateLotIntake(raw: LotIntakeInput, now = new Date()): LotInt
     ['countryOfOrigin', value.countryOfOrigin],
     ['storageLocation', value.storageLocation],
     ['storageCondition', value.storageCondition],
+    ['containerSize', value.containerSize],
     ['note', value.note],
   ];
   for (const [field, text] of scanned) violations.push(...scanText(field, text));
@@ -413,6 +474,7 @@ export const CORRECTABLE_FIELDS = [
   'quantityReceived',
   'storageLocation',
   'storageCondition',
+  'containerSize',
   'retestDate',
 ] as const;
 export type CorrectableField = (typeof CORRECTABLE_FIELDS)[number];
@@ -428,6 +490,7 @@ export const CORRECTABLE_LABEL: Record<CorrectableField, string> = {
   quantityReceived: 'Quantity received',
   storageLocation: 'Storage location',
   storageCondition: 'Storage condition',
+  containerSize: 'Container size',
   retestDate: 'Retest date',
 };
 

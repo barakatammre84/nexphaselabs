@@ -6,12 +6,15 @@ import {
   LoaderCircle,
   PackageCheck,
   Printer,
+  RotateCcw,
   Truck,
 } from 'lucide-react';
 
 type Quote = {
   id: string;
-  carrier: 'UPS' | 'FedEx';
+  carrier: 'USPS' | 'UPS' | 'FedEx';
+  originId: string;
+  originLabel: string;
   serviceName: string;
   amountCents: number;
   estimatedDays: number | null;
@@ -19,7 +22,9 @@ type Quote = {
   expiresAt: string;
 };
 type Label = {
+  id: string;
   state: string;
+  originLabel: string;
   carrier: string;
   serviceName: string;
   amountCents: number;
@@ -27,6 +32,12 @@ type Label = {
   labelUrl: string | null;
   test: boolean;
   error: string | null;
+  refundState: string | null;
+  refundRef: string | null;
+  refundReason: string | null;
+  createdAt: string;
+  refundRequestedAt: string | null;
+  refundRequestedBy: string | null;
 };
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
@@ -34,6 +45,8 @@ export function OrderShippingDesk({
   orderNumber,
   parcel,
   initialLabel,
+  initialHistory,
+  origins,
 }: {
   orderNumber: string;
   parcel: {
@@ -43,14 +56,28 @@ export function OrderShippingDesk({
     weight: number;
   } | null;
   initialLabel: Label | null;
+  initialHistory: Label[];
+  origins: { id: string; label: string }[];
 }) {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [selected, setSelected] = useState('');
   const [label, setLabel] = useState(initialLabel);
-  const [busy, setBusy] = useState<'quote' | 'label' | null>(null);
+  const [history, setHistory] = useState(initialHistory);
+  const [busy, setBusy] = useState<
+    'quote' | 'label' | 'refund' | 'reconcile' | null
+  >(null);
   const [message, setMessage] = useState<string | null>(
     initialLabel?.error ?? null,
   );
+
+  const recordLabel = (value: Label) => {
+    setLabel(value);
+    setHistory((current) => {
+      const index = current.findIndex((item) => item.id === value.id);
+      if (index === -1) return [value, ...current];
+      return current.map((item) => (item.id === value.id ? value : item));
+    });
+  };
 
   const fillShipment = (value: Label) => {
     const form = document.getElementById('shipment-record');
@@ -74,23 +101,31 @@ export function OrderShippingDesk({
         <div>
           <h3 className="font-display text-lg font-semibold">Shipping desk</h3>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            Confirm the final packed parcel, compare UPS and FedEx, then
-            purchase exactly one label for this order.
+            Choose the ship-from location, confirm the final packed parcel,
+            compare approved carrier services, then purchase one active label.
           </p>
         </div>
       </div>
-      {label ? (
+      {label && (
         <div
-          className={`mt-5 border p-4 text-sm ${label.state === 'ready' ? 'border-primary bg-secondary' : 'border-destructive/40'}`}
+          className={`mt-5 border p-4 text-sm ${label.state === 'ready' ? 'border-primary bg-secondary' : label.state === 'voided' ? 'border-border bg-secondary' : 'border-destructive/40'}`}
         >
           <p className="font-semibold">
             {label.state === 'ready'
               ? `${label.test ? 'Test label' : 'Shipping label'} ready`
-              : 'Label request needs reconciliation'}
+              : label.state === 'voided'
+                ? 'Label cancelled and refund confirmed'
+                : label.state === 'voiding'
+                  ? 'Label refund pending'
+                  : 'Label request needs reconciliation'}
           </p>
           <p className="mt-1 text-muted-foreground">
             {label.carrier} {label.serviceName} · {money(label.amountCents)}
             {label.trackingNumber ? ` · ${label.trackingNumber}` : ''}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Ship from: {label.originLabel}
+            {label.refundReason ? ` · Cancellation: ${label.refundReason}` : ''}
           </p>
           {label.state === 'ready' && (
             <div className="mt-4 flex flex-wrap gap-3">
@@ -125,11 +160,122 @@ export function OrderShippingDesk({
               </button>
             </div>
           )}
+          {label.state === 'ready' && (
+            <form
+              className="mt-4 border-t border-border pt-4"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                if (busy) return;
+                const form = new FormData(event.currentTarget);
+                if (
+                  !label.test &&
+                  !window.confirm(
+                    `Request a carrier refund for this ${label.carrier} label? Do not tender the package after confirming.`,
+                  )
+                )
+                  return;
+                setBusy('refund');
+                setMessage(null);
+                try {
+                  const response = await fetch(
+                    `/api/manage/orders/${encodeURIComponent(orderNumber)}/shipping/refund`,
+                    { method: 'POST', body: form },
+                  );
+                  const result = (await response.json()) as {
+                    ok?: boolean;
+                    pending?: boolean;
+                    label?: Label;
+                    error?: string;
+                  };
+                  if (result.label) recordLabel(result.label);
+                  if (!response.ok && !result.pending)
+                    return setMessage(
+                      result.error ??
+                        'Label cancellation was not confirmed. Reconcile it in Shippo.',
+                    );
+                  setMessage(
+                    result.pending
+                      ? 'Carrier refund is pending. Do not ship or request another label.'
+                      : 'Label cancellation and refund confirmed. A replacement label can now be created.',
+                  );
+                } catch {
+                  setMessage(
+                    'Label cancellation outcome is uncertain. Do not retry; reconcile it in Shippo.',
+                  );
+                } finally {
+                  setBusy(null);
+                }
+              }}
+            >
+              <label className="block">
+                Cancellation reason
+                <input
+                  name="reason"
+                  required
+                  minLength={3}
+                  maxLength={300}
+                  className="mt-2 h-11 w-full border border-border bg-background px-3"
+                />
+              </label>
+              <button
+                disabled={Boolean(busy)}
+                className="mt-3 action-secondary"
+              >
+                <RotateCcw className="mr-2 size-4" />
+                {busy === 'refund'
+                  ? 'Requesting cancellation…'
+                  : label.test
+                    ? 'Cancel test label'
+                    : 'Request label refund'}
+              </button>
+            </form>
+          )}
+          {['voiding', 'attention'].includes(label.state) &&
+            label.refundState && (
+              <button
+                type="button"
+                disabled={Boolean(busy)}
+                className="mt-4 action-secondary"
+                onClick={async () => {
+                  setBusy('reconcile');
+                  setMessage(null);
+                  try {
+                    const response = await fetch(
+                      `/api/manage/orders/${encodeURIComponent(orderNumber)}/shipping/refund/reconcile`,
+                      { method: 'POST' },
+                    );
+                    const result = (await response.json()) as {
+                      ok?: boolean;
+                      pending?: boolean;
+                      label?: Label;
+                      error?: string;
+                    };
+                    if (result.label) recordLabel(result.label);
+                    setMessage(
+                      result.ok
+                        ? 'Carrier refund confirmed.'
+                        : result.pending
+                          ? 'Carrier refund is still pending.'
+                          : (result.error ?? 'Refund status needs review.'),
+                    );
+                  } catch {
+                    setMessage('Carrier refund status could not be confirmed.');
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+              >
+                {busy === 'reconcile'
+                  ? 'Checking carrier…'
+                  : 'Check refund status'}
+              </button>
+            )}
           {label.error && (
             <p className="mt-3 text-destructive">{label.error}</p>
           )}
         </div>
-      ) : (
+      )}
+      {(!label || label.state === 'voided') && (
         <form
           className="mt-5"
           onSubmit={async (event) => {
@@ -168,6 +314,24 @@ export function OrderShippingDesk({
             }
           }}
         >
+          <label className="mb-4 block text-sm">
+            Ship-from location
+            <select
+              name="origin"
+              required
+              defaultValue={origins[0]?.id ?? ''}
+              className="mt-2 h-11 w-full border border-border bg-background px-3 sm:max-w-md"
+            >
+              {origins.length === 0 && (
+                <option value="">No active location configured</option>
+              )}
+              {origins.map((origin) => (
+                <option key={origin.id} value={origin.id}>
+                  {origin.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="grid gap-4 sm:grid-cols-4">
             {(['length', 'width', 'height', 'weight'] as const).map((name) => (
               <label key={name} className="text-sm">
@@ -282,7 +446,7 @@ export function OrderShippingDesk({
                       result.error ??
                         'Label purchase was not confirmed. Do not retry until reconciled.',
                     );
-                  setLabel(result.label);
+                  recordLabel(result.label);
                   fillShipment(result.label);
                   setMessage(
                     'Label and tracking are ready. Review the picks before recording shipment.',
@@ -302,6 +466,38 @@ export function OrderShippingDesk({
             </button>
           )}
         </form>
+      )}
+      {history.length > 0 && (
+        <div className="mt-6 border-t border-border pt-5">
+          <h4 className="font-semibold">Label history</h4>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Every purchased, cancelled, or unresolved label stays attached to
+            the order for review.
+          </p>
+          <ul className="mt-3 space-y-3">
+            {history.map((item) => (
+              <li key={item.id} className="border border-border p-3 text-sm">
+                <p className="font-semibold">
+                  {item.carrier} {item.serviceName} · {money(item.amountCents)} ·{' '}
+                  {item.state}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {item.originLabel} · {item.createdAt.slice(0, 10)}
+                  {item.trackingNumber ? ` · ${item.trackingNumber}` : ''}
+                </p>
+                {item.refundReason && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Cancellation: {item.refundReason}
+                    {item.refundState ? ` · refund ${item.refundState}` : ''}
+                    {item.refundRequestedBy
+                      ? ` · requested by ${item.refundRequestedBy}`
+                      : ''}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </section>
   );

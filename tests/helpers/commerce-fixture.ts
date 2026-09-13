@@ -8,7 +8,7 @@ import { visibilityFor } from '@/lib/visibility-rules';
 export async function seedCommerceFixture() {
   await getDb().insert(products).values({ id: 'p', code: 'NPL-9999', slug: 'synthetic', name: 'Synthetic only', formalName: 'Test', chemicalClass: 'Test', casNumber: '50-00-0', molecularFormula: 'Test', molecularWeight: 'Test', purity: 'Test', form: 'Test', saltForm: 'Test', storageSolid: 'Test', storageStock: 'Test', stability: 'Test', shipping: 'Test', description: 'Local synthetic fixture', visibility: 'published' });
   await getDb().insert(productVariants).values({ id: 'v', productId: 'p', sku: 'NPL-9999-2MG', quantity: '2 mg', presentation: 'powder', listPriceCents: 100, active: true });
-  await getDb().insert(lots).values({ id: 'l', lotNumber: 'SYNTHETIC-LOT', productCode: 'NPL-9999', productName: 'Synthetic', casNumber: '50-00-0', status: 'released', receivedAt: new Date(), quantityRemaining: '10 mg', quantityReceived: '10 mg' });
+  await getDb().insert(lots).values({ id: 'l', lotNumber: 'SYNTHETIC-LOT', productCode: 'NPL-9999', productName: 'Synthetic', casNumber: '50-00-0', status: 'released', analyticalLab: 'Fixture lab', accessionNumber: 'ACC-FIXTURE', testingStandard: 'Fixture panel v1', receivedAt: new Date(), quantityRemaining: '10 mg', quantityReceived: '10 mg' });
 }
 export async function syntheticBuyer(packs = 1) {
   const guest = await createGuestBuyer(true);

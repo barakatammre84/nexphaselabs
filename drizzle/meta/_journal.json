@@ -288,6 +288,90 @@
       "when": 1788627287242,
       "tag": "0040_chemical_logan",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1788879500863,
+      "tag": "0041_awesome_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "6",
+      "when": 1788879710213,
+      "tag": "0042_low_thundra",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1788880272433,
+      "tag": "0043_wonderful_scream",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1788880455729,
+      "tag": "0044_slow_paper_doll",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "6",
+      "when": 1788880708900,
+      "tag": "0045_young_swarm",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "6",
+      "when": 1788881243750,
+      "tag": "0046_windy_quasimodo",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1788894168900,
+      "tag": "0047_clean_namorita",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1788967997365,
+      "tag": "0048_robust_mauler",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "6",
+      "when": 1788971309924,
+      "tag": "0049_flat_wiccan",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1789249554340,
+      "tag": "0050_launch_attestation_tier",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "6",
+      "when": 1789251633346,
+      "tag": "0051_document_hash",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "6",
+      "when": 1789252232749,
+      "tag": "0052_container_size",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 /** Provider-independent comparison. Quoted postage, not a guaranteed final carrier invoice. */
 export type ShippingRate = {
-  id: string; shipmentId: string; accountId: string; carrier: 'UPS' | 'FedEx';
+  id: string; shipmentId: string; accountId: string; carrier: 'USPS' | 'UPS' | 'FedEx';
   service: string; serviceName: string; cents: number; currency: 'USD';
   estimatedDays: number | null; test: boolean;
 };
@@ -32,7 +32,7 @@ export function normalizeShippoRates(payload: unknown, accounts: string[], test:
   for (const raw of shipment.rates) {
     const rate = record(raw); const service = record(rate.servicelevel);
     const cents = usdCents(rate.amount);
-    const carrier = rate.provider === 'UPS' ? 'UPS' : rate.provider === 'FedEx' ? 'FedEx' : null;
+    const carrier = rate.provider === 'USPS' ? 'USPS' : rate.provider === 'UPS' ? 'UPS' : rate.provider === 'FedEx' ? 'FedEx' : null;
     if (!carrier || cents === null || rate.currency !== 'USD' || rate.test !== test
       || !identifier(rate.object_id) || !identifier(rate.carrier_account) || !accounts.includes(rate.carrier_account)
       || !identifier(service.token) || typeof service.name !== 'string' || !service.name.trim()) continue;

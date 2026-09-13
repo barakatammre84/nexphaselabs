@@ -2,7 +2,7 @@ import { and, eq, gt, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { guestOrderKeys, guestOrderSessions } from '@/db/commerce-schema';
 import { accounts, orders } from '@/db/schema';
-import { getOrderByNumber, getOrderForAccount } from '@/lib/orders';
+import { getOrderByNumber, getOrderForAccount } from '@/lib/order-reads';
 import type { AccountPrincipal } from '@/lib/account-auth';
 import { randomToken, sha256Hex } from '@/lib/staff-auth-core';
 import { openCheckoutEnabled } from '@/lib/site-config';

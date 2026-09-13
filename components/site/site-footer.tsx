@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { NavLink } from '@/components/site/nav-link';
 import { openCheckoutEnabled } from '@/lib/site-config';
 import { loadCatalog } from '@/lib/catalog-data';
 import { listActiveClasses } from '@/lib/classes';
@@ -74,14 +74,14 @@ export async function SiteFooter() {
               <ul className="mt-4 space-y-2.5 text-sm">
                 {column.links.map((link) => (
                   <li key={link.label}>
-                    <Link
+                    <NavLink
                       href={link.href}
                       className="text-white/75 transition-colors hover:text-white"
                     >
                       {open && link.href === '/access'
                         ? 'How to order'
                         : link.label}
-                    </Link>
+                    </NavLink>
                   </li>
                 ))}
               </ul>
@@ -109,12 +109,12 @@ export async function SiteFooter() {
               &copy; {new Date().getFullYear()} 8486 Ventures LLC, trading as
               NexPhase Labs. Oakland, California.
             </p>
-            <Link
+            <NavLink
               href="/manage/products"
               className="utility-label transition-colors hover:text-white"
             >
               Catalog manager
-            </Link>
+            </NavLink>
           </div>
         </div>
       </div>

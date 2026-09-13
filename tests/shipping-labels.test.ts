@@ -13,7 +13,12 @@ import { getDb } from '@/db';
 import { fulfillmentQuotes } from '@/db/commerce-schema';
 import { orders } from '@/db/schema';
 import { getOrderByNumber } from '@/lib/orders';
-import { buyShippingLabel, quoteFulfillment } from '@/lib/shipping-labels';
+import {
+  buyShippingLabel,
+  quoteFulfillment,
+  shippingLabelHistory,
+  voidShippingLabel,
+} from '@/lib/shipping-labels';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 import {
   seedCommerceFixture,
@@ -33,6 +38,8 @@ const origin = {
   state: 'CA',
   zip: '94612',
   country: 'US',
+  phone: '5105550100',
+  email: 'shipping@example.com',
   is_residential: false,
 };
 
@@ -66,7 +73,7 @@ async function fulfillingOrder() {
 }
 
 describe('shipping label automation', () => {
-  it('quotes both carriers and creates exactly one safe staging label', async () => {
+  it('quotes all three carriers and creates exactly one safe staging label', async () => {
     const order = await fulfillingOrder();
     const quoted = await quoteFulfillment(
       order,
@@ -75,7 +82,7 @@ describe('shipping label automation', () => {
     );
     if (!quoted.ok) throw new Error(quoted.error);
     expect(quoted.quotes.map((quote) => quote.carrier)).toEqual(
-      expect.arrayContaining(['UPS', 'FedEx']),
+      expect.arrayContaining(['USPS', 'UPS', 'FedEx']),
     );
     const first = await buyShippingLabel(order, quoted.quotes[0].id, staff);
     expect(first).toMatchObject({
@@ -90,6 +97,69 @@ describe('shipping label automation', () => {
       local.sqlite.prepare('SELECT count(*) AS n FROM shipping_labels').get()!
         .n,
     ).toBe(1);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('selects a named origin, refunds once, preserves history and permits one replacement label', async () => {
+    const order = await fulfillingOrder();
+    const secondOrigin = {
+      ...origin,
+      street1: '2 Origin Way',
+      city: 'Berkeley',
+      zip: '94704',
+    };
+    env.SHIPPO_ORIGINS_JSON = JSON.stringify([
+      { id: 'oakland-1', label: 'Oakland location 1', address: origin },
+      { id: 'berkeley-1', label: 'Berkeley location 1', address: secondOrigin },
+    ]);
+    const firstQuotes = await quoteFulfillment(
+      order,
+      { length: 8, width: 6, height: 4, weight: 1 },
+      staff,
+      'berkeley-1',
+    );
+    if (!firstQuotes.ok) throw new Error(firstQuotes.error);
+    expect(firstQuotes.quotes[0]).toMatchObject({
+      originId: 'berkeley-1',
+      originLabel: 'Berkeley location 1',
+    });
+    const first = await buyShippingLabel(
+      order,
+      firstQuotes.quotes[0].id,
+      staff,
+    );
+    if (!first.ok || !first.label) throw new Error('label not created');
+    expect(first.label).toMatchObject({
+      state: 'ready',
+      originId: 'berkeley-1',
+    });
+    const refunded = await voidShippingLabel(
+      order,
+      'Packed dimensions changed',
+      staff,
+    );
+    expect(refunded).toMatchObject({
+      ok: true,
+      label: { state: 'voided', refundState: 'success' },
+    });
+    expect(
+      await voidShippingLabel(order, 'Packed dimensions changed', staff),
+    ).toMatchObject({ ok: true, duplicate: true });
+
+    const replacementQuotes = await quoteFulfillment(
+      order,
+      { length: 9, width: 6, height: 4, weight: 1.2 },
+      staff,
+      'oakland-1',
+    );
+    if (!replacementQuotes.ok) throw new Error(replacementQuotes.error);
+    expect(
+      await buyShippingLabel(order, replacementQuotes.quotes[0].id, staff),
+    ).toMatchObject({
+      ok: true,
+      label: { state: 'ready', originId: 'oakland-1' },
+    });
+    expect(await shippingLabelHistory(order.id)).toHaveLength(2);
     expect(fetch).not.toHaveBeenCalled();
   });
 

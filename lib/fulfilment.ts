@@ -2,14 +2,16 @@ import { and, asc, eq, sql, isNull } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { returnAllowed, validateReturn } from '@/lib/order-rules';
 import { lotMovements, lotStatusEvents, lots, orderEvents, orderItems, orders, type Lot } from '@/db/schema';
-import { isMassUnit, pickFromLot, sumQuantities } from '@/lib/lot-quantities';
-import { formatQuantity, parseQuantity } from '@/lib/lot-rules';
+import { isMassUnit, lotSuppliesPack, pickFromLot, sumQuantities } from '@/lib/lot-quantities';
+import { formatQuantity, isPublishable, parseQuantity } from '@/lib/lot-rules';
+import { currentDocumentPins } from '@/lib/document-pins';
 import { recordedBy } from '@/lib/lots-admin';
 import { scanText } from '@/lib/catalog-rules';
 import { transitionOrder, type OrderDetail } from '@/lib/orders';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 import { orderCustomerEligible } from '@/lib/order-eligibility';
 import { reservationEligibility, unreservedStockGuard } from '@/lib/inventory-reservations';
+import { publishableLot } from '@/lib/lots-public';
 
 /**
  * Fulfilment. The one place material leaves a lot.
@@ -39,7 +41,7 @@ export async function pickableLots(productCode: string): Promise<PickableLot[]> 
   const rows = await db
     .select({ id: lots.id, lotNumber: lots.lotNumber, quantityRemaining: lots.quantityRemaining, retestDate: lots.retestDate, releasedAt: lots.releasedAt })
     .from(lots)
-    .where(and(eq(lots.productCode, productCode), eq(lots.status, 'released'), isNull(lots.supersededById)))
+    .where(and(eq(lots.productCode, productCode), publishableLot()))
     .orderBy(asc(lots.releasedAt));
   return rows.filter((r) => {
     const q = r.quantityRemaining ? parseQuantity(r.quantityRemaining) : null;
@@ -103,7 +105,10 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
     const lot = lotById.get(input.picks[it.id]);
     if (!lot) return { ok: false, error: `Lot for ${it.sku} was not found.` };
     if (lot.status !== 'released') return { ok: false, error: `Lot ${lot.lotNumber} is not released.` };
+    if (!isPublishable(lot)) return { ok: false, error: `Lot ${lot.lotNumber} cannot ship: the testing laboratory, its accession number and the testing standard must be recorded first.` };
     if (lot.productCode !== it.productCode) return { ok: false, error: `Lot ${lot.lotNumber} is not ${it.productCode}.` };
+    if (!lotSuppliesPack({ quantityRemaining: plans.get(lot.id)?.remaining ?? lot.quantityRemaining, containerSize: lot.containerSize }, it.packSize))
+      return { ok: false, error: `Lot ${lot.lotNumber} cannot supply a ${it.packSize} pack: it is counted in sealed containers of ${lot.containerSize ?? 'an unrecorded size'}.` };
     const plan = plans.get(lot.id) ?? { lot, remaining: lot.quantityRemaining ?? '', shipped: '', lines: [] };
     const pick = pickFromLot(plan.remaining, it.packSize, it.quantity);
     if (!pick.ok) return { ok: false, error: `Lot ${lot.lotNumber}: ${pick.error}` };
@@ -117,6 +122,8 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
     plans.set(lot.id, plan);
   }
 
+  // The documents in force at dispatch, pinned once per line (see lib/document-pins.ts).
+  const pins = await currentDocumentPins([...plans.keys()]);
   const shipToAddress = [order.shipToLine1, order.shipToLine2, order.shipToCity, order.shipToRegion, order.shipToPostalCode, order.shipToCountry]
     .filter(Boolean)
     .join(', ');
@@ -167,6 +174,7 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
             id: sql<string>`${id('mov')}`.as('id'),
             lotId: lots.id,
             movementType: sql<string>`${'shipment'}`.as('movement_type'),
+            direction: sql<string>`'decrease'`.as('direction'),
             quantity: sql<string>`${plan.shipped}`.as('quantity'),
             accountId: sql<string>`${order.accountId}`.as('account_id'),
             consigneeName: sql<string>`${order.consigneeName}`.as('consignee_name'),
@@ -203,6 +211,7 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
         ),
       );
     }
+    const pin = pins.get(plan.lot.id);
     for (const line of plan.lines) {
       statements.push(
         db
@@ -210,6 +219,15 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
           .set({ lotId: plan.lot.id, lotNumber: plan.lot.lotNumber })
           .where(and(eq(orderItems.id, line.itemId), stamped(plan.lot.id))),
       );
+      if (pin) {
+        // Written once: a line that already carries a pin (a re-dispatch after a return) keeps its original.
+        statements.push(
+          db
+            .update(orderItems)
+            .set(pin)
+            .where(and(eq(orderItems.id, line.itemId), stamped(plan.lot.id), isNull(orderItems.coaDocumentId), isNull(orderItems.sdsDocumentId))),
+        );
+      }
     }
   }
 
@@ -247,6 +265,119 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
   }
 
   return { ok: true };
+}
+
+/* ------------------------------------------------------------------------ */
+/* Delivery                                                                  */
+/* ------------------------------------------------------------------------ */
+
+export type DeliveryInput = {
+  deliveredOn: string; // YYYY-MM-DD, the carrier-confirmed delivery date
+  evidence: string;
+};
+
+/**
+ * Record proof that a shipped parcel reached its destination. The order stays
+ * in the shipped state so existing return and refund rules remain valid; the
+ * delivery timestamp and evidence provide the durable final-mile checkpoint.
+ */
+export async function recordDelivery(
+  detail: OrderDetail,
+  input: DeliveryInput,
+  staff: StaffPrincipal,
+): Promise<ShipmentResult> {
+  const { order } = detail;
+  if (order.status !== 'shipped')
+    return { ok: false, error: 'Only a shipped order can be marked delivered.' };
+  if (order.deliveredAt)
+    return { ok: false, error: 'Delivery has already been recorded for this order.' };
+  if (!order.shippedAt || !order.carrier || !order.trackingNumber)
+    return { ok: false, error: 'The shipment record is incomplete. Add the carrier, tracking number, and ship date first.' };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.deliveredOn))
+    return { ok: false, error: 'Delivery date must be YYYY-MM-DD.' };
+  const deliveredOn = new Date(`${input.deliveredOn}T00:00:00Z`);
+  if (
+    Number.isNaN(deliveredOn.getTime()) ||
+    deliveredOn.toISOString().slice(0, 10) !== input.deliveredOn
+  )
+    return { ok: false, error: 'Delivery date is not a real date.' };
+  if (input.deliveredOn > new Date().toISOString().slice(0, 10))
+    return { ok: false, error: 'Delivery date cannot be in the future.' };
+  if (input.deliveredOn < order.shippedAt.toISOString().slice(0, 10))
+    return { ok: false, error: 'Delivery date is before the shipment date.' };
+
+  const evidence = input.evidence.trim().slice(0, 300);
+  if (!evidence)
+    return { ok: false, error: 'Enter the carrier event, scan, or receipt reference that confirms delivery.' };
+  const violation = scanText('delivery evidence', evidence)[0];
+  if (violation)
+    return {
+      ok: false,
+      error: `Delivery evidence contains ${violation.reason} ("${violation.match}").`,
+    };
+
+  const db = getDb();
+  const now = new Date();
+  const marker = id('odl');
+  const by = recordedBy(staff);
+  const [changed] = await db.batch([
+    db
+      .update(orders)
+      .set({
+        deliveredAt: deliveredOn,
+        deliveryEvidence: evidence,
+        lastTransitionId: marker,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(orders.id, order.id),
+          eq(orders.status, 'shipped'),
+          isNull(orders.deliveredAt),
+          eq(orders.carrier, order.carrier),
+          eq(orders.trackingNumber, order.trackingNumber),
+        ),
+      )
+      .returning({ id: orders.id }),
+    db.insert(orderEvents).select(
+      db
+        .select({
+          id: sql<string>`${id('oev')}`.as('id'),
+          orderId: orders.id,
+          fromStatus: orders.status,
+          toStatus: orders.status,
+          note: sql<string>`${`Delivery confirmed ${input.deliveredOn}. Evidence: ${evidence}`}`.as('note'),
+          actor: sql<string>`${by}`.as('actor'),
+          createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
+        })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.id, order.id),
+            eq(orders.lastTransitionId, marker),
+          ),
+        ),
+    ),
+  ]);
+  if (!changed || (changed as unknown[]).length === 0)
+    return { ok: false, error: 'The order changed while you were working. Reload and try again.' };
+  return { ok: true };
+}
+
+/** Carrier-verified delivery uses the same guarded write as a staff entry but
+ * has an explicit system actor in the immutable order history. */
+export async function recordAutomatedDelivery(
+  detail: OrderDetail,
+  input: DeliveryInput,
+): Promise<ShipmentResult> {
+  return recordDelivery(detail, input, {
+    id: 'system_shippo',
+    email: 'system@localhost.invalid',
+    name: 'Shippo tracking webhook',
+    role: 'ops',
+    sessionId: 'system',
+    mustChangePassword: false,
+  });
 }
 
 /* ------------------------------------------------------------------------ */
@@ -328,6 +459,7 @@ export async function recordReturn(detail: OrderDetail, input: ReturnInput, staf
             id: sql<string>`${id('mov')}`.as('id'),
             lotId: sql<string>`${l.it.lotId}`.as('lot_id'),
             movementType: sql<string>`'return'`.as('movement_type'),
+            direction: sql<null>`NULL`.as('direction'),
             quantity: sql<string>`${quantities.get(l.it.id)}`.as('quantity'),
             accountId: sql<string>`${order.accountId}`.as('account_id'),
             consigneeName: sql<string | null>`${order.consigneeName}`.as('consignee_name'),

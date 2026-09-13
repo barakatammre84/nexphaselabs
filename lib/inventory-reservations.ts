@@ -3,6 +3,7 @@ import { and, asc, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { inventoryReservations } from '@/db/commerce-schema';
 import { lots, orderItems, orders } from '@/db/schema';
+import { publishableLot } from '@/lib/lots-public';
 import { parseQuantity } from '@/lib/lot-rules';
 
 const MASS: Record<string, number> = { ug: 1, mg: 1_000, g: 1_000_000, kg: 1_000_000_000 };
@@ -14,6 +15,12 @@ export function stockUnits(value: string | null): { units: number; unit: string 
   if (!Number.isSafeInteger(rounded) || rounded < 0 || Math.abs(units - rounded) > 0.00001) return null;
   return { units: rounded, unit: parsed.unit in MASS ? 'ug' : parsed.unit };
 }
+/** True when a count-tracked lot's labeled container content equals the pack size (both in micrograms). */
+export function containerMatches(containerSize: string | null, packUg: number): boolean {
+  const container = stockUnits(containerSize);
+  return Boolean(container && container.unit === 'ug' && container.units === packUg);
+}
+
 export function reservationMinutes(): number | null {
   const text = env.INVENTORY_RESERVATION_MINUTES ?? '';
   if (!/^\d+$/.test(text)) return null;
@@ -37,7 +44,7 @@ export async function planReservations(lines: { itemId: string; code: string; pa
   const minutes = reservationMinutes();
   if (!minutes) return { ok: false, error: 'Inventory reservation policy has not been configured.' };
   const codes = [...new Set(lines.map(l => l.code))];
-  const rows = await getDb().select().from(lots).where(and(eq(lots.status, 'released'), isNull(lots.supersededById),
+  const rows = await getDb().select().from(lots).where(and(publishableLot(),
     sql`${lots.productCode} IN (SELECT value FROM json_each(${JSON.stringify(codes)}))`)).orderBy(asc(lots.releasedAt)).limit(1001);
   if (rows.length > 1000) return { ok: false, error: 'Inventory needs a bounded allocation review before ordering.' };
   const held = rows.length ? await getDb().select({ lotId: inventoryReservations.lotId, units: sql<number>`sum(${inventoryReservations.units})` })
@@ -52,18 +59,23 @@ export async function planReservations(lines: { itemId: string; code: string; pa
     const pack = stockUnits(line.packSize);
     if (!pack || pack.unit !== 'ug' || !Number.isInteger(line.packs) || line.packs < 1 || !Number.isSafeInteger(pack.units * line.packs))
       return { ok: false, error: `Pack quantity for ${line.code} cannot be allocated safely.` };
-    const needed = pack.units * line.packs;
-    const lot = rows.find(l => {
+    // A lot is either mass-tracked (picked by weight, any pack size) or count-tracked (sealed
+    // containers; it supplies only packs of exactly its labeled container size, one container per pack).
+    // Never assume a 50 mg vial can fill a 10 mg pack, or two 5 mg vials a 10 mg one.
+    let chosen: { lot: (typeof rows)[number]; needed: number; unit: string } | null = null;
+    for (const l of rows) {
+      if (l.productCode !== line.code || (l.retestDate && l.retestDate <= now)) continue;
       const have = stockUnits(l.quantityRemaining);
-      // Count-tracked stock has no pack-size identity today. Never assume a 5mg vial is a 10mg vial.
-      return l.productCode === line.code && have?.unit === 'ug' && needed > 0
-        && (!l.retestDate || l.retestDate > now)
-        && have.units - (reserved.get(l.id) ?? 0) - (planned.get(l.id) ?? 0) >= needed;
-    });
-    if (!lot) return { ok: false, error: `Not enough allocatable released stock for ${line.code}. Reduce the quantity or contact support. Count-tracked containers need a pack-size mapping before automatic allocation.` };
+      if (!have) continue;
+      const needed = have.unit === 'ug' ? pack.units * line.packs : containerMatches(l.containerSize, pack.units) ? line.packs : 0;
+      if (needed <= 0) continue;
+      if (have.units - (reserved.get(l.id) ?? 0) - (planned.get(l.id) ?? 0) >= needed) { chosen = { lot: l, needed, unit: have.unit }; break; }
+    }
+    if (!chosen) return { ok: false, error: `Not enough allocatable released stock for ${line.code} in this pack size. Reduce the quantity or contact support.` };
+    const { lot, needed, unit } = chosen;
     planned.set(lot.id, (planned.get(lot.id) ?? 0) + needed);
     reviewed.set(lot.id, { id: lot.id, remaining: lot.quantityRemaining!, held: reserved.get(lot.id) ?? 0, retest: lot.retestDate ? Math.floor(lot.retestDate.getTime() / 1000) : null });
-    result.push({ itemId: line.itemId, lotId: lot.id, units: needed, unit: 'ug' });
+    result.push({ itemId: line.itemId, lotId: lot.id, units: needed, unit });
   }
   return { ok: true, plan: { lines: result, lots: [...reviewed.values()], expiresAt: new Date(now.getTime() + minutes * 60_000) } };
 }
@@ -73,6 +85,9 @@ export function reservationPlanGuard(plan: ReservationPlan, now: Date): SQL {
   return sql`NOT EXISTS (SELECT 1 FROM json_each(${JSON.stringify(plan.lots)}) expected WHERE NOT EXISTS (
     SELECT 1 FROM ${lots} WHERE ${lots.id} = json_extract(expected.value,'$.id')
       AND ${lots.status} = 'released' AND ${lots.supersededById} IS NULL
+      AND ${lots.analyticalLab} IS NOT NULL AND trim(${lots.analyticalLab}) <> ''
+      AND ${lots.accessionNumber} IS NOT NULL AND trim(${lots.accessionNumber}) <> ''
+      AND ${lots.testingStandard} IS NOT NULL AND trim(${lots.testingStandard}) <> ''
       AND ${lots.quantityRemaining} = json_extract(expected.value,'$.remaining')
       AND ${lots.retestDate} IS json_extract(expected.value,'$.retest')
       AND (${lots.retestDate} IS NULL OR ${lots.retestDate} > ${Math.floor(now.getTime() / 1000)})

@@ -69,7 +69,7 @@ export function SupplierForm({ initial, mode, action }: { initial: Record<string
   );
 }
 
-export function QualificationForm({ status, action }: { status: string; action: Action }) {
+export function QualificationForm({ status, action, initial = {} }: { status: string; action: Action; initial?: Record<string, string> }) {
   const [state, formAction, pending] = useActionState(action, { values: {}, errors: [], violations: [] });
   const to = status === 'qualified' ? 'suspended' : 'qualified';
   return (
@@ -83,6 +83,16 @@ export function QualificationForm({ status, action }: { status: string; action: 
           : 'No new purchase orders until re-qualified. Open orders and received lots are unaffected.'}
       </p>
       <input name="reason" required maxLength={500} placeholder="Reason / evidence reviewed" className={input} />
+      {to === 'qualified' && (
+        <>
+          <input name="scope" required maxLength={500} defaultValue={initial.scope} placeholder="Approved supply scope" className={input} />
+          <input name="evidenceUrl" type="url" required maxLength={500} defaultValue={initial.evidenceUrl} placeholder="https://… controlled evidence" className={input} />
+          <label className="grid gap-1 text-xs font-semibold">
+            Next review due
+            <input name="reviewDueOn" type="date" required defaultValue={initial.reviewDueOn} className={input} />
+          </label>
+        </>
+      )}
       <button type="submit" disabled={pending} className={to === 'qualified' ? primary : quiet}>
         {to === 'qualified' ? 'Record qualification' : 'Suspend'}
       </button>

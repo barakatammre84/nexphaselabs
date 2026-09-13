@@ -1,6 +1,6 @@
 import { signUp } from '@/lib/account-auth';
 import { validateSignUp } from '@/lib/account-rules';
-import { consumerTierEnabled } from '@/lib/site-config';
+import { researcherTierEnabled } from '@/lib/site-config';
 import { allow, clientAddress, rateLimitKey } from '@/lib/rate-limit';
 import { sameOrigin } from '@/lib/staff-auth';
 
@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     email: field('email'),
     password: field('password'),
     tier: field('tier') || 'institutional',
+    researchSetting: field('research_setting'),
     acceptTerms: form.get('accept_terms') === 'on',
     acceptRuo: form.get('accept_ruo') === 'on',
   };
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
     return Response.redirect(url, 303);
   };
 
-  const validated = validateSignUp(raw, consumerTierEnabled());
+  const validated = validateSignUp(raw, researcherTierEnabled());
   if (!validated.ok) {
     // Errors are re-shown from a compact code list; values are not echoed
     // through the URL (the password never leaves the POST body).

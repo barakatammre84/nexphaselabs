@@ -49,6 +49,10 @@ jobs:
         run: |
           origin=$(node -e "console.log(JSON.parse(require('fs').readFileSync('dist/server/wrangler.json','utf8')).vars.PUBLIC_ORIGIN||'')")
           if [ "$origin" != "$STAGING_URL" ]; then echo "wrangler.jsonc env.staging PUBLIC_ORIGIN is '$origin' but STAGING_URL is '$STAGING_URL' — make them the same (docs/DEPLOY.md)."; exit 1; fi
+      - name: Deploy guard (built config must target staging)
+        # Before the database is touched, not after: if the build carries the production name,
+        # database or bucket, this job must stop while everything is still reversible.
+        run: node scripts/deploy-guard.mjs staging
       - name: Apply migrations (staging D1)
         # Migrations are backwards-compatible by convention (docs/DEPLOY.md), so the running worker
         # keeps working during the seconds between this step and the deploy.
@@ -63,6 +67,8 @@ jobs:
         run: |
           npm run db:seed:generate
           npx wrangler d1 execute nexphase-labs-staging --remote --env staging --file drizzle/seed/classes.sql
+      - name: Deploy guard (re-check immediately before upload)
+        run: node scripts/deploy-guard.mjs staging
       - name: Deploy the built worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -77,3 +83,21 @@ jobs:
             sleep 10
           done
           echo "staging did not report healthy at $STAGING_URL/api/health"; exit 1
+      - name: Staging must be closed to anonymous requests, and unindexable
+        # 16.3: staging serves the real schema, real prices and a working checkout. If this step
+        # ever passes a 200 to an anonymous curl, the storefront is public. Treat it as a failed
+        # deploy, not a warning.
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$STAGING_URL/")
+          case "$code" in
+            401) echo "storefront challenges anonymous requests (401)" ;;
+            503) echo "STAGING_ACCESS_PASSWORD is not set on the staging worker, so it refuses every request."
+                 echo "Set it and redeploy:  npx wrangler secret put STAGING_ACCESS_PASSWORD --env staging"
+                 exit 1 ;;
+            *)   echo "the storefront answered $code to an anonymous request — staging is OPEN."; exit 1 ;;
+          esac
+          curl -sI "$STAGING_URL/" | grep -qi '^x-robots-tag: *noindex' || {
+            echo "the staging origin is missing X-Robots-Tag: noindex"; exit 1; }
+          echo "staging is protected and unindexable"

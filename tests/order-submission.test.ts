@@ -26,7 +26,7 @@ beforeEach(async () => {
   await db.insert(products).values({ id: 'product1', code: 'TEST-001', slug: 'synthetic-product', name: 'Synthetic product', formalName: 'Test', chemicalClass: 'Test', casNumber: '50-00-0', molecularFormula: 'Test', molecularWeight: 'Test', purity: 'Test', form: 'Test', saltForm: 'Test', storageSolid: 'Test', storageStock: 'Test', stability: 'Test', shipping: 'Test', description: 'Synthetic fixture, never published externally', visibility: 'published' });
   await db.insert(productVariants).values({ id: 'variant1', productId: 'product1', sku: 'TEST-001-2MG', quantity: '2 mg', presentation: 'powder', institutionalPriceCents: 100, active: true });
   await db.insert(cartItems).values({ id: 'cart1', accountId: account.id, variantId: 'variant1', quantity: 2 });
-  await db.insert(lots).values({ id: 'lot1', lotNumber: 'TEST-LOT', productCode: 'TEST-001', productName: 'Synthetic', casNumber: '50-00-0', status: 'released', receivedAt: new Date(), quantityRemaining: '10 mg' });
+  await db.insert(lots).values({ id: 'lot1', lotNumber: 'TEST-LOT', productCode: 'TEST-001', productName: 'Synthetic', casNumber: '50-00-0', status: 'released', analyticalLab: 'Fixture lab', accessionNumber: 'ACC-FIXTURE', testingStandard: 'Fixture panel v1', receivedAt: new Date(), quantityRemaining: '10 mg' });
 });
 afterEach(() => { local.sqlite.close(); delete env.DB; });
 

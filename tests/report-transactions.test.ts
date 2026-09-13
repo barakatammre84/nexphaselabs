@@ -5,18 +5,29 @@ vi.mock('cloudflare:workers', () => ({ env }));
 vi.mock('@/lib/staff-auth', () => ({ getStaffFromRequest: async () => auth.role ? { role: auth.role } : null, canVerifyAccounts: (s: { role: string }) => s.role === 'admin' }));
 import { getDb } from '@/db';
 import { accounts, lots, orderItems, orders } from '@/db/schema';
-import { orderLines, revenueByProduct } from '@/lib/reports';
+import { orderLines, reportPeriod, revenueByProduct } from '@/lib/reports';
 import { GET } from '@/app/api/manage/reports/orders.csv/route';
 let local: ReturnType<typeof localD1>;
 beforeEach(async () => {
   local = localD1(); env.DB = local.binding; auth.role = 'admin';
   await getDb().insert(accounts).values({ id: 'customer', email: 'synthetic@example.invalid', name: 'Synthetic', passwordHash: 'disabled' });
-  await getDb().insert(orders).values({ id: 'order1', orderNumber: 'NX-260904-0001', accountId: 'customer', status: 'shipped', paymentStatus: 'refund_due', subtotalCents: 300, shippingCents: 50, totalCents: 350, priceTier: 'institutional', consigneeName: 'Synthetic', shipToLine1: 'Test', shipToCity: 'Test', shipToRegion: 'CA', shipToPostalCode: '00000', shipToCountry: 'US', submittedAt: new Date(), refundCents: 50, refundDueCents: 100, returnedAt: new Date() });
-  await getDb().insert(lots).values({ id: 'lot1', lotNumber: 'LOCAL-LOT', productCode: 'NPL-001', productName: 'Synthetic', casNumber: '50-00-0', status: 'released', receivedAt: new Date(), quantityReceived: '10 mg', quantityRemaining: '6 mg', costCents: 100 });
+  await getDb().insert(orders).values({ id: 'order1', orderNumber: 'NX-260904-0001', accountId: 'customer', status: 'shipped', paymentStatus: 'refund_due', subtotalCents: 300, shippingCents: 50, totalCents: 350, priceTier: 'institutional', consigneeName: 'Synthetic', shipToLine1: 'Test', shipToCity: 'Test', shipToRegion: 'CA', shipToPostalCode: '00000', shipToCountry: 'US', submittedAt: new Date(), deliveredAt: new Date('2026-09-09T00:00:00Z'), refundCents: 50, refundDueCents: 100, returnedAt: new Date() });
+  await getDb().insert(lots).values({ id: 'lot1', lotNumber: 'LOCAL-LOT', productCode: 'NPL-001', productName: 'Synthetic', casNumber: '50-00-0', status: 'released', analyticalLab: 'Fixture lab', accessionNumber: 'ACC-FIXTURE', testingStandard: 'Fixture panel v1', receivedAt: new Date(), quantityReceived: '10 mg', quantityRemaining: '6 mg', costCents: 100 });
   for (let i = 1; i <= 2; i++) await getDb().insert(orderItems).values({ id: `item${i}`, orderId: 'order1', productId: 'product1', productCode: 'NPL-001', productName: 'Synthetic', variantId: `variant${i}`, sku: `SKU-${i}`, packSize: '2 mg', presentation: 'powder', quantity: 1, unitPriceCents: i * 100, lineTotalCents: i * 100, lotId: 'lot1', lotNumber: 'LOCAL-LOT', returnedPacks: i === 1 ? 1 : 0 });
 });
 afterEach(() => { local.sqlite.close(); delete env.DB; });
 describe('report reconciliation', () => {
+  it('uses inclusive calendar dates and defaults to the current UTC month', () => {
+    const explicit = reportPeriod('2026-09-01', '2026-09-30');
+    expect(explicit.from.toISOString()).toBe('2026-09-01T00:00:00.000Z');
+    expect(explicit.toExclusive.toISOString()).toBe('2026-10-01T00:00:00.000Z');
+    const fallback = reportPeriod('bad', 'bad', new Date('2026-09-08T12:00:00Z'));
+    expect([fallback.fromText, fallback.toText]).toEqual(['2026-09-01', '2026-09-30']);
+  });
+  it('filters order-based reports by submitted date', async () => {
+    expect(await orderLines(reportPeriod('2000-01-01', '2000-01-31'))).toEqual([]);
+    expect(await revenueByProduct(reportPeriod('2000-01-01', '2000-01-31'))).toEqual([]);
+  });
   it('allocates refunds to returned lines and conserves lot costs', async () => {
     const lines = await orderLines();
     expect(lines.map((l) => l.refundShareCents)).toEqual([50, 0]);
@@ -34,6 +45,7 @@ describe('report reconciliation', () => {
       expect(rows[1][index(header)]).toBe(expected); expect(rows[2][index(header)]).toBe('');
     }
     expect(rows[1][index('Ship to')]).toBe('Test, Test, CA, 00000, US');
+    expect(rows[1][index('Delivered on')]).toBe('2026-09-09');
     expect(rows[1].at(-1)).toBe('0.30'); expect(rows[2].at(-1)).toBe('1.80');
   });
   it('excludes cancelled orders from sales while retaining their refund obligation in the order report', async () => {

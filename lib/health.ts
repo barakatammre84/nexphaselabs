@@ -1,10 +1,11 @@
 import { getTableColumns, getTableName, is, Table } from 'drizzle-orm';
 import * as schema from '@/db/schema';
+import * as commerceSchema from '@/db/commerce-schema';
 
 // Probe the actual schema, including every column, without reading business rows.
 // A SELECT 1 succeeds against an empty database and cannot prove deploy readiness.
 const quote = (name: string) => `"${name.replace(/"/g, '""')}"`;
-export const SCHEMA_PROBES = Object.values(schema)
+export const SCHEMA_PROBES = [...Object.values(schema), ...Object.values(commerceSchema)]
   .filter((value) => is(value, Table))
   .map((table) => {
     const name = quote(getTableName(table));

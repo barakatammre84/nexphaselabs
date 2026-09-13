@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
+import { emailProviderConfigured } from '@/lib/email-provider';
 import { getDb } from '@/db';
 import {
   feedbackConversations,
@@ -365,7 +366,7 @@ export async function recordStaffFeedback(
         createdAt: now,
       }),
   ]);
-  if (conversation.visitorEmail && env.RESEND_API_KEY) {
+  if (conversation.visitorEmail && emailProviderConfigured()) {
     await getDb()
       .insert(notifications)
       .values({
@@ -694,7 +695,7 @@ export async function queueFeedbackStaffAlerts(
   subject: string,
   body: string,
 ): Promise<number> {
-  if (!env.RESEND_API_KEY) return 0;
+  if (!emailProviderConfigured()) return 0;
   const recipients = await getDb()
     .select({ email: staffUsers.email })
     .from(staffUsers)

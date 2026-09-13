@@ -2,8 +2,9 @@ import { getBuyerFromRequest } from '@/lib/buyer-session';
 import { acknowledgementsCurrent } from '@/lib/account-rules';
 import { createOrderFromCart, shipToFromOrganization } from '@/lib/orders';
 import { getOrganizationForAccount } from '@/lib/organizations';
-import { consumerTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
+import { researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
 import { validateCheckout } from '@/lib/checkout-input';
+import { connectingAddress, normaliseResearchSetting } from '@/lib/attestation';
 import { allow, rateLimitKey } from '@/lib/rate-limit';
 import { sameOrigin } from '@/lib/staff-auth';
 import { visibilityFor } from '@/lib/visibility-rules';
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
       verificationStatus: account.verificationStatus,
       acknowledgementsCurrent: acknowledgementsCurrent(account),
     },
-    consumerTierEnabled(),
+    researcherTierEnabled(),
     openCheckoutEnabled(),
   );
   if (visibility.pricing === 'none')
@@ -60,6 +61,10 @@ export async function POST(request: Request) {
         token,
         checkout.details.contactEmail,
         String(form.get('checkout_quote') ?? '') || null,
+        {
+          from: connectingAddress(request),
+          researchSetting: normaliseResearchSetting(form.get('research_setting')),
+        },
       );
       if (!result.ok) return back(result.error);
       return Response.redirect(

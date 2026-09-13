@@ -1,6 +1,9 @@
 /** Presentation only: never grants access or changes an order's state. */
 export const ORDER_QUEUES = {
   all: 'All orders',
+  mine: 'Assigned to me',
+  overdue: 'Overdue service actions',
+  unassigned: 'Unassigned active orders',
   submitted: 'Choose payment',
   awaiting_payment: 'Awaiting payment',
   paid: 'Ready to prepare',
@@ -16,18 +19,23 @@ export function orderQueue(value?: string): OrderQueue {
     : 'all';
 }
 export function matchesOrderQueue(
-  order: { status: string; paymentStatus: string },
+  order: { status: string; paymentStatus: string; assignedTo?: string | null; serviceDueAt?: Date | null },
   queue: OrderQueue,
+  staffId?: string,
+  now = new Date(),
 ): boolean {
   return (
     queue === 'all' ||
+    (queue === 'mine' && order.assignedTo === staffId) ||
+    (queue === 'overdue' && order.status !== 'cancelled' && !!order.serviceDueAt && order.serviceDueAt < now) ||
+    (queue === 'unassigned' && !order.assignedTo && !['shipped', 'cancelled'].includes(order.status)) ||
     (queue === 'refund_due'
       ? order.paymentStatus === 'refund_due'
       : order.status === queue)
   );
 }
 export function orderNextStep(
-  order: { status: string; paymentStatus: string },
+  order: { status: string; paymentStatus: string; deliveredAt?: Date | null },
   staff = false,
 ): string {
   if (order.paymentStatus === 'refund_due')
@@ -54,6 +62,10 @@ export function orderNextStep(
         ? 'Complete packing checks and record the carrier and tracking number.'
         : 'Your order is being prepared. Tracking appears here when it ships.';
     case 'shipped':
+      if (order.deliveredAt)
+        return staff
+          ? 'Delivery is confirmed. Handle document questions, returns, or refunds if needed.'
+          : 'Delivery is recorded complete. Your shipment and lot records remain available below.';
       return staff
         ? 'Check tracking and respond to any delivery or document questions.'
         : 'Track your shipment and open the lot records below for available documents.';

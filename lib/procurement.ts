@@ -111,9 +111,41 @@ export async function updateSupplier(current: Supplier, v: Ok<SupplierValidation
 }
 
 /** Qualification is a named decision with a reason; suspension ends the ability to raise orders. */
-export async function setSupplierQualification(current: Supplier, to: 'qualified' | 'suspended', reason: string, staff: StaffPrincipal): Promise<WriteResult> {
+export async function setSupplierQualification(
+  current: Supplier,
+  to: 'qualified' | 'suspended',
+  decision: {
+    reason: string;
+    scope?: string | null;
+    evidenceUrl?: string | null;
+    reviewDueOn?: string | null;
+  },
+  staff: StaffPrincipal,
+): Promise<WriteResult> {
+  const reason = decision.reason.trim().slice(0, 500);
   if (!reason.trim()) return { ok: false, error: 'Give the reason (what was reviewed, or why the supplier is suspended).' };
   if (current.qualificationStatus === to) return { ok: false, error: `The supplier is already ${to}.` };
+  const scope = (decision.scope ?? '').trim().slice(0, 500) || null;
+  const evidenceText = (decision.evidenceUrl ?? '').trim();
+  let evidenceUrl: string | null = null;
+  if (evidenceText) {
+    try {
+      const parsed = new URL(evidenceText);
+      if (!['http:', 'https:'].includes(parsed.protocol) || evidenceText.length > 500) throw new Error('bad');
+      evidenceUrl = parsed.toString();
+    } catch {
+      return { ok: false, error: 'Evidence must be a complete http or https link (500 characters maximum).' };
+    }
+  }
+  const reviewText = (decision.reviewDueOn ?? '').trim();
+  const reviewDueOn = reviewText ? new Date(`${reviewText}T00:00:00Z`) : null;
+  if (reviewText && (!/^\d{4}-\d{2}-\d{2}$/.test(reviewText) || Number.isNaN(reviewDueOn?.getTime()) || reviewDueOn?.toISOString().slice(0, 10) !== reviewText)) {
+    return { ok: false, error: 'Review due date must be a real date in YYYY-MM-DD format.' };
+  }
+  if (to === 'qualified' && (!scope || !evidenceUrl || !reviewDueOn)) {
+    return { ok: false, error: 'Qualification requires an approved scope, evidence link, and next review date.' };
+  }
+  if (to === 'qualified' && reviewDueOn! <= new Date()) return { ok: false, error: 'The next qualification review must be in the future.' };
   const db = getDb();
   const now = new Date();
   const marker = id('chg');
@@ -121,7 +153,18 @@ export async function setSupplierQualification(current: Supplier, to: 'qualified
   const [updated] = await db.batch([
     db
       .update(suppliers)
-      .set({ qualificationStatus: to, qualifiedBy: to === 'qualified' ? by(staff) : current.qualifiedBy, qualifiedAt: to === 'qualified' ? now : current.qualifiedAt, updatedAt: now, lastChangeId: marker })
+      .set({
+        qualificationStatus: to,
+        qualifiedBy: to === 'qualified' ? by(staff) : current.qualifiedBy,
+        qualifiedAt: to === 'qualified' ? now : current.qualifiedAt,
+        qualificationScope: to === 'qualified' ? scope : current.qualificationScope,
+        qualificationEvidenceUrl:
+          to === 'qualified' ? evidenceUrl : current.qualificationEvidenceUrl,
+        qualificationReviewDueOn:
+          to === 'qualified' ? reviewDueOn : current.qualificationReviewDueOn,
+        updatedAt: now,
+        lastChangeId: marker,
+      })
       .where(and(eq(suppliers.id, current.id), eq(suppliers.qualificationStatus, current.qualificationStatus), sql`${suppliers.lastChangeId} IS ${current.lastChangeId}`))
       .returning({ id: suppliers.id }),
     db.insert(supplierEvents).select(
@@ -130,7 +173,7 @@ export async function setSupplierQualification(current: Supplier, to: 'qualified
           id: sql<string>`${id('spe')}`.as('id'),
           supplierId: suppliers.id,
           action: sql<string>`${action}`.as('action'),
-          detail: sql<string>`${reason.trim().slice(0, 500)}`.as('detail'),
+          detail: sql<string>`${to === 'qualified' ? `${reason}; scope: ${scope}; evidence: ${evidenceUrl}; review due: ${reviewText}` : reason}`.as('detail'),
           actor: sql<string>`${by(staff)}`.as('actor'),
           createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
         })

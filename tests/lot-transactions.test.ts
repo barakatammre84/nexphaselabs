@@ -19,6 +19,7 @@ beforeEach(async () => {
     id: 'lot_test', lotNumber: 'TEST-001', productCode: 'NPL-001', productName: 'Synthetic fixture',
     casNumber: '50-00-0', receivedAt: new Date(), quantityReceived: '10 mg', quantityRemaining: '10 mg',
     manufacturerName: 'Fixture manufacturer', manufacturerAddress: 'Fixture address', coaKey: 'lots/TEST-001/coa/test.pdf',
+    analyticalLab: 'Fixture lab', accessionNumber: 'ACC-FIXTURE', testingStandard: 'Fixture panel v1',
     identityConfirmed: true, purityResult: '99%',
   });
   await getDb().insert(lotTests).values([
@@ -75,7 +76,7 @@ describe('fresh migrations and lot transaction invariants', () => {
     expect((await setLotDisposition((await getLot('TEST-001'))!, 'release', null, staff)).ok).toBe(false);
   });
   it('keeps document pointer and history consistent and rejects stale correction uploads', async () => {
-    const stored = { key: 'lots/TEST-001/coa/new.pdf', contentType: 'application/pdf', size: 10, uploadedAt: new Date() };
+    const stored = { key: 'lots/TEST-001/coa/new.pdf', contentType: 'application/pdf', size: 10, uploadedAt: new Date(), sha256: 'a'.repeat(64) };
     await attachLotDocument((await getLot('TEST-001'))!, 'coa', stored, 'test.pdf', staff);
     expect((await getLot('TEST-001'))!.coaKey).toBe(stored.key);
     const stale = (await getLot('TEST-001'))!;
@@ -101,7 +102,7 @@ describe('fresh migrations and lot transaction invariants', () => {
     expect((await getLotDetail('TEST-001'))!.tests).toHaveLength(2);
     expect(await getPublicLot('TEST-001')).toBeNull();
     await addLotTest((await getLot('TEST-001'))!, { testType: 'heavy_metal', analyte: 'Lead', method: 'ICP-MS', result: 'Conforms', specification: null, passed: true, testedBy: null, testedAtDate: null }, staff);
-    await attachLotDocument((await getLot('TEST-001'))!, 'coa', { key: 'lots/TEST-001/coa/current.pdf', contentType: 'application/pdf', size: 10, uploadedAt: new Date() }, 'current.pdf', staff);
+    await attachLotDocument((await getLot('TEST-001'))!, 'coa', { key: 'lots/TEST-001/coa/current.pdf', contentType: 'application/pdf', size: 10, uploadedAt: new Date(), sha256: 'b'.repeat(64) }, 'current.pdf', staff);
     expect((await setLotDisposition((await getLot('TEST-001'))!, 'release', null, staff)).ok).toBe(true);
     const publicLot = await getPublicLot('TEST-001');
     expect(publicLot!.tests).toHaveLength(3);

@@ -7,13 +7,14 @@ vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 import { getDb } from '@/db';
 import { accounts, lots, orderItems, orders, organizations } from '@/db/schema';
 import { getOrderByNumber, markOrderPaid, recordRefund } from '@/lib/orders';
-import { recordReturn, recordShipment, startFulfilment } from '@/lib/fulfilment';
+import { recordDelivery, recordReturn, recordShipment, startFulfilment } from '@/lib/fulfilment';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 
 let local: ReturnType<typeof localD1>;
 const staff = { id: 'staff_test', name: 'Synthetic Ops', role: 'admin' } as StaffPrincipal;
 const detail = async () => (await getOrderByNumber('LOCAL-ORDER'))!;
 const shipment = { picks: { line1: 'lot1' }, carrier: 'Test carrier', trackingNumber: 'TEST-ONLY', shippedOn: '2026-09-04' };
+const delivery = { deliveredOn: '2026-09-05', evidence: 'Synthetic carrier delivery event' };
 const returns = { packs: { line1: 1 }, receivedOn: '2026-09-05', condition: 'Sealed test container', note: 'Synthetic return' };
 const count = (table: string) => local.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get()!.n;
 beforeEach(async () => {
@@ -23,7 +24,7 @@ beforeEach(async () => {
   local = localD1(); env.DB = local.binding;
   await getDb().insert(accounts).values({ id: 'customer', email: 'test@example.invalid', name: 'Synthetic customer', passwordHash: 'disabled', tier: 'institutional', status: 'active', verificationStatus: 'approved' });
   await getDb().insert(organizations).values({ id: 'org1', accountId: 'customer', legalName: 'Synthetic institution', website: 'https://example.invalid', emailDomain: 'example.invalid', organizationType: 'analytical_lab', addressLine1: 'Test', city: 'Test', region: 'CA', postalCode: '00000', country: 'US', researchContext: 'Synthetic', receivingParty: 'Synthetic', verificationStatus: 'approved', submittedAt: new Date('2026-09-01') });
-  await getDb().insert(lots).values({ id: 'lot1', lotNumber: 'LOCAL-LOT', productCode: 'LOCAL-PRODUCT', productName: 'Synthetic material', casNumber: '50-00-0', status: 'released', quantityReceived: '10 mg', quantityRemaining: '10 mg', receivedAt: new Date('2026-09-01') });
+  await getDb().insert(lots).values({ id: 'lot1', lotNumber: 'LOCAL-LOT', productCode: 'LOCAL-PRODUCT', productName: 'Synthetic material', casNumber: '50-00-0', status: 'released', analyticalLab: 'Fixture lab', accessionNumber: 'ACC-FIXTURE', testingStandard: 'Fixture panel v1', quantityReceived: '10 mg', quantityRemaining: '10 mg', receivedAt: new Date('2026-09-01') });
   await getDb().insert(orders).values({ id: 'order1', orderNumber: 'LOCAL-ORDER', accountId: 'customer', status: 'awaiting_payment', paymentStatus: 'pending', subtotalCents: 200, totalCents: 200, priceTier: 'institutional', consigneeName: 'Synthetic', shipToLine1: 'Test', shipToCity: 'Test', shipToRegion: 'CA', shipToPostalCode: '00000', shipToCountry: 'US', submittedAt: new Date('2026-09-01') });
   await getDb().insert(orderItems).values({ id: 'line1', orderId: 'order1', productId: 'product1', productCode: 'LOCAL-PRODUCT', productName: 'Synthetic', variantId: 'variant1', sku: 'LOCAL-SKU', packSize: '2 mg', presentation: 'powder', quantity: 2, unitPriceCents: 100, lineTotalCents: 200 });
   await getDb().update(orders).set({ organizationId: 'org1' });
@@ -35,6 +36,26 @@ async function readyToShip() {
 }
 
 describe('order, shipment, return and refund transactions', () => {
+  it('records delivery once with evidence and a queued customer notice', async () => {
+    await readyToShip();
+    await recordShipment(await detail(), shipment, staff);
+    const stale = await detail();
+    expect(await recordDelivery(stale, delivery, staff)).toEqual({ ok: true });
+    expect((await detail()).order).toMatchObject({
+      deliveryEvidence: delivery.evidence,
+      deliveredAt: new Date('2026-09-05T00:00:00.000Z'),
+    });
+    expect((await recordDelivery(stale, delivery, staff)).ok).toBe(false);
+    expect(count('order_events')).toBe(4);
+    expect(count('notifications')).toBe(4);
+  });
+  it('rejects delivery before shipment, in the future, or without evidence', async () => {
+    await readyToShip();
+    await recordShipment(await detail(), shipment, staff);
+    expect((await recordDelivery(await detail(), { ...delivery, deliveredOn: '2026-09-03' }, staff)).ok).toBe(false);
+    expect((await recordDelivery(await detail(), { ...delivery, deliveredOn: '2026-09-06' }, staff)).ok).toBe(false);
+    expect((await recordDelivery(await detail(), { ...delivery, evidence: ' ' }, staff)).ok).toBe(false);
+  });
   it('completes payment → pick → ship → partial return → refund with conserved stock and queued notices', async () => {
     await readyToShip();
     expect(await recordShipment(await detail(), shipment, staff)).toEqual({ ok: true });
@@ -125,7 +146,7 @@ describe('order, shipment, return and refund transactions', () => {
   it('ships 20 distinct lots without exceeding D1 parameter limits', async () => {
     const picks: Record<string, string> = { line1: 'lot1' };
     for (let i = 2; i <= 20; i++) {
-      await getDb().insert(lots).values({ id: `lot${i}`, lotNumber: `LOCAL-LOT-${i}`, productCode: 'LOCAL-PRODUCT', productName: 'Synthetic', casNumber: '50-00-0', status: 'released', quantityReceived: '10 mg', quantityRemaining: '10 mg', receivedAt: new Date('2026-09-01') });
+      await getDb().insert(lots).values({ id: `lot${i}`, lotNumber: `LOCAL-LOT-${i}`, productCode: 'LOCAL-PRODUCT', productName: 'Synthetic', casNumber: '50-00-0', status: 'released', analyticalLab: 'Fixture lab', accessionNumber: 'ACC-FIXTURE', testingStandard: 'Fixture panel v1', quantityReceived: '10 mg', quantityRemaining: '10 mg', receivedAt: new Date('2026-09-01') });
       await getDb().insert(orderItems).values({ id: `line${i}`, orderId: 'order1', productId: 'product1', productCode: 'LOCAL-PRODUCT', productName: 'Synthetic', variantId: `variant${i}`, sku: `LOCAL-SKU-${i}`, packSize: '2 mg', presentation: 'powder', quantity: 2, unitPriceCents: 100, lineTotalCents: 200 });
       picks[`line${i}`] = `lot${i}`;
     }

@@ -220,7 +220,9 @@ export default async function Home() {
             View all products <ArrowRight className="size-4" />
           </Link>
         </article>
-        <article className="ion-panel overflow-hidden bg-[var(--ion-navy)] p-8 text-white sm:p-11">
+        {/* `!` is required: the unlayered .ion-panel rule sets a white background that
+            otherwise beats Tailwind's layered utilities, leaving white text on white. */}
+        <article className="ion-panel overflow-hidden bg-[var(--ion-navy)]! p-8 text-white sm:p-11">
           <span className="inline-flex rounded-full bg-white/10 px-3 py-2 text-xs font-bold text-blue-200">
             Released-lot documentation
           </span>

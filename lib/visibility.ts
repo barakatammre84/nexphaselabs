@@ -1,6 +1,6 @@
 import { getAccount, type AccountPrincipal } from '@/lib/account-auth';
 import { acknowledgementsCurrent } from '@/lib/account-rules';
-import { consumerTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
+import { researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
 import { visibilityFor, type Visibility } from '@/lib/visibility-rules';
 
 export type Viewer = {
@@ -27,7 +27,7 @@ export async function currentViewer(): Promise<Viewer> {
           acknowledgementsCurrent: acknowledgementsCurrent(account),
         }
       : null,
-    consumerTierEnabled(),
+    researcherTierEnabled(),
     openCheckoutEnabled(),
   );
   return { account, visibility };

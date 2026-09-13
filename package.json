@@ -23,8 +23,15 @@
     "db:seed:local": "npm run db:seed:generate && wrangler d1 execute nexphase-labs --local --persist-to .wrangler/state --file drizzle/seed/classes.sql && wrangler d1 execute nexphase-labs --local --persist-to .wrangler/state --file drizzle/seed/catalog.sql",
     "db:seed:staging": "npm run db:seed:generate && wrangler d1 execute nexphase-labs-staging --remote --env staging --file drizzle/seed/classes.sql && wrangler d1 execute nexphase-labs-staging --remote --env staging --file drizzle/seed/catalog.sql",
     "db:seed:prod": "npm run db:seed:generate && wrangler d1 execute nexphase-labs --remote --file drizzle/seed/classes.sql && wrangler d1 execute nexphase-labs --remote --file drizzle/seed/catalog.sql",
-    "deploy:staging": "CLOUDFLARE_ENV=staging vinext build && wrangler deploy --config dist/server/wrangler.json",
-    "deploy": "vinext build && wrangler deploy --config dist/server/wrangler.json"
+    "ops:backup:staging": "node scripts/d1-backup.mjs staging",
+    "ops:backup:production": "node scripts/d1-backup.mjs production",
+    "ops:restore:verify": "node scripts/d1-restore-verify.mjs",
+    "ops:rehearsal:staging": "node scripts/recovery-rehearsal.mjs staging",
+    "ops:rehearsal:production": "node scripts/recovery-rehearsal.mjs production",
+    "shippo:verify": "node scripts/shippo-verify.mjs",
+    "deploy:staging": "CLOUDFLARE_ENV=staging vinext build && node scripts/deploy-guard.mjs staging && wrangler deploy --config dist/server/wrangler.json",
+    "deploy": "vinext build && node scripts/deploy-guard.mjs production && wrangler deploy --config dist/server/wrangler.json",
+    "deploy:guard": "node scripts/deploy-guard.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

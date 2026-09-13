@@ -1,8 +1,25 @@
-import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { lotFamilyIds } from '@/lib/lot-family';
 import { lotTests, lots, type Lot } from '@/db/schema';
 import type { DocumentType } from '@/lib/documents';
+import { isPublishable } from '@/lib/lot-rules';
+
+/**
+ * SQL form of the publication rule (see lot-rules.ts publicationBlockers). Every
+ * public query composes this so a released-but-unpublishable lot never resolves.
+ */
+export const publishableLot = () =>
+  and(
+    eq(lots.status, 'released'),
+    isNull(lots.supersededById),
+    isNotNull(lots.analyticalLab),
+    isNotNull(lots.accessionNumber),
+    isNotNull(lots.testingStandard),
+    sql`trim(${lots.analyticalLab}) <> ''`,
+    sql`trim(${lots.accessionNumber}) <> ''`,
+    sql`trim(${lots.testingStandard}) <> ''`,
+  );
 
 /**
  * Public lot record.
@@ -63,6 +80,7 @@ export async function getReleasedLot(lotNumber: string): Promise<Lot | null> {
     .where(and(eq(lots.lotNumber, lotNumber), isNull(lots.supersededById)))
     .limit(1);
   if (!lot || lot.status !== 'released') return null;
+  if (!isPublishable(lot)) return null;
   return lot;
 }
 
@@ -122,7 +140,7 @@ export async function getPublicLot(
 
 /** Object key of the current document of a type on a RELEASED lot, or null. */
 export function publicDocumentKey(lot: Lot, type: DocumentType): string | null {
-  if (lot.status !== 'released') return null;
+  if (lot.status !== 'released' || !isPublishable(lot)) return null;
   switch (type) {
     case 'coa':
       return lot.coaKey;
@@ -165,11 +183,7 @@ export async function listReleasedLotsForProduct(
     })
     .from(lots)
     .where(
-      and(
-        eq(lots.productCode, productCode),
-        eq(lots.status, 'released'),
-        isNull(lots.supersededById),
-      ),
+      and(eq(lots.productCode, productCode), publishableLot()),
     )
     .orderBy(desc(lots.releasedAt));
   return rows.map((r) => ({
@@ -191,6 +205,16 @@ export async function listReleasedLotsForProduct(
  * Released lots only, and the same fields the single-lot lookup returns —
  * never quantities, never movements, never who released it.
  */
+/** Lot numbers a stranger may discover. Composes publishableLot(), so nothing quarantined, held, rejected, withdrawn or superseded is listed. */
+export async function listPublishableLotNumbers(): Promise<string[]> {
+  const rows = await getDb()
+    .select({ lotNumber: lots.lotNumber })
+    .from(lots)
+    .where(publishableLot())
+    .orderBy(desc(lots.releasedAt));
+  return rows.map((r) => r.lotNumber);
+}
+
 export type LotSearchHit = {
   lotNumber: string;
   productCode: string;
@@ -229,8 +253,7 @@ export async function searchReleasedLots(
     .from(lots)
     .where(
       and(
-        eq(lots.status, 'released'),
-        isNull(lots.supersededById),
+        publishableLot(),
         or(
           sql`upper(${lots.lotNumber}) LIKE upper(${pattern}) ESCAPE '\\'`,
           sql`upper(${lots.productName}) LIKE upper(${pattern}) ESCAPE '\\'`,

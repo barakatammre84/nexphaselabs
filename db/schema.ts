@@ -107,6 +107,8 @@ export const lots = sqliteTable(
     costNote: text('cost_note'),
     storageLocation: text('storage_location'),
     storageCondition: text('storage_condition'),
+    /** Labeled content of ONE container for count-tracked lots (vials/units), e.g. '50 mg'. A count-tracked lot can only supply a pack of exactly this size. */
+    containerSize: text('container_size'),
     retestDate: integer('retest_date', { mode: 'timestamp' }),
 
     supersededById: text('superseded_by_id'),
@@ -204,6 +206,8 @@ export const lotDocuments = sqliteTable(
     originalName: text('original_name'),
     uploadedBy: text('uploaded_by').notNull(),
     uploadedAt: integer('uploaded_at', { mode: 'timestamp' }).notNull(),
+    /** SHA-256 (hex) of the stored bytes, computed at upload. Copied onto order lines at dispatch so the customer's copy is provably the one that shipped. */
+    sha256: text('sha256'),
     supersededAt: integer('superseded_at', { mode: 'timestamp' }),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .notNull()
@@ -234,6 +238,8 @@ export const lotMovements = sqliteTable(
     lotId: text('lot_id').notNull(),
     /** receipt | shipment | return | destruction | adjustment | sample */
     movementType: text('movement_type').notNull(),
+    /** increase | decrease. Legacy receipt/return are increases; shipment is a decrease. */
+    direction: text('direction'),
     quantity: text('quantity').notNull(),
 
     accountId: text('account_id'),
@@ -591,7 +597,7 @@ export const staffSessions = sqliteTable(
  * Customer accounts. One row per person; the organisation and its
  * verification live in `organizations` (Phase 4.3). `tier` decides what the
  * account can see: 'institutional' after verification, 'consumer' only if the
- * consumer tier is enabled by the owner (CONSUMER_TIER_ENABLED). The site
+ * researcher tier is enabled by the owner (RESEARCHER_TIER_ENABLED). The site
  * ships institutional-only.
  *
  * Every acknowledgement is recorded with the time and the document version
@@ -605,8 +611,11 @@ export const accounts = sqliteTable(
     email: text('email').notNull(),
     name: text('name').notNull(),
     passwordHash: text('password_hash').notNull(),
-    /** consumer | institutional */
+    /** researcher | institutional. 'researcher' replaced 'consumer' 2026-09-12: the qualifying question is only
+     *  whether the buyer is a researcher, never whether they are an individual or an organisation. */
     tier: text('tier').notNull().default('institutional'),
+    /** Self-described research setting from a fixed list; descriptive, never gating. */
+    researchSetting: text('research_setting'),
     /** pending_email | active | suspended */
     status: text('status').notNull().default('pending_email'),
     emailVerifiedAt: integer('email_verified_at', { mode: 'timestamp' }),
@@ -941,8 +950,22 @@ export const orders = sqliteTable(
     shippingQuoteId: text('shipping_quote_id'),
     shippingRateId: text('shipping_rate_id'),
     shippingService: text('shipping_service'),
-    /** Tier the prices were taken from: institutional | consumer */
+    /** Tier the prices were taken from: institutional | researcher */
     priceTier: text('price_tier').notNull(),
+    /**
+     * Structured research-use attestation for THIS order, written at submission. Account holders already
+     * carry versions on the account; guests did not, so the evidence lived only as prose in an event note.
+     * These columns make it queryable and exportable for every order regardless of account.
+     */
+    ruoVersion: text('ruo_version'),
+    termsVersion: text('terms_version'),
+    /** Lowercase hex SHA-256 of the exact acknowledgement wording shown, so a later revision cannot make it ambiguous. */
+    acknowledgementHash: text('acknowledgement_hash'),
+    acknowledgedAt: integer('acknowledged_at', { mode: 'timestamp' }),
+    /** Connecting address at submission, as e-sign evidence. */
+    acknowledgedFrom: text('acknowledged_from'),
+    /** Snapshot of the buyer's stated research setting at the time of the order. */
+    researchSetting: text('research_setting'),
     // Ship-to snapshot
     consigneeName: text('consignee_name').notNull(),
     consigneeInstitution: text('consignee_institution'),
@@ -965,6 +988,9 @@ export const orders = sqliteTable(
     submittedAt: integer('submitted_at', { mode: 'timestamp' }).notNull(),
     paidAt: integer('paid_at', { mode: 'timestamp' }),
     shippedAt: integer('shipped_at', { mode: 'timestamp' }),
+    /** Carrier or staff-confirmed delivery date and the supporting reference. */
+    deliveredAt: integer('delivered_at', { mode: 'timestamp' }),
+    deliveryEvidence: text('delivery_evidence'),
     cancelledAt: integer('cancelled_at', { mode: 'timestamp' }),
     cancelReason: text('cancel_reason'),
     /** What is owed back: the order total on a cancelled paid order, the value of the returned lines on a return. */
@@ -975,6 +1001,10 @@ export const orders = sqliteTable(
     refundedAt: integer('refunded_at', { mode: 'timestamp' }),
     /** When returned material was received back (ledger has the movement). */
     returnedAt: integer('returned_at', { mode: 'timestamp' }),
+    /** Current internal owner and target for the next service action. */
+    assignedTo: text('assigned_to'),
+    assignedName: text('assigned_name'),
+    serviceDueAt: integer('service_due_at', { mode: 'timestamp' }),
     /** Id of the transition that produced the current status; guards the event row. */
     lastTransitionId: text('last_transition_id'),
     /** Random token from the rendered cart form; unique, so a double submit cannot create two orders. */
@@ -993,6 +1023,8 @@ export const orders = sqliteTable(
     ),
     accountIdx: index('orders_account_idx').on(table.accountId),
     statusIdx: index('orders_status_idx').on(table.status),
+    assignedIdx: index('orders_assigned_idx').on(table.assignedTo),
+    serviceDueIdx: index('orders_service_due_idx').on(table.serviceDueAt),
   }),
 );
 
@@ -1016,6 +1048,15 @@ export const orderItems = sqliteTable(
     /** Packs received back on this line (written by the return batch; null until a return). */
     returnedPacks: integer('returned_packs'),
     lotNumber: text('lot_number'),
+    /**
+     * Documents pinned to this line at fulfilment. The COA binds to the LOT in issued_documents, so a later
+     * correction or a reorder from a new lot would otherwise change what an old order shows. The pin is
+     * written once at shipment and never updated; the customer document path resolves only through it.
+     */
+    coaDocumentId: text('coa_document_id'),
+    coaSha256: text('coa_sha256'),
+    sdsDocumentId: text('sds_document_id'),
+    sdsSha256: text('sds_sha256'),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .notNull()
       .default(sql`(unixepoch())`),
@@ -1075,6 +1116,14 @@ export const suppliers = sqliteTable(
       .default('unqualified'),
     qualifiedBy: text('qualified_by'),
     qualifiedAt: integer('qualified_at', { mode: 'timestamp' }),
+    /** What products/services the qualification decision covers. */
+    qualificationScope: text('qualification_scope'),
+    /** Controlled evidence folder or record reviewed for the decision. */
+    qualificationEvidenceUrl: text('qualification_evidence_url'),
+    /** Date the named qualification must be reviewed again. */
+    qualificationReviewDueOn: integer('qualification_review_due_on', {
+      mode: 'timestamp',
+    }),
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
     lastChangeId: text('last_change_id'),
     createdBy: text('created_by').notNull(),
@@ -1289,3 +1338,151 @@ export const settings = sqliteTable('settings', {
 });
 
 export type Setting = typeof settings.$inferSelect;
+
+/* -------------------------------------------------------------------------- */
+/* Operating controls                                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The current owner/evidence state of a business operating control.
+ *
+ * Definitions (title, area and whether a control blocks launch) live in code
+ * so a deploy can add or clarify a control without silently marking it done.
+ * This table contains only facts recorded by staff. Missing rows therefore
+ * mean "not started", never "not applicable" or "ready".
+ */
+export const operationalControls = sqliteTable(
+  'operational_controls',
+  {
+    key: text('key').primaryKey(),
+    /** not_started | in_progress | blocked | awaiting_review | ready | not_applicable */
+    status: text('status').notNull().default('not_started'),
+    ownerId: text('owner_id'),
+    ownerName: text('owner_name'),
+    dueOn: integer('due_on', { mode: 'timestamp' }),
+    evidenceUrl: text('evidence_url'),
+    note: text('note'),
+    lastChangeId: text('last_change_id'),
+    updatedBy: text('updated_by').notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    statusIdx: index('operational_controls_status_idx').on(table.status),
+    ownerIdx: index('operational_controls_owner_idx').on(table.ownerId),
+    dueIdx: index('operational_controls_due_idx').on(table.dueOn),
+  }),
+);
+
+/** Append-only history for every control update. */
+export const operationalControlEvents = sqliteTable(
+  'operational_control_events',
+  {
+    id: text('id').primaryKey(),
+    controlKey: text('control_key').notNull(),
+    fromStatus: text('from_status').notNull(),
+    toStatus: text('to_status').notNull(),
+    ownerId: text('owner_id'),
+    ownerName: text('owner_name'),
+    dueOn: integer('due_on', { mode: 'timestamp' }),
+    evidenceUrl: text('evidence_url'),
+    note: text('note'),
+    actor: text('actor').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    controlIdx: index('operational_control_events_control_idx').on(
+      table.controlKey,
+      table.createdAt,
+    ),
+  }),
+);
+
+export type OperationalControl = typeof operationalControls.$inferSelect;
+export type OperationalControlEvent =
+  typeof operationalControlEvents.$inferSelect;
+
+/* -------------------------------------------------------------------------- */
+/* Operational cases                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One accountable record for an operational exception. The current row is a
+ * working summary; every mutation is also written to operational_case_events.
+ */
+export const operationalCases = sqliteTable(
+  'operational_cases',
+  {
+    id: text('id').primaryKey(),
+    caseNumber: text('case_number').notNull(),
+    /** complaint | deviation | supplier_issue | incident | capa | recall */
+    type: text('type').notNull(),
+    /** low | medium | high | critical */
+    severity: text('severity').notNull(),
+    /** open | contained | investigating | action_required | effectiveness_review | closed */
+    status: text('status').notNull().default('open'),
+    title: text('title').notNull(),
+    summary: text('summary').notNull(),
+    ownerId: text('owner_id').notNull(),
+    ownerName: text('owner_name').notNull(),
+    dueOn: integer('due_on', { mode: 'timestamp' }).notNull(),
+    linkedLotNumber: text('linked_lot_number'),
+    linkedOrderNumber: text('linked_order_number'),
+    linkedSupplierId: text('linked_supplier_id'),
+    containment: text('containment'),
+    rootCause: text('root_cause'),
+    correctiveAction: text('corrective_action'),
+    preventiveAction: text('preventive_action'),
+    evidenceUrl: text('evidence_url'),
+    effectivenessCheck: text('effectiveness_check'),
+    closureSummary: text('closure_summary'),
+    createdBy: text('created_by').notNull(),
+    lastChangeId: text('last_change_id').notNull(),
+    closedAt: integer('closed_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    numberIdx: uniqueIndex('operational_cases_number_idx').on(table.caseNumber),
+    statusIdx: index('operational_cases_status_idx').on(table.status),
+    ownerIdx: index('operational_cases_owner_idx').on(table.ownerId),
+    dueIdx: index('operational_cases_due_idx').on(table.dueOn),
+    lotIdx: index('operational_cases_lot_idx').on(table.linkedLotNumber),
+    orderIdx: index('operational_cases_order_idx').on(table.linkedOrderNumber),
+  }),
+);
+
+/** Append-only snapshots of every case creation, update, handoff and closure. */
+export const operationalCaseEvents = sqliteTable(
+  'operational_case_events',
+  {
+    id: text('id').primaryKey(),
+    caseId: text('case_id').notNull(),
+    fromStatus: text('from_status'),
+    toStatus: text('to_status').notNull(),
+    ownerId: text('owner_id').notNull(),
+    ownerName: text('owner_name').notNull(),
+    action: text('action').notNull(),
+    note: text('note'),
+    actor: text('actor').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    caseIdx: index('operational_case_events_case_idx').on(
+      table.caseId,
+      table.createdAt,
+    ),
+  }),
+);
+
+export type OperationalCase = typeof operationalCases.$inferSelect;
+export type OperationalCaseEvent = typeof operationalCaseEvents.$inferSelect;

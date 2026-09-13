@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowRight, FileQuestion, Headphones, Mail, PackageSearch } from 'lucide-react';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
+import { ContactForm } from '@/components/site/contact-form';
+import { SUPPORT } from '@/lib/support';
 
 export const metadata: Metadata = {
   title: 'Contact',
@@ -26,7 +28,7 @@ const supportPaths = [
   {
     icon: Headphones,
     title: 'Account and catalog help',
-    copy: 'Use the support button on this page for a conversation about access, navigation, or product availability.',
+    copy: 'Use the form on this page. Every message gets a reference number and lands in the same queue the team works from.',
     href: '/faq',
     label: 'Browse common questions',
   },
@@ -41,13 +43,9 @@ export default function ContactPage() {
             <span className="inline-flex rounded-full bg-white/10 px-3 py-2 text-xs font-bold text-blue-200">NexPhase support</span>
             <h1 className="mt-6 max-w-3xl font-display text-[clamp(3rem,6vw,5.5rem)] font-extrabold leading-[0.98] tracking-[-0.065em]">A real team is here to help.</h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-white/70">Get help locating a product record, understanding account access, or resolving an order question. We do not provide medical or experimental-use guidance.</p>
+            <p className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-white/70"><Mail className="size-4 text-blue-200" /> Prefer email? <a href={`mailto:${SUPPORT.email}`} className="text-white underline-offset-4 hover:underline">{SUPPORT.email}</a></p>
           </div>
-          <div className="rounded-[1.6rem] border border-white/15 bg-white/10 p-6 backdrop-blur">
-            <Mail className="size-7 text-blue-200" />
-            <p className="mt-5 text-sm font-bold text-white/60">Email support</p>
-            <a href="mailto:research@nexphaselabs.net" className="mt-2 block break-all font-display text-xl font-extrabold text-white">research@nexphaselabs.net</a>
-            <p className="mt-4 text-sm leading-6 text-white/65">For the fastest routing, include a catalog number, lot number, or order number when one is available.</p>
-          </div>
+          <ContactForm />
         </div>
       </section>
 

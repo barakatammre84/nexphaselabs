@@ -26,7 +26,11 @@ const LOCKOUT_SECONDS = 15 * 60;
 export { hashPassword, passwordPolicyError, sha256Hex, verifyPassword } from '@/lib/staff-auth-core';
 
 export { STAFF_ROLES, type StaffRole } from '@/lib/staff-roles';
-import type { StaffRole } from '@/lib/staff-roles';
+import {
+  roleHasPermission,
+  type StaffPermission,
+  type StaffRole,
+} from '@/lib/staff-roles';
 
 export type StaffPrincipal = {
   id: string;
@@ -234,32 +238,39 @@ export async function requireStaff(returnTo = '/manage'): Promise<StaffPrincipal
 
 /** Only admins manage staff accounts. */
 export function canManageStaff(staff: StaffPrincipal): boolean {
-  return staff.role === 'admin';
+  return hasStaffPermission(staff, 'staff.manage');
 }
 
 /** Roles allowed to create and edit catalog products. */
 export function canEditCatalog(staff: StaffPrincipal): boolean {
-  return staff.role === 'admin' || staff.role === 'qc';
+  return hasStaffPermission(staff, 'catalog.manage');
 }
 
 /** Roles allowed to pick, pack and ship: warehouse and admin, not QC. */
 export function canFulfil(staff: StaffPrincipal): boolean {
-  return staff.role === 'admin' || staff.role === 'ops';
+  return hasStaffPermission(staff, 'fulfillment.manage');
 }
 
 /** Customer feedback is handled by operations and administrators. */
 export function canHandleFeedback(staff: StaffPrincipal): boolean {
-  return staff.role === 'admin' || staff.role === 'ops';
+  return hasStaffPermission(staff, 'feedback.manage');
 }
 
 /** Roles allowed to verify customer organisations. */
 export function canVerifyAccounts(staff: StaffPrincipal): boolean {
-  return staff.role === 'admin';
+  return hasStaffPermission(staff, 'accounts.approve');
 }
 
 /** Roles allowed to record analytical results and decide lot disposition. */
 export function canRecordResults(staff: StaffPrincipal): boolean {
-  return staff.role === 'admin' || staff.role === 'qc';
+  return hasStaffPermission(staff, 'quality.manage');
+}
+
+export function hasStaffPermission(
+  staff: Pick<StaffPrincipal, 'role'>,
+  permission: StaffPermission,
+): boolean {
+  return roleHasPermission(staff.role, permission);
 }
 
 export function requireRole(staff: StaffPrincipal, ...roles: StaffRole[]): void {

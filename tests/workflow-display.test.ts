@@ -61,6 +61,15 @@ describe('workflow display', () => {
     expect(
       orderNextStep({ status: 'shipped', paymentStatus: 'refund_due' }),
     ).toContain('No further payment'));
+  it('shows the completed delivery handoff after confirmation', () => {
+    const order = {
+      status: 'shipped',
+      paymentStatus: 'paid',
+      deliveredAt: new Date('2026-09-05T00:00:00Z'),
+    };
+    expect(orderNextStep(order)).toContain('recorded complete');
+    expect(orderNextStep(order, true)).toContain('Delivery is confirmed');
+  });
   it('does not request payment for closed orders', () =>
     expect(
       orderNextStep({ status: 'cancelled', paymentStatus: 'refunded' }),

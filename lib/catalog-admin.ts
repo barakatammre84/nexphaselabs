@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { productRevisions, productVariants, products } from '@/db/schema';
+import { operationalControls, productRevisions, productVariants, products } from '@/db/schema';
 import { getProductByCode, type CatalogProduct } from '@/lib/catalog-data';
-import { skuFor, type ProductInput } from '@/lib/catalog-rules';
+import { counselHold, skuFor, type ProductInput } from '@/lib/catalog-rules';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 
 /**
@@ -91,6 +91,26 @@ function isUniqueViolation(error: unknown): boolean {
   return /UNIQUE constraint failed/i.test(message);
 }
 
+
+/**
+ * Publication of a counsel-hold compound requires the legal.counsel operating
+ * control to be Ready — a recorded counsel disposition, not a checkbox on the
+ * product form. Drafts are always allowed: the record must exist so the lot,
+ * COA and inventory can be managed while the decision is made.
+ */
+async function publicationHold(v: ProductInput): Promise<string | null> {
+  if (v.visibility !== 'published') return null;
+  const reason = counselHold(v);
+  if (!reason) return null;
+  const [control] = await getDb()
+    .select({ status: operationalControls.status })
+    .from(operationalControls)
+    .where(eq(operationalControls.key, 'legal.counsel'))
+    .limit(1);
+  if (control?.status === 'ready') return null;
+  return `${v.name} is on counsel hold (${reason}). It can be saved as a draft, but publishing requires the "Regulatory counsel review recorded" control to be Ready.`;
+}
+
 export async function createProduct(
   v: ProductInput,
   staff: StaffPrincipal,
@@ -103,6 +123,8 @@ export async function createProduct(
   const existing = await getProductByCode(v.code);
   if (existing)
     return { ok: false, error: `Code ${v.code} is already in the catalog.` };
+  const hold = await publicationHold(v);
+  if (hold) return { ok: false, error: hold };
 
   try {
     await db.batch([
@@ -160,6 +182,9 @@ export async function updateProduct(
       ok: false,
       error: 'The product code cannot change; lot records reference it.',
     };
+
+  const hold = await publicationHold(v);
+  if (hold) return { ok: false, error: hold };
 
   const db = getDb();
   const now = new Date();

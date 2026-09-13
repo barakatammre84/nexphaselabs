@@ -1,0 +1,254 @@
+NexPhase Release Engineering Register 
+
+ ← NexPhase Launch Register 
+
+ Operating register 16 · deploy, protect, back up, recover
+
+ NexPhase Release Engineering Register
+
+ Eleven hub items with no register behind them until now. Nine days of tested work sits unmerged,
+ a staging deploy reached production once and the guard that would stop it recurring still does not exist,
+ the backup rehearsal has never completed, and staging is serving fabricated manufacturer data to anyone
+ with the URL. All of it is one person’s, and nobody else can deploy. 
+
+ built decision open gap or defect 
+
+ 16.1 The branch 16.2 Deploy guard 16.3 Staging 16.4 Recovery 16.5 Controls 16.6 Bus factor Checklist 
+
+ 16.1 Nine days of work that cannot be merged casually
+ deliberate 
+
+ The 9 September repair set — operating controls, inventory movements including
+ dual-witness destruction, operational cases and CAPA, order claim and handoff queues, the three-person
+ permission matrix, Gmail API delivery, Shippo USPS with tracking, D1 backup and restore scripts, and the
+ MAN/SOP drafts — is committed and pushed on save/operations-repair-2026-09-09 . Checks
+ passed, type-check clean, 70 files and 628 tests green.
+
+ Why it is still sitting there
+
+ Pushing or merging to main automatically runs deploy-staging.yml —
+ migrate and deploy. So a merge is not a merge, it is a deployment, and it should happen when someone is
+ watching rather than as a side effect of tidying up.
+
+ The migrations involved are 0041 through 0049. They are already applied to staging, so the merge
+ itself is low-risk — but that is a reason to do it deliberately and verify, not a reason to do it
+ absent-mindedly.
+
+ 16.2 A staging deploy reached production, and it still could
+ unfixed 
+
+ On 9 September a deploy labelled staging hit production because the generated
+ configuration ignored the staging flag. Production was rolled back. No guard was added. 
+
+ What a guard has to do
+
+ Refuse to deploy to production unless the target is stated explicitly and matches the built configuration — not inferred, not defaulted.
+
+ Fail loudly on a mismatch rather than picking one.
+
+ Make the environment visible in the deploy output, so the person running it sees where it went.
+
+ Production deploys run from a v* tag via deploy-production.yml ; that separation is right and should be the only path.
+
+ This matters more after the cutover than before it. Today production is a worker nobody visits. The
+ moment the domain points at it, an accidental deploy is a public incident.
+
+ 16.3 Staging is open, and it is serving fabricated data
+ live issue 
+
+ Confirmed on 12 September by browsing it cold with no authentication of any kind. Anyone
+ with the URL reaches the full storefront.
+
+ What is exposed
+
+ A public lot API serving manufacturerName: "Example Peptide Manufacturing Co." , manufacturerAddress: "1 Synthesis Way, Shanghai, China" and countryOfOrigin: "China" .
+
+ Product pages advertising four pack sizes In stock, with prices, for material not in inventory.
+
+ A working cart and checkout.
+
+ The real schema and the real application behaviour, indexable by anything that finds the URL.
+
+ access.staging is already a launch-critical control with no evidence attached. This is
+ what it is for. Protection also wants a noindex header, so the staging origin never competes
+ with the production domain in search.
+
+ Verified good
+
+ /manage , /manage/lots and /manage/orders all redirect to
+ sign-in when unauthenticated. The staff area is properly gated — it is the storefront that is open.
+
+ 16.4 The backup rehearsal has never finished
+ incomplete 
+
+ The scripts exist: explicit-environment D1 export, a checksum manifest, isolated restore
+ verification, integrity and foreign-key checks, and a written runbook. The export failed with Cloudflare
+ auth error 10000 and the rehearsal has not completed end to end since.
+
+ What completing it means
+
+ Export D1 and R2 for a named environment, with the checksum manifest produced.
+
+ Restore into an isolated environment — not the source.
+
+ Run the integrity, foreign-key and table checks and read the output.
+
+ Record the elapsed time. A recovery objective nobody has measured is a guess.
+
+ Have Melissa or Wisam witness the result, per the deployment-and-recovery handoff rule.
+
+ Do it before the cutover. After the domain moves, the first time you need this will be the first time
+ you find out whether it works.
+
+ 16.5 Thirty launch-critical controls, none with evidence
+ seed it 
+
+ The operating-control register is built and tested — owner, due date, evidence link,
+ status, launch-critical flag, administrator review, optimistic concurrency and append-only history. Not
+ one control has been populated.
+
+ The thirty cover
+
+ Governance and launch decision; staff access and staging protection; catalog prices and product
+ files; supplier qualification and purchasing; inventory load and cycle counts; release specifications,
+ representative lot, exception rule and recall rehearsal; customer eligibility; the order workflow
+ rehearsal; payment, tax and month-end close; shipping origin and carriers; customer messaging and
+ complaint process; backup, restore and incident rollback; counsel, insurance and facility; the hazard
+ programme; and the SOP library.
+
+ Read as a list, it is a fair summary of this entire register system — which is the point. The
+ application already knows what has to be true. Nobody has told it who owns each one or attached the
+ evidence.
+
+ The rule to hold
+
+ A control cannot be marked ready without an owner and evidence, and blocked requires a
+ reason. Ammre seeds it and chases the evidence; the members approve. He owns none of the approvals,
+ which is the same rule as everywhere else.
+
+ 16.6 One person can deploy
+ structural 
+
+ Nobody except Ammre can deploy, roll back, restore a backup, or diagnose an incident. The
+ cutover is the worst possible moment for that to be true.
+
+ The minimum that reduces it
+
+ Write the deploy, rollback and restore procedures into MAN-002 at a level someone else could follow under pressure — exact commands, not a description.
+
+ Record where every credential lives and who can obtain it, without recording the credentials themselves.
+
+ Have a second person — a member — walk a rollback on staging once, with him watching.
+
+ Name a fallback for the cutover window specifically, even if that is an external contractor on standby.
+
+ This will not make anyone else competent to run the platform. It makes the difference between a bad
+ week and an unrecoverable one.
+
+ 16.0 What this chapter adds to the register
+
+ Sixteen items, almost all Ammre's. The bus-factor item is the one that protects the others.
+
+ Signing as 
+ choose your name Melissa Wisam Fatima Ammre 
+
+ 0 of 16 complete
+
+ Merge the operations-repair branch deliberately, with someone watching
+ A merge to main is a deployment — deploy-staging.yml runs migrate and deploy. Migrations 0041-0049 are already on staging. 16.1
+ blocks order #1 c16-merge 
+
+ Ammre 
+
+ Add the deploy guard
+ Explicit target, fail loudly on mismatch, environment visible in the output. It happened once on 9 Sep and nothing prevents a repeat. 16.2
+ blocks order #1 c16-guard 
+
+ Ammre 
+
+ Make the v* tag the only path to production
+ deploy-production.yml already works this way; make it the only way. 16.2
+ blocks order #1 c16-tagonly 
+
+ Ammre 
+
+ Protect staging
+ Open to anyone with the URL, serving fabricated manufacturer data and a working checkout. access.staging is a launch-critical control with no evidence. 16.3
+ blocks order #1 c16-protect 
+
+ Ammre 
+
+ Add a noindex header to the staging origin
+ So it never competes with the production domain in search. 16.3
+ blocks order #1 c16-noindex 
+
+ Ammre 
+
+ Complete the D1 and R2 backup and restore rehearsal
+ The export failed with Cloudflare auth 10000 and has never finished end to end. Before the cutover, not after. 16.4
+ blocks order #1 c16-backup 
+
+ Ammre 
+
+ Record the elapsed recovery time
+ A recovery objective nobody has measured is a guess. 16.4
+ blocks order #1 c16-rto 
+
+ Ammre 
+
+ Witness the recovery result and record business acceptance
+ Per the deployment-and-recovery handoff rule — the technology seat performs, another role witnesses. 16.4
+ blocks order #1 c16-witness 
+
+ Melissa + Wisam 
+
+ Seed the thirty launch-critical controls with owners and due dates
+ Built, tested and entirely unpopulated. He seeds and chases; the members approve. 16.5
+ blocks order #1 c16-controls 
+
+ Ammre 
+
+ Attach evidence and record approval for each launch-critical control
+ A control cannot be ready without an owner and evidence; blocked requires a reason. 16.5
+ blocks order #1 c16-evidence 
+
+ Melissa + Wisam 
+
+ Fix the cold-asset waterfall
+ 148 requests per page, 36 chunks totalling 19KB each stalling 21-23s, 78s to interactive on a cold load. Precondition for the cutover. 16.1
+ blocks order #1 c16-1102 
+
+ Ammre 
+
+ Confirm the Cloudflare Workers plan and read the persisted logs
+ Still worth doing — it is just not the cause of the slow pages. 16.1
+ first month c16-plan 
+
+ Ammre 
+
+ Write deploy, rollback and restore into MAN-002 as exact commands
+ At a level someone else could follow under pressure, not a description. 16.6
+ blocks order #1 c16-man002 
+
+ Ammre 
+
+ Record where every credential lives and who can obtain it
+ Not the credentials themselves — the locations and the access path. 16.6
+ blocks order #1 c16-creds 
+
+ Ammre 
+
+ Have a member walk a rollback on staging once, with Ammre watching
+ It will not make anyone else competent to run the platform. It is the difference between a bad week and an unrecoverable one. 16.6
+ blocks order #1 c16-secondpair 
+
+ Wisam 
+
+ Name a technical fallback for the cutover window
+ Even if that is an external contractor on standby. Nobody else can deploy today. 16.6
+ first month c16-fallback 
+
+ Melissa + Wisam 
+
+ Chapter 16 · NexPhase Launch Register · updated 12 September 2026 
+ Not legal, tax or regulatory advice.

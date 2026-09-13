@@ -235,6 +235,7 @@ export async function issueCoa(
         contentType: record.contentType,
         size: record.sizeBytes,
         uploadedAt: issuedAt,
+        sha256: record.sha256,
       },
       `${documentNumber}.pdf`,
       staff,

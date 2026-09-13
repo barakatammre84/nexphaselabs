@@ -15,13 +15,26 @@ declare namespace Cloudflare {
     /** Canonical origin for absolute URLs in email and metadata. */
     PUBLIC_ORIGIN: string;
     /** "true" to allow consumer-tier sign-ups. Owner decision; ships "false". */
+    /** Researcher (non-institutional) tier switch. CONSUMER_TIER_ENABLED is the legacy alias. */
+    RESEARCHER_TIER_ENABLED?: string;
     CONSUMER_TIER_ENABLED?: string;
     OPEN_CHECKOUT_ENABLED?: string;
+    /** Basic-auth password for a deployed non-production storefront. Unset = the environment refuses every request with 503. */
+    STAGING_ACCESS_PASSWORD?: string;
+    /** "true" deliberately opens a deployed non-production storefront to anyone. A stated choice, never a default. */
+    STAGING_ACCESS_OPEN?: string;
     SHIPPING_PROVIDER?: string;
     SHIPPO_API_KEY?: string;
+    /** Secret URL token for Shippo webhook calls; at least 32 random characters. */
+    SHIPPO_WEBHOOK_TOKEN?: string;
     SHIPPO_CARRIER_ACCOUNTS?: string;
+    /** Protected deployed ship-from contact; preferred over the local SHIPPING_FROM_JSON setting. */
+    SHIPPO_FROM_JSON?: string;
+    /** Protected array of named ship-from locations. The first active entry is the checkout default. */
+    SHIPPO_ORIGINS_JSON?: string;
     SHIPPING_FROM_JSON?: string;
     SHIPPING_DEFAULT_PARCEL_JSON?: string;
+    SHIPPING_ALLOWED_SERVICES?: string;
     SHIPPING_SIMULATION_ENABLED?: string;
     CHECKOUT_QUOTES_REQUIRED?: string;
     LIVE_SHIPPING_ENABLED?: string;
@@ -32,6 +45,26 @@ declare namespace Cloudflare {
     INVENTORY_RESERVATION_MINUTES?: string;
     /** Sender for transactional email, e.g. "NexPhase Labs <research@nexphaselabs.net>". */
     EMAIL_FROM?: string;
+    /** 'purpose' switches on per-purpose senders (lib/senders.ts); anything else = EMAIL_FROM for everything. */
+    EMAIL_SENDER_SCHEME?: string;
+    EMAIL_FROM_ORDERS?: string;
+    EMAIL_FROM_SUPPORT?: string;
+    EMAIL_FROM_ACCOUNTS?: string;
+    EMAIL_FROM_QUALITY?: string;
+    /** "google_workspace" (recommended) or "resend". */
+    EMAIL_PROVIDER?: string;
+    /** Optional Google Workspace service account with domain-wide delegation. */
+    GOOGLE_WORKSPACE_SERVICE_ACCOUNT_EMAIL?: string;
+    /** Secret PKCS#8 PEM key belonging to the delegated service account. */
+    GOOGLE_WORKSPACE_PRIVATE_KEY?: string;
+    /** Workspace mailbox impersonated for Gmail API sends. */
+    GOOGLE_WORKSPACE_SENDER?: string;
+    /** OAuth client for one approved Workspace mailbox; preferred when service-account keys are prohibited. */
+    GOOGLE_WORKSPACE_OAUTH_CLIENT_ID?: string;
+    /** Secret paired with GOOGLE_WORKSPACE_OAUTH_CLIENT_ID. */
+    GOOGLE_WORKSPACE_OAUTH_CLIENT_SECRET?: string;
+    /** Secret offline-access token granted with exactly gmail.send. */
+    GOOGLE_WORKSPACE_OAUTH_REFRESH_TOKEN?: string;
     /** Secret: Resend API key. Set with `wrangler secret put RESEND_API_KEY`. */
     RESEND_API_KEY?: string;
     /** Exact comma-separated mailboxes allowed to receive non-production email. Empty denies all. */

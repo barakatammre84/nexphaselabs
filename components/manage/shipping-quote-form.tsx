@@ -122,7 +122,7 @@ export function ShippingQuoteForm({
         disabled={busy}
         className="mt-5 min-h-12 bg-primary px-6 font-semibold text-primary-foreground disabled:opacity-50"
       >
-        {busy ? 'Comparing rates…' : 'Compare UPS and FedEx'}
+        {busy ? 'Comparing rates…' : 'Compare delivery services'}
       </button>
       <p className="mt-3 text-sm text-muted-foreground">
         Gets rates only. Does not buy a label, charge a customer, or mark an

@@ -57,3 +57,4 @@ tsconfig.tsbuildinfo
 
 # staff bootstrap SQL contains password hashes
 /drizzle/seed/staff-*.sql
+.nx-scratch/

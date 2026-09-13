@@ -3,7 +3,11 @@ import { redirect } from 'next/navigation';
 import { env } from 'cloudflare:workers';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { paymentAttempts, shippingLabels } from '@/db/commerce-schema';
+import {
+  paymentAttempts,
+  shippingLabels,
+  shippingTrackingEvents,
+} from '@/db/commerce-schema';
 import { orders } from '@/db/schema';
 import { canManageStaff, requireStaff } from '@/lib/staff-auth';
 import { catalogReadiness } from '@/lib/catalog-readiness';
@@ -41,6 +45,15 @@ export default async function ReadinessPage() {
     .innerJoin(orders, eq(orders.id, shippingLabels.orderId))
     .where(and(sql`${shippingLabels.state} NOT IN ('ready','voided')`))
     .orderBy(desc(shippingLabels.createdAt))
+    .limit(100);
+  const trackingAttention = await getDb()
+    .select({ event: shippingTrackingEvents, number: orders.orderNumber })
+    .from(shippingTrackingEvents)
+    .leftJoin(orders, eq(orders.id, shippingTrackingEvents.orderId))
+    .where(
+      sql`${shippingTrackingEvents.outcome} IN ('verification_retry','unmatched','attention')`,
+    )
+    .orderBy(desc(shippingTrackingEvents.receivedAt))
     .limit(100);
   return (
     <main className="mx-auto max-w-6xl px-5 py-14 sm:px-8">
@@ -101,7 +114,7 @@ export default async function ReadinessPage() {
       <section className="mt-10">
         <h2 className="text-2xl font-bold">Shipping comparison</h2>
         <p className="mt-3 text-sm">
-          Compare UPS and FedEx through the configured shipping integration.
+          Compare USPS, UPS and FedEx through the configured shipping integration.
           Staging simulation exercises the workflow but is not carrier pricing.
           A comparison is not a shipping label.
         </p>
@@ -210,6 +223,39 @@ export default async function ReadinessPage() {
                 · {label.carrier} {label.serviceName} · {label.state}
                 <p className="mt-1 text-muted-foreground">
                   {label.error ?? 'Provider result has not been attached yet.'}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section className="mt-10">
+        <h2 className="text-2xl font-bold">Tracking events needing review</h2>
+        <p className="mt-3 text-sm">
+          Shippo events are verified against the Shippo tracking API before
+          they can update an order. Failures, returns and unmatched tracking
+          numbers stay here for a person to investigate.
+        </p>
+        {trackingAttention.length === 0 ? (
+          <p className="mt-4 text-sm">No carrier tracking exceptions.</p>
+        ) : (
+          <ul className="mt-4 divide-y divide-border">
+            {trackingAttention.map(({ event, number }) => (
+              <li key={event.id} className="py-4 text-sm">
+                {number ? (
+                  <Link
+                    href={`/manage/orders/${encodeURIComponent(number)}`}
+                    className="font-semibold text-primary underline"
+                  >
+                    {number}
+                  </Link>
+                ) : (
+                  <span className="font-semibold">Unmatched shipment</span>
+                )}{' '}
+                · {event.carrier.toUpperCase()} {event.trackingNumber} ·{' '}
+                {event.status}
+                <p className="mt-1 text-muted-foreground">
+                  {event.outcomeDetail ?? 'Review the event in Shippo.'}
                 </p>
               </li>
             ))}

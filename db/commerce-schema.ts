@@ -107,6 +107,8 @@ export const checkoutQuotes = sqliteTable(
       .references(() => accounts.id),
     cartFingerprint: text('cart_fingerprint').notNull(),
     addressFingerprint: text('address_fingerprint').notNull(),
+    originId: text('origin_id').notNull().default('primary'),
+    originLabel: text('origin_label').notNull().default('Primary location'),
     provider: text('provider').notNull(),
     shipmentId: text('shipment_id').notNull(),
     rateId: text('rate_id').notNull(),
@@ -128,7 +130,7 @@ export const checkoutQuotes = sqliteTable(
     index('checkout_quotes_expiry_idx').on(t.expiresAt),
     check(
       'checkout_quotes_carrier_check',
-      sql`${t.carrier} IN ('UPS','FedEx')`,
+      sql`${t.carrier} IN ('USPS','UPS','FedEx')`,
     ),
     check(
       'checkout_quotes_amount_check',
@@ -145,6 +147,8 @@ export const fulfillmentQuotes = sqliteTable(
     orderId: text('order_id')
       .notNull()
       .references(() => orders.id),
+    originId: text('origin_id').notNull().default('primary'),
+    originLabel: text('origin_label').notNull().default('Primary location'),
     provider: text('provider').notNull(),
     shipmentId: text('shipment_id').notNull(),
     rateId: text('rate_id').notNull(),
@@ -165,7 +169,7 @@ export const fulfillmentQuotes = sqliteTable(
     index('fulfillment_quotes_order_idx').on(t.orderId),
     check(
       'fulfillment_quotes_carrier_check',
-      sql`${t.carrier} IN ('UPS','FedEx')`,
+      sql`${t.carrier} IN ('USPS','UPS','FedEx')`,
     ),
     check('fulfillment_quotes_amount_check', sql`${t.amountCents} > 0`),
   ],
@@ -175,14 +179,16 @@ export const fulfillmentQuotes = sqliteTable(
 export const shippingLabels = sqliteTable(
   'shipping_labels',
   {
+    id: text('id').primaryKey(),
     orderId: text('order_id')
-      .primaryKey()
+      .notNull()
       .references(() => orders.id),
-    id: text('id').notNull(),
     quoteId: text('quote_id')
       .notNull()
       .references(() => fulfillmentQuotes.id),
-    state: text('state').notNull(), // requesting | ready | attention | voided
+    state: text('state').notNull(), // requesting | ready | voiding | attention | voided
+    originId: text('origin_id').notNull().default('primary'),
+    originLabel: text('origin_label').notNull().default('Primary location'),
     providerRef: text('provider_ref'),
     labelUrl: text('label_url'),
     trackingNumber: text('tracking_number'),
@@ -191,6 +197,12 @@ export const shippingLabels = sqliteTable(
     amountCents: integer('amount_cents').notNull(),
     test: integer('test', { mode: 'boolean' }).notNull().default(false),
     error: text('error'),
+    refundState: text('refund_state'), // requesting | pending | success | attention
+    refundRef: text('refund_ref'),
+    refundReason: text('refund_reason'),
+    refundRequestedBy: text('refund_requested_by'),
+    refundRequestedAt: integer('refund_requested_at', { mode: 'timestamp' }),
+    refundUpdatedAt: integer('refund_updated_at', { mode: 'timestamp' }),
     createdBy: text('created_by').notNull(),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .notNull()
@@ -200,11 +212,59 @@ export const shippingLabels = sqliteTable(
       .default(sql`(unixepoch())`),
   },
   (t) => [
-    uniqueIndex('shipping_labels_id_idx').on(t.id),
+    index('shipping_labels_order_idx').on(t.orderId),
+    uniqueIndex('shipping_labels_active_order_idx')
+      .on(t.orderId)
+      .where(sql`${t.state} <> 'voided'`),
     check(
       'shipping_labels_state_check',
-      sql`${t.state} IN ('requesting','ready','attention','voided')`,
+      sql`${t.state} IN ('requesting','ready','voiding','attention','voided')`,
+    ),
+    check(
+      'shipping_labels_refund_state_check',
+      sql`${t.refundState} IS NULL OR ${t.refundState} IN ('requesting','pending','success','attention')`,
     ),
     check('shipping_labels_amount_check', sql`${t.amountCents} > 0`),
+  ],
+);
+
+/**
+ * Carrier events received from Shippo. The provider event key is deterministic,
+ * so webhook redelivery cannot repeat a business action. Raw payloads are not
+ * retained: they can contain addresses and other customer data we do not need.
+ */
+export const shippingTrackingEvents = sqliteTable(
+  'shipping_tracking_events',
+  {
+    id: text('id').primaryKey(),
+    providerEventKey: text('provider_event_key').notNull(),
+    eventName: text('event_name').notNull(),
+    carrier: text('carrier').notNull(),
+    trackingNumber: text('tracking_number').notNull(),
+    providerStatusId: text('provider_status_id'),
+    providerTransactionId: text('provider_transaction_id'),
+    status: text('status').notNull(),
+    statusDetail: text('status_detail'),
+    statusAt: integer('status_at', { mode: 'timestamp' }),
+    test: integer('test', { mode: 'boolean' }).notNull().default(false),
+    verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
+    orderId: text('order_id').references(() => orders.id),
+    /** received | verification_retry | recorded | delivered | unmatched | ignored | attention */
+    outcome: text('outcome').notNull().default('received'),
+    outcomeDetail: text('outcome_detail'),
+    receivedAt: integer('received_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    processedAt: integer('processed_at', { mode: 'timestamp' }),
+  },
+  (t) => [
+    uniqueIndex('shipping_tracking_events_key_idx').on(t.providerEventKey),
+    index('shipping_tracking_events_tracking_idx').on(t.trackingNumber),
+    index('shipping_tracking_events_order_idx').on(t.orderId),
+    index('shipping_tracking_events_outcome_idx').on(t.outcome, t.receivedAt),
+    check(
+      'shipping_tracking_events_outcome_check',
+      sql`${t.outcome} IN ('received','verification_retry','recorded','delivered','unmatched','ignored','attention')`,
+    ),
   ],
 );

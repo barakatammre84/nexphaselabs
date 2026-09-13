@@ -3,7 +3,7 @@ import { allow, clientAddress, rateLimitKey } from '@/lib/rate-limit';
 import { acknowledgementsCurrent } from '@/lib/account-rules';
 import { addToCart } from '@/lib/cart';
 import { parseQuantityInput } from '@/lib/order-rules';
-import { consumerTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
+import { researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
 import { sameOrigin } from '@/lib/staff-auth';
 import { visibilityFor } from '@/lib/visibility-rules';
 
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
       verificationStatus: account.verificationStatus,
       acknowledgementsCurrent: acknowledgementsCurrent(account),
     },
-    consumerTierEnabled(),
+    researcherTierEnabled(),
     openCheckoutEnabled(),
   );
 

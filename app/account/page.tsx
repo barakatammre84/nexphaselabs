@@ -54,7 +54,7 @@ export default async function AccountPage({ searchParams }: Props) {
   const verification =
     VERIFICATION_TEXT[account.verificationStatus] ?? VERIFICATION_TEXT.none;
   const approved = account.verificationStatus === 'approved';
-  const consumer = account.tier === 'consumer';
+  const consumer = account.tier === 'researcher';
   const organization = !consumer
     ? await getOrganizationForAccount(account.id)
     : null;
@@ -202,7 +202,7 @@ export default async function AccountPage({ searchParams }: Props) {
               Account type
             </dt>
             <dd className="text-sm">
-              {consumer ? 'Individual researcher' : 'Research organisation'}
+              {consumer ? 'Researcher' : 'Research organisation'}
             </dd>
           </div>
           <div className="grid gap-1 border-b border-border py-4 sm:grid-cols-[220px_1fr] sm:gap-6">

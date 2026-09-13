@@ -27,7 +27,7 @@ vi.mock('@/lib/guest-order-recovery', () => ({ recoveredOrder: async () => null,
 vi.mock('@/lib/issued-documents', () => ({
   currentDocument: async () => null,
 }));
-vi.mock('@/lib/orders', () => ({
+vi.mock('@/lib/order-reads', () => ({
   getOrderForAccount: async () => ({
     order: {
       ...state,
@@ -38,8 +38,8 @@ vi.mock('@/lib/orders', () => ({
     items: [],
     events: [],
   }),
-  paymentInstructionsFor: async () => null,
 }));
+vi.mock('@/lib/orders', () => ({ paymentInstructionsFor: async () => null }));
 vi.mock('@/lib/payments', () => ({ availablePaymentMethods: () => [], buyerSimulationEnabled: () => false }));
 import OrderPage from '@/app/account/orders/[orderNumber]/page';
 async function render() {

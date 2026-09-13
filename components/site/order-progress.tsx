@@ -1,8 +1,14 @@
 import { Check, CircleX } from 'lucide-react';
 
-const steps = ['Order placed', 'Payment', 'Preparing', 'Shipped'] as const;
+const steps = ['Order placed', 'Payment', 'Preparing', 'Shipped', 'Delivered'] as const;
 
-export function OrderProgress({ status }: { status: string }) {
+export function OrderProgress({
+  status,
+  delivered = false,
+}: {
+  status: string;
+  delivered?: boolean;
+}) {
   if (status === 'cancelled') {
     return (
       <div className="mt-6 flex items-center gap-3 border border-destructive/30 bg-secondary p-4 text-sm">
@@ -14,8 +20,9 @@ export function OrderProgress({ status }: { status: string }) {
       </div>
     );
   }
-  const active =
-    status === 'submitted' || status === 'awaiting_payment'
+  const active = delivered
+    ? 4
+    : status === 'submitted' || status === 'awaiting_payment'
       ? 1
       : status === 'paid' || status === 'fulfilling'
         ? 2
@@ -31,7 +38,7 @@ export function OrderProgress({ status }: { status: string }) {
           aria-current={index === active ? 'step' : undefined}
         >
           <span>
-            {index < active || status === 'shipped' ? (
+            {index < active || delivered ? (
               <Check className="size-3.5" />
             ) : (
               index + 1

@@ -7,10 +7,13 @@ function database(batch = vi.fn().mockResolvedValue(SCHEMA_PROBES.map(() => ({ s
 
 describe('deployment dependency health', () => {
   it('probes every table and explicit columns without reading rows', () => {
-    expect(SCHEMA_PROBES.length).toBeGreaterThanOrEqual(32);
+    expect(SCHEMA_PROBES.length).toBeGreaterThanOrEqual(50);
     expect(SCHEMA_PROBES.every((query) => query.endsWith('LIMIT 0'))).toBe(true);
     expect(SCHEMA_PROBES.some((query) => query.includes('"lots"."superseded_by_id"'))).toBe(true);
     expect(SCHEMA_PROBES.some((query) => query.includes('"orders"."refund_due_cents"'))).toBe(true);
+    expect(SCHEMA_PROBES.some((query) => query.includes('"payment_attempts"."state"'))).toBe(true);
+    expect(SCHEMA_PROBES.some((query) => query.includes('"shipping_labels"."provider_ref"'))).toBe(true);
+    expect(SCHEMA_PROBES.some((query) => query.includes('"operational_controls"."evidence_url"'))).toBe(true);
   });
   it('accepts an accessible bucket even when the probe object is absent', async () => {
     const head = vi.fn().mockResolvedValue(null);

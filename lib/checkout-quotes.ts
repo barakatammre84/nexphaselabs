@@ -128,7 +128,7 @@ export function shippingAddress(shipTo: ShipTo): ShippingAddress {
 
 export type CheckoutQuoteView = {
   id: string;
-  carrier: 'UPS' | 'FedEx';
+  carrier: 'USPS' | 'UPS' | 'FedEx';
   serviceName: string;
   shippingCents: number;
   taxCents: number;
@@ -192,6 +192,8 @@ export async function createCheckoutQuotes(
     accountId,
     cartFingerprint: cartHash,
     addressFingerprint: addressHash,
+    originId: shipping.originId,
+    originLabel: shipping.originLabel,
     provider,
     shipmentId: rate.shipmentId,
     rateId: rate.id,
@@ -209,7 +211,7 @@ export async function createCheckoutQuotes(
   if (!rows.length)
     return {
       ok: false,
-      error: 'No eligible UPS or FedEx delivery options were returned.',
+      error: 'No eligible USPS, UPS or FedEx delivery options were returned.',
     };
   await getDb().insert(checkoutQuotes).values(rows);
   return {

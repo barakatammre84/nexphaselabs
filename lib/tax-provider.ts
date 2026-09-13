@@ -1,6 +1,10 @@
 import { env } from 'cloudflare:workers';
 import { boundedJson } from '@/lib/provider-response';
-import { addressError, type ShippingAddress } from '@/lib/shipping-provider';
+import {
+  addressError,
+  configuredBusinessOrigin,
+  type ShippingAddress,
+} from '@/lib/shipping-provider';
 
 export type TaxLine = {
   id: string;
@@ -29,17 +33,6 @@ type TaxConfiguration =
     }
   | { ok: false; error: string };
 
-function configuredOrigin(): ShippingAddress | null {
-  try {
-    const value = JSON.parse(
-      env.SHIPPING_FROM_JSON ?? 'null',
-    ) as ShippingAddress | null;
-    return value && !addressError(value) ? value : null;
-  } catch {
-    return null;
-  }
-}
-
 export function taxConfiguration(): TaxConfiguration {
   const testEnvironment =
     env.APP_ENV === 'staging' || env.APP_ENV === 'development';
@@ -65,7 +58,7 @@ export function taxConfiguration(): TaxConfiguration {
   const sandbox = env.TAXJAR_SANDBOX === 'true';
   if (!testEnvironment && sandbox)
     return { ok: false, error: 'The TaxJar sandbox is refused in production.' };
-  const from = configuredOrigin();
+  const from = configuredBusinessOrigin();
   if (!from)
     return { ok: false, error: 'Configure a complete tax origin address.' };
   return {
