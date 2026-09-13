@@ -1,0 +1,249 @@
+NexPhase Discovery Register 
+
+ ← NexPhase Launch Register 
+
+ Chapter 1 of the NexPhase Launch Register · how a researcher finds you
+
+ NexPhase Discovery Register
+
+ Organic search on chemical identity is the highest-value channel this business has, and the cutover
+ temporarily removes it. Today the indexed pages are the WordPress ones; the moment the domain moves they
+ 404 and the new build has no sitemap at all . This chapter closes that window.
+
+ built decision open gap or defect 
+
+ 1.1 The window 1.2 Redirects 1.3 Sitemap 1.4 CAS long tail 1.5 The trap 1.6 Measuring Checklist 
+
+ 1.1 The window the cutover opens
+ blocks cutover 
+
+ Three states, in sequence, and only the middle one is a problem you can avoid.
+
+ When What a searcher finds 
+
+ now WordPress pages indexed via sitemap_index.xml , including a product sitemap listing every SKU. The title targets “Research Grade Peptides USA”. 
+
+ at cutover Every one of those URLs 404s. The new build has no sitemap, so there is nothing to replace them with. Findable for the wrong thing, then briefly not findable at all. 
+
+ after Whatever you tell search engines about the new site — which today is nothing. 
+
+ Record the ranking drop as a decision
+
+ The new site is deliberately not written for the query the old one ranked for. A drop is the intended
+ consequence of repositioning, not a defect — but it should be written down and accepted by the members
+ beforehand, so nobody treats it as something gone wrong three weeks later.
+
+ 1.2 The redirect map, decided per URL
+ build 
+
+ Every live path needs a decision. A blanket redirect to the homepage is the worst option —
+ it looks like an error to a searcher and search engines treat it as a soft 404 anyway.
+
+ Old path Do Why 
+
+ /privacy-policy 301 → /legal/privacy Same document, new home. 
+
+ /shipping-policy 301 → /legal/shipping Same. 
+
+ /about, /faq 301 → /about, /faq Direct equivalents exist. 
+
+ /shop 301 → /catalog The closest thing, and it carries whatever authority the page has. 
+
+ /product/<slug> 301 or 410 Product by product. A product you still sell redirects to its new page. A product you do not gets 410 Gone , not 404 — 410 tells search engines to drop it deliberately rather than keep retrying. 
+
+ /cart, /checkout, /my-account, /customer-dashboard 410 Genuinely gone. They should never have been indexed. 
+
+ /shop-2, /accessibility-statement 410 Gone. 
+
+ Before you switch anything
+
+ Pull the full URL list from sitemap_index.xml and from Search Console, not from memory.
+ The live sitemap has seven child sitemaps including one for SureForms forms and two taxonomy sitemaps —
+ there are more indexed URLs than anyone has looked at.
+
+ 1.3 The sitemap, and what belongs in it
+ missing 
+
+ app/robots.ts exists. There is no sitemap route, so /sitemap.xml 
+ returns 404. For a business whose entire discovery strategy is long-tail chemical identity, that is the
+ most consequential missing file on the site.
+
+ What goes in
+
+ Every published product page.
+
+ Every released lot page. These are the pages nobody else has — a per-lot certificate page is genuinely unique content and it multiplies honestly as you release lots.
+
+ The chemical class index pages.
+
+ Documentation, lot lookup, SDS index, FAQ, about, contact, legal.
+
+ What stays out
+
+ Quarantined, held, rejected or withdrawn lot pages. The public lookup already returns released lots only and 404s the rest — the sitemap must not leak what the API deliberately hides.
+
+ Account, cart, order and manage paths.
+
+ Any page that renders a price to a signed-out visitor, if the members land on a gated position.
+
+ 1.4 The long tail that actually converts
+ the strategy 
+
+ A researcher looking for material searches the way a chemist thinks: a CAS number, a
+ sequence, a molecular formula, a purity spec, a supplier plus a lot number. These are low-volume,
+ low-competition, and the people typing them are buying rather than browsing.
+
+ Pages that earn traffic honestly
+
+ Chemical identity depth on every product — IUPAC name, CAS, related CAS forms, sequence in one- and three-letter, formula, MW, exact mass, SMILES, InChI key, PubChem CID. You already store every one of these fields, and most competitors publish none of them.
+
+ Per-lot COA pages — searchable by lot number and accession number. The accession number is the testing lab’s own reference, which means a customer can verify with the lab rather than trust you.
+
+ Analytical method content — how purity is determined, what HPLC at a stated wavelength does and does not tell you, why net peptide content differs from purity. This is the content that makes you credible to the person with a budget.
+
+ Pack-size and format pages — multiplies page count honestly rather than by writing thin variants.
+
+ Expect thousands of qualified visits, not the hundreds of thousands the traffic leaders get. Their
+ volume comes from dosing calculators and protocol content, which is exactly the content that draws
+ enforcement.
+
+ 1.5 The adjacency trap
+ guardrail 
+
+ The obvious way to grow search traffic in this category is to publish educational content
+ about the compounds. That is the single most dangerous thing you could build, and the reason is
+ structural rather than about wording.
+
+ Adjacency is the theory of the case
+
+ In every warning letter FDA has issued here, the evidence was the relationship between a
+ claim and an order button. A research library that links to a product page turns an article into
+ promotional labelling for the product it links to. The article does not have to say anything
+ outrageous; it has to sit next to the buy button.
+
+ If both must exist, they must be genuinely separate — different section, no cross-links from
+ article to product, no “shop this compound” module, no shared navigation that treats them as one
+ funnel.
+
+ The safer growth path
+
+ Write about your methods, not the molecules . How to read a certificate of analysis.
+ What an accession number is and why you should check it. Why net peptide content matters. What a
+ manufacturer name and address on a COA tells you and what its absence tells you. This content is
+ genuinely useful, ranks for buying-intent queries, cannot be read as a claim about any compound, and
+ positions you against exactly the competitors whose certificates do not carry those fields.
+
+ docs/content/how-to-read-a-certificate-of-analysis.md already exists. That is the model.
+
+ 1.6 Measuring it without fooling yourself
+ set up 
+
+ Traffic is the wrong number for this business. A thousand visitors who cannot buy are worth
+ less than forty who can, and chasing volume is what drags a site in this category toward the content
+ that gets it a letter.
+
+ What to watch
+
+ Search Console verified for the new property before the cutover, so you have a before picture.
+
+ Impressions and clicks on identity queries — CAS numbers, sequences, formulas — tracked separately from brand queries.
+
+ Lot-page and COA-lookup usage. A customer verifying a certificate is the strongest quality signal you can get.
+
+ Quote and contact submissions per hundred identity-query visits. That is the real conversion number.
+
+ 1.0 What this chapter adds to the register
+
+ Fourteen items. The redirect map and the sitemap are the same job and both have to land before the domain moves.
+
+ Signing as 
+ choose your name Melissa Wisam Fatima Ammre 
+
+ 0 of 14 complete
+
+ Pull the full indexed URL list from the sitemap index and Search Console
+ Seven child sitemaps including forms and taxonomies. There are more indexed URLs than anyone has looked at. 1.2
+ blocks order #1 c1-urls 
+
+ Ammre 
+
+ Build the per-URL redirect map
+ 301 where an equivalent exists, 410 where the thing is genuinely gone. Never a blanket redirect to the homepage. 1.2
+ blocks order #1 c1-redirects 
+
+ Ammre 
+
+ Return 410 rather than 404 for withdrawn product pages
+ 410 tells search engines to drop the URL deliberately instead of retrying it for months. 1.2
+ blocks order #1 c1-410 
+
+ Ammre 
+
+ Ship /sitemap.xml before the domain moves
+ Currently 404. The most consequential missing file on a site whose discovery strategy is chemical-identity long tail. 1.3
+ blocks order #1 c1-sitemap 
+
+ Ammre 
+
+ Include released lot pages in the sitemap, and only released ones
+ The public lookup already 404s non-released lots — the sitemap must not leak what the API hides. 1.3
+ blocks order #1 c1-lotpages 
+
+ Ammre 
+
+ Review robots.ts against the new path structure
+ It was written for the old shape. Account, cart, order and manage paths stay out. 1.3
+ first month c1-robots 
+
+ Ammre 
+
+ Verify Search Console for the new property before the cutover
+ So there is a before picture to compare against. 1.6
+ blocks order #1 c1-gsc 
+
+ Ammre 
+
+ Record the ranking drop as an accepted consequence
+ The new site is deliberately not written for the query the old one ranked for. Intended, not a defect. 1.1
+ blocks order #1 c1-ranking 
+
+ Melissa + Wisam 
+
+ Complete chemical identity fields on every product actually in inventory
+ Every field you populate is a query you can rank for, and most competitors publish none of them. Aim at the real stock list, not the code catalog. 1.4
+ first month c1-identity 
+
+ Melissa 
+
+ Make lot pages searchable by accession number as well as lot number
+ The accession number lets a customer verify with the testing lab rather than trust you. 1.4
+ first month c1-accession 
+
+ Ammre 
+
+ Write the methods content, not compound content
+ How to read a COA, what an accession number is, why net peptide content matters. Ranks for buying intent, carries no claim. The existing COA article is the model. 1.5
+ first month c1-methods 
+
+ Melissa 
+
+ Write the adjacency rule into the guardrail specification
+ No article links to a product page, no shop-this-compound module, no shared funnel. Adjacency is the theory of the case in every warning letter. 1.5
+ blocks order #1 c1-adjacency 
+
+ Melissa 
+
+ Report identity queries separately from brand queries
+ Traffic is the wrong number. Quote submissions per hundred identity-query visits is the real one. 1.6
+ first month c1-metrics 
+
+ Ammre 
+
+ Rewrite titles and meta descriptions for the new positioning
+ The current title targets Research Grade Peptides USA, which is the query you are deliberately leaving. 1.1
+ first month c1-title 
+
+ Melissa 
+
+ Chapter 1 · NexPhase Launch Register · updated 12 September 2026 
+ Not legal, tax or regulatory advice.

@@ -3,6 +3,7 @@ import { dispatchNotifications } from './lib/notifications';
 import { cleanupExpiredCommerceRecords } from './lib/commerce-maintenance';
 import { feedbackRealtime } from './lib/feedback-realtime';
 import { gateNonProduction, withNoindex } from './lib/environment-gate';
+import { legacyDecision, legacyResponse } from './lib/legacy-redirects';
 
 export { FeedbackRoom } from './lib/feedback-room';
 
@@ -30,10 +31,24 @@ export default {
     if (pathname.startsWith('/_next/static/')) {
       return runtimeEnv.ASSETS.fetch(request);
     }
+    // What the WordPress URLs do after the cutover: 301 where an equivalent
+    // exists, 410 where the page is genuinely gone. Product pages are decided
+    // against the catalog in app/product/[slug]/route.ts, not here.
+    const legacy = legacyDecision(pathname);
+    if (legacy) return legacyResponse(legacy, request.url);
+    // Every WordPress URL carries a trailing slash, and the framework answers
+    // /product/<slug>/ with its own 308 to the slashless form. Strip it here so
+    // an indexed product URL takes one hop to its new page instead of two.
+    let forwarded = request;
+    if (pathname.startsWith('/product/') && pathname.endsWith('/')) {
+      const url = new URL(request.url);
+      url.pathname = pathname.replace(/\/+$/, '');
+      forwarded = new Request(url, request);
+    }
     if (pathname === '/api/feedback/realtime') {
       return feedbackRealtime(request, runtimeEnv);
     }
-    const response = await handler.fetch(request, runtimeEnv, ctx);
+    const response = await handler.fetch(forwarded, runtimeEnv, ctx);
     // Anything else under the asset directory — favicon, product images, the client
     // manifest — reaches the handler as a 404. Serve it only when the asset store
     // really has it, so the application's own not-found page still wins.

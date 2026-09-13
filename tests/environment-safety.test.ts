@@ -59,6 +59,11 @@ describe('environment safety', () => {
     env.APP_ENV = 'staging';
     expect(robots().rules).toEqual([{ userAgent: '*', disallow: '/' }]);
     env.APP_ENV = 'production';
-    expect(robots().rules).toEqual([{ userAgent: '*', allow: '/', disallow: ['/manage', '/staff', '/api', '/account'] }]);
+    // the full production rule set is asserted in tests/sitemap.test.ts
+    const [rule] = robots().rules as { userAgent: string; allow: string; disallow: string[] }[];
+    expect(rule.allow).toBe('/');
+    expect(rule.disallow).toEqual(
+      expect.arrayContaining(['/manage', '/staff', '/api', '/account']),
+    );
   });
 });
