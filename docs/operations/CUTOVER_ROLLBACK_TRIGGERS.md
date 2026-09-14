@@ -1,9 +1,8 @@
 # Cutover rollback triggers
 
-Status: **draft — the thresholds are Ammre's to set before the day.** Chapter 11 `c11-triggers`.
-Technical launch readiness is his call, not a member decision. Everything below is a recommendation
-with a blank next to it; fill the blanks, then this is the document you act from rather than argue
-from.
+Status: **thresholds accepted 14 September 2026; fallback operator still required.** Chapter 11
+`c11-triggers`. Technical launch readiness is Ammre's call, not a member decision. These are the
+numbers to act from on cutover day.
 
 The point of writing this beforehand is that nobody makes a good rollback decision at the moment
 they need to. Decide the numbers while nothing is broken.
@@ -27,13 +26,13 @@ propagates in five minutes rather than an hour. Put it back to a normal value a 
 
 | # | Trigger | Recommended | Agreed | 
 |---|---------|-------------|--------|
-| 1 | Site unreachable or 5xx for more than … | 10 minutes continuous | |
-| 2 | Error rate above … of requests, sustained for … | 5% for 10 minutes | |
-| 3 | Median page load from two vantages above … | 5 s for 15 minutes | |
-| 4 | Mail from any mailbox failing to deliver outside the domain | any failure | |
-| 5 | Any customer-facing page showing another customer's data | immediate, no threshold | |
-| 6 | A lot record resolving that is not released | immediate, no threshold | |
-| 7 | Old URLs 404ing rather than redirecting, above … | 3 URLs | |
+| 1 | Site unreachable or 5xx for more than … | 10 minutes continuous | 10 minutes continuous |
+| 2 | Error rate above … of requests, sustained for … | 5% for 10 minutes | 5% for 10 minutes |
+| 3 | Median page load from two vantages above … | 5 s for 15 minutes | 5 s for 15 minutes |
+| 4 | Mail from any mailbox failing to deliver outside the domain | any failure | any failure |
+| 5 | Any customer-facing page showing another customer's data | immediate, no threshold | immediate, no threshold |
+| 6 | A lot record resolving that is not released | immediate, no threshold | immediate, no threshold |
+| 7 | Old URLs 404ing rather than redirecting, above … | 3 URLs | 3 URLs |
 
 Triggers 5 and 6 are not performance judgements — they are the two failures that cannot be allowed
 to continue for even a minute, because the harm is disclosure rather than downtime. Everything else

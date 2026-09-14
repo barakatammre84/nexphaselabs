@@ -1,7 +1,8 @@
 # Cutover plan: nexphaselabs.net
 
-Written 2026-09-03. Nothing in this document has been executed. The live site
-and its DNS are untouched.
+Written 2026-09-03 and updated 2026-09-14. Staging and the production Worker
+origin are deployed, but the public domain still serves the existing WordPress
+store. Do not attach the custom domain until every gate below is complete.
 
 ## What is live today
 
@@ -10,10 +11,10 @@ and its DNS are untouched.
 | nexphaselabs.net | WordPress + SureCart storefront on LiteSpeed at 162.254.39.126 |
 | Pages | `/shop`, `/cart`, `/checkout`, `/my-account`, `/customer-dashboard`, `/faq`, `/about`, `/disclaimer`, `/privacy-policy`, `/shipping-policy` |
 | Registrar | Namecheap, expires 2027-02-27 |
-| Authoritative DNS | Namecheap (`dns1.registrar-servers.com`, `dns2.registrar-servers.com`) |
+| Authoritative DNS | Cloudflare (`addyson.ns.cloudflare.com`, `zac.ns.cloudflare.com`) |
 | Mail | Google Workspace, `MX 1 smtp.google.com`, users sam@, mel@, tima@ |
-| Cloudflare zone | Exists in the **bistelligent** account, delegation never switched, so inactive |
-| New application | Cloudflare Workers, company account `5438a1e4683ea3ea35ddc20ba50ac05a`, not yet deployed |
+| Cloudflare zone | The public zone is active somewhere, but the zone visible in account `3d429c7b2020e96fe10a1588f1fb3662` is pending and contains stale imported PrivateEmail MX records. Do not activate it as-is. |
+| New application | Staging and production Workers are deployed in account `3d429c7b2020e96fe10a1588f1fb3662`; no custom domain points at the new application. |
 
 The new application and the live store are entirely separate systems. They
 share only a domain name. No data moves between them; the WordPress orders,
@@ -31,11 +32,14 @@ Two consequences today, before anything changes:
   confirmation that lands in spam looks to the customer like a broken site.
 - Anyone can send mail claiming to be from nexphaselabs.net.
 
-Add these at Namecheap now. They are additive and cannot break the store.
+Add these only in the active authoritative Cloudflare zone after its existing
+records have been exported and reconciled. Preserve the working Google MX and
+site-verification records. Do not add them to the pending stale zone and assume
+they are live.
 
 ```
 TXT  @        v=spf1 include:_spf.google.com ~all
-TXT  _dmarc   v=DMARC1; p=none; rua=mailto:sam@nexphaselabs.net; fo=1
+TXT  _dmarc   v=DMARC1; p=none; rua=mailto:dmarc@nexphaselabs.net; fo=1
 ```
 
 DKIM must be generated inside the Google Admin console under Apps, Google
@@ -49,29 +53,30 @@ companies lose their own mail.
 
 ## Order of operations for the cutover
 
-Each step is reversible until step 5.
+Steps 1 through 5 do not change what the public domain serves. Step 6 is the
+customer-facing switch and uses the retained WordPress host for rollback.
 
 1. **Deploy and exercise staging.** The new site runs at its workers.dev
    origin with its own database and documents. No DNS involved. Everything in
    `docs/PROGRESS.md` that is marked verified locally gets re-verified against
    real infrastructure: sign-in, an organisation approval, an order, a
    shipment, a document download, a real email.
-2. **Add the mail records above** and confirm with `dig` that they resolve.
-3. **Move the zone to the company Cloudflare account.** The existing zone sits
-   in the bistelligent account; production now lives in the company account, so
-   the zone should be deleted there and re-added under
-   `sam@nexphaselabs.net`. Import every existing record, then compare the
-   Cloudflare record list against the Namecheap list line by line. The MX
-   records and the site-verification TXT are the ones that must not be missed.
-4. **Point the root and www at the current WordPress host inside Cloudflare**,
-   proxied, and leave the nameservers at Namecheap. Nothing has changed for
-   visitors yet; this is only staging the configuration.
-5. **Switch the nameservers at Namecheap to the Cloudflare pair.** This is the
-   irreversible-feeling step, though it can be switched back. Propagation is
-   usually minutes and at most a day. Watch mail delivery for the first hour:
-   send a message from each of the three accounts to an outside address and
-   back.
-6. **Cut the application over** by pointing the root at the worker instead of
+2. **Locate and export the active Cloudflare zone.** The nameservers have
+   already moved. Compare the live authoritative answers with the visible
+   pending zone line by line. The Google MX and verification TXT must remain;
+   stale PrivateEmail MX records must never become authoritative.
+3. **Add and prove mail authentication.** Publish SPF and monitoring-mode DMARC
+   in the active zone. Generate the tenant-specific 2048-bit Google DKIM value,
+   publish it, enable signing, and prove delivery and replies with an external
+   mailbox.
+4. **Prepare the rollback.** Export and reconcile WordPress, SureCart, media,
+   and a full hosting backup. Agree the rollback thresholds and fallback
+   operator. Keep the old host unchanged and set the apex TTL to 300 at least
+   24 hours before cutover.
+5. **Prove production readiness.** Run a recovery rehearsal, enter and release
+   real inventory with its lot documents, configure the approved live services,
+   release a reviewed `v*` tag, and smoke-test the Worker origin.
+6. **Cut the application over** by attaching the root to the Worker instead of
    the WordPress host, as a Workers custom domain. Keep the WordPress host
    running and unchanged so the previous step can be reversed by editing one
    DNS record.
@@ -88,25 +93,25 @@ Each step is reversible until step 5.
   path: redirect to the closest new page, or return 410 because the thing is
   genuinely gone. `/privacy-policy` and `/shipping-policy` exist in the new
   site under `/legal/`, so those are simple redirects.
-- **Existing customers.** The new site has no accounts, and by design it will
-  not open one without a verified institution. Anyone with a WordPress login
-  simply cannot get in. They need to be told before the switch, not after.
-- **Checkout.** The old store takes payment through SureCart. The new one has
-  no payment rail configured at all. If money is being taken today, cutting
-  over stops that until a rail is chosen and connected.
+- **Existing customers.** WordPress logins and order history do not transfer.
+  The new application can accept a guest order, but its browser-based history
+  and recovery code are separate from the old account. Customers need to be
+  told before the switch, not after.
+- **Checkout.** The old store takes payment through SureCart. The new
+  application has a manual-review Zelle path, but production checkout remains
+  closed while inventory, mail, recovery, and live payment evidence are open.
+  Cutting over before those gates close would replace a working checkout with
+  an intentionally unavailable one.
 - **Search ranking.** The current title is "NexPhase Labs | Research Grade
   Peptides USA". The new site is deliberately not written for that query. A
   ranking drop is the intended consequence of the repositioning, not a defect,
   but it should be a decision rather than a surprise.
 
-## The thing to settle before any of this
+## Checkout decision now in force
 
-The live store sells to the public with a cart and a checkout. The new
-application refuses to show a price to anyone who is not a verified
-institution. These are two different businesses on one domain, and
-`CLAUDE.md` describes the venture as pre-launch with nothing shipped and no
-payment taken, which the live checkout contradicts.
-
-Which one the domain should point at is a business and regulatory decision,
-not a deployment step. It is the question the counsel brief in
-`docs/strategy/` exists to answer, and it should be answered before step 5.
+The new application supports public guest checkout with an age confirmation,
+a research-use acknowledgement, server-side pricing, released-lot gating, and
+manual Zelle review. Staging exercises that model with synthetic payment and
+shipping data. Production remains closed until real inventory and all launch
+gates are evidenced; enabling it is part of the reviewed production release,
+not a side effect of attaching the domain.

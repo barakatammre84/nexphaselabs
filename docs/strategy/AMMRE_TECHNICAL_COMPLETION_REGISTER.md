@@ -11,29 +11,44 @@ is running it and the evidence is linked in `/manage/controls`.
 
 ## Current technical baseline
 
-- The current checkout passes typecheck, 87 test files / 843 tests, and a full
-  production build. Lint has one warning: the unused `isNull` import in
-  `lib/inventory-reservations.ts`.
-- The working branch is eleven commits ahead of `origin/main`, and the redirect /
-  legacy-product correction is still uncommitted.
-- Staging is healthy and deliberately open to anonymous public-page access. It
-  returns `200`, carries `X-Robots-Tag: noindex, nofollow`, and has a working D1
-  and R2 binding. Its running application is an older launch build with the
-  open-access switch added; it does not contain the latest customer, legal, and
-  Zelle work from the branch.
-- All staging migrations through `0059` are applied. Production still has
-  migrations `0028` through `0059` pending and remains behind the WordPress site.
-- GitHub has `CLOUDFLARE_ACCOUNT_ID` and `STAGING_URL`, but no
-  `CLOUDFLARE_API_TOKEN`. Automated staging and production deployment therefore
-  cannot authenticate.
-- Staging configuration omits `ZELLE_RECIPIENT_NAME` and `ZELLE_MODE`; Wrangler
-  reports that production values are not inherited by staging. No Zelle Gmail
-  reader secrets are present on staging.
+- `main`, `origin/main`, and the reviewed release branch agree at `c756f44`.
+  Typecheck, lint, all tests, the production build, and the staging deployment
+  passed in GitHub Actions.
+- Staging runs that commit and is healthy. Public pages return `200` with
+  `noindex`; staff pages and private APIs retain their own login boundaries.
+- Staging and production migrations through `0059` are applied. The production
+  Worker is reachable only at its workers.dev origin; the public domain still
+  serves the existing WordPress store.
+- GitHub now has `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, and
+  `STAGING_URL`, so staging deploys from CI. The repository's current GitHub
+  plan rejected required environment reviewers; production therefore retains
+  the tag-only release guard but lacks the intended second approval.
+- Staging has the exact Chase enrollment values in reviewed configuration, but
+  manual mode replaces them at checkout with unmistakable synthetic values.
+  The Gmail receipt-reader credentials are still absent.
 - Mail MX is working through Google Workspace. SPF, DKIM, and DMARC are absent.
 - Neither R2 bucket has a bucket-lock rule. The default multipart-abort lifecycle
   rule is the only lifecycle rule.
+- The public nameservers are already Cloudflare, but the visible zone in the
+  current Cloudflare account is pending and contains stale imported mail
+  records. The active authoritative zone must be located and reconciled before
+  any DNS change.
+- Production has no released inventory. Customer checkout must remain off the
+  public domain until real lots are entered, documented, and released.
 - The operating-control register has all 30 rows assigned: 14 `in_progress`, 16
   `not_started`, 0 with an evidence link, and 0 ready.
+
+## Execution status for the first production gates
+
+| Order | Status on 14 September 2026 | Evidence or remaining work |
+| ---: | --- | --- |
+| 1 | Complete | The staging workflow proves the approved public/private boundary and `noindex`. |
+| 2 | Complete | Release tree is clean; checks and build pass without a lint warning. |
+| 3 | Partial | CI has the Cloudflare credentials. Required reviewers are unavailable on the current GitHub plan; the tag-only production guard remains. |
+| 4 | Complete | Reviewed source is on `origin/main`; staging deploys through GitHub Actions. |
+| 5 | Partial | Safe manual Zelle simulation is configured and tested. Dedicated Gmail read-only receipt ingestion and the approved Chase QR remain open. |
+| 6 | Partial | The current build passed a complete synthetic guest Zelle order, staff review, fulfillment, label/void, shipment, delivery, return, and refund. See [the rehearsal record](../operations/STAGING_ORDER_REHEARSAL_2026-09-14.md). External customer email and the live Gmail receipt path remain open. |
+| 7 | Open | Identify the active Cloudflare zone, preserve Google MX, then add and prove SPF, Google DKIM, and monitoring-mode DMARC. |
 
 ## Ordered work
 
