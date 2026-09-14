@@ -51,7 +51,7 @@ export function ProductPurchasePanel({
         <div>
           <p className="font-display text-lg font-extrabold text-[var(--ion-navy)]">Choose a pack size</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {hasReleasedLot ? 'A released lot is available for ordering.' : 'Ordering opens when a lot is released.'}
+            {hasReleasedLot ? 'In stock — ships from a released, tested lot.' : 'Out of stock — ordering opens when the next lot is released.'}
           </p>
         </div>
         <a href="#material-documents" className="inline-flex items-center gap-2 text-sm font-extrabold text-primary">

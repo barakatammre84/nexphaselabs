@@ -32,28 +32,28 @@ type Props = {
 
 const VERIFICATION_TEXT: Record<string, { title: string; body: string }> = {
   none: {
-    title: 'Organisation not yet submitted',
-    body: 'Submit your organisation for verification to enable pricing, lot availability and ordering.',
+    title: 'Wholesale application not yet submitted',
+    body: 'Complete your wholesale application to open prices, lot availability and ordering on purchase order.',
   },
   submitted: {
-    title: 'Verification under review',
-    body: 'A person is reviewing your organisation. You can check this page for the latest status.',
+    title: 'Application under review',
+    body: 'A person is reading your application. You can check this page for the latest status.',
   },
   more_info: {
     title: 'More information needed',
     body: 'Review the request below, update your organization details, and resubmit for review.',
   },
   approved: {
-    title: 'Verified institutional account',
-    body: 'Pricing and lot availability are visible to you across the catalog.',
+    title: 'Approved wholesale account',
+    body: 'Prices and lot availability are visible to you across the catalog, and orders can be placed on purchase order.',
   },
   declined: {
-    title: 'Verification declined',
-    body: 'This organisation could not be verified under our research-use policy.',
+    title: 'Application declined',
+    body: 'This organisation could not be approved under our research-use policy.',
   },
   revoked: {
-    title: 'Verification withdrawn',
-    body: 'Verification of this organisation has been withdrawn. Pricing, availability and ordering are no longer available. Open your submission for the review details.',
+    title: 'Approval withdrawn',
+    body: 'Approval of this organisation has been withdrawn. Prices, availability and ordering are no longer available. Open your application for the details.',
   },
 };
 

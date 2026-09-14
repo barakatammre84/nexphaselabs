@@ -7,18 +7,12 @@ import { ProductImage } from '@/components/site/product-image';
 import { SupportStrip } from '@/components/site/support-strip';
 import { ProductPurchasePanel } from '@/components/site/product-purchase-panel';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
-import {
-  REGULATORY_STATEMENT,
-  STANDARD_DOCUMENTATION,
-  STATUS_LABEL,
-} from '@/lib/catalog';
-import {
-  getPublishedProduct,
-  listPublishedProducts,
-  loadCatalog,
-} from '@/lib/catalog-data';
+import { REGULATORY_STATEMENT, STANDARD_DOCUMENTATION } from '@/lib/catalog';
+import { loadCatalog } from '@/lib/catalog-data';
+import { getStorefrontProduct, listStorefrontProducts } from '@/lib/storefront';
 import { listReleasedLotsForProduct } from '@/lib/lots-public';
 import { currentSds } from '@/lib/product-documents';
+import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 import { currentViewer } from '@/lib/visibility';
 import { formatCents, priceFor } from '@/lib/visibility-rules';
 
@@ -51,7 +45,7 @@ export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const loaded = await loadCatalog(() => getPublishedProduct(slug));
+  const loaded = await loadCatalog(() => getStorefrontProduct(slug));
   const product = loaded.data;
   if (!product)
     return {
@@ -60,7 +54,7 @@ export async function generateMetadata({
 
   return {
     title: `${product.name} — ${product.code}`,
-    description: `${product.name}, CAS ${product.casNumber}, ${product.purity}. Supplied to qualified research organizations for laboratory use only.`,
+    description: `${product.name}, CAS ${product.casNumber}, ${product.purity}. Research material for laboratory use only; every lot ships with its certificate of analysis.`,
   };
 }
 
@@ -76,7 +70,7 @@ function SpecRow({ label, value }: { label: string; value: string }) {
 export default async function ProductPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
   const { cart: cartFlag, why } = await searchParams;
-  const loaded = await loadCatalog(() => getPublishedProduct(slug));
+  const loaded = await loadCatalog(() => getStorefrontProduct(slug));
 
   if (loaded.unavailable) {
     return (
@@ -89,10 +83,11 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
   }
 
   const product = loaded.data;
-  // Drafts and withdrawn products 404 here exactly like an unknown slug.
+  // Drafts, withdrawn products and anything not on the storefront (no photo,
+  // no approved price, no publishable lot) 404 here exactly like an unknown slug.
   if (!product) notFound();
 
-  const siblings = await loadCatalog(listPublishedProducts);
+  const siblings = await loadCatalog(listStorefrontProducts);
   const related = (siblings.data ?? [])
     .filter(
       (item) =>
@@ -134,7 +129,32 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
             <h1 className="ion-heading mt-6 text-[clamp(3rem,5vw,5rem)]">
               {product.name}
             </h1>
-            {/* Rule 1 — conditions of supply, in the body, above the fold. */}
+            <p className="mt-3 text-sm text-muted-foreground">
+              CAS {product.casNumber} &middot; {product.form}
+              {product.stock === 'out_of_stock' && (
+                <span className="ml-3 rounded-full bg-[var(--ion-navy)] px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-white">
+                  Out of stock
+                </span>
+              )}
+            </p>
+
+            {/* Price first (Chapter 19 §19.4 #10): the purchase panel sits directly under the title. */}
+            {visibility.pricing !== 'none' && (
+              <ProductPurchasePanel
+                productName={product.name}
+                productSlug={product.slug}
+                hasReleasedLot={hasReleasedLot && product.stock === 'in_stock'}
+                variants={activeVariants.map((variant) => ({
+                  sku: variant.sku,
+                  quantity: variant.quantity,
+                  presentation: variant.presentation,
+                  priceCents: priceFor(variant, visibility.pricing),
+                  priceBreaks: variant.priceBreaks,
+                }))}
+              />
+            )}
+
+            {/* Rule 1 — conditions of supply, in the body, directly under the price, above the fold. */}
             <div className="mt-6 max-w-2xl rounded-[1.25rem] border border-blue-100 bg-secondary px-5 py-4">
               <p className="text-sm font-extrabold text-primary">Conditions of supply</p>
               <p className="mt-2 text-sm font-semibold leading-6">
@@ -148,25 +168,6 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
               <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
                 Synonyms: {product.synonyms.join('; ')}
               </p>
-            )}
-
-            <p className="mt-7 max-w-2xl leading-8 text-muted-foreground">
-              {product.description}
-            </p>
-
-            {visibility.pricing !== 'none' && (
-              <ProductPurchasePanel
-                productName={product.name}
-                productSlug={product.slug}
-                hasReleasedLot={hasReleasedLot}
-                variants={activeVariants.map((variant) => ({
-                  sku: variant.sku,
-                  quantity: variant.quantity,
-                  presentation: variant.presentation,
-                  priceCents: priceFor(variant, visibility.pricing),
-                  priceBreaks: variant.priceBreaks,
-                }))}
-              />
             )}
           </div>
 
@@ -203,6 +204,7 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
         >
           Chemical identity
         </h2>
+        <p className="mt-5 max-w-3xl leading-8 text-muted-foreground">{product.description}</p>
         <dl className="mt-5 max-w-4xl border-t border-border">
           <SpecRow label="CAS number" value={product.casNumber} />
           {product.relatedCas?.map((r) => (
@@ -421,21 +423,19 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
                   </span>
                 </span>
                 <span
-                  className={`text-sm ${hasReleasedLot ? 'text-primary' : 'text-destructive'}`}
+                  className={`text-sm ${product.sellableSkus.includes(variant.sku) ? 'text-primary' : 'text-destructive'}`}
                 >
-                  {hasReleasedLot
-                    ? STATUS_LABEL[product.status]
-                    : 'Not currently available'}
+                  {product.sellableSkus.includes(variant.sku) ? 'In stock' : 'Out of stock'}
                 </span>
                 {visibility.pricing !== 'none' && (
                   <span className="flex flex-wrap items-center justify-end gap-3 text-right font-mono text-sm">
                     {cents === null ? (
                       'Price on request'
-                    ) : !hasReleasedLot ? (
+                    ) : !product.sellableSkus.includes(variant.sku) ? (
                       <>
                         <span>{formatCents(cents)}</span>
                         <span className="text-xs text-muted-foreground">
-                          Awaiting released lot
+                          Out of stock
                         </span>
                       </>
                     ) : (
@@ -529,20 +529,17 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
             <div className="flex items-start gap-3">
               <Lock className="mt-1 size-4 shrink-0 text-primary" />
               <p className="text-sm leading-6">
-                {visibility.reason === 'anonymous' &&
-                  'Pricing and current lot availability are shown to verified research accounts. Every request is read by a person against a written research-use policy.'}
-                {visibility.reason === 'unverified' &&
-                  'Pricing and lot availability appear here once your organisation has been verified.'}
+                {visibility.reason === 'anonymous' && STOREFRONT_COPY.pricingAnonymous}
+                {visibility.reason === 'unverified' && STOREFRONT_COPY.pricingUnverified}
                 {visibility.reason === 'acknowledgement' &&
-                  'Confirm the current terms and research-use acknowledgement on your account page to see pricing.'}
-                {visibility.reason === 'researcher_tier_closed' &&
-                  'Pricing is available to verified research organisations. Contact research@nexphaselabs.net to submit one.'}
+                  'Confirm the current terms, the research-use acknowledgement and the age statement on your account page to see pricing.'}
+                {visibility.reason === 'researcher_tier_closed' && STOREFRONT_COPY.pricingResearcherClosed}
               </p>
             </div>
             <Link
               href={
                 visibility.reason === 'anonymous'
-                  ? '/access'
+                  ? '/account/sign-up'
                   : visibility.reason === 'unverified'
                     ? '/account/organization'
                     : '/account'
@@ -550,11 +547,11 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
               className="inline-flex h-12 shrink-0 items-center justify-center bg-primary px-6 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
             >
               {visibility.reason === 'anonymous'
-                ? 'Request access'
+                ? STOREFRONT_COPY.pricingAnonymousAction
                 : visibility.reason === 'unverified'
                   ? account?.verificationStatus === 'none'
-                    ? 'Submit your organisation'
-                    : 'View your submission'
+                    ? STOREFRONT_COPY.pricingUnverifiedStart
+                    : STOREFRONT_COPY.pricingUnverifiedView
                   : 'Your account'}
             </Link>
           </div>

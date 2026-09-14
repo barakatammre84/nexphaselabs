@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { appEnv, publicOrigin } from '@/lib/site-config';
-import { listPublishedProductsForSitemap } from '@/lib/catalog-data';
+import { listStorefrontProductLinks } from '@/lib/storefront';
 import { listPublishableLotNumbers } from '@/lib/lots-public';
 
 /**
@@ -27,12 +27,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${origin}/legal/privacy`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${origin}/legal/shipping`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${origin}/legal/returns`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
+    { url: `${origin}/legal/research-use`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
+    { url: `${origin}/legal/compliance`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
   ];
   let products: { slug: string; updatedAt: Date | null }[] = [];
   let lotNumbers: string[] = [];
   try {
     [products, lotNumbers] = await Promise.all([
-      listPublishedProductsForSitemap(),
+      listStorefrontProductLinks(),
       listPublishableLotNumbers(),
     ]);
   } catch {

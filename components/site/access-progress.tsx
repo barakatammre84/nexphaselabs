@@ -1,8 +1,10 @@
+// The wholesale application, step by step. Researchers never see this: their
+// account is two steps (create, confirm email) and the storefront is open to them.
 const steps = [
-  'Create login',
+  'Create account',
   'Confirm email',
-  'Organization details',
-  'Review & approval',
+  'Organisation details',
+  'Approval',
 ];
 export function AccessProgress({
   current,
@@ -12,7 +14,7 @@ export function AccessProgress({
   complete?: boolean;
 }) {
   return (
-    <nav aria-label="Research access progress" className="my-8">
+    <nav aria-label="Wholesale application progress" className="my-8">
       <ol className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {steps.map((label, i) => (
           <li

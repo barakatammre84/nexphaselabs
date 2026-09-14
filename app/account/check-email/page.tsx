@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { AccessProgress } from '@/components/site/access-progress';
+import { researcherTierEnabled } from '@/lib/site-config';
 import { MailCheck } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -19,7 +20,7 @@ export default async function CheckEmailPage({ searchParams }: Props) {
   return (
     <main className="bg-background text-foreground">
       <section className="mx-auto max-w-xl px-5 py-20 sm:px-8">
-        <AccessProgress current={1} />
+        {!researcherTierEnabled() && <AccessProgress current={1} />}
         <MailCheck className="size-8 text-primary" />
         <h1 className="mt-6 font-display text-4xl font-extrabold tracking-[-0.05em]">
           Check your email

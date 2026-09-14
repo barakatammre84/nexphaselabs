@@ -76,7 +76,7 @@ describe('navigation and account rendering', () => {
       await AccountPage({ searchParams: Promise.resolve({}) }),
     );
     expect(html).not.toContain('Please attach registration.');
-    expect(html).toContain('Verified institutional account');
+    expect(html).toContain('Approved wholesale account');
   });
   it('marks only the current step and marks approval complete', () => {
     const pending = renderToStaticMarkup(

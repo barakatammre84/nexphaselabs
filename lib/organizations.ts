@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 import { getDb } from '@/db';
 import {
   accounts,
@@ -239,7 +240,7 @@ export async function decideVerification(
       ? [
           `Hello ${detail.account.name},`,
           '',
-          `${detail.organization.legalName} is now a verified research organisation with NexPhase Labs.`,
+          STOREFRONT_COPY.wholesaleApproved(detail.organization.legalName),
           `Pricing and lot availability are visible when you sign in: ${origin}/account/sign-in`,
         ]
       : decision === 'revoke'

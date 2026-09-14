@@ -7,32 +7,35 @@ import {
   FileText,
   FlaskConical,
   Headphones,
+  Microscope,
   PackageCheck,
   Search,
-  ShieldCheck,
   ScanSearch,
+  ShieldCheck,
   Thermometer,
+  Timer,
 } from 'lucide-react';
 import { openCheckoutEnabled } from '@/lib/site-config';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { ProductImage } from '@/components/site/product-image';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
-import {
-  groupByClass,
-  listPublishedProducts,
-  loadCatalog,
-} from '@/lib/catalog-data';
+import { groupByClass, loadCatalog } from '@/lib/catalog-data';
+import { SHIPPING_CUTOFF } from '@/lib/policy';
+import { listStorefrontProducts } from '@/lib/storefront';
 import { listActiveClasses } from '@/lib/classes';
 import { currentViewer } from '@/lib/visibility';
 import { formatCents, priceFor } from '@/lib/visibility-rules';
 
 export const dynamic = 'force-dynamic';
 
-const trustSignals = [
-  { label: 'Lot-specific COAs', icon: FileCheck2 },
-  { label: 'Purity reported by batch', icon: CheckCircle2 },
-  { label: 'Real human support', icon: Headphones },
-  { label: 'Traceable fulfillment', icon: ShieldCheck },
+// Four promises a buyer can hold us to (Chapter 19 §19.2) — each one is a
+// mechanism that exists in this code, not an adjective. The cut-off hour is
+// the same constant the shipping policy prints.
+const promises = [
+  { label: `Same-day dispatch before ${SHIPPING_CUTOFF}`, icon: Timer },
+  { label: 'Third-party tested, lab named on every certificate', icon: Microscope },
+  { label: 'Purity stated on every certificate', icon: FileCheck2 },
+  { label: 'Documents pinned to your order', icon: ScanSearch },
 ];
 
 const documentationHighlights = [
@@ -68,13 +71,16 @@ const confidencePoints = [
 export default async function Home() {
   const open = openCheckoutEnabled();
   const catalog = await loadCatalog(async () => ({
-    products: await listPublishedProducts(),
+    products: await listStorefrontProducts(),
     classes: await listActiveClasses(),
   }));
   const all = catalog.data?.products ?? [];
   const classes = catalog.data?.classes ?? [];
-  const featured = all.filter((product) => product.featured).slice(0, 4);
-  const hero = featured[0] ?? all[0] ?? null;
+  // Featured means listed AND flagged; a flagged product that is not sellable
+  // is not shown, and the grid is filled from the rest of the listed catalog.
+  const flagged = all.filter((product) => product.featured);
+  const featured = [...flagged, ...all.filter((product) => !product.featured)].slice(0, 4);
+  const hero = featured[0] ?? null;
   const byClass = groupByClass(all);
   const { visibility } = await currentViewer();
   const process = open
@@ -178,7 +184,7 @@ export default async function Home() {
             )}
           </div>
           <div className="grid border-t border-white/15 bg-white/5 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-4">
-            {trustSignals.map(({ label, icon: Icon }) => (
+            {promises.map(({ label, icon: Icon }) => (
               <div key={label} className="flex items-center gap-3 border-b border-white/10 px-6 py-5 last:border-0 sm:border-r lg:border-b-0">
                 <span className="grid size-8 place-items-center rounded-full bg-white text-primary"><Icon className="size-4" /></span>
                 <span className="font-display text-sm font-extrabold text-white">{label}</span>
@@ -188,23 +194,6 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1280px] px-4 py-5 sm:px-6">
-        <div className="ion-trust-strip grid sm:grid-cols-2 lg:grid-cols-4">
-          {trustSignals.map(({ label, icon: Icon }) => (
-            <div
-              key={label}
-              className="flex items-center gap-3 border-b border-border px-6 py-5 last:border-0 sm:border-r lg:border-b-0"
-            >
-              <span className="grid size-7 place-items-center rounded-full bg-primary text-white">
-                <Icon className="size-4" />
-              </span>
-              <span className="font-display text-sm font-extrabold text-[var(--ion-navy)]">
-                {label}
-              </span>
-            </div>
-          ))}
-        </div>
-      </section>
 
       <section className="mx-auto grid max-w-[1280px] gap-5 px-4 py-16 sm:px-6 lg:grid-cols-2">
         <article className="ion-panel p-8 sm:p-11">
@@ -270,6 +259,11 @@ export default async function Home() {
                   imageClassName="transition-transform duration-500 group-hover:scale-[1.025]"
                   sizes="(max-width: 768px) 100vw, 33vw"
                 />
+                {product.stock === 'out_of_stock' && (
+                  <span className="absolute right-3 top-3 rounded-full bg-[var(--ion-navy)] px-3 py-1.5 text-[10px] font-extrabold text-white shadow-sm">
+                    Out of stock
+                  </span>
+                )}
               </div>
               <div className="flex flex-1 items-end justify-between gap-4 px-3 pb-3 pt-6">
                 <div>

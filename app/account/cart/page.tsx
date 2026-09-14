@@ -11,6 +11,7 @@ import { listAddresses } from '@/lib/account-addresses';
 import { loadCatalog } from '@/lib/catalog-data';
 import { MAX_LINE_QUANTITY } from '@/lib/order-rules';
 import { getOrganizationForAccount } from '@/lib/organizations';
+import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 import { AGE_STATEMENT, RUO_ACKNOWLEDGEMENT } from '@/lib/policy';
 import { currentViewer } from '@/lib/visibility';
 import { formatCents } from '@/lib/visibility-rules';
@@ -243,19 +244,16 @@ export default async function CartPage({ searchParams }: Props) {
                         .filter(Boolean)
                         .join(', ')}
                     </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      The verified organisation address is the only shipping
-                      address. Email research@nexphaselabs.net to change it.
-                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">{STOREFRONT_COPY.wholesaleAddressOnly}</p>
                   </div>
                 ) : (
                   <p className="mt-4 text-sm text-muted-foreground">
-                    Ordering is open to verified research organisations.{' '}
+                    {STOREFRONT_COPY.wholesaleApplyPrompt}{' '}
                     <Link
                       href="/account/organization"
                       className="font-semibold text-primary"
                     >
-                      Submit your organisation
+                      {STOREFRONT_COPY.wholesaleApplyAction}
                     </Link>
                     .
                   </p>

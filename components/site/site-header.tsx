@@ -79,7 +79,7 @@ export async function SiteHeader() {
             <UserRound className="size-5" />
           </NavLink>
           <NavLink
-            href={open || signedIn ? '/account/cart' : '/access'}
+            href={open || signedIn ? '/account/cart' : '/account/sign-up?tier=institutional'}
             className="header-cart-link"
           >
             <ShoppingCart className="size-4" />
@@ -113,7 +113,7 @@ export async function SiteHeader() {
               {accountLabel}
             </NavLink>
             <NavLink
-              href={open || signedIn ? '/account/cart' : '/access'}
+              href={open || signedIn ? '/account/cart' : '/account/sign-up?tier=institutional'}
               className="action-primary"
             >
               {open || signedIn ? 'Cart' : 'Research access'}

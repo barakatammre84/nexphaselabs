@@ -196,8 +196,8 @@ export default function FaqPage() {
             <Link href="/contact" className="action-primary">
               Contact support
             </Link>
-            <Link href={open ? '/catalog' : '/access'} className="action-secondary gap-2">
-              {open ? 'Shop products' : 'Request access'} <ArrowRight className="size-4" />
+            <Link href={open ? '/catalog' : '/account/sign-up?tier=institutional'} className="action-secondary gap-2">
+              {open ? 'Shop products' : 'Apply for a wholesale account'} <ArrowRight className="size-4" />
             </Link>
           </div>
         </div>

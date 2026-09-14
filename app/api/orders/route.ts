@@ -2,6 +2,7 @@ import { getBuyerFromRequest } from '@/lib/buyer-session';
 import { rememberOrderAddress } from '@/lib/account-addresses';
 import { requestContactVerification } from '@/lib/order-contact-verification';
 import { acknowledgementsCurrent } from '@/lib/account-rules';
+import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 import { createOrderFromCart, shipToFromOrganization } from '@/lib/orders';
 import { getOrganizationForAccount } from '@/lib/organizations';
 import { researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
@@ -106,13 +107,11 @@ export async function POST(request: Request) {
       );
     }
     if (account.tier !== 'institutional') {
-      return back(
-        'Ordering is open to verified research organisations. Email research@nexphaselabs.net.',
-      );
+      return back(STOREFRONT_COPY.orderingWholesaleOnly);
     }
     const organization = await getOrganizationForAccount(account.id);
     if (!organization || organization.verificationStatus !== 'approved')
-      return back('Your organisation is not verified.');
+      return back(STOREFRONT_COPY.orderingUnapproved);
     const result = await createOrderFromCart(
       account,
       visibility,

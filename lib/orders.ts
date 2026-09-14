@@ -1,4 +1,5 @@
 import { and, desc, eq, like, sql, isNull } from 'drizzle-orm';
+import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 import { getDb } from '@/db';
 import {
   accounts,
@@ -161,7 +162,7 @@ export async function createOrderFromCart(
   )
     return {
       ok: false,
-      error: 'Ordering requires a verified research organisation.',
+      error: STOREFRONT_COPY.orderingRequiresWholesale,
     };
   if (
     openCheckoutEnabled() &&

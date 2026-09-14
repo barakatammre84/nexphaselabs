@@ -45,14 +45,14 @@ export default async function SignUpPage({ searchParams }: Props) {
   return (
     <main className="text-foreground">
       <section className="ion-panel mx-auto my-12 max-w-3xl px-7 py-10 sm:px-10">
-        <p className="ion-kicker">Research account</p>
+        <p className="ion-kicker">{consumer ? 'Your account' : 'Wholesale account'}</p>
         <h1 className="ion-heading mt-6 text-4xl sm:text-5xl">
-          Create your login
+          Create your account
         </h1>
         <p className="mt-4 leading-7 text-muted-foreground">
-          An account lets you submit your organisation for verification.
-          Pricing, lot availability and ordering are enabled once a person has
-          reviewed and approved it.
+          {consumer
+            ? 'An account keeps your orders, saved addresses and the certificates that shipped with each order in one place. You can also check out as a guest without one.'
+            : 'An account is the first step of a wholesale application. Prices, lot availability and ordering open once a person has approved it.'}
         </p>
 
         {!consumer && <AccessProgress current={0} />}
@@ -106,8 +106,7 @@ export default async function SignUpPage({ searchParams }: Props) {
               className={input}
             />
             <p className="text-xs leading-5 text-muted-foreground">
-              For an institutional account, use an address on your
-              organisation&rsquo;s own domain.
+              For a wholesale account, use an address on your organisation&rsquo;s own domain.
             </p>
           </div>
           <div className="flex flex-col gap-2">
@@ -135,15 +134,15 @@ export default async function SignUpPage({ searchParams }: Props) {
                 <input
                   type="radio"
                   name="tier"
-                  value="institutional"
-                  defaultChecked={params.tier !== 'researcher'}
+                  value="researcher"
+                  defaultChecked={params.tier !== 'institutional'}
                   className="mt-1"
                 />
                 <span>
-                  <span className="font-semibold">Research organisation</span>
+                  <span className="font-semibold">Researcher</span>
                   <span className="block text-muted-foreground">
-                    University, CRO, analytical or in-house research laboratory.
-                    Verified before ordering.
+                    Buy from the storefront at list price, in any research setting — including an
+                    independent or home laboratory. Laboratory research use only.
                   </span>
                 </span>
               </label>
@@ -151,16 +150,15 @@ export default async function SignUpPage({ searchParams }: Props) {
                 <input
                   type="radio"
                   name="tier"
-                  value="researcher"
-                  defaultChecked={params.tier === 'researcher'}
+                  value="institutional"
+                  defaultChecked={params.tier === 'institutional'}
                   className="mt-1"
                 />
                 <span>
-                  <span className="font-semibold">Researcher</span>
+                  <span className="font-semibold">Wholesale account</span>
                   <span className="block text-muted-foreground">
-                    Laboratory research use only, in any research setting — including an
-                    independent or home laboratory. We ask what you research with, not
-                    whether you work alone.
+                    A university, CRO or company buying on purchase order with net terms. A
+                    person approves the application before ordering.
                   </span>
                 </span>
               </label>

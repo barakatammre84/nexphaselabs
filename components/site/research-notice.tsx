@@ -39,17 +39,17 @@ export function ResearchNoticeBlock() {
           </h2>
           <p className="mt-4 max-w-2xl leading-7 text-white/68">
             {!open &&
-              'Research account requests are reviewed before ordering. '}
+              'Wholesale applications are read by a person before ordering opens. '}
             Materials are not medicines, supplements, or consumer products, and
             NexPhase Labs does not provide dosing guidance, protocols for
             administration, or any form of medical advice.
           </p>
         </div>
         <a
-          href={open ? '/catalog' : '/access'}
+          href={open ? '/catalog' : '/account/sign-up?tier=institutional'}
           className="inline-flex h-12 shrink-0 items-center justify-center rounded-full bg-white px-6 text-sm font-extrabold text-[var(--ion-navy)] transition-transform hover:-translate-y-0.5"
         >
-          {open ? 'Browse materials' : 'Start an account request'}
+          {open ? 'Browse materials' : 'Apply for a wholesale account'}
         </a>
       </div>
     </section>

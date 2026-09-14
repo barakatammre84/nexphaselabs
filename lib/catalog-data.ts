@@ -33,6 +33,7 @@ export type CatalogProduct = Product & {
   withdrawnReason: string | null;
   sortOrder: number;
   variants: CatalogVariant[];
+  createdAt: Date;
   updatedAt: Date;
   updatedBy: string | null;
 };
@@ -91,6 +92,7 @@ export function rowToProduct(row: ProductRow, variants: ProductVariantRow[]): Ca
     withdrawnReason: row.withdrawnReason,
     sortOrder: row.sortOrder,
     variants: sorted,
+    createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     updatedBy: row.updatedBy,
   };

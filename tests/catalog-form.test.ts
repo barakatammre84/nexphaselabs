@@ -23,6 +23,7 @@ function asCatalogProduct(i: number): CatalogProduct {
       active: true,
       sortOrder: n,
     })),
+    createdAt: new Date(0),
     updatedAt: new Date(0),
     updatedBy: null,
   };

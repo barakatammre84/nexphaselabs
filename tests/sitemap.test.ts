@@ -7,7 +7,7 @@ const { env } = vi.hoisted(() => ({
 vi.mock('cloudflare:workers', () => ({ env }));
 
 import { getDb } from '@/db';
-import { lots, products } from '@/db/schema';
+import { lots, products, productVariants } from '@/db/schema';
 import sitemap from '@/app/sitemap';
 import robots from '@/app/robots';
 import { releasedLotsByProduct } from '@/lib/lots-public';
@@ -67,12 +67,21 @@ beforeEach(async () => {
   });
   // one row per statement: D1 allows 100 bound parameters and a product is ~26
   for (const row of [
-    product('p1', 'GHK-CU', 'ghk-cu', 'published'),
-    product('p2', 'BPC-157', 'bpc-157', 'published'),
+    { ...product('p1', 'GHK-CU', 'ghk-cu', 'published'), image: 'products/ghk-cu.png' },
+    { ...product('p2', 'BPC-157', 'bpc-157', 'published'), image: 'products/bpc-157.png' },
     product('p3', 'DRAFT-1', 'not-published-yet', 'draft'),
     product('p4', 'GONE-1', 'withdrawn-product', 'withdrawn'),
   ]) {
     await getDb().insert(products).values(row as never);
+  }
+  // The storefront listing rule: a product is in the sitemap only when it is
+  // photographed, priced and backed by a publishable lot. BPC-157 is published
+  // and priced but has no lot; GHK-Cu has GHK-2601.
+  for (const row of [
+    { id: 'v1', productId: 'p1', sku: 'GHK-CU-50MG', quantity: '50 mg', presentation: 'vial', listPriceCents: 2900, active: true },
+    { id: 'v2', productId: 'p2', sku: 'BPC-157-5MG', quantity: '5 mg', presentation: 'vial', listPriceCents: 3900, active: true },
+  ]) {
+    await getDb().insert(productVariants).values(row as never);
   }
   for (const row of [
       publishableLot('GHK-2601'),
@@ -123,10 +132,11 @@ describe('sitemap', () => {
     }
   });
 
-  it('lists published products and no others', async () => {
+  it('lists storefront products and no others', async () => {
     const list = await urls();
     expect(list).toContain('https://nexphaselabs.net/catalog/ghk-cu');
-    expect(list).toContain('https://nexphaselabs.net/catalog/bpc-157');
+    // published and priced, but no publishable lot: not on the storefront, so not in the map
+    expect(list).not.toContain('https://nexphaselabs.net/catalog/bpc-157');
     expect(list).not.toContain('https://nexphaselabs.net/catalog/not-published-yet');
     expect(list).not.toContain('https://nexphaselabs.net/catalog/withdrawn-product');
   });

@@ -20,7 +20,7 @@ const staticColumns = [
     heading: 'Company',
     links: [
       { href: '/about', label: 'About NexPhase Labs' },
-      { href: '/access', label: 'Research access' },
+      { href: '/account/sign-up?tier=institutional', label: 'Wholesale accounts' },
       { href: '/contact', label: 'Contact' },
     ],
   },
@@ -61,9 +61,9 @@ export async function SiteFooter() {
             <BrandLogo />
             <p className="mt-5 text-sm leading-6 text-white/65">
               {open
-                ? 'An independent supplier of laboratory research materials in the United States.'
-                : 'An independent supplier of research materials for qualified laboratory organizations in the United States.'}{' '}
-              Every lot ships with its own analytical documentation.
+                ? 'A family-run supplier of research peptides in Oakland, California.'
+                : 'A family-run supplier of research peptides in Oakland, California, opening to wholesale accounts first.'}{' '}
+              Every lot is independently tested and ships with its certificate.
             </p>
           </div>
 
@@ -79,9 +79,7 @@ export async function SiteFooter() {
                       href={link.href}
                       className="text-white/75 transition-colors hover:text-white"
                     >
-                      {open && link.href === '/access'
-                        ? 'How to order'
-                        : link.label}
+                      {link.label}
                     </NavLink>
                   </li>
                 ))}
@@ -110,12 +108,6 @@ export async function SiteFooter() {
               &copy; {new Date().getFullYear()} 8486 Ventures LLC, trading as
               NexPhase Labs. Oakland, California.
             </p>
-            <NavLink
-              href="/manage/products"
-              className="utility-label transition-colors hover:text-white"
-            >
-              Catalog manager
-            </NavLink>
           </div>
         </div>
       </div>
