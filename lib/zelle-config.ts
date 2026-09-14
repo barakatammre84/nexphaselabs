@@ -54,6 +54,15 @@ export function zelleCheckoutEnabled(): boolean {
   );
 }
 
+export function zelleSimulationEnabled(): boolean {
+  const config = zelleConfig();
+  return (
+    !livePaymentsAllowed(env.APP_ENV) &&
+    (env.APP_ENV === 'staging' || env.APP_ENV === 'development') &&
+    config.mode === 'manual'
+  );
+}
+
 export function zelleInboxEnabled(): boolean {
   const config = zelleConfig();
   return (
@@ -93,6 +102,7 @@ export function zelleConfigurationStatus() {
     qrConfigured: Boolean(config.qrImagePath),
     inboxConfigured: zelleInboxEnabled(),
     checkoutEnabled: zelleCheckoutEnabled(),
+    simulationEnabled: zelleSimulationEnabled(),
     missing,
   };
 }

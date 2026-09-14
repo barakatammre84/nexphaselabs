@@ -41,6 +41,39 @@ describe('environment safety', () => {
     await invalidateBtcpayInvoice('abcdef123');
     expect(fetcher).not.toHaveBeenCalled();
   });
+  it('rehearses the Zelle claim workflow in staging without exposing the enrolled recipient', async () => {
+    Object.assign(env, {
+      APP_ENV: 'staging',
+      ZELLE_MODE: 'manual',
+      ZELLE_RECIPIENT_EMAIL: 'orders@nexphaselabs.net',
+      ZELLE_RECIPIENT_NAME: '8486 llc',
+    });
+    const fetcher = vi.spyOn(globalThis, 'fetch');
+    const methods = availablePaymentMethods();
+    expect(methods.map((method) => method.id)).toEqual(['zelle', 'invoice']);
+    const instructions = await methods[0].begin({
+      orderNumber: 'NX-260914-0001',
+      totalCents: 12_540,
+      currency: 'USD',
+    } as Order);
+    expect(instructions).toMatchObject({
+      method: 'zelle',
+      title: expect.stringContaining('do not send'),
+      reference: 'TEST-NX-260914-0001',
+      zelle: {
+        recipientEmail: 'test-zelle@nexphaselabs.invalid',
+        recipientName: 'TEST ONLY — NO PAYMENT',
+        amountCents: 12_540,
+        currency: 'USD',
+        memo: 'TEST-NX-260914-0001',
+        qrImagePath: null,
+      },
+    });
+    const rendered = JSON.stringify(instructions);
+    expect(rendered).not.toContain('orders@nexphaselabs.net');
+    expect(rendered).not.toContain('8486 llc');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
   it('keeps configured production rails available', () => {
     Object.assign(env, { APP_ENV: 'production', PAYMENT_BANK_INSTRUCTIONS: 'configured' });
     expect(availablePaymentMethods().map((method) => method.id)).toEqual(['bank_transfer']);

@@ -7,6 +7,7 @@ import {
   zelleCheckoutEnabled,
   zelleConfig,
   zelleConfigurationStatus,
+  zelleSimulationEnabled,
 } from '@/lib/zelle-config';
 
 /**
@@ -224,6 +225,38 @@ const testInvoice: PaymentMethod = {
   },
 };
 
+/**
+ * Exercises the complete Zelle order-and-claim workflow in non-production
+ * without exposing the enrolled recipient or asking anyone to move money.
+ */
+const testZelle: PaymentMethod = {
+  id: 'zelle',
+  label: 'Zelle simulation — no money moves',
+  description:
+    'Test environment only. Review the Zelle instructions and report a simulated payment; do not send money.',
+  enabled: zelleSimulationEnabled,
+  async begin(order) {
+    return {
+      method: 'zelle',
+      title: 'TEST — do not send a Zelle payment',
+      lines: [
+        `Test order: ${order.orderNumber}`,
+        'No bank transfer is required. Reporting payment only creates a test claim for staff review.',
+      ],
+      url: null,
+      reference: `TEST-${order.orderNumber}`,
+      zelle: {
+        recipientEmail: 'test-zelle@nexphaselabs.invalid',
+        recipientName: 'TEST ONLY — NO PAYMENT',
+        amountCents: order.totalCents,
+        currency: order.currency,
+        memo: `TEST-${order.orderNumber}`,
+        qrImagePath: null,
+      },
+    };
+  },
+};
+
 /** BTCPay's checkout page for an invoice, rebuilt from configuration so it never depends on the email. */
 export function btcpayCheckoutUrl(invoiceId: string): string | null {
   if (
@@ -265,9 +298,10 @@ export async function invalidateBtcpayInvoice(
   }
 }
 
-/** Methods a customer may choose right now. 'invoice' is offered only when no real rail is configured. */
+/** Methods a customer may choose right now, including safe test methods outside production. */
 export function availablePaymentMethods(): PaymentMethod[] {
-  if (!livePaymentsAllowed(env.APP_ENV)) return [testInvoice];
+  if (!livePaymentsAllowed(env.APP_ENV))
+    return testZelle.enabled() ? [testZelle, testInvoice] : [testInvoice];
   const real = METHODS.filter((m) => m.id !== 'invoice' && m.enabled());
   return real.length ? real : [invoice];
 }

@@ -95,7 +95,13 @@ export default async function ZellePaymentsPage({
         <div className="mt-8 grid gap-4 md:grid-cols-3">
           <div className="border border-border p-5">
             <p className="text-sm font-semibold">Checkout</p>
-            <p className="mt-2 text-2xl font-bold">{configuration.checkoutEnabled ? 'Ready' : 'Off'}</p>
+            <p className="mt-2 text-2xl font-bold">
+              {configuration.checkoutEnabled
+                ? 'Ready'
+                : configuration.simulationEnabled
+                  ? 'Test ready'
+                  : 'Off'}
+            </p>
             <p className="mt-2 text-xs leading-5 text-muted-foreground">
               {configuration.recipientEmail} · mode {configuration.mode}
             </p>

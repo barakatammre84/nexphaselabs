@@ -89,7 +89,9 @@
         "RESEARCHER_TIER_ENABLED": "true",
         "ZELLE_RECIPIENT_EMAIL": "orders@nexphaselabs.net",
         "ZELLE_RECIPIENT_NAME": "8486 llc",
-        "ZELLE_MODE": "disabled",
+        // Manual mode enables a safe Zelle simulation here. The application replaces these real
+        // enrollment values with unmistakable fake details and never contacts a payment provider.
+        "ZELLE_MODE": "manual",
         // Shippo test mode obtains real carrier test rates without buying live postage.
         // The API key and private ship-from contact are protected Worker secrets.
         "SHIPPING_PROVIDER": "shippo",
