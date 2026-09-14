@@ -44,8 +44,8 @@ TXT  _dmarc   v=DMARC1; p=none; rua=mailto:dmarc@nexphaselabs.net; fo=1
 
 DKIM must be generated inside the Google Admin console under Apps, Google
 Workspace, Gmail, Authenticate email. It produces a `google._domainkey` TXT
-value unique to the tenant, which is then added at Namecheap. Turn DKIM on in
-the console only after the record resolves.
+value unique to the tenant, which is then added to the active authoritative
+Cloudflare zone. Turn DKIM on in the console only after the record resolves.
 
 Leave DMARC at `p=none` for two weeks and read the reports before moving to
 `p=quarantine`. Moving straight to enforcement with no SPF history is how

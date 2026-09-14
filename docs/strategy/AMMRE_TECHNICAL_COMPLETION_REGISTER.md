@@ -11,18 +11,21 @@ is running it and the evidence is linked in `/manage/controls`.
 
 ## Current technical baseline
 
-- `main`, `origin/main`, and the reviewed release branch agree at `c756f44`.
-  Typecheck, lint, all tests, the production build, and the staging deployment
-  passed in GitHub Actions.
-- Staging runs that commit and is healthy. Public pages return `200` with
+- `origin/main` and the reviewed release branch agree. The latest
+  release-safeguard change is `5a77d03`; typecheck, lint, all 866 tests, the
+  production build, and the staging deployment passed locally and in GitHub
+  Actions.
+- Staging runs the reviewed source and is healthy. Public pages return `200` with
   `noindex`; staff pages and private APIs retain their own login boundaries.
 - Staging and production migrations through `0059` are applied. The production
   Worker is reachable only at its workers.dev origin; the public domain still
   serves the existing WordPress store.
-- GitHub now has `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, and
-  `STAGING_URL`, so staging deploys from CI. The repository's current GitHub
-  plan rejected required environment reviewers; production therefore retains
-  the tag-only release guard but lacks the intended second approval.
+- GitHub now has `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `STAGING_URL`,
+  and `PRODUCTION_SMOKE_URL`, so staging deploys from CI and a future tagged
+  production release will prove the isolated workers.dev origin before DNS
+  cutover. The repository's current GitHub plan rejected required environment
+  reviewers; production therefore retains the tag-only release guard but lacks
+  the intended second approval.
 - Staging has the exact Chase enrollment values in reviewed configuration, but
   manual mode replaces them at checkout with unmistakable synthetic values.
   The Gmail receipt-reader credentials are still absent.
@@ -45,9 +48,9 @@ is running it and the evidence is linked in `/manage/controls`.
 | 1 | Complete | The staging workflow proves the approved public/private boundary and `noindex`. |
 | 2 | Complete | Release tree is clean; checks and build pass without a lint warning. |
 | 3 | Partial | CI has the Cloudflare credentials. Required reviewers are unavailable on the current GitHub plan; the tag-only production guard remains. |
-| 4 | Complete | Reviewed source is on `origin/main`; staging deploys through GitHub Actions. |
+| 4 | Complete | Reviewed source is on `origin/main`; checks and staging deploy run through GitHub Actions using the current action runtimes. |
 | 5 | Partial | Safe manual Zelle simulation is configured and tested. Dedicated Gmail read-only receipt ingestion and the approved Chase QR remain open. |
-| 6 | Partial | The current build passed a complete synthetic guest Zelle order, staff review, fulfillment, label/void, shipment, delivery, return, and refund. See [the rehearsal record](../operations/STAGING_ORDER_REHEARSAL_2026-09-14.md). External customer email and the live Gmail receipt path remain open. |
+| 6 | Partial | The current build passed a complete synthetic guest Zelle order, staff review, fulfillment, label/void, shipment, delivery, return, and refund. The latest hosted staging deployment also passed its health and access-boundary checks. See [the rehearsal record](../operations/STAGING_ORDER_REHEARSAL_2026-09-14.md). External customer email and the live Gmail receipt path remain open. |
 | 7 | Open | Identify the active Cloudflare zone, preserve Google MX, then add and prove SPF, Google DKIM, and monitoring-mode DMARC. |
 | 12 | Partial | Staging D1 exported to a checksummed 249,338-byte archive and restored in isolation: 60 tables, integrity `ok`, no missing required tables, and no foreign-key violations. R2 copy and isolated restore remain blocked on the separate recovery credentials. |
 
