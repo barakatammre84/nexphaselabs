@@ -13,7 +13,7 @@ store. Do not attach the custom domain until every gate below is complete.
 | Registrar | Namecheap, expires 2027-02-27 |
 | Authoritative DNS | Cloudflare (`addyson.ns.cloudflare.com`, `zac.ns.cloudflare.com`) |
 | Mail | Google Workspace, `MX 1 smtp.google.com`, users sam@, mel@, tima@ |
-| Cloudflare zone | The public zone is active somewhere, but the zone visible in account `3d429c7b2020e96fe10a1588f1fb3662` is pending and contains stale imported PrivateEmail MX records. Do not activate it as-is. |
+| Cloudflare zone | The public zone uses `addyson` / `zac`. The zone visible in account `3d429c7b2020e96fe10a1588f1fb3662` is pending, assigns `cesar` / `marlowe`, and contains stale imported PrivateEmail MX records. It is a different zone; do not activate it as-is. |
 | New application | Staging and production Workers are deployed in account `3d429c7b2020e96fe10a1588f1fb3662`; no custom domain points at the new application. |
 
 The new application and the live store are entirely separate systems. They
@@ -62,9 +62,11 @@ customer-facing switch and uses the retained WordPress host for rollback.
    real infrastructure: sign-in, an organisation approval, an order, a
    shipment, a document download, a real email.
 2. **Locate and export the active Cloudflare zone.** The nameservers have
-   already moved. Compare the live authoritative answers with the visible
-   pending zone line by line. The Google MX and verification TXT must remain;
-   stale PrivateEmail MX records must never become authoritative.
+   already moved to `addyson` / `zac`; the current account's pending zone is
+   assigned `cesar` / `marlowe`, so it is not authoritative. Obtain access to
+   the account that owns the active pair and compare its records with public
+   answers line by line. The Google MX and verification TXT must remain; stale
+   PrivateEmail MX records must never become authoritative.
 3. **Add and prove mail authentication.** Publish SPF and monitoring-mode DMARC
    in the active zone. Generate the tenant-specific 2048-bit Google DKIM value,
    publish it, enable signing, and prove delivery and replies with an external
