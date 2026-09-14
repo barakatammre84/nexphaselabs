@@ -631,7 +631,7 @@ def build_technical():
         "npm run deploy:staging                   # builds, runs the guard, deploys",
     ])
     doc.add_paragraph(
-        "The deploy guard refuses to hand wrangler a build that does not target the environment named on the command line, and prints every field it checked. If it refuses, rebuild; never bypass it. The staging smoke steps require the health endpoint to report ok, the public storefront to answer 200 with a noindex header, and staff pages plus private management APIs to refuse anonymous access."
+        "The deploy guard refuses to hand wrangler a build that does not target the environment named on the command line, and prints every field it checked. If it refuses, rebuild; never bypass it. The staging smoke steps then require the health endpoint to report ok and prove the access boundary for the mode the configuration declares. Staging is public by the owner's decision of 14 September 2026, so public pages must answer 200 with a noindex header while staff pages redirect to staff sign-in and private APIs answer 401. A staff page or private API that answers a stranger fails the deploy."
     )
 
     doc.add_heading("Release to production", level=2)
@@ -699,14 +699,17 @@ def build_technical():
 
     doc.add_heading("Staging access", level=2)
     doc.add_paragraph(
-        "Public staging pages are intentionally open for review and carry noindex on every response. Staff pages and private management APIs remain behind the application's staff authentication. The deploy fails if the public/private boundary or noindex header changes."
+        "Staging is public by the owner's decision of 14 September 2026. STAGING_ACCESS_OPEN is declared in wrangler.jsonc, never as a Worker secret, and the last step of every staging deploy proves the boundary: public pages answer 200 with a noindex header, staff pages redirect to staff sign-in, and private APIs answer 401 to anyone without a login. Removing the declaration closes staging again; a closed staging needs STAGING_ACCESS_PASSWORD and refuses every request with 503 until it is set, which is deliberate."
     )
     commands(doc, [
-        "# prove it from outside, unauthenticated",
-        "curl -s -o /dev/null -w '%{http_code}\\n' https://<staging-host>/     # expect 200",
-        "curl -sI https://<staging-host>/ | grep -i x-robots-tag              # expect noindex",
-        "curl -sI https://<staging-host>/manage | grep -i '^location: /staff/sign-in'",
-        "curl -s -o /dev/null -w '%{http_code}\\n' -X POST -H 'Origin: https://<staging-host>' https://<staging-host>/api/manage/notifications  # expect 401",
+        "# prove the boundary from outside, unauthenticated, against a staging build",
+        "node scripts/staging-access-check.mjs https://<staging-host> dist/server/wrangler.json",
+        "",
+        "# the same by hand",
+        "curl -s -o /dev/null -w '%{http_code}\\n' https://<staging-host>/                                 # expect 200",
+        "curl -sI https://<staging-host>/ | grep -i x-robots-tag                                          # expect noindex",
+        "curl -s -o /dev/null -w '%{http_code} %{redirect_url}\\n' https://<staging-host>/manage             # expect 307 to /staff/sign-in",
+        "curl -s -o /dev/null -w '%{http_code}\\n' https://<staging-host>/api/manage/reports/orders.csv   # expect 401",
     ])
 
     doc.add_heading("Where the credentials live", level=1)
@@ -719,6 +722,7 @@ def build_technical():
         ["CLOUDFLARE_ACCOUNT_ID", "GitHub repository secret and wrangler.jsonc (not secret)", "Anyone with repository access", "Deploy workflows"],
         ["R2 S3 access key and secret", "Cloudflare R2 API tokens page, held by the operator for a rehearsal", "Business and Systems lead", "Recovery rehearsal only"],
         ["Worker secrets", "Cloudflare Workers secret store, per environment, set by wrangler secret put", "Business and Systems lead", "Payments, email, Shippo, digest"],
+        ["STAGING_ACCESS_PASSWORD", "Not set: staging is public by owner decision (14 September 2026). Needed only if staging is closed again, then held in the approved password manager", "Business and Systems lead", "Closed-mode staging access only"],
         ["Google Workspace sending credentials", "Workspace admin console and the Worker secret store", "Business and Systems lead", "Customer email"],
         ["Shippo API key", "Shippo dashboard and the Worker secret store", "Business and Systems lead", "Rates, labels, tracking"],
         ["Payment provider credentials", "Provider dashboard and the Worker secret store", "Business and Systems lead with banking owner approval", "Checkout and refunds"],

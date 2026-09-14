@@ -1,4 +1,5 @@
-# Push to main → checks and build → migrate the staging database → deploy the built worker → smoke test.
+# Push to main → checks and build → migrate the staging database → deploy the built worker → smoke test
+# → prove the staging access boundary.
 # Needs repository secrets CLOUDFLARE_API_TOKEN (Workers, D1, R2 edit) and CLOUDFLARE_ACCOUNT_ID, and the
 # repository variable STAGING_URL (the staging worker's public origin, matching PUBLIC_ORIGIN in wrangler.jsonc env.staging).
 name: Deploy staging
@@ -53,6 +54,22 @@ jobs:
         # Before the database is touched, not after: if the build carries the production name,
         # database or bucket, this job must stop while everything is still reversible.
         run: node scripts/deploy-guard.mjs staging
+      - name: Access mode must come from the configuration, not a Worker secret
+        # The owner chose public staging on 14 September 2026 and wrangler.jsonc env.staging declares it
+        # (STAGING_ACCESS_OPEN), where it is reviewed and where the last step reads it. A Worker secret of
+        # that name cannot be read back by anyone, so it would decide the mode where nobody can see it.
+        # Refuse while everything is still reversible.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          secrets=$(npx wrangler secret list --env staging) || { echo "could not list the staging worker's secrets"; exit 1; }
+          if printf '%s' "$secrets" | grep -q 'STAGING_ACCESS_OPEN'; then
+            echo "STAGING_ACCESS_OPEN is set as a Worker secret on staging, but the access mode is declared in wrangler.jsonc."
+            echo "Delete the secret, then re-run this job:  npx wrangler secret delete STAGING_ACCESS_OPEN --env staging"
+            echo "Until the deploy completes, staging refuses every request with 503: the gate fails closed without it."
+            exit 1
+          fi
       - name: Apply migrations (staging D1)
         # Migrations are backwards-compatible by convention (docs/DEPLOY.md), so the running worker
         # keeps working during the seconds between this step and the deploy.
@@ -83,26 +100,12 @@ jobs:
             sleep 10
           done
           echo "staging did not report healthy at $STAGING_URL/api/health"; exit 1
-      - name: Verify the approved staging public/private boundary
-        # Public staging is intentional for review, but it must remain unindexable. Staff pages
-        # and private management APIs still require the application's own authentication.
+      - name: Staging access boundary (public storefront; staff area and private APIs behind their logins)
+        # 16.3, then the owner's decision of 14 September 2026. The mode comes from the configuration that was
+        # just deployed, never from what the server answers. Open mode: public pages answer 200 with noindex,
+        # staff pages redirect to staff sign-in, private APIs answer 401. Closed mode: the password challenge on
+        # every path. Any other answer is a failed deploy, not a warning. tests/staging-access-check.test.ts
+        # proves both.
         env:
           STAGING_URL: ${{ vars.STAGING_URL }}
-        run: |
-          public_code=$(curl -s -o /dev/null -w '%{http_code}' "$STAGING_URL/")
-          test "$public_code" = "200" || {
-            echo "public staging home answered $public_code instead of 200"; exit 1; }
-          curl -sI "$STAGING_URL/" | grep -qi '^x-robots-tag: *noindex' || {
-            echo "the staging origin is missing X-Robots-Tag: noindex"; exit 1; }
-
-          staff_headers=$(curl -sI "$STAGING_URL/manage")
-          echo "$staff_headers" | grep -Eq '^HTTP/[^ ]+ 30[2378]' || {
-            echo "anonymous staff request did not redirect to sign-in"; exit 1; }
-          echo "$staff_headers" | grep -qi '^location: */staff/sign-in' || {
-            echo "anonymous staff redirect did not target /staff/sign-in"; exit 1; }
-
-          private_code=$(curl -s -o /dev/null -w '%{http_code}' \
-            -X POST -H "Origin: $STAGING_URL" "$STAGING_URL/api/manage/notifications")
-          test "$private_code" = "401" || {
-            echo "private management API answered $private_code instead of 401 anonymously"; exit 1; }
-          echo "staging public pages are open and unindexable; staff surfaces remain protected"
+        run: node scripts/staging-access-check.mjs "$STAGING_URL" dist/server/wrangler.json

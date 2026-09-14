@@ -47,6 +47,7 @@ npx wrangler secret list --env staging
 
 | Secret | Purpose | Environment |
 | --- | --- | --- |
+| `STAGING_ACCESS_PASSWORD` | Basic-auth password for a closed staging storefront. **Not set:** staging has been public by the owner's decision since 14 September 2026 (`STAGING_ACCESS_OPEN` in `wrangler.jsonc`). Needed only if staging is closed again, and then shared with testers through the approved password manager | staging, closed mode only (a closed staging without it refuses every request) |
 | `SHIPPO_API_KEY` | Rates, labels, tracking | both |
 | `SHIPPO_WEBHOOK_TOKEN` | Secret URL token Shippo presents to the webhook | both |
 | `SHIPPO_FROM_JSON`, `SHIPPO_ORIGINS_JSON` | Private ship-from contacts | both |
@@ -55,9 +56,6 @@ npx wrangler secret list --env staging
 | `RESEND_API_KEY` | Alternative mail provider | both |
 | `PAYMENT_BANK_INSTRUCTIONS` | Bank remittance text shown to a customer | production |
 | `ZELLE_GMAIL_OAUTH_CLIENT_SECRET`, `ZELLE_GMAIL_OAUTH_REFRESH_TOKEN` | Dedicated read-only Gmail authorization for Chase Zelle receipts | production |
-
-Public staging access was approved on 14 September 2026. `STAGING_ACCESS_PASSWORD` is retired; public
-responses remain unindexable, while staff pages and private APIs use application authentication.
 | `BTCPAY_API_KEY`, `BTCPAY_WEBHOOK_SECRET` | Bitcoin checkout and settlement | production |
 | `DIGEST_TOKEN` | Bearer token an external scheduler presents to `/api/digest` | both |
 | `CHATGPT_FEEDBACK_READ_TOKEN` | Read-only feedback archive API | both |
@@ -65,6 +63,8 @@ responses remain unindexable, while staff pages and private APIs use application
 
 Everything else in `db/env.d.ts` is a non-secret variable and lives in `wrangler.jsonc`
 (`APP_ENV`, `PUBLIC_ORIGIN`, feature switches, shipping and tax configuration, sender addresses).
+`STAGING_ACCESS_OPEN` is one of those switches, not a credential: it is declared in `wrangler.jsonc` so
+the staging deploy can read it, and must never be set as a Worker secret.
 `.dev.vars` holds local development values only and is git-ignored; it is not a place to keep a
 production credential.
 

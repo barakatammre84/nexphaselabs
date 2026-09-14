@@ -77,6 +77,12 @@
       "vars": {
         "APP_ENV": "staging",
         "OPEN_CHECKOUT_ENABLED": "true",
+        // Public staging, by the owner's decision of 14 September 2026: storefront pages are open to
+        // anonymous visitors and carry noindex, while staff pages and private APIs keep their own logins.
+        // Declared here and never as a Worker secret, so the choice is reviewed and the deploy's last step
+        // (scripts/staging-access-check.mjs) knows which boundary to prove. Without this line staging is
+        // closed again: it needs STAGING_ACCESS_PASSWORD, and refuses everyone until that is set.
+        "STAGING_ACCESS_OPEN": "true",
         // Real staging origin on the account's workers.dev subdomain. Keep the STAGING_URL repository
         // variable identical; staging email links and payment return URLs are built from this.
         "PUBLIC_ORIGIN": "https://nexphaselabs-staging.ammre.workers.dev",

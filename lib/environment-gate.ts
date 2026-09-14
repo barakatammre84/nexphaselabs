@@ -1,28 +1,36 @@
 /**
  * Non-production access gate.
  *
- * Staging holds the real schema, a working checkout, and — until 12 September
- * 2026 — a publicly readable lot record with a fabricated manufacturer. It must
- * not be browsable by anyone who finds the URL, and it must never be indexed.
+ * Staging holds the real schema and a working checkout. On 12 September 2026 it
+ * was browsable by anyone with the URL, serving a lot record with a fabricated
+ * manufacturer, because this gate failed open (16.3). On 14 September 2026 the
+ * owner chose public staging on purpose. What separates the two is whether the
+ * choice is written down where a deploy can check it.
  *
- *  - A deployed non-production environment (APP_ENV=staging, or any named
- *    environment that is neither production nor a local one) requires HTTP Basic
- *    auth: any username, STAGING_ACCESS_PASSWORD as the password. Browsers
- *    remember it for the session, so the team types it once.
- *  - Without that secret the gate FAILS CLOSED with 503 and a message naming the
- *    missing variable. It used to fail open with a console warning; nobody reads
- *    an isolate's console, and the result was 16.3 — a public storefront serving
- *    fabricated manufacturer data. A missing secret is now a broken deploy, which
- *    is loud, rather than an open shop, which is silent.
- *  - STAGING_ACCESS_OPEN=true deliberately opens it again. It is a stated choice
- *    that sits in the configuration where it can be read, not a default.
+ *  - Closed mode, the default for a deployed non-production environment
+ *    (APP_ENV=staging, or any named environment that is neither production nor a
+ *    local one), requires HTTP Basic auth: any username, STAGING_ACCESS_PASSWORD
+ *    as the password. Browsers remember it for the session, so the team types it
+ *    once.
+ *  - Without that secret a closed environment FAILS CLOSED with 503 and a message
+ *    naming the missing variable. It used to fail open with a console warning;
+ *    nobody reads an isolate's console, and the result was 16.3. A missing secret
+ *    is a broken deploy, which is loud, rather than an open shop, which is silent.
+ *  - Open mode is STAGING_ACCESS_OPEN=true, exactly that string, and staging runs
+ *    in it by the owner's decision. It is declared in wrangler.jsonc, where it is
+ *    reviewed and where the deploy's last step (scripts/staging-access-check.mjs)
+ *    reads it, and never set as a Worker secret, which nobody can read back. Open
+ *    mode opens the storefront only: /manage and the private APIs keep their own
+ *    logins, and that deploy step fails if either answers a stranger.
  *  - Local development (APP_ENV development/test, or unset — the same default
  *    lib/site-config.ts uses) is never gated. It is not reachable from outside.
  *  - Provider webhooks and the health check are exempt: Shippo and BTCPay cannot
  *    authenticate with a browser password and are already token-gated, and the
  *    deploy smoke test has to reach health on a worker whose secret is missing.
  *
- * The noindex header applies to every non-production response either way.
+ * worker.ts marks every non-production answer it renders noindex, in either mode.
+ * The hashed /_next/static bundles it hands straight back to the asset store are
+ * the one exception; robots.txt disallows the whole origin regardless.
  */
 
 const EXEMPT_PREFIXES = [
