@@ -67,6 +67,7 @@ describe('environment safety', () => {
         currency: 'USD',
         memo: 'TEST-NX-260914-0001',
         qrImagePath: null,
+        simulated: true,
       },
     });
     const rendered = JSON.stringify(instructions);

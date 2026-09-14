@@ -55,6 +55,7 @@ export function ZellePaymentPanel({
     currency: string;
     memo: string;
     qrImagePath: string | null;
+    simulated?: boolean;
   };
   claimAction: string;
   claimedAt: string | null;
@@ -63,17 +64,20 @@ export function ZellePaymentPanel({
     style: 'currency',
     currency: details.currency,
   }).format(details.amountCents / 100);
+  const simulated = details.simulated === true;
   return (
     <section className="mt-10 overflow-hidden border border-border bg-secondary" aria-labelledby="zelle-heading">
       <div className="border-b border-border bg-primary px-6 py-5 text-primary-foreground">
         <div className="flex items-center gap-3">
           <Landmark className="size-5" />
           <h2 id="zelle-heading" className="font-display text-xl font-bold tracking-tight">
-            Pay with Zelle
+            {simulated ? 'Zelle checkout rehearsal' : 'Pay with Zelle'}
           </h2>
         </div>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-primary-foreground/85">
-          Use these exact details in your bank. We begin preparation after the Chase receipt is matched.
+          {simulated
+            ? 'Test only. Do not open your bank or send money. These fake details exercise the customer claim and staff review workflow.'
+            : 'Use these exact details in your bank. We begin preparation after the Chase receipt is matched.'}
         </p>
       </div>
       <div className="grid gap-0 md:grid-cols-[1fr_220px]">
@@ -99,12 +103,18 @@ export function ZellePaymentPanel({
             </div>
           ) : (
             <div className="flex aspect-square items-center justify-center border border-dashed border-border p-5 text-center text-xs leading-5 text-muted-foreground">
-              Open Zelle in your bank and enter the email shown here.
+              {simulated
+                ? 'No bank action is needed. Continue below to create a test payment claim.'
+                : 'Open Zelle in your bank and enter the email shown here.'}
             </div>
           )}
           <p className="mt-4 flex gap-2 text-xs leading-5 text-muted-foreground">
             <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-            Confirm your bank shows <strong className="text-foreground">{details.recipientName}</strong> before sending.
+            {simulated ? (
+              <>The recipient and memo are deliberately fake. No money moves.</>
+            ) : (
+              <>Confirm your bank shows <strong className="text-foreground">{details.recipientName}</strong> before sending.</>
+            )}
           </p>
         </aside>
       </div>
@@ -113,9 +123,13 @@ export function ZellePaymentPanel({
           <div role="status" className="flex gap-3">
             <Clock3 className="mt-0.5 size-5 shrink-0 text-primary" />
             <div>
-              <p className="font-semibold">Payment reported sent</p>
+              <p className="font-semibold">
+                {simulated ? 'Test payment claim recorded' : 'Payment reported sent'}
+              </p>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                We are checking Chase for this exact payment. Do not send it again. Confirmation usually appears within five minutes; a mismatch is reviewed by our team.
+                {simulated
+                  ? 'The order remains unpaid until a staff member reviews and records the simulated payment.'
+                  : 'We are checking Chase for this exact payment. Do not send it again. Confirmation usually appears within five minutes; a mismatch is reviewed by our team.'}
               </p>
             </div>
           </div>
@@ -131,12 +145,14 @@ export function ZellePaymentPanel({
               />
             </label>
             <button type="submit" className="action-primary min-h-11">
-              I sent this Zelle payment
+              {simulated ? 'Report simulated Zelle payment' : 'I sent this Zelle payment'}
             </button>
           </form>
         )}
         <p className="mt-4 text-xs leading-5 text-muted-foreground">
-          This button asks us to check the bank; it does not mark the order paid. Zelle payments are generally final and do not include purchase protection.
+          {simulated
+            ? 'This creates test evidence for staff review. It never checks Chase or marks the order paid.'
+            : 'This button asks us to check the bank; it does not mark the order paid. Zelle payments are generally final and do not include purchase protection.'}
         </p>
       </div>
     </section>

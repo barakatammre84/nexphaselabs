@@ -45,6 +45,7 @@ export type PaymentInstructions = {
     currency: string;
     memo: string;
     qrImagePath: string | null;
+    simulated?: boolean;
   };
 };
 
@@ -252,6 +253,7 @@ const testZelle: PaymentMethod = {
         currency: order.currency,
         memo: `TEST-${order.orderNumber}`,
         qrImagePath: null,
+        simulated: true,
       },
     };
   },
