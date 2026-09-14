@@ -148,6 +148,17 @@ describe('staging access boundary check', { timeout: 30_000 }, () => {
       expect(result.output).not.toContain('BAD');
     });
 
+    it('still fails a path that keeps answering 503 once the bounded wait is over', async () => {
+      // the wait above is for draining isolates only; a worker that stays fail-closed is a failed deploy
+      staging = worker(
+        { open: true },
+        { '/api/orders/NX-00000/invoice': () => new Response('Staging access is not configured.', { status: 503 }) },
+      );
+      const result = await check([origin, openBuild()]);
+      expect(result.code).toBe(1);
+      expect(result.output).toMatch(/BAD private\s+\/api\/orders\/NX-00000\/invoice\s+503, expected 401/);
+    });
+
     it('fails the deploy when a staff page renders for a stranger', async () => {
       staging = worker({ open: true }, { '/manage/orders': page('<table>orders</table>') });
       const result = await check([origin, openBuild()]);
