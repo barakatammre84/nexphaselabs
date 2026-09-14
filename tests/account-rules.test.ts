@@ -17,6 +17,7 @@ const good = {
   tier: 'institutional',
   acceptTerms: true,
   acceptRuo: true,
+  acceptAge: true,
 };
 
 describe('validateSignUp', () => {
@@ -42,8 +43,10 @@ describe('validateSignUp', () => {
     expect(validateSignUp({ ...good, tier: 'researcher', email: 'ada@gmail.com' }, true).ok).toBe(true);
   });
 
-  it('requires both acknowledgements, a name, and a 12+ character password', () => {
+  it('requires both acknowledgements, the age statement, a name, and a 12+ character password', () => {
     expect(validateSignUp({ ...good, acceptRuo: false }, false).ok).toBe(false);
+    expect(validateSignUp({ ...good, acceptAge: false }, false).ok).toBe(false);
+    expect(validateSignUp({ ...good, acceptAge: undefined }, false).ok).toBe(false);
     expect(validateSignUp({ ...good, acceptTerms: false }, false).ok).toBe(false);
     expect(validateSignUp({ ...good, name: 'A' }, false).ok).toBe(false);
     expect(validateSignUp({ ...good, password: 'short' }, false).ok).toBe(false);

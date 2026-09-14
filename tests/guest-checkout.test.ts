@@ -44,6 +44,7 @@ const fields = {
   country: 'US',
   phone: '',
   confirm_ruo: 'on',
+  confirm_age: 'on',
   token: 'a'.repeat(32),
 };
 const form = (values: Record<string, string>) => {
@@ -154,12 +155,22 @@ describe('guest purchase end to end', () => {
         request('/', cookie.replace('nx_guest=', 'nx_account=')),
       ),
     ).toBeNull();
+    // The age statement is a required box in its own right: without it the order is refused
+    // with a message, and nothing is written.
+    const { confirm_age: _omitted, ...withoutAge } = fields;
+    const refused = await submit(request('/api/orders', cookie, withoutAge));
+    expect(refused.status).toBe(303);
+    expect(decodeURIComponent(refused.headers.get('location')!)).toContain('21 years of age');
+    expect(count('orders')).toBe(0);
     const submitted = await submit(request('/api/orders', cookie, fields));
     const location = new URL(submitted.headers.get('location')!);
     const number = location.pathname.split('/').at(-1)!;
     expect(location.pathname).toMatch(/^\/account\/orders\/NX-/);
     const detail = (await getOrderForAccount(buyer.id, number))!;
     expect(detail.order.totalCents).toBe(250);
+    expect(
+      local.sqlite.prepare('SELECT age_confirmed AS a, ruo_version AS v FROM orders').get()!,
+    ).toEqual({ a: 1, v: '2026-09-14' });
     expect(detail.order.contactEmail).toBe(fields.email);
     expect(detail.order.organizationId).toBeNull();
     expect(count('cart_items')).toBe(0);

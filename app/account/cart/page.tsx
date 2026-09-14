@@ -11,7 +11,7 @@ import { listAddresses } from '@/lib/account-addresses';
 import { loadCatalog } from '@/lib/catalog-data';
 import { MAX_LINE_QUANTITY } from '@/lib/order-rules';
 import { getOrganizationForAccount } from '@/lib/organizations';
-import { RUO_ACKNOWLEDGEMENT } from '@/lib/policy';
+import { AGE_STATEMENT, RUO_ACKNOWLEDGEMENT } from '@/lib/policy';
 import { currentViewer } from '@/lib/visibility';
 import { formatCents } from '@/lib/visibility-rules';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
@@ -204,6 +204,7 @@ export default async function CartPage({ searchParams }: Props) {
                 subtotalCents={cart.subtotalCents}
                 token={crypto.randomUUID().replace(/-/g, '')}
                 acknowledgement={RUO_ACKNOWLEDGEMENT}
+                ageStatement={AGE_STATEMENT}
                 email={account?.status === 'guest' ? '' : account?.email}
                 name={account?.status === 'guest' ? '' : account?.name}
                 quoteRequired={checkoutQuotesRequired()}
@@ -289,6 +290,10 @@ export default async function CartPage({ searchParams }: Props) {
                 <p className="mt-5 border-l-2 border-primary bg-background px-4 py-3 text-sm leading-6">
                   {RUO_ACKNOWLEDGEMENT}
                 </p>
+                <label className="mt-3 flex items-start gap-3 text-sm">
+                  <input type="checkbox" name="confirm_age" required className="mt-1" />
+                  <span>{AGE_STATEMENT}</span>
+                </label>
                 <label className="mt-3 flex items-start gap-3 text-sm">
                   <input
                     type="checkbox"

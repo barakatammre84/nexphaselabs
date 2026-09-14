@@ -21,6 +21,7 @@ declare namespace Cloudflare {
     OPEN_CHECKOUT_ENABLED?: string;
     /** Basic-auth password for a deployed non-production storefront. Unset = the environment refuses every request with 503. */
     STAGING_ACCESS_PASSWORD?: string;
+    POLICIES_COUNSEL_REVIEWED?: string;
     /** "true" deliberately opens a deployed non-production storefront to anyone. A stated choice, never a default. */
     STAGING_ACCESS_OPEN?: string;
     SHIPPING_PROVIDER?: string;
@@ -71,6 +72,23 @@ declare namespace Cloudflare {
     TEST_EMAIL_ALLOWLIST?: string;
     /** Bank transfer remittance text (bank name, account, routing, SWIFT). Set as a secret. */
     PAYMENT_BANK_INSTRUCTIONS?: string;
+    /** disabled | manual | shadow | supervised | automatic. Only production can expose live Zelle instructions. */
+    ZELLE_MODE?: string;
+    /** Zelle identity enrolled at Chase. Defaults to orders@nexphaselabs.net when unset. */
+    ZELLE_RECIPIENT_EMAIL?: string;
+    /** Exact business name Chase shows a sender before they confirm payment. */
+    ZELLE_RECIPIENT_NAME?: string;
+    /** Optional site-local path to the official Chase-exported QR image. */
+    ZELLE_QR_IMAGE_PATH?: string;
+    /** Licensed Workspace mailbox that receives the orders@ alias. */
+    ZELLE_GMAIL_MAILBOX?: string;
+    /** Exact comma-separated Chase sender addresses observed in real receipt messages. */
+    ZELLE_CHASE_SENDERS?: string;
+    /** Separate read-only Gmail refresh token. Never reuse the send-only token. */
+    ZELLE_GMAIL_OAUTH_REFRESH_TOKEN?: string;
+    /** Optional dedicated OAuth client; falls back to the transactional-mail client id/secret. */
+    ZELLE_GMAIL_OAUTH_CLIENT_ID?: string;
+    ZELLE_GMAIL_OAUTH_CLIENT_SECRET?: string;
     /** BTCPay Server (self-hosted). All four set → Bitcoin checkout is offered; the webhook secret is required so settlement can complete. */
     BTCPAY_HOST?: string;
     BTCPAY_STORE_ID?: string;

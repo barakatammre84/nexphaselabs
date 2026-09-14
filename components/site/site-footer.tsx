@@ -28,10 +28,11 @@ const staticColumns = [
     heading: 'Legal',
     links: [
       { href: '/legal/terms', label: 'Terms of sale' },
+      { href: '/legal/research-use', label: 'Research-use policy' },
       { href: '/legal/shipping', label: 'Shipping policy' },
-      { href: '/legal/returns', label: 'Returns policy' },
+      { href: '/legal/returns', label: 'Returns & refunds' },
       { href: '/legal/privacy', label: 'Privacy policy' },
-      { href: '/legal/terms#research-use', label: 'Research-use policy' },
+      { href: '/legal/compliance', label: 'Compliance & disclosures' },
     ],
   },
 ];

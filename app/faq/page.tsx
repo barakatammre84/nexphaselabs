@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { openCheckoutEnabled } from '@/lib/site-config';
+import { appEnv, openCheckoutEnabled } from '@/lib/site-config';
+import { MINIMUM_AGE, SHIPPING_CUTOFF } from '@/lib/policy';
+import { SUPPORT } from '@/lib/support';
 import { ArrowRight } from 'lucide-react';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
 import { FaqExplorer } from '@/components/site/faq-explorer';
@@ -8,120 +10,159 @@ import { FaqExplorer } from '@/components/site/faq-explorer';
 export const metadata: Metadata = {
   title: 'FAQ',
   description:
-    'Common questions about NexPhase Labs research accounts, documentation, specifications, storage, and the research-use boundary.',
+    'Common questions about ordering from NexPhase Labs, lot documentation, shipping, returns, and the research-use boundary.',
 };
 
-const sections = [
-  {
-    heading: 'Access and ordering',
-    items: [
-      {
-        q: 'Can an individual order from NexPhase Labs?',
-        a: 'No. Materials are supplied to qualified organizations only. Requests from individuals, and requests shipping to residential addresses, are declined.',
-      },
-      {
-        q: 'How long does account review take?',
-        a: 'A complete request is usually decided within two business days. Incomplete requests are the main cause of delay, so send everything listed on the research access page in the first message.',
-      },
-      {
-        q: 'Why is pricing not shown publicly?',
-        a: 'Pricing and current lot availability are shown to verified accounts. Specifications, storage conditions, and the documentation package are public so a laboratory can evaluate fit before requesting an account.',
-      },
-      {
-        q: 'Can an account be declined or closed?',
-        a: 'Yes. Approval is conditional on research use. NexPhase Labs may decline a request or close an account at any time, including where intended use falls outside the research-use policy.',
-      },
-    ],
-  },
-  {
-    heading: 'Documentation and quality',
-    items: [
-      {
-        q: 'What documentation ships with an order?',
-        a: 'A certificate of analysis for the specific lot, the HPLC purity chromatogram, mass spectrometry identity confirmation, and the lot number and manufacture date. Storage and handling guidance is packed with the shipment.',
-      },
-      {
-        q: 'Why do the catalog pages not list a purity percentage?',
-        a: 'Purity is a property of a lot, not of a product line. Publishing a single figure for every lot of a material would be misleading, so purity is reported on the certificate issued for the lot you receive.',
-      },
-      {
-        q: 'Can a certificate be reviewed before ordering?',
-        a: 'Yes. Verified accounts can request the certificate for the current lot before placing an order.',
-      },
-      {
-        q: 'What happens if the paperwork and the vial do not agree?',
-        a: 'Stop and contact us before using the material. A mismatch between the label and the certificate is treated as a hold on that lot.',
-      },
-    ],
-  },
-  {
-    heading: 'Handling and shipping',
-    items: [
-      {
-        q: 'How should material be stored on arrival?',
-        a: 'Follow the conditions on the catalog page for that material and on the sheet packed with the shipment. Most lyophilized materials are held at -20 °C, protected from light. Solubility in laboratory solvents is published per material where a supplier has published it.',
-      },
-      {
-        q: 'Is cold-chain shipping available?',
-        a: 'Yes. Some materials ship cold-chain by default and it is available on request for others. The catalog page for each material states which applies.',
-      },
-      {
-        q: 'Does NexPhase Labs ship internationally?',
-        a: 'Shipping is currently within the United States. Requests from outside the United States are reviewed case by case and may not be possible depending on the destination.',
-      },
-    ],
-  },
-  {
-    heading: 'Research use',
-    items: [
-      {
-        q: 'Can these materials be used in or on people or animals?',
-        a: 'No. Every material is supplied for laboratory research use only. They are not for human or veterinary use, not for clinical or diagnostic procedures, and not for consumption.',
-      },
-      {
-        q: 'Will NexPhase Labs advise on dosing or administration?',
-        a: 'No. We do not provide dosing guidance, administration protocols, or medical advice of any kind, and we cannot make exceptions to this.',
-      },
-      {
-        q: 'Are these products approved by the FDA?',
-        a: 'No. These are not drugs, medicines, dietary supplements, cosmetics, food, or consumer products, and no statement on this site has been evaluated by the Food and Drug Administration.',
-      },
-      {
-        q: 'Who is responsible for compliance?',
-        a: 'The purchasing organization is responsible for compliance with all applicable federal, state, and local law, and for the safe handling, use, and disposal of every material received.',
-      },
-    ],
-  },
-];
+type Section = { heading: string; items: { q: string; a: string }[] };
+
+const ordering: Section = {
+  heading: 'Ordering',
+  items: [
+    {
+      q: 'Do I need an account to order?',
+      a: 'No. Add a pack size to your cart and check out as a guest. An account is optional; it keeps your orders, addresses and the certificates that shipped with each order in one place. Either way you confirm the age statement and the research-use acknowledgement at checkout.',
+    },
+    {
+      q: 'Who can order?',
+      a: `Anyone who is at least ${MINIMUM_AGE} years of age, is buying for laboratory research — independently or for an organization — and has the training and facilities to handle research materials safely. Orders ship to street addresses in the United States, including home laboratories.`,
+    },
+    {
+      q: 'Which payment methods do you accept?',
+      a: 'The payment methods available are shown at checkout before you pay. Never send money to an address or account that was not shown to you on the checkout page.',
+    },
+    {
+      q: 'Can an order be refused?',
+      a: 'Yes. Every order is checked before it is picked. An order that indicates a use outside laboratory research is cancelled and refunded in full, and the account is closed.',
+    },
+    {
+      q: 'How do I see my order again?',
+      a: 'With an account, open Your orders. As a guest, use Your orders in the same browser used at checkout; your private guest session lasts 30 days. Keep your order number for support.',
+    },
+    {
+      q: 'Why can’t I add a particular pack size?',
+      a: 'A pack size can only be ordered when it has a published price and a released lot with its certificate on file. If a pack size is unavailable, contact support and we will tell you when it is expected.',
+    },
+  ],
+};
+
+const documentation: Section = {
+  heading: 'Documentation and quality',
+  items: [
+    {
+      q: 'What documentation ships with an order?',
+      a: 'The certificate of analysis for the specific lot supplied, which names the testing laboratory, the method and the results, together with a packing slip listing every lot number. The same certificate is pinned to your order page, and any lot we have sold can be looked up by lot number.',
+    },
+    {
+      q: 'Why do the catalog pages not list a purity percentage?',
+      a: 'Purity is a property of a lot, not of a product line. Publishing one figure for every lot of a material would be misleading, so purity is reported on the certificate issued for the lot you receive.',
+    },
+    {
+      q: 'Can I see a certificate before ordering?',
+      a: 'Yes. Released lots can be looked up by lot number on the lot lookup page, and the certificate opens from there. If the product page does not show which lot is currently shipping, ask support for the lot number.',
+    },
+    {
+      q: 'What happens if the paperwork and the vial do not agree?',
+      a: 'Stop and contact us before using the material. A mismatch between the label and the certificate puts that lot on hold while it is checked, and the line is replaced or refunded.',
+    },
+  ],
+};
+
+const shipping: Section = {
+  heading: 'Shipping and returns',
+  items: [
+    {
+      q: 'Where do you ship?',
+      a: 'To street addresses in the United States, residential or business. We do not ship to PO boxes, mailbox services, freight forwarders or addresses outside the United States.',
+    },
+    {
+      q: 'When will my order ship?',
+      a: `Orders paid before ${SHIPPING_CUTOFF} on a business day ship the same day; later orders ship the next business day. Temperature-sensitive material may be held to the next business day around a weekend or holiday. Tracking is emailed when the parcel is handed to the carrier.`,
+    },
+    {
+      q: 'How is cold material shipped?',
+      a: 'In an insulated shipper with ice packs, with the storage condition stated on the catalog page and the packing slip. Move material to its storage condition as soon as it arrives.',
+    },
+    {
+      q: 'What is your returns policy?',
+      a: 'Unopened, sealed material can be returned within 30 days of delivery with a return authorization from us; you pay the return shipping unless the return is our error. Damaged, missing or wrong items should be reported within 48 hours with photographs and are replaced or refunded. Returned material is never restocked.',
+    },
+    {
+      q: 'How long does a refund take?',
+      a: 'Five to seven business days from when we inspect the returned parcel, paid back to the payment method used for the order. Your bank may take a few more days to show it.',
+    },
+  ],
+};
+
+const researchUse: Section = {
+  heading: 'Research use',
+  items: [
+    {
+      q: 'Can these materials be used in or on people or animals?',
+      a: 'No. Every material is supplied for laboratory research use only. They are not for human or veterinary use, not for clinical or diagnostic procedures, and not for consumption.',
+    },
+    {
+      q: 'Will you advise on dosing, reconstitution or administration?',
+      a: 'No. We do not provide dosing guidance, administration protocols, or medical advice of any kind, and there are no exceptions. Support answers questions about orders, lots, documentation, storage and shipping only.',
+    },
+    {
+      q: 'What happens if I ask anyway?',
+      a: 'The question is declined with a short reply. Repeated questions of that kind, or anything that indicates a use outside laboratory research, close the account.',
+    },
+    {
+      q: 'Are these products approved by the FDA?',
+      a: 'No. These are research chemicals, not drugs, medicines, dietary supplements, cosmetics, food or consumer products, and no statement on this site has been evaluated by the Food and Drug Administration.',
+    },
+    {
+      q: 'Why do you ask my age?',
+      a: `Research materials are sold to adults. You confirm that you are at least ${MINIMUM_AGE} when you enter the site, when you create an account and at every checkout, and the confirmation is recorded against the order.`,
+    },
+    {
+      q: 'Who is responsible for compliance?',
+      a: 'The purchaser is responsible for compliance with all applicable federal, state and local law, and for the safe handling, storage, use and disposal of every material received.',
+    },
+  ],
+};
+
+const institutionalAccess: Section = {
+  heading: 'Access and ordering',
+  items: [
+    {
+      q: 'Can an individual order from NexPhase Labs?',
+      a: 'Not yet. Materials are currently supplied to organizations while the storefront is prepared; request access from the research access page.',
+    },
+    {
+      q: 'How long does account review take?',
+      a: 'A complete request is usually decided within two business days. Incomplete requests are the main cause of delay, so send everything listed on the research access page in the first message.',
+    },
+    {
+      q: 'Can an account be declined or closed?',
+      a: 'Yes. Approval is conditional on research use. NexPhase Labs may decline a request or close an account at any time, including where intended use falls outside the research-use policy.',
+    },
+  ],
+};
 
 export default function FaqPage() {
   const open = openCheckoutEnabled();
-  const displayedSections = open
+  const testEnvironment = appEnv() !== 'production';
+  const sections: Section[] = open
     ? [
-        {
-          heading: 'Ordering and guest checkout',
-          items: [
-            {
-              q: 'Do I need an account or approval to order?',
-              a: 'No. Add a pack size to your cart and check out as a guest. There is no email verification or organization approval step. Research-use conditions still apply.',
-            },
-            {
-              q: 'How do I see my order again?',
-              a: 'Use Your orders in the same browser used at checkout. Your private guest session lasts 30 days. Save your order number for support; entering an email does not create an account.',
-            },
-            {
-              q: 'Will a staging purchase charge me?',
-              a: 'No. Staging uses clearly labeled simulated payments. Never send money for a staging order.',
-            },
-            {
-              q: 'Why can’t I add a particular pack size?',
-              a: 'A pack size needs a published price and a released lot before it can be ordered. Contact support if either is unavailable.',
-            },
-          ],
-        },
-        ...sections.slice(1),
+        testEnvironment
+          ? {
+              ...ordering,
+              items: [
+                ...ordering.items,
+                {
+                  q: 'Will a test-environment purchase charge me?',
+                  a: 'No. This environment uses clearly labeled simulated payments. Never send money for an order placed here.',
+                },
+              ],
+            }
+          : ordering,
+        documentation,
+        shipping,
+        researchUse,
       ]
-    : sections;
+    : [institutionalAccess, documentation, shipping, researchUse];
   return (
     <main className="bg-background text-foreground">
       <section className="mx-auto max-w-[1280px] px-4 pb-8 pt-3 sm:px-6">
@@ -133,26 +174,13 @@ export default function FaqPage() {
             How can we help?
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-white/72">
-            Find quick answers about products, batch documentation, ordering,
-            shipping, and your NexPhase account.
+            Quick answers about ordering, lot documentation, shipping, returns and the research-use boundary.
           </p>
         </div>
       </section>
 
       <section className="mx-auto max-w-[1080px] px-4 py-10 sm:px-6">
-        <FaqExplorer
-          sections={displayedSections.map((section) => ({
-            ...section,
-            items: section.items.map((item) => ({
-              ...item,
-              a: open
-                ? item.a
-                    .replace('Verified accounts can request', 'You can request')
-                    .replace('purchasing organization', 'purchaser')
-                : item.a,
-            })),
-          }))}
-        />
+        <FaqExplorer sections={sections} />
       </section>
 
       <section className="mx-auto max-w-[1080px] px-4 pb-20 sm:px-6">
@@ -160,9 +188,14 @@ export default function FaqPage() {
           <div>
             <p className="ion-kicker">Need a person?</p>
             <h2 className="ion-heading mt-4 text-3xl">Get help from NexPhase support.</h2>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              {SUPPORT.hours}. First reply {SUPPORT.firstReply}.
+            </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <a href="mailto:research@nexphaselabs.net" className="action-primary">Contact support</a>
+            <Link href="/contact" className="action-primary">
+              Contact support
+            </Link>
             <Link href={open ? '/catalog' : '/access'} className="action-secondary gap-2">
               {open ? 'Shop products' : 'Request access'} <ArrowRight className="size-4" />
             </Link>

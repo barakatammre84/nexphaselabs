@@ -61,7 +61,7 @@ export async function recordAcknowledgements(accountId: string, userAgent: strin
     db.insert(accountAcknowledgements).values(acknowledgementRows(accountId, now, userAgent)),
     db
       .update(accounts)
-      .set({ termsAcceptedAt: now, termsVersion: TERMS_VERSION, ruoAcceptedAt: now, ruoVersion: RUO_VERSION, updatedAt: now })
+      .set({ termsAcceptedAt: now, termsVersion: TERMS_VERSION, ruoAcceptedAt: now, ruoVersion: RUO_VERSION, ageConfirmedAt: now, updatedAt: now })
       .where(eq(accounts.id, accountId)),
   ]);
 }
@@ -77,7 +77,7 @@ function id(prefix: string): string {
 export type SignUpResult = { ok: true; accountId: string; emailSent: boolean } | { ok: false; reason: 'exists' | 'email' };
 
 export async function signUp(
-  input: { name: string; email: string; password: string; tier: AccountTier; researchSetting?: string | null },
+  input: { name: string; email: string; password: string; tier: AccountTier; researchSetting?: string | null; ageConfirmed?: boolean },
   userAgent: string | null,
 ): Promise<SignUpResult> {
   const db = getDb();
@@ -113,6 +113,7 @@ export async function signUp(
         passwordHash,
         tier: input.tier,
         researchSetting: input.researchSetting ?? null,
+        ageConfirmedAt: input.ageConfirmed ? now : null,
         status: 'pending_email',
         termsAcceptedAt: now,
         termsVersion: TERMS_VERSION,

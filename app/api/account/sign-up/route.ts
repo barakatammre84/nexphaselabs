@@ -28,6 +28,7 @@ export async function POST(request: Request) {
     researchSetting: field('research_setting'),
     acceptTerms: form.get('accept_terms') === 'on',
     acceptRuo: form.get('accept_ruo') === 'on',
+    acceptAge: form.get('accept_age') === 'on',
   };
 
   const back = (params: Record<string, string>) => {

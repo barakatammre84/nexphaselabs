@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { AlertCircle } from 'lucide-react';
 import { getAccount } from '@/lib/account-auth';
 import { AccessProgress } from '@/components/site/access-progress';
-import { RUO_ACKNOWLEDGEMENT } from '@/lib/policy';
+import { AGE_STATEMENT, RUO_ACKNOWLEDGEMENT } from '@/lib/policy';
 import { researcherTierEnabled } from '@/lib/site-config';
 
 export const dynamic = 'force-dynamic';
@@ -198,6 +198,10 @@ export default async function SignUpPage({ searchParams }: Props) {
             </p>
             <p className="mt-3 text-sm leading-6">{RUO_ACKNOWLEDGEMENT}</p>
             <label className="mt-4 flex items-start gap-3 text-sm">
+              <input type="checkbox" name="accept_age" required className="mt-1" />
+              <span>{AGE_STATEMENT}</span>
+            </label>
+            <label className="mt-3 flex items-start gap-3 text-sm">
               <input
                 type="checkbox"
                 name="accept_ruo"

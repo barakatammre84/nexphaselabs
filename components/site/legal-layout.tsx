@@ -1,15 +1,18 @@
+import { policiesCounselReviewed } from '@/lib/site-config';
+
 /**
  * Shared shell for legal pages.
  *
- * The `draft` banner is intentional: these pages are structured templates, not
- * legal advice, and they have not been reviewed by counsel. Remove the banner
- * (set draft={false}) only once a lawyer has signed off on the wording.
+ * The banner is intentional: these pages are structured drafts, not legal
+ * advice, until counsel has signed off on the wording. It disappears only when
+ * the environment sets POLICIES_COUNSEL_REVIEWED=true (lib/site-config.ts),
+ * which is an owner action after the review, not a code change.
  */
 export function LegalPage({
   title,
   updated,
   intro,
-  draft = true,
+  draft,
   children,
 }: {
   title: string;
@@ -18,15 +21,16 @@ export function LegalPage({
   draft?: boolean;
   children: React.ReactNode;
 }) {
+  const showDraft = draft ?? !policiesCounselReviewed();
   return (
     <main className="text-foreground">
       <section className="mx-auto max-w-[980px] px-4 py-10 sm:px-6 lg:py-14">
         <div className="ion-page-hero p-7 sm:p-10 lg:p-12">
-        {draft && (
+        {showDraft && (
           <p className="mb-10 rounded-[1.1rem] border border-destructive/40 bg-destructive/5 p-4 text-sm leading-6">
             <strong className="font-semibold">Draft — not yet reviewed by counsel.</strong> This page is a
-            structured template prepared for review. It is not legal advice and must be reviewed by a qualified
-            attorney before the site goes live.
+            structured draft prepared for review by a qualified attorney. It is not legal advice, and the banner is
+            removed only once that review is complete.
           </p>
         )}
         <p className="ion-kicker">Policies</p>

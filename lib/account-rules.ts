@@ -83,10 +83,11 @@ export type SignUpInput = {
   researchSetting?: string;
   acceptTerms: boolean;
   acceptRuo: boolean;
+  acceptAge?: boolean;
 };
 
 export type SignUpValidation =
-  | { ok: true; value: { name: string; email: string; password: string; tier: AccountTier; researchSetting: ResearchSetting | null } }
+  | { ok: true; value: { name: string; email: string; password: string; tier: AccountTier; researchSetting: ResearchSetting | null; ageConfirmed: true } }
   | { ok: false; errors: string[] };
 
 export function validateSignUp(raw: SignUpInput, researcherTierEnabled: boolean): SignUpValidation {
@@ -113,13 +114,14 @@ export function validateSignUp(raw: SignUpInput, researcherTierEnabled: boolean)
 
   if (!raw.acceptTerms) errors.push('You must accept the terms of sale.');
   if (!raw.acceptRuo) errors.push('You must confirm the research-use acknowledgement.');
+  if (!raw.acceptAge) errors.push('You must confirm that you are at least 21 years of age.');
 
   const settingRaw = (raw.researchSetting ?? '').trim();
   const researchSetting = (RESEARCH_SETTINGS as readonly string[]).includes(settingRaw) ? (settingRaw as ResearchSetting) : null;
   if (settingRaw && !researchSetting) errors.push('Choose a research setting from the list.');
 
   if (errors.length) return { ok: false, errors };
-  return { ok: true, value: { name, email, password, tier, researchSetting } };
+  return { ok: true, value: { name, email, password, tier, researchSetting, ageConfirmed: true } };
 }
 
 export function validateSignIn(raw: { email: string; password: string }): { email: string; password: string } | null {

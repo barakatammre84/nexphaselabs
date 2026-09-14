@@ -2,9 +2,9 @@ import { getAccountFromRequest, recordAcknowledgements, safeAccountReturnPath } 
 import { sameOrigin } from '@/lib/staff-auth';
 
 /**
- * Re-accept the current terms of sale and research-use acknowledgement.
- * Required whenever either document's version moves past the one the
- * account last accepted.
+ * Re-accept the current terms of sale, the research-use acknowledgement
+ * and the age statement. Required whenever either document's version
+ * moves past the one the account last accepted.
  */
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return new Response('Forbidden', { status: 403 });
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     return new Response('Bad request', { status: 400 });
   }
   const returnTo = safeAccountReturnPath(String(form.get('return_to') ?? ''));
-  if (form.get('accept_terms') !== 'on' || form.get('accept_ruo') !== 'on') {
+  if (form.get('accept_terms') !== 'on' || form.get('accept_ruo') !== 'on' || form.get('accept_age') !== 'on') {
     return Response.redirect(new URL(`${returnTo}${returnTo.includes('?') ? '&' : '?'}ack=required`, request.url), 303);
   }
 

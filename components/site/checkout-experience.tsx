@@ -30,6 +30,7 @@ export function CheckoutExperience({
   subtotalCents,
   token,
   acknowledgement,
+  ageStatement,
   email,
   name,
   quoteRequired,
@@ -40,6 +41,7 @@ export function CheckoutExperience({
   subtotalCents: number;
   token: string;
   acknowledgement: string;
+  ageStatement: string;
   email?: string;
   name?: string;
   quoteRequired: boolean;
@@ -64,7 +66,7 @@ export function CheckoutExperience({
       )
     )
       return;
-    if (['checkout_quote', 'confirm_ruo', 'note'].includes(target.name)) return;
+    if (['checkout_quote', 'confirm_ruo', 'confirm_age', 'note'].includes(target.name)) return;
     if (quotes.length) {
       setQuotes([]);
       setSelectedId('');
@@ -245,6 +247,10 @@ export function CheckoutExperience({
             {acknowledgement}
           </div>
           <label className="mt-4 flex items-start gap-3 text-sm leading-6">
+            <input type="checkbox" name="confirm_age" required className="mt-1" />
+            <span>{ageStatement}</span>
+          </label>
+          <label className="mt-3 flex items-start gap-3 text-sm leading-6">
             <input
               type="checkbox"
               name="confirm_ruo"

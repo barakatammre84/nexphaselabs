@@ -1,5 +1,6 @@
 import {
   GUEST_CHECKOUT_TERMS_VERSION,
+  AGE_STATEMENT,
   RUO_ACKNOWLEDGEMENT,
   RUO_VERSION,
   TERMS_VERSION,
@@ -19,14 +20,16 @@ export type OrderAttestation = {
   acknowledgedAt: Date;
   acknowledgedFrom: string | null;
   researchSetting: string | null;
+  /** The buyer ticked the age statement (AGE_STATEMENT) for this order. */
+  ageConfirmed: boolean;
 };
 
 let cachedHash: string | null = null;
 
-/** Lowercase hex SHA-256 of the exact acknowledgement wording in force. */
+/** Lowercase hex SHA-256 of the exact wording in force: the research-use acknowledgement and the age statement, newline-joined. */
 export async function acknowledgementHash(): Promise<string> {
   if (cachedHash) return cachedHash;
-  const bytes = new TextEncoder().encode(RUO_ACKNOWLEDGEMENT);
+  const bytes = new TextEncoder().encode(`${RUO_ACKNOWLEDGEMENT}\n${AGE_STATEMENT}`);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   cachedHash = [...new Uint8Array(digest)]
     .map((b) => b.toString(16).padStart(2, '0'))
@@ -54,6 +57,7 @@ export async function buildOrderAttestation(input: {
   now: Date;
   from: string | null;
   researchSetting: string | null;
+  ageConfirmed: boolean;
 }): Promise<OrderAttestation> {
   return {
     ruoVersion: RUO_VERSION,
@@ -62,5 +66,6 @@ export async function buildOrderAttestation(input: {
     acknowledgedAt: input.now,
     acknowledgedFrom: input.from,
     researchSetting: input.researchSetting,
+    ageConfirmed: input.ageConfirmed,
   };
 }

@@ -1,119 +1,136 @@
-import { openCheckoutEnabled } from '@/lib/site-config';
 import type { Metadata } from 'next';
 import { LegalPage, LegalSection } from '@/components/site/legal-layout';
+import { MINIMUM_AGE, PRIVACY_VERSION } from '@/lib/policy';
+import { SUPPORT } from '@/lib/support';
 
 export const metadata: Metadata = {
   title: 'Privacy policy',
-  description:
-    'How NexPhase Labs handles information collected through research account requests and orders.',
+  description: 'What NexPhase Labs collects when you browse, create an account or order, why, and how long it is kept.',
 };
 
 export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy policy"
-      updated="Pending review"
-      intro="This policy describes the information NexPhase Labs collects from organizations and their representatives, why it is collected, and how it is handled."
+      updated={`Version ${PRIVACY_VERSION}`}
+      intro="We collect what is needed to supply research material, keep the records a supplier has to keep, and answer your questions — and nothing else. We do not sell information about you."
     >
-      {openCheckoutEnabled() && (
-        <LegalSection heading="Guest checkout">
-          <p>
-            Guest checkout collects a contact email and delivery details without
-            registering an account or verifying identity. A necessary, private
-            browser cookie links your cart and orders to this browser for 30
-            days. The cookie is not an advertising tracker. Its expiry does not
-            delete order records; the retention section below still applies.
-          </p>
-        </LegalSection>
-      )}
-      <LegalSection heading="Website feedback and live support">
+      <LegalSection heading="1. Who is responsible">
         <p>
-          The developer-feedback panel records the report type, impact, title,
-          message, expected behavior, page, browser user-agent, language,
-          timezone, viewport size, time, and any name or email the visitor
-          chooses to provide. It does not automatically capture a screenshot or
-          the contents of other form fields. A visitor may explicitly attach a
-          PNG, JPEG, or WebP screenshot after confirming that they reviewed and
-          cropped or redacted passwords, payment details, and personal
-          information. If the visitor explicitly chooses “Pick an area” or
-          “Highlight text,” the selected element label, a CSS selector,
-          position, and visible selected excerpt are attached to that message.
-          Up to five selected areas may be attached. A necessary private browser
-          cookie reconnects that browser to its report history so staff replies
-          can appear in real time. Messages are retained as business
-          correspondence and may be searched or summarized through an
-          access-controlled internal AI retrieval tool. Customer messages are
-          treated as untrusted feedback, not instructions to an automated
-          system. Do not include passwords, payment-card information, health
-          information, or other sensitive data in a message.
-        </p>
-      </LegalSection>
-      <LegalSection heading="1. Information collected">
-        <p>
-          When an organization requests a research account we collect the
-          organization name, website, business address, tax or registration
-          number, a named contact with their role and business email address,
-          and a description of the research context for the materials requested.
-        </p>
-        <p>
-          When an order is placed we collect the information needed to fulfil
-          and account for it, including shipping, billing, and correspondence
-          records.
+          The site is operated by 8486 Ventures LLC, trading as NexPhase Labs, Oakland, California. Questions about
+          this policy go to <span className="font-semibold text-foreground">{SUPPORT.email}</span>.
         </p>
       </LegalSection>
 
-      <LegalSection heading="2. Why it is collected">
+      <LegalSection heading="2. What we collect">
         <p>
-          Information is collected to verify that an organization qualifies
-          under the research-use policy, to fulfil orders, to maintain the
-          records a materials supplier is expected to keep, and to respond to
-          questions about a lot or an account.
+          When you browse: the pages you request, your IP address and browser details, in the ordinary server logs
+          of our hosting provider, and the cookies described in section 5.
+        </p>
+        <p>
+          When you create an account: your name, email address, a password we store only as a one-way hash, the
+          research setting you select, and the time and version of each confirmation you give — the age statement,
+          the research-use acknowledgement and the terms of sale.
+        </p>
+        <p>
+          When you order, with or without an account: your shipping and billing details, what you ordered, the
+          confirmations you gave at checkout, the address the order was placed from, and the correspondence about
+          the order. Payment details are entered with our payment processor and never reach our systems; we keep
+          only the processor&rsquo;s reference for the payment.
+        </p>
+        <p>
+          When you write to us: your message, the details you choose to give, and the page you wrote from. The site
+          feedback panel is described in section 7.
         </p>
       </LegalSection>
 
-      <LegalSection heading="3. Sharing">
+      <LegalSection heading="3. Why we collect it">
         <p>
-          Information is not sold. It is shared only with service providers that
-          make the business run, such as shipping carriers and payment
-          processors, and where disclosure is required by law.
+          To take, fulfil, ship and account for orders; to record that each order was placed under the research-use
+          policy; to keep lot and shipment records that let us trace which lot went to which order; to answer
+          questions about an order, a lot or an account; to detect and refuse misuse; and to meet tax and
+          record-keeping obligations.
         </p>
       </LegalSection>
 
-      <LegalSection heading="4. Retention">
+      <LegalSection heading="4. Who we share it with">
         <p>
-          Account verification and order records are retained for as long as
-          needed to operate the account and to meet record-keeping obligations,
-          and are then deleted or archived.
-        </p>
-        <p>
-          Feedback conversations are retained while they are useful for customer
-          support, product improvement, and business records, then deleted or
-          de-identified under the business retention schedule.
+          Information is shared only with providers that make the business run: shipping carriers (name and
+          address), payment processors (order amount and the details they need to take payment), the email service
+          that sends order and account messages, and the cloud provider that hosts the site and its database. Each
+          receives only what it needs. We disclose information where the law requires it, and to an independent
+          laboratory or regulator investigating a quality concern about a lot, where that is needed. We do not sell,
+          rent or trade personal information, and we do not share it for advertising.
         </p>
       </LegalSection>
 
-      <LegalSection heading="5. Security">
+      <LegalSection heading="5. Cookies">
         <p>
-          Access to account and order records is limited to personnel who need
-          it. No system is perfectly secure, and we do not claim otherwise.
+          The site sets only cookies it needs to work: one that remembers you accepted the entry notice (180 days,
+          holds no personal information), one that keeps you signed in to your account, one that links a guest cart
+          and its orders to your browser for 30 days, and one that reconnects the feedback panel to its history.
+          None of them is an advertising tracker, and we do not run third-party analytics or advertising scripts.
         </p>
       </LegalSection>
 
-      <LegalSection heading="6. Your choices">
+      <LegalSection heading="6. How long we keep it">
         <p>
-          A named contact may ask what information is held about them, ask for
-          corrections, or ask to be removed from correspondence, by writing to
-          the address below. Some records must be retained even after an account
-          is closed.
+          Order, shipment, lot-traceability and payment records are kept for seven years from the order, which is
+          what tax and product-traceability obligations require. Account records are kept while the account is open
+          and for the same period afterwards where they relate to an order. Correspondence is kept while it is
+          useful for support and quality records, then deleted or de-identified. Server logs are kept for a short,
+          rolling period by the hosting provider.
         </p>
       </LegalSection>
 
-      <LegalSection heading="7. Contact">
+      <LegalSection heading="7. The feedback panel">
         <p>
-          Privacy questions:{' '}
-          <span className="font-semibold text-foreground">
-            research@nexphaselabs.net
-          </span>
+          The site feedback panel records the report type, impact, title, message, expected behavior, page, browser
+          user-agent, language, timezone, viewport size, time, and any name or email you choose to give. It does not
+          capture a screenshot or the contents of other form fields on its own. You may attach a PNG, JPEG or WebP
+          screenshot after confirming you have removed passwords, payment details and personal information from it.
+          If you use &ldquo;Pick an area&rdquo; or &ldquo;Highlight text&rdquo;, the selected element, its position
+          and the visible excerpt are attached to that message. Messages are kept as business correspondence and may
+          be searched or summarized by an access-controlled internal tool. Do not include passwords, card numbers or
+          health information in a message.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="8. Security">
+        <p>
+          Records are held in an access-controlled database; staff access is limited to the people who need it and
+          is logged. Passwords are stored as salted hashes. No system is perfectly secure, and we do not claim
+          otherwise; if we learn of a breach affecting your information we will tell you as the law requires.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="9. Your choices and rights">
+        <p>
+          You can see and change your account details on the account page. You can ask us what information we hold
+          about you, ask for it to be corrected or deleted, or ask us to stop writing to you, by emailing{' '}
+          {SUPPORT.email}. We will confirm who you are before acting, and some records — orders, shipments and
+          payments — must be kept for the period in section 6 even after an account is closed.
+        </p>
+        <p>
+          California residents have the right to know what personal information we collect, use and disclose, to
+          request its deletion, to correct it, and not to be discriminated against for exercising those rights. We
+          do not sell or share personal information as those terms are defined in California law, so there is
+          nothing to opt out of. Requests go to the address above and are answered within 45 days.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="10. Age">
+        <p>
+          This site is for researchers aged {MINIMUM_AGE} and over. We do not knowingly collect information from
+          anyone under {MINIMUM_AGE}, and we close any account and delete any order found to have been placed by
+          someone younger.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="11. Changes">
+        <p>
+          When this policy changes, the version at the top of the page changes with it. A change that affects how we
+          use information we already hold is announced to account holders by email before it takes effect.
         </p>
       </LegalSection>
     </LegalPage>

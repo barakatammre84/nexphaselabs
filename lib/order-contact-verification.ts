@@ -57,6 +57,9 @@ export async function requestContactVerification(
       orderNumber: orders.orderNumber,
       email: orders.contactEmail,
       verifiedAt: orders.contactVerifiedAt,
+      ruoVersion: orders.ruoVersion,
+      termsVersion: orders.termsVersion,
+      ageConfirmed: orders.ageConfirmed,
     })
     .from(orders)
     .where(eq(orders.id, orderId))
@@ -132,6 +135,16 @@ export async function requestContactVerification(
         `${publicOrigin()}${verificationPath(token)}`,
         '',
         'Nothing is held up while you do this. The link works for 30 days.',
+        '',
+        ...(order.ruoVersion || order.termsVersion
+          ? [
+              `This order was placed under the research-use acknowledgement (version ${order.ruoVersion ?? 'n/a'})` +
+                ` and terms of sale (version ${order.termsVersion ?? 'n/a'})` +
+                `${order.ageConfirmed ? ', with the confirmation that the buyer is at least 21 years of age' : ''}.` +
+                ' Materials are for laboratory research use only; not for human or veterinary use.',
+              `Policies: ${publicOrigin()}/legal/research-use`,
+            ]
+          : []),
       ].join('\n'),
       status: 'pending',
       nextAttemptAt: now,

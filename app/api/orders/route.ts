@@ -41,6 +41,8 @@ export async function POST(request: Request) {
     return back('Ordering is not available to your account yet.');
   if (form.get('confirm_ruo') !== 'on')
     return back('Confirm the research-use acknowledgement for this order.');
+  if (form.get('confirm_age') !== 'on')
+    return back('Confirm that you are at least 21 years of age.');
 
   const note =
     String(form.get('note') ?? '')
@@ -66,6 +68,7 @@ export async function POST(request: Request) {
         {
           from: connectingAddress(request),
           researchSetting: normaliseResearchSetting(form.get('research_setting')),
+          ageConfirmed: true,
         },
       );
       if (!result.ok) return back(result.error);

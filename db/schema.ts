@@ -635,6 +635,8 @@ export const accounts = sqliteTable(
     tier: text('tier').notNull().default('institutional'),
     /** Self-described research setting from a fixed list; descriptive, never gating. */
     researchSetting: text('research_setting'),
+    /** When the person affirmed the minimum age (AGE_STATEMENT). */
+    ageConfirmedAt: integer('age_confirmed_at', { mode: 'timestamp' }),
     /** pending_email | active | suspended */
     status: text('status').notNull().default('pending_email'),
     emailVerifiedAt: integer('email_verified_at', { mode: 'timestamp' }),
@@ -1064,6 +1066,8 @@ export const orders = sqliteTable(
     acknowledgedFrom: text('acknowledged_from'),
     /** Snapshot of the buyer's stated research setting at the time of the order. */
     researchSetting: text('research_setting'),
+    /** The age affirmation checkbox was ticked for this order (AGE_STATEMENT, hashed with the acknowledgement). */
+    ageConfirmed: integer('age_confirmed', { mode: 'boolean' }).notNull().default(false),
     // Ship-to snapshot
     consigneeName: text('consignee_name').notNull(),
     consigneeInstitution: text('consignee_institution'),

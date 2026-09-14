@@ -1,176 +1,204 @@
-import { openCheckoutEnabled } from '@/lib/site-config';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { LegalPage, LegalSection } from '@/components/site/legal-layout';
-import {
-  RUO_ACKNOWLEDGEMENT,
-  RUO_VERSION,
-  TERMS_VERSION,
-  GUEST_CHECKOUT_TERMS_VERSION,
-} from '@/lib/policy';
+import { AGE_STATEMENT, MINIMUM_AGE, RUO_ACKNOWLEDGEMENT, RUO_VERSION, TERMS_VERSION } from '@/lib/policy';
 
 export const metadata: Metadata = {
   title: 'Terms of sale',
-  description:
-    'Terms of sale and research-use policy for NexPhase Labs research materials.',
+  description: 'The terms that apply to every order of research material from NexPhase Labs.',
 };
 
 export default function TermsPage() {
-  const open = openCheckoutEnabled();
   return (
     <LegalPage
       title="Terms of sale"
-      updated={`Version ${open ? GUEST_CHECKOUT_TERMS_VERSION : TERMS_VERSION} — pending counsel review`}
-      intro={
-        open
-          ? 'These draft terms govern the supply of research materials by NexPhase Labs. Guest checkout is available without account registration, email verification, or organization approval. Placing an order means the purchaser accepts the terms.'
-          : 'These terms govern the supply of research materials by NexPhase Labs to approved organizations. Opening an account or placing an order means the organization accepts them.'
-      }
+      updated={`Version ${TERMS_VERSION}`}
+      intro="These terms apply to this website and to every order placed on it. Creating an account or placing an order means you have read them and agree to them."
     >
-      <LegalSection id="research-use" heading="1. Research-use policy">
+      <LegalSection id="who" heading="1. Who we are and what these terms cover">
         <p>
-          All materials supplied by NexPhase Labs are for laboratory research
-          use only. They are not drugs, medicines, dietary supplements,
-          cosmetics, food, or consumer products. They are not for human or
-          veterinary use, not for clinical or diagnostic procedures, and not for
-          consumption.
+          NexPhase Labs is the trading name of 8486 Ventures LLC, a California limited liability company based in
+          Oakland, California (&ldquo;NexPhase Labs&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;). These terms, together
+          with the{' '}
+          <Link href="/legal/research-use" className="font-semibold text-primary">
+            research-use policy
+          </Link>
+          , the{' '}
+          <Link href="/legal/shipping" className="font-semibold text-primary">
+            shipping policy
+          </Link>
+          , the{' '}
+          <Link href="/legal/returns" className="font-semibold text-primary">
+            returns and refunds policy
+          </Link>{' '}
+          and the{' '}
+          <Link href="/legal/privacy" className="font-semibold text-primary">
+            privacy policy
+          </Link>
+          , are the whole agreement between you and us for the use of this site and the supply of research
+          materials. If you do not agree with them, do not use the site or place an order.
+        </p>
+      </LegalSection>
+
+      <LegalSection id="research-use" heading="2. Research use only">
+        <p>
+          Every material we supply is sold strictly for in vitro laboratory research. Our materials are not drugs,
+          medicines, dietary supplements, cosmetics, food or consumer products. They are not for human or veterinary
+          use, not for clinical or diagnostic procedures, and not for consumption in any form. Nothing on this site is
+          a claim that any material treats, prevents or diagnoses any condition, and no statement here has been
+          evaluated by the Food and Drug Administration.
         </p>
         <p>
-          The purchasing organization confirms that no material supplied will be
-          administered to a human or an animal, incorporated into any product
-          intended for human or animal use, or resold to consumers. Breach of
-          this section is grounds for immediate closure of the account.
+          You agree that no material supplied will be administered to a human or an animal, incorporated into any
+          product intended for human or animal use, or resold to consumers.
         </p>
+      </LegalSection>
+
+      <LegalSection id="qualified" heading="3. Who may buy">
         <p>
-          NexPhase Labs does not provide dosing guidance, administration
-          protocols, or medical advice of any kind, and no request for such
-          guidance will be answered.
+          You may create an account and order only if all of the following are true: you are at least {MINIMUM_AGE}{' '}
+          years of age; you are buying for laboratory research, whether independently or for an organization; and you
+          have the training, equipment and facilities to receive, store and handle research materials safely. We may
+          ask for evidence of any of these before or after accepting an order, and we may decline an order or close an
+          account without giving a reason.
+        </p>
+      </LegalSection>
+
+      <LegalSection id="acknowledgement" heading="4. Your acknowledgement">
+        <p>
+          The statements below are shown and must be confirmed when an account is created and again at every
+          checkout. The version confirmed, and when, is recorded against the account and against each order.
         </p>
         <p className="border-l-2 border-primary bg-secondary px-4 py-3 text-foreground">
           <span className="block font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
             Research-use acknowledgement, version {RUO_VERSION}
           </span>
           <span className="mt-2 block">{RUO_ACKNOWLEDGEMENT}</span>
+          <span className="mt-3 block font-semibold">{AGE_STATEMENT}</span>
         </p>
         <p>
-          {open
-            ? 'Each guest order records the research-use acknowledgement and checkout terms version accepted at submission.'
-            : 'Every account records the version of this acknowledgement and of these terms that it accepted, and when. If either changes, the account must accept the new version before pricing or ordering is available.'}
-        </p>
-      </LegalSection>
-
-      <LegalSection
-        heading={
-          open ? '2. Guest checkout' : '2. Eligibility and account review'
-        }
-      >
-        {open ? (
-          <p>
-            No account registration, email verification, or organization
-            approval is required. Provide accurate contact and delivery details.
-            Checkout currently supports United States delivery addresses.
-            Research-use conditions apply to every purchaser.
-          </p>
-        ) : (
-          <>
-            <p>
-              Accounts are opened for organizations that qualify under the
-              research access criteria published on this site and, only where
-              NexPhase Labs has enabled it, for individual researchers who have
-              confirmed the research-use acknowledgement. NexPhase Labs may
-              request additional verification, and may decline or close any
-              account at its discretion.
-            </p>
-            <p>
-              Orders are shipped to verified laboratory or business addresses
-              only. Residential shipping addresses are not accepted for any
-              account type.
-            </p>
-          </>
-        )}
-      </LegalSection>
-
-      <LegalSection heading="3. Specifications and documentation">
-        <p>
-          Catalog specifications describe the material generally. Lot-specific
-          properties, including purity, are reported on the certificate of
-          analysis issued for the lot supplied, which governs in the event of
-          any inconsistency with catalog copy.
-        </p>
-        <p>
-          The purchasing organization is responsible for confirming, on receipt,
-          that the material and its documentation match the order, and for
-          reporting any discrepancy before the material is used.
+          If either the acknowledgement or these terms change, an account must confirm the new version before pricing
+          or ordering is available again.
         </p>
       </LegalSection>
 
-      <LegalSection heading="4. Pricing, orders, and payment">
+      <LegalSection id="no-guidance" heading="5. No dosing, administration or medical guidance">
         <p>
-          {open
-            ? 'Public prices and availability are shown in the catalog and confirmed at checkout.'
-            : 'Pricing and availability are provided to verified accounts and may change without notice.'}{' '}
-          An order is accepted only when confirmed in writing by NexPhase Labs.
-          Payment terms are stated on the order confirmation.
+          We do not provide, and will not answer questions about, dosing, reconstitution for administration,
+          injection or any other route of administration, cycles, stacking, effects in people or animals, or any
+          medical matter. Product pages describe the material, its specification and its storage. A question that
+          indicates any use other than laboratory research is declined, and repeated questions of that kind end our
+          service to you.
         </p>
       </LegalSection>
 
-      <LegalSection heading="5. Shipping, title, and risk">
+      <LegalSection id="responsibility" heading="6. Your responsibilities">
         <p>
-          Shipping methods and packaging are selected to suit the material.
-          Title and risk of loss pass to the purchasing organization on delivery
-          to the address stated on the order.
+          You are solely responsible for the safe receipt, storage, handling, use and disposal of every material you
+          order; for the competence and supervision of anyone who handles it; and for complying with all federal,
+          state, local and institutional rules that apply to you. You will indemnify and hold harmless NexPhase Labs,
+          8486 Ventures LLC and their members, staff and agents against any claim, loss or cost arising from your use
+          of a material, from any use contrary to these terms, or from any statement you made to us that was untrue.
         </p>
       </LegalSection>
 
-      <LegalSection heading="6. Returns">
+      <LegalSection id="documentation" heading="7. Specifications and documentation">
         <p>
-          Because storage conditions cannot be verified once material has left
-          our control, returns are accepted only where the material supplied
-          does not match the order or its documentation, and only when reported
-          promptly on receipt.
+          Catalog pages describe a material generally. The properties of the lot you receive, including purity, are
+          reported on the certificate of analysis for that lot, which governs if it differs from catalog copy. Every
+          lot we sell has been tested by an independent laboratory and is only released for sale once its results
+          have been reviewed. The certificate that ships with an order is pinned to that order and can be opened from
+          the order page at any time.
+        </p>
+        <p>
+          Check the material and its documentation against your order when it arrives, and report any discrepancy
+          before the material is used.
         </p>
       </LegalSection>
 
-      <LegalSection heading="7. Handling, compliance, and responsibility">
+      <LegalSection id="orders" heading="8. Prices, orders and payment">
         <p>
-          The purchasing organization is solely responsible for the safe
-          handling, storage, use, and disposal of all material received, for the
-          competence and supervision of the personnel who handle it, and for
-          compliance with all applicable federal, state, and local law and
-          institutional policy.
+          Prices are shown in the catalog in US dollars and confirmed at checkout; they do not include shipping,
+          which is shown before you pay. A price shown in error can be corrected before an order is accepted. An
+          order is accepted when we confirm it; until then we may decline it and refund any payment taken.
+        </p>
+        <p>
+          Payment methods are shown at checkout. If you have a question about a charge, contact us before contacting
+          your bank; a chargeback raised on an order that was delivered as described will be contested with the order
+          record, and an account that raises one may be closed.
         </p>
       </LegalSection>
 
-      <LegalSection heading="8. No warranty beyond specification">
+      <LegalSection id="shipping" heading="9. Shipping, title and risk">
         <p>
-          Material is supplied as described on the certificate of analysis for
-          its lot. To the fullest extent permitted by law, no other warranty,
-          express or implied, is given, including any warranty of
-          merchantability or fitness for a particular purpose.
+          We ship within the United States as described in the{' '}
+          <Link href="/legal/shipping" className="font-semibold text-primary">
+            shipping policy
+          </Link>
+          . Title and risk of loss pass to you when the carrier records delivery to the address on the order.
         </p>
       </LegalSection>
 
-      <LegalSection heading="9. Limitation of liability">
+      <LegalSection id="returns" heading="10. Returns and refunds">
         <p>
-          To the fullest extent permitted by law, NexPhase Labs is not liable
-          for indirect, incidental, or consequential loss, and total liability
-          arising from any order is limited to the amount paid for the material
-          giving rise to the claim.
+          Unopened, sealed material may be returned within 30 days of delivery as described in the{' '}
+          <Link href="/legal/returns" className="font-semibold text-primary">
+            returns and refunds policy
+          </Link>
+          . Returned material is never restocked.
         </p>
       </LegalSection>
 
-      <LegalSection heading="10. Governing law">
+      <LegalSection id="monitoring" heading="11. Review, refusal and closure">
         <p>
-          These terms are governed by the laws of the state in which NexPhase
-          Labs is organized, without regard to conflict of law principles.
+          We review orders and correspondence for signs of use outside laboratory research. We may cancel an order,
+          refuse future orders, close an account and decline to deal with a person or address at any time. A refused
+          order is refunded in full to the payment method used. Attempts to open a new account after closure are
+          themselves grounds for refusal.
         </p>
       </LegalSection>
 
-      <LegalSection heading="11. Contact">
+      <LegalSection id="regulatory" heading="12. Regulatory status">
         <p>
-          Questions about these terms:{' '}
-          <span className="font-semibold text-foreground">
-            research@nexphaselabs.net
-          </span>
+          The materials we sell are research chemicals labeled for research use only. They have not been approved by
+          the Food and Drug Administration or any other regulator for any use, and we make no representation that they
+          are suitable for any purpose other than laboratory research. Where a material is subject to additional
+          restriction in your state, it is your responsibility to know that before ordering.
+        </p>
+      </LegalSection>
+
+      <LegalSection id="ip" heading="13. Content and intellectual property">
+        <p>
+          The text, documentation, images and design of this site belong to 8486 Ventures LLC or its licensors. You
+          may print or save pages for your own research records; you may not reproduce the site or its documentation
+          for any other purpose without written permission. Certificates of analysis may be shared with the people
+          who use the material in your laboratory.
+        </p>
+      </LegalSection>
+
+      <LegalSection id="warranty" heading="14. Warranty and limitation of liability">
+        <p>
+          Material is supplied as described on the certificate of analysis for its lot. To the fullest extent
+          permitted by law, no other warranty, express or implied, is given, including any warranty of merchantability
+          or fitness for a particular purpose. To the fullest extent permitted by law, NexPhase Labs is not liable for
+          indirect, incidental, special or consequential loss, and our total liability arising from any order is
+          limited to the amount paid for the material giving rise to the claim.
+        </p>
+      </LegalSection>
+
+      <LegalSection id="law" heading="15. Governing law and disputes">
+        <p>
+          These terms are governed by the laws of the State of California, without regard to its conflict of law
+          rules. Any dispute that cannot be resolved by writing to us first will be brought in the state or federal
+          courts located in Alameda County, California, and you consent to their jurisdiction.
+        </p>
+      </LegalSection>
+
+      <LegalSection id="changes" heading="16. Changes and contact">
+        <p>
+          We may update these terms. The version number at the top of this page changes when we do, and accounts are
+          asked to confirm the new version before ordering again. Questions about these terms:{' '}
+          <span className="font-semibold text-foreground">research@nexphaselabs.net</span>.
         </p>
       </LegalSection>
     </LegalPage>

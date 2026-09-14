@@ -2,126 +2,116 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
-import { openCheckoutEnabled } from '@/lib/site-config';
+import { ENTITY } from '@/lib/entity';
+import { MINIMUM_AGE } from '@/lib/policy';
+import { SUPPORT } from '@/lib/support';
 
 export const metadata: Metadata = {
   title: 'About',
   description:
-    'NexPhase Labs supplies research materials to qualified laboratory organizations in the United States, with lot-specific analytical documentation on every shipment.',
+    'NexPhase Labs is an independent, family-run supplier of research peptides in Oakland, California. Every lot is tested by an independent laboratory and ships with its certificate.',
 };
 
-/**
- * Corporate facts here are the ones on record: operating entity, state of
- * organisation, trading name and facility city. Nothing is published that
- * cannot be evidenced; the founding year is left for the owner to confirm.
- */
-
-const principles = [
+const commitments = [
   {
-    title: 'The lot is the unit of truth',
-    copy: 'Quality claims that describe a product line are marketing. Quality claims that describe a lot are useful. Every certificate we issue is tied to a lot number, and the chromatogram is attached rather than summarized.',
+    title: 'Every lot is tested before it is sold',
+    body: 'An independent laboratory tests each lot for identity and purity. The certificate names the laboratory, the method and the result, and a lot without one is never listed.',
   },
   {
-    title: 'Access is reviewed',
-    copy: 'We do not sell to the general public and we do not open accounts from a form alone. Every request is read by a person against a written research-use policy, and requests outside it are declined.',
+    title: 'The certificate that ships is the one you keep',
+    body: 'The certificate in the parcel is pinned to your order with a checksum. Open it from your order page a year from now and it is the same document.',
   },
   {
-    title: 'We stay inside our lane',
-    copy: 'We supply materials and the analytical record that goes with them. We do not give dosing guidance, administration protocols, or medical advice, and we do not make claims about outcomes in people.',
+    title: 'Research use only, and we mean it',
+    body: `We sell to researchers aged ${MINIMUM_AGE} and over, for laboratory work. We do not give dosing, reconstitution or administration guidance, we do not describe effects in people, and an order that points elsewhere is refunded and closed.`,
   },
   {
-    title: 'Say the hard part first',
-    copy: 'If a lot is short, delayed, or fails a specification, the customer hears it from us before they find it themselves. That is the whole basis of a supply relationship a laboratory can plan around.',
+    title: 'You hear the hard part from us first',
+    body: 'If a lot is short, delayed or fails a specification, we tell you before you find out yourself. That is the basis of a supplier a laboratory can plan around.',
   },
 ];
 
 export default function AboutPage() {
-  const open = openCheckoutEnabled();
   return (
-    <main className="text-foreground">
+    <main className="bg-background text-foreground">
       <section className="mx-auto max-w-[1280px] px-4 pb-8 pt-3 sm:px-6">
-        <div className="ion-page-hero px-7 py-14 sm:px-12 lg:px-16 lg:py-20">
-          <p className="ion-kicker">About NexPhase Labs</p>
-          <h1 className="ion-heading mt-7 max-w-4xl text-[clamp(3rem,6vw,5.5rem)]">
-            Research-grade confidence starts with the record.
-          </h1>
-          <p className="mt-7 max-w-2xl text-lg leading-8 text-muted-foreground">
-            NexPhase Labs is an independent U.S. supplier of research materials.
-            We pair clear chemical identity with lot-specific analytical records
-            and a straightforward customer experience.
+        <div className="ion-hero px-7 py-14 sm:px-12 lg:px-16 lg:py-20">
+          <p className="inline-flex rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-extrabold">
+            About NexPhase Labs
           </p>
+          <h1 className="mt-7 max-w-3xl font-display text-[clamp(3rem,6vw,5.5rem)] font-extrabold leading-[0.95] tracking-[-0.065em]">
+            Research peptides, verified by lot.
+          </h1>
+          <p className="mt-6 max-w-2xl text-lg leading-8 text-white/72">
+            NexPhase Labs is an independent, family-run supplier of research materials in Oakland, California. We
+            sell our own catalog of peptides and related research chemicals, each lot tested by an independent
+            laboratory and shipped with its certificate of analysis.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link href="/catalog" className="action-primary">
+              Shop products
+            </Link>
+            <Link href="/documentation/lot-lookup" className="action-secondary gap-2">
+              View COAs <ArrowRight className="size-4" />
+            </Link>
+          </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1280px] px-4 py-12 sm:px-6">
+      <section className="mx-auto max-w-[1280px] px-4 py-10 sm:px-6">
         <p className="ion-kicker">How we operate</p>
-        <h2 className="ion-heading mt-5 max-w-2xl text-4xl sm:text-5xl">
-          Quality assurance without the guesswork.
-        </h2>
-        <div className="mt-10 grid gap-5 sm:grid-cols-2">
-          {principles.map((principle, index) => (
-            <article key={principle.title} className="ion-panel p-7 lg:p-9">
-              <span className="grid size-9 place-items-center rounded-full bg-primary font-display text-xs font-extrabold text-white">0{index + 1}</span>
-              <h3 className="mt-6 font-display text-xl font-extrabold tracking-tight text-[var(--ion-navy)]">
-                {open && index === 1 ? 'Ordering stays straightforward' : principle.title}
-              </h3>
-              <p className="mt-3 leading-7 text-muted-foreground">
-                {open && index === 1
-                  ? 'Published prices and eligible released lots appear directly on the product page. Add a pack to the cart and complete delivery details without creating an account.'
-                  : principle.copy}
-              </p>
-            </article>
+        <h2 className="ion-heading mt-4 max-w-2xl text-3xl sm:text-4xl">Four things you can hold us to.</h2>
+        <div className="mt-8 grid gap-4 md:grid-cols-2">
+          {commitments.map((item) => (
+            <div key={item.title} className="ion-panel p-7">
+              <h3 className="font-display text-xl font-bold tracking-tight">{item.title}</h3>
+              <p className="mt-3 leading-7 text-muted-foreground">{item.body}</p>
+            </div>
           ))}
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1280px] px-4 pb-20 pt-8 sm:px-6">
-        <div className="ion-panel grid gap-10 p-7 sm:p-10 lg:grid-cols-[1fr_1fr] lg:items-center lg:p-12">
-          <div>
-            <p className="utility-label text-primary">Working with us</p>
-            <h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
-              Start with the product. Keep the documentation close.
-            </h2>
-            <p className="mt-5 leading-8 text-muted-foreground">
-              Product specifications, handling details, and the documentation
-              model are public so you can evaluate fit before ordering. Current
-              lot availability and commercial terms appear where access allows.
-            </p>
-            <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-              <Link
-                href="/catalog"
-                className="inline-flex h-12 items-center justify-center gap-3 bg-primary px-6 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
-              >
-                Shop products <ArrowRight className="size-4" />
-              </Link>
-              <Link
-                href={open ? '/documentation/lot-lookup' : '/access'}
-                className="inline-flex h-12 items-center justify-center border border-foreground/20 px-6 text-sm font-bold transition-colors hover:border-primary hover:text-primary"
-              >
-                {open ? 'View COAs' : 'Request access'}
-              </Link>
-            </div>
-          </div>
-          <div className="rounded-[1.5rem] bg-secondary p-7 lg:p-9">
-            <p className="utility-label text-muted-foreground">Contact</p>
-            <p className="mt-4 font-display text-2xl font-bold tracking-tight">research@nexphaselabs.net</p>
+      <section className="mx-auto max-w-[1280px] px-4 py-6 sm:px-6">
+        <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+          <div className="ion-panel p-7 sm:p-9">
+            <p className="ion-kicker">Who we are</p>
+            <h2 className="ion-heading mt-4 text-3xl">A small company, run by the people who own it.</h2>
             <p className="mt-4 leading-7 text-muted-foreground">
-              Questions about a specification, a lot, or an open account reach a person who can pull the record and
-              answer directly.
+              {ENTITY.tradingName} is the trading name of {ENTITY.legalName}, a {ENTITY.jurisdiction} company owned and
+              run by its members, with no outside investors. We receive, hold and ship our own inventory from{' '}
+              {ENTITY.city}, {ENTITY.region}, and the people answering support are the people running the business.
             </p>
-            <dl className="mt-8 border-t border-border">
+            <dl className="mt-6 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
               {[
-                ['Operating entity', '8486 Ventures LLC'],
-                ['Organised in', 'California, United States'],
-                ['Trading as', 'NexPhase Labs'],
-                ['Facility', 'Oakland, California'],
-              ].map(([k, v]) => (
-                <div key={k} className="grid gap-1 border-b border-border py-3 sm:grid-cols-[160px_1fr]">
-                  <dt className="text-sm font-semibold text-muted-foreground">{k}</dt>
-                  <dd className="text-sm">{v}</dd>
+                ['Operating entity', ENTITY.legalName],
+                ['Trading as', ENTITY.tradingName],
+                ['Organized in', `${ENTITY.jurisdiction}, ${ENTITY.country}`],
+                ['Based in', `${ENTITY.city}, ${ENTITY.region}`],
+              ].map(([label, value]) => (
+                <div key={label} className="border-t border-border pt-3">
+                  <dt className="utility-label text-muted-foreground">{label}</dt>
+                  <dd className="mt-1 font-semibold">{value}</dd>
                 </div>
               ))}
             </dl>
+          </div>
+          <div className="ion-panel p-7 sm:p-9">
+            <p className="ion-kicker">Talk to a person</p>
+            <h2 className="ion-heading mt-4 text-3xl">Questions reach someone who can pull the record.</h2>
+            <p className="mt-4 leading-7 text-muted-foreground">
+              Orders, lots, documentation, storage and shipping: write to{' '}
+              <span className="font-semibold text-foreground">{SUPPORT.email}</span> or use the contact form. Hours are{' '}
+              {SUPPORT.hours}; first reply {SUPPORT.firstReply}.
+            </p>
+            <p className="mt-4 text-sm leading-6 text-muted-foreground">{SUPPORT.outOfScope}</p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link href="/contact" className="action-primary">
+                Contact us
+              </Link>
+              <Link href="/legal/compliance" className="action-secondary gap-2">
+                Compliance &amp; disclosures <ArrowRight className="size-4" />
+              </Link>
+            </div>
           </div>
         </div>
       </section>

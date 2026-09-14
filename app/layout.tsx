@@ -3,6 +3,7 @@ import { IBM_Plex_Mono, Sora, Source_Sans_3 } from 'next/font/google';
 import { SiteFooter } from '@/components/site/site-footer';
 import { SiteHeader } from '@/components/site/site-header';
 import { ResearchNoticeBar } from '@/components/site/research-notice';
+import { EntryNotice } from '@/components/site/entry-notice';
 import { FeedbackChat } from '@/components/site/feedback-chat';
 import { ProductRail } from '@/components/site/product-rail';
 import { appEnv } from '@/lib/site-config';
@@ -33,6 +34,7 @@ export default function RootLayout({
       <body
         className={`${display.variable} ${body.variable} ${mono.variable} antialiased`}
       >
+        <EntryNotice />
         <ResearchNoticeBar />
         {appEnv() !== 'production' && (
           <div

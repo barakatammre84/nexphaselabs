@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { AlertCircle } from 'lucide-react';
-import { RUO_ACKNOWLEDGEMENT, RUO_VERSION, TERMS_VERSION } from '@/lib/policy';
+import { AGE_STATEMENT, RUO_ACKNOWLEDGEMENT, RUO_VERSION, TERMS_VERSION } from '@/lib/policy';
 
 /**
  * Shown to a signed-in account whose accepted terms or research-use
@@ -20,11 +20,15 @@ export function AcknowledgementForm({ returnTo, error }: { returnTo: string; err
       {error && (
         <p role="alert" className="mt-4 flex items-center gap-2 border border-destructive/40 bg-background p-3 text-sm">
           <AlertCircle className="size-4 text-destructive" />
-          {error === 'required' ? 'Both confirmations are required.' : 'This could not be saved. Try again shortly.'}
+          {error === 'required' ? 'All three confirmations are required.' : 'This could not be saved. Try again shortly.'}
         </p>
       )}
       <p className="mt-5 border-l-2 border-primary bg-background px-4 py-3 text-sm leading-6">{RUO_ACKNOWLEDGEMENT}</p>
       <label className="mt-4 flex items-start gap-3 text-sm">
+        <input type="checkbox" name="accept_age" required className="mt-1" />
+        <span>{AGE_STATEMENT}</span>
+      </label>
+      <label className="mt-3 flex items-start gap-3 text-sm">
         <input type="checkbox" name="accept_ruo" required className="mt-1" />
         <span>I confirm the research-use acknowledgement above.</span>
       </label>

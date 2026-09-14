@@ -26,6 +26,15 @@ export function publicOrigin(): string {
   return (env.PUBLIC_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
 }
 
+/**
+ * Legal pages carry a "not yet reviewed by counsel" banner until an owner
+ * sets POLICIES_COUNSEL_REVIEWED=true for the environment. The banner is the
+ * default so that an unreviewed page can never look reviewed by accident.
+ */
+export function policiesCounselReviewed(): boolean {
+  return env.POLICIES_COUNSEL_REVIEWED === 'true';
+}
+
 export function appEnv(): string {
   return env.APP_ENV || 'development';
 }

@@ -142,9 +142,10 @@ export async function createOrderFromCart(
   submissionToken: string,
   contactEmail: string | null = null,
   checkoutQuoteId: string | null = null,
-  evidence: { from: string | null; researchSetting: string | null } = {
+  evidence: { from: string | null; researchSetting: string | null; ageConfirmed: boolean } = {
     from: null,
     researchSetting: null,
+    ageConfirmed: false,
   },
 ): Promise<CreateOrderResult> {
   if (visibility.pricing === 'none')
@@ -267,6 +268,7 @@ export async function createOrderFromCart(
     now,
     from: evidence.from,
     researchSetting: evidence.researchSetting,
+    ageConfirmed: evidence.ageConfirmed,
   });
 
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -311,6 +313,7 @@ export async function createOrderFromCart(
             acknowledgementHash: attestation.acknowledgementHash,
             acknowledgedAt: attestation.acknowledgedAt,
             acknowledgedFrom: attestation.acknowledgedFrom,
+            ageConfirmed: attestation.ageConfirmed,
             researchSetting: attestation.researchSetting,
             submittedAt: now,
             createdAt: now,
