@@ -31,6 +31,9 @@
     "APP_ENV": "production",
     "PUBLIC_ORIGIN": "https://nexphaselabs.net",
     "RESEARCHER_TIER_ENABLED": "false",
+    "ZELLE_RECIPIENT_EMAIL": "orders@nexphaselabs.net",
+    "ZELLE_RECIPIENT_NAME": "8486 llc",
+    "ZELLE_MODE": "manual",
     "EMAIL_FROM": "NexPhase Labs <research@nexphaselabs.net>",
   },
   "d1_databases": [
@@ -78,6 +81,7 @@
         // variable identical; staging email links and payment return URLs are built from this.
         "PUBLIC_ORIGIN": "https://nexphaselabs-staging.ammre.workers.dev",
         "RESEARCHER_TIER_ENABLED": "false",
+        "ZELLE_RECIPIENT_EMAIL": "orders@nexphaselabs.net",
         // Shippo test mode obtains real carrier test rates without buying live postage.
         // The API key and private ship-from contact are protected Worker secrets.
         "SHIPPING_PROVIDER": "shippo",

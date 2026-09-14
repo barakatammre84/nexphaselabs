@@ -4,6 +4,8 @@ import { cleanupExpiredCommerceRecords } from './lib/commerce-maintenance';
 import { feedbackRealtime } from './lib/feedback-realtime';
 import { gateNonProduction, withNoindex } from './lib/environment-gate';
 import { legacyDecision, legacyResponse } from './lib/legacy-redirects';
+import { syncZelleMailbox } from './lib/zelle-gmail';
+import { zelleInboxEnabled } from './lib/zelle-config';
 
 export { FeedbackRoom } from './lib/feedback-room';
 
@@ -59,13 +61,17 @@ export default {
     return withNoindex(response, runtimeEnv.APP_ENV);
   },
   async scheduled() {
-    const [notifications, maintenance] = await Promise.all([
+    const [notifications, maintenance, zelle] = await Promise.all([
       dispatchNotifications(),
       cleanupExpiredCommerceRecords(),
+      zelleInboxEnabled()
+        ? syncZelleMailbox()
+        : Promise.resolve({ ok: true, skipped: true }),
     ]);
-    console.info('[scheduled] dispatch and maintenance complete', {
+    console.info('[scheduled] dispatch, maintenance and payment sync complete', {
       notifications,
       maintenance,
+      zelle,
     });
   },
 };

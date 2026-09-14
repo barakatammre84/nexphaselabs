@@ -7,6 +7,7 @@ import {
   CircleCheck,
   Download,
   FileText,
+  Landmark,
 } from 'lucide-react';
 import {
   ORDER_STATUS_LABEL,
@@ -111,9 +112,12 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
   const detail = await getOrderByNumber(number);
   if (!detail) notFound();
   const { order, items, events } = detail;
-  const [allocation, verification] = await Promise.all([
+  const zelle = order.paymentMethod === 'zelle' ? await import('@/lib/zelle') : null;
+  const [allocation, verification, zelleClaim, zelleReceipts] = await Promise.all([
     reservationEligibility(order.id),
     contactVerification(order.id),
+    zelle ? zelle.zelleClaimForOrder(order.id) : null,
+    zelle ? zelle.zelleReceiptsForOrder(order.id, 5) : [],
   ]);
   const checkoutParcel = checkoutParcelForPacks(
     items.reduce((total, item) => total + item.quantity, 0),
@@ -453,6 +457,26 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                 }
               />
             </dl>
+            {order.paymentMethod === 'zelle' && (
+              <div className="mt-5 border border-border bg-secondary p-5 text-sm">
+                <div className="flex items-center gap-2 font-semibold">
+                  <Landmark className="size-4 text-primary" /> Zelle evidence
+                </div>
+                <p className="mt-2 leading-6 text-muted-foreground">
+                  {zelleClaim
+                    ? `Customer reported payment sent ${zelleClaim.claimedAt.toISOString().replace('T', ' ').slice(0, 16)} UTC${zelleClaim.payerName ? ` from ${zelleClaim.payerName}` : ''}. Claim status: ${zelleClaim.status}.`
+                    : 'The customer has not reported sending this payment.'}
+                </p>
+                <p className="mt-2 leading-6 text-muted-foreground">
+                  {zelleReceipts.length
+                    ? `${zelleReceipts.length} Chase-originated receipt record${zelleReceipts.length === 1 ? '' : 's'} linked to this order. Latest: ${zelleReceipts[0].outcome.replaceAll('_', ' ')}.`
+                    : 'No Chase-originated receipt is linked to this order yet.'}
+                </p>
+                <Link href="/manage/payments/zelle?outcome=review" className="mt-3 inline-flex font-semibold text-primary underline">
+                  Open Zelle payment desk
+                </Link>
+              </div>
+            )}
             {refundAllowed(order) &&
               (canVerifyAccounts(staff) ? (
                 <form

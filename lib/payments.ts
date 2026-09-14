@@ -3,6 +3,11 @@ import type { Order } from '@/db/schema';
 import { publicOrigin, openCheckoutEnabled } from '@/lib/site-config';
 import { livePaymentsAllowed } from '@/lib/environment-safety';
 import { boundedJson } from '@/lib/provider-response';
+import {
+  zelleCheckoutEnabled,
+  zelleConfig,
+  zelleConfigurationStatus,
+} from '@/lib/zelle-config';
 
 /**
  * Payment methods behind one interface.
@@ -20,7 +25,7 @@ import { boundedJson } from '@/lib/provider-response';
  * decision is open.
  */
 
-export type PaymentMethodId = 'bank_transfer' | 'btcpay' | 'invoice';
+export type PaymentMethodId = 'zelle' | 'bank_transfer' | 'btcpay' | 'invoice';
 
 export type PaymentInstructions = {
   method: PaymentMethodId;
@@ -31,6 +36,50 @@ export type PaymentInstructions = {
   url: string | null;
   /** Provider reference (invoice id), when one exists. */
   reference: string | null;
+  /** Structured fields for the customer-facing Zelle payment panel. */
+  zelle?: {
+    recipientEmail: string;
+    recipientName: string;
+    amountCents: number;
+    currency: string;
+    memo: string;
+    qrImagePath: string | null;
+  };
+};
+
+const zelle: PaymentMethod = {
+  id: 'zelle',
+  label: 'Zelle',
+  description:
+    'Send the exact order total through your U.S. bank. We confirm the Chase receipt before preparation begins.',
+  enabled: zelleCheckoutEnabled,
+  async begin(order) {
+    const config = zelleConfig();
+    if (!zelleCheckoutEnabled())
+      throw new Error('Zelle checkout is not configured.');
+    return {
+      method: 'zelle',
+      title: 'Pay with Zelle',
+      lines: [
+        `Amount: ${(order.totalCents / 100).toFixed(2)} ${order.currency}`,
+        `Send to: ${config.recipientEmail}`,
+        `Recipient name: ${config.recipientName}`,
+        `Memo: ${order.orderNumber}`,
+        'Check the recipient name in your bank before sending. Do not send a second payment while confirmation is pending.',
+        'Zelle payments are generally final and do not include purchase protection.',
+      ],
+      url: null,
+      reference: order.orderNumber,
+      zelle: {
+        recipientEmail: config.recipientEmail,
+        recipientName: config.recipientName,
+        amountCents: order.totalCents,
+        currency: order.currency,
+        memo: order.orderNumber,
+        qrImagePath: config.qrImagePath,
+      },
+    };
+  },
 };
 
 export type PaymentMethod = {
@@ -153,7 +202,7 @@ const invoice: PaymentMethod = {
   },
 };
 
-const METHODS: PaymentMethod[] = [bankTransfer, btcpay, invoice];
+const METHODS: PaymentMethod[] = [zelle, bankTransfer, btcpay, invoice];
 
 const testInvoice: PaymentMethod = {
   id: 'invoice',
@@ -251,6 +300,13 @@ export function paymentRailStatus(): PaymentRailStatus[] {
     ? undefined
     : `Not production (APP_ENV=${env.APP_ENV ?? 'unset'}), so every rail stays simulated whatever is configured.`;
   return [
+    {
+      id: 'zelle',
+      label: zelle.label,
+      live: zelle.enabled(),
+      missing: zelleConfigurationStatus().missing,
+      note: environmentNote ?? `Mode: ${zelleConfigurationStatus().mode}. Gmail matching is ${zelleConfigurationStatus().inboxConfigured ? 'configured' : 'not configured'}.`,
+    },
     {
       id: 'bank_transfer',
       label: bankTransfer.label,

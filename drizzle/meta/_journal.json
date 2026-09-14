@@ -407,6 +407,20 @@
       "when": 1789401570920,
       "tag": "0057_age_affirmation",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "6",
+      "when": 1789402018492,
+      "tag": "0058_bright_chronomancer",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "6",
+      "when": 1789402519123,
+      "tag": "0059_secret_mother_askani",
+      "breakpoints": true
     }
   ]
 }

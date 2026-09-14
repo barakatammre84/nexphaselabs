@@ -54,6 +54,9 @@ export default async function ManageLayout({
             <Link href="/manage/orders" className="hover:text-primary">
               Orders
             </Link>
+            <Link href="/manage/payments/zelle" className="hover:text-primary">
+              Zelle
+            </Link>
             <Link href="/manage/procurement" className="hover:text-primary">
               Procurement
             </Link>

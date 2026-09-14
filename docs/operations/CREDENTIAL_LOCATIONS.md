@@ -55,6 +55,7 @@ npx wrangler secret list --env staging
 | `GOOGLE_WORKSPACE_OAUTH_CLIENT_SECRET`, `GOOGLE_WORKSPACE_OAUTH_REFRESH_TOKEN` | OAuth alternative to the service-account key | both |
 | `RESEND_API_KEY` | Alternative mail provider | both |
 | `PAYMENT_BANK_INSTRUCTIONS` | Bank remittance text shown to a customer | production |
+| `ZELLE_GMAIL_OAUTH_CLIENT_SECRET`, `ZELLE_GMAIL_OAUTH_REFRESH_TOKEN` | Dedicated read-only Gmail authorization for Chase Zelle receipts | production |
 | `BTCPAY_API_KEY`, `BTCPAY_WEBHOOK_SECRET` | Bitcoin checkout and settlement | production |
 | `DIGEST_TOKEN` | Bearer token an external scheduler presents to `/api/digest` | both |
 | `CHATGPT_FEEDBACK_READ_TOKEN` | Read-only feedback archive API | both |

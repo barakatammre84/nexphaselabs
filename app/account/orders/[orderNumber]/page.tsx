@@ -22,6 +22,7 @@ import {
 import { trackingUrl } from '@/lib/tracking';
 import { formatCents } from '@/lib/visibility-rules';
 import { OrderProgress } from '@/components/site/order-progress';
+import { ZellePaymentPanel } from '@/components/site/zelle-payment-panel';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -37,12 +38,13 @@ type Props = {
     error?: string;
     cancelled?: string;
     paid?: string;
+    zelle?: string;
   }>;
 };
 
 export default async function OrderPage({ params, searchParams }: Props) {
   const { orderNumber } = await params;
-  const { submitted, payment, error, cancelled, paid } = await searchParams;
+  const { submitted, payment, error, cancelled, paid, zelle } = await searchParams;
   const account = await getBuyer();
   const number = orderNumberFromParam(orderNumber);
   if (!number) notFound();
@@ -62,9 +64,14 @@ export default async function OrderPage({ params, searchParams }: Props) {
     owned && order.status === 'awaiting_payment'
       ? await (await import('@/lib/orders')).paymentInstructionsFor(order)
       : null;
+  const zelleClaim =
+    owned && order.paymentMethod === 'zelle'
+      ? await (await import('@/lib/zelle')).zelleClaimForOrder(order.id)
+      : null;
   const cancellable =
     Boolean(owned) &&
-    (order.status === 'submitted' || order.status === 'awaiting_payment');
+    (order.status === 'submitted' || order.status === 'awaiting_payment') &&
+    !zelleClaim;
 
   return (
     <main className="bg-background text-foreground">
@@ -94,6 +101,14 @@ export default async function OrderPage({ params, searchParams }: Props) {
             <CircleCheck className="size-4 text-primary" /> Payment method
             saved. Use the instructions below; an email notification has been
             queued.
+          </p>
+        )}
+        {zelle === 'claimed' && zelleClaim && (
+          <p
+            role="status"
+            className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm"
+          >
+            <CircleCheck className="size-4 text-primary" /> Payment reported sent. We are checking Chase; do not send it again.
           </p>
         )}
         {paid === 'simulated' &&
@@ -360,7 +375,13 @@ export default async function OrderPage({ params, searchParams }: Props) {
             </a>
           </div>
         )}
-        {instructions && (
+        {instructions?.method === 'zelle' && instructions.zelle ? (
+          <ZellePaymentPanel
+            details={instructions.zelle}
+            claimAction={`/api/orders/${order.orderNumber}/zelle-claim`}
+            claimedAt={zelleClaim?.claimedAt.toISOString() ?? null}
+          />
+        ) : instructions ? (
           <div className="mt-10 border border-border bg-secondary p-6">
             <h2 className="font-display text-xl font-bold tracking-tight">
               {instructions.title}
@@ -380,6 +401,12 @@ export default async function OrderPage({ params, searchParams }: Props) {
               </a>
             )}
           </div>
+        ) : null}
+
+        {zelleClaim && order.status === 'awaiting_payment' && (
+          <p className="mt-5 border-l-2 border-primary bg-secondary px-4 py-3 text-sm leading-6">
+            We will not prepare or ship the order until the payment is matched. Contact order support if the bank shows a problem; do not create a second payment.
+          </p>
         )}
 
         {owned &&

@@ -16,6 +16,17 @@ export async function POST(
   if (!number) return new Response('Not found', { status: 404 });
   const detail = await getOrderForAccount(account.id, number);
   if (!detail) return new Response('Not found', { status: 404 });
+  if (
+    detail.order.paymentMethod === 'zelle' &&
+    (await (await import('@/lib/zelle')).zelleClaimForOrder(detail.order.id))
+  ) {
+    const url = new URL(`/account/orders/${number}`, request.url);
+    url.searchParams.set(
+      'error',
+      'Your Zelle payment is being checked. Contact order support instead of cancelling or sending again.',
+    );
+    return Response.redirect(url, 303);
+  }
   let reason: string | null = null;
   try {
     const form = await request.formData();
