@@ -182,7 +182,7 @@ const subject = (over: Partial<LabelSubject> = {}): LabelSubject => ({
   packSize: '5 mg',
   hazard: (validateHazard(input()) as { ok: true; value: never }).value,
   responsibleParty: {
-    name: 'NexPhase Labs · 8486 Ventures LLC',
+    name: 'NexPhase Labs · 8486 LLC',
     address: '1 Example Street, Oakland, CA',
     telephone: '+1 555 0100',
   },

@@ -3,6 +3,7 @@ import { openCheckoutEnabled } from '@/lib/site-config';
 import { loadCatalog } from '@/lib/catalog-data';
 import { listActiveClasses } from '@/lib/classes';
 import { BrandLogo } from '@/components/site/brand-logo';
+import { ENTITY } from '@/lib/entity';
 
 const staticColumns = [
   {
@@ -105,8 +106,8 @@ export async function SiteFooter() {
           </p>
           <div className="mt-8 flex flex-col justify-between gap-3 text-xs text-white/45 sm:flex-row sm:items-center">
             <p>
-              &copy; {new Date().getFullYear()} 8486 Ventures LLC, trading as
-              NexPhase Labs. Oakland, California.
+              &copy; {new Date().getFullYear()} {ENTITY.legalName}, trading as{' '}
+              {ENTITY.tradingName}. Oakland, California.
             </p>
           </div>
         </div>

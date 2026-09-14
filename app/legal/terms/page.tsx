@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { LegalPage, LegalSection } from '@/components/site/legal-layout';
+import { ENTITY } from '@/lib/entity';
 import { AGE_STATEMENT, MINIMUM_AGE, RUO_ACKNOWLEDGEMENT, RUO_VERSION, TERMS_VERSION } from '@/lib/policy';
 
 export const metadata: Metadata = {
@@ -17,8 +18,8 @@ export default function TermsPage() {
     >
       <LegalSection id="who" heading="1. Who we are and what these terms cover">
         <p>
-          NexPhase Labs is the trading name of 8486 Ventures LLC, a California limited liability company based in
-          Oakland, California (&ldquo;NexPhase Labs&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;). These terms, together
+          {ENTITY.tradingName} is the trading name of {ENTITY.legalName}, a California limited liability company based
+          in Oakland, California (&ldquo;NexPhase Labs&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;). These terms, together
           with the{' '}
           <Link href="/legal/research-use" className="font-semibold text-primary">
             research-use policy
@@ -97,7 +98,7 @@ export default function TermsPage() {
           You are solely responsible for the safe receipt, storage, handling, use and disposal of every material you
           order; for the competence and supervision of anyone who handles it; and for complying with all federal,
           state, local and institutional rules that apply to you. You will indemnify and hold harmless NexPhase Labs,
-          8486 Ventures LLC and their members, staff and agents against any claim, loss or cost arising from your use
+          {ENTITY.legalName} and their members, staff and agents against any claim, loss or cost arising from your use
           of a material, from any use contrary to these terms, or from any statement you made to us that was untrue.
         </p>
       </LegalSection>
@@ -126,6 +127,12 @@ export default function TermsPage() {
           Payment methods are shown at checkout. If you have a question about a charge, contact us before contacting
           your bank; a chargeback raised on an order that was delivered as described will be contested with the order
           record, and an account that raises one may be closed.
+        </p>
+        <p>
+          For Zelle orders, send only the exact total to the enrolled recipient shown at checkout and include the
+          order number as the memo. A customer report that payment was sent does not make the order paid. We prepare
+          the order only after the payment is matched to the Chase receipt. Zelle payments are generally final and do
+          not include purchase protection.
         </p>
       </LegalSection>
 
@@ -169,7 +176,7 @@ export default function TermsPage() {
 
       <LegalSection id="ip" heading="13. Content and intellectual property">
         <p>
-          The text, documentation, images and design of this site belong to 8486 Ventures LLC or its licensors. You
+          The text, documentation, images and design of this site belong to {ENTITY.legalName} or its licensors. You
           may print or save pages for your own research records; you may not reproduce the site or its documentation
           for any other purpose without written permission. Certificates of analysis may be shared with the people
           who use the material in your laboratory.

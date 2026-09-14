@@ -28,7 +28,7 @@ the next dollar spent depends on this call.
 
 | Item | Status | Evidence / gap |
 |---|---|---|
-| No entity | **Done** | 8486 Ventures LLC (California), trading as NexPhase Labs, on `/about` and the footer since Phase 6.3. EIN, bank account and whether anything is still transacted personally: owner to confirm. |
+| No entity | **Done** | 8486 LLC (California), trading as NexPhase Labs, on `/about` and the footer since Phase 6.3. EIN, bank account and whether anything is still transacted personally: owner to confirm. |
 | "Prepared in-house" sentence | **Done** | Both blends withdrawn 2 September with reasons recorded in `lib/catalog.ts`; no "prepared in-house" copy remains (only "in-house research laboratory" as a customer type). |
 | About-page TODO | **Partial** | Entity, state, trading name, facility city published. Founding year not on record — owner. |
 | Access gate | **Done and hardened** | Brief called it the right door. It is now backed by real verification: organisation-domain email, PO-box/residential rejection, human-use statements refused, document upload, named admin decision with event history, and revocation. |

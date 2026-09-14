@@ -22,7 +22,7 @@ EMAIL_FROM=NexPhase Labs <research@nexphaselabs.net>
 # With a real key, non-production sends only to exact comma-separated approved test mailboxes.
 # TEST_EMAIL_ALLOWLIST=
 # Payment rails below are production-only. Staging/development always simulate payment.
-# PAYMENT_BANK_INSTRUCTIONS=Bank: Example Bank\nAccount name: 8486 Ventures LLC\nRouting: 000000000\nAccount: 000000000
+# PAYMENT_BANK_INSTRUCTIONS=Bank: Example Bank\nAccount name: 8486 LLC\nRouting: 000000000\nAccount: 000000000
 # ZELLE_MODE=disabled
 # ZELLE_RECIPIENT_EMAIL=orders@nexphaselabs.net
 # ZELLE_RECIPIENT_NAME=Exact name Chase displays to the sender

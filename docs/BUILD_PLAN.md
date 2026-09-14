@@ -264,7 +264,7 @@ Books your CPA and bank recognise
 
 ### About this plan
 
- Prepared 2 September 2026 for 8486 Ventures LLC. Sequencing and scope reflect three stated constraints — two customer tiers, a twenty-six week horizon, and a tools-and-hosting budget with no contractors. Regulatory citations are to primary sources; cost figures are approximate and should be confirmed. Nothing here is legal advice, and decision two in particular is a question for a lawyer rather than for me.
+ Prepared 2 September 2026 for 8486 LLC. Sequencing and scope reflect three stated constraints — two customer tiers, a twenty-six week horizon, and a tools-and-hosting budget with no contractors. Regulatory citations are to primary sources; cost figures are approximate and should be confirmed. Nothing here is legal advice, and decision two in particular is a question for a lawyer rather than for me.
 
 ## Phase 7 — Operating tools (added 2026-09-03)
 

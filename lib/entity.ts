@@ -17,7 +17,7 @@ export const ENTITY = {
   /** Trading name, used as the letterhead. */
   tradingName: 'NexPhase Labs',
   /** Registered entity. */
-  legalName: '8486 Ventures LLC',
+  legalName: '8486 LLC',
   jurisdiction: 'California',
   streetAddress: null as string | null,
   city: 'Oakland',

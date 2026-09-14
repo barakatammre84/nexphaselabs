@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { LegalPage, LegalSection } from '@/components/site/legal-layout';
+import { ENTITY } from '@/lib/entity';
 import { MINIMUM_AGE, PRIVACY_VERSION } from '@/lib/policy';
 import { SUPPORT } from '@/lib/support';
 
@@ -17,8 +18,8 @@ export default function PrivacyPage() {
     >
       <LegalSection heading="1. Who is responsible">
         <p>
-          The site is operated by 8486 Ventures LLC, trading as NexPhase Labs, Oakland, California. Questions about
-          this policy go to <span className="font-semibold text-foreground">{SUPPORT.email}</span>.
+          The site is operated by {ENTITY.legalName}, trading as {ENTITY.tradingName}, Oakland, California. Questions
+          about this policy go to <span className="font-semibold text-foreground">{SUPPORT.email}</span>.
         </p>
       </LegalSection>
 
@@ -35,8 +36,10 @@ export default function PrivacyPage() {
         <p>
           When you order, with or without an account: your shipping and billing details, what you ordered, the
           confirmations you gave at checkout, the address the order was placed from, and the correspondence about
-          the order. Payment details are entered with our payment processor and never reach our systems; we keep
-          only the processor&rsquo;s reference for the payment.
+          the order. For Zelle, we keep the order reference, amount, the payer name you choose to report, the time of
+          your payment claim, and limited payment-confirmation details needed to match the Chase receipt. We do not
+          receive your bank login or bank account number. For other payment providers, we keep only the provider
+          reference and settlement status needed to manage the order.
         </p>
         <p>
           When you write to us: your message, the details you choose to give, and the page you wrote from. The site

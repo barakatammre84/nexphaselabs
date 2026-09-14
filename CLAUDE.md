@@ -4,7 +4,7 @@ The owner explicitly requested removal of buyer registration, email verification
 
 # NexPhase Labs — working notes for Claude Code
 
-Operating entity: 8486 Ventures LLC (California), trading as NexPhase Labs.
+Operating entity: 8486 LLC (California), trading as NexPhase Labs.
 Facility: Oakland, CA. Not FDA registered. Pre-launch — nothing has shipped and
 no payment has been taken.
 
