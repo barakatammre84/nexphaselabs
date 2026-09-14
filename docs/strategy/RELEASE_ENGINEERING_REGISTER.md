@@ -30,10 +30,10 @@ Status values: `done` · `built, unproven` · `in progress` · `owner action` ·
 
 | # | id | Item | Owner | When | Status |
 |---|----|------|-------|------|--------|
-| 1 | `c16-merge` | Merge the operations-repair branch deliberately, with someone watching | Ammre | blocks order #1 | **merged** · staging deploy blocked by #18 |
+| 1 | `c16-merge` | Merge the operations-repair branch deliberately, with someone watching | Ammre | blocks order #1 | **done** · 14 Sep: staging deployed from `main` by the workflow, run 34883249145 green |
 | 2 | `c16-guard` | Add the deploy guard | Ammre | blocks order #1 | **done** |
-| 3 | `c16-tagonly` | Make the v\* tag the only path to production | Ammre | blocks order #1 | **done** |
-| 4 | `c16-protect` | Protect staging — **revised 14 Sep:** public by owner decision; what is protected is the public/private boundary | Ammre | blocks order #1 | **built, unproven in the deploy job** · holds on live staging (run by hand 14 Sep) · first job run waits on #18 |
+| 3 | `c16-tagonly` | Make the v\* tag the only path to production | Ammre | blocks order #1 | **done** in code · a hand release went around it on 14 Sep (#19) |
+| 4 | `c16-protect` | Protect staging — **revised 14 Sep:** public by owner decision; what is protected is the public/private boundary | Ammre | blocks order #1 | **done** · proven in the deploy job, run 34883249145 · `access.staging` awaiting administrator review |
 | 5 | `c16-noindex` | Add a noindex header to the staging origin | Ammre | blocks order #1 | **done** · bundle exception recorded 14 Sep |
 | 6 | `c16-backup` | Complete the D1 and R2 backup and restore rehearsal | Ammre | blocks order #1 | **runnable** · one command, needs credentials |
 | 7 | `c16-rto` | Record the elapsed recovery time | Ammre | blocks order #1 | **automatic** once #6 runs |
@@ -52,7 +52,9 @@ Found during this pass and added to the register:
 | # | id | Item | Owner | When | Status |
 |---|----|------|-------|------|--------|
 | 17 | `c16-new-1` | The staging gate did not cover static assets — Workers Assets serves them ahead of the worker | Ammre | blocks order #1 | **done** · revised 14 Sep for open mode |
-| 18 | `c16-new-2` | **There is no `CLOUDFLARE_API_TOKEN` repository secret.** Neither deploy workflow can authenticate, and it is the same cause as the backup rehearsal's error 10000 | Ammre | blocks order #1 | **owner action** |
+| 18 | `c16-new-2` | **There is no `CLOUDFLARE_API_TOKEN` repository secret.** Neither deploy workflow can authenticate, and it is the same cause as the backup rehearsal's error 10000 | Ammre | blocks order #1 | **done** · token added 14 Sep; the staging workflow authenticated |
+| 19 | `c16-new-3` | **Production was released by hand on 14 September, around the tag workflow.** Migrations 0028–0059 applied and a worker uploaded directly, after the `v0.1.0` run failed for want of the token | Ammre + members | before the next release | **owner action** · confirm and record |
+| 20 | `c16-new-4` | **The production GitHub environment has no required reviewer.** With the token in place, any `v*` tag deploys production and migrates its database with nobody approving | Ammre | before the next tag | **owner action** |
 
 ## Item detail
 
@@ -85,6 +87,12 @@ What that means in practice, and it is better news than it sounds:
 
 This item stays open until the token exists and the run is repeated: `gh run rerun 34736986650` or
 a fresh push.
+
+**Closed 14 September 2026.** The token exists (#18). `main` now carries the launch pass, the discovery
+branch up to `5f13717`, and the staging boundary commits `74bceac` and `5dd212f`. Deploy staging run
+34883249145 at `5dd212f` completed every step: checks (88 test files), build, origin match, both deploy
+guards, the secret refusal, migrations, seed, deploy, smoke test and the access boundary. `98f0d5d`, the
+commit the `v0.1.0` tag points at, is not yet on `main` (#19).
 
 ### 2. `c16-guard` — deploy guard
 
@@ -264,6 +272,27 @@ Typecheck clean, lint unchanged (one existing warning), 700 tests green.
 
 Also changed by the decision: `/api/digest` and the feedback archive sit behind their own bearer tokens
 only, as in production. Provider webhooks and health were always exempt.
+
+**14 September 2026, evening — proven in the deploy job.** The Cloudflare token was added (#18), the
+`STAGING_ACCESS_OPEN` Worker secret was deleted (confirmed absent afterwards), and `main` was pushed.
+
+- **First run, 34882135138 at `74bceac`: failed at the boundary step, correctly.** Four seconds after the
+  upload, five of the nine paths answered 503 — isolates of the previous version, which had lost the
+  secret and were failing closed while Cloudflare drained them — and four answered as the new version
+  should. The worker had already been deployed; only the verdict came too early.
+- **`5dd212f` gives propagation a bounded wait.** In open mode only, a 503 is retried up to five times, two
+  seconds apart, per path. Every other answer is final on first sight — above all a 200 from a staff page
+  or private API, which is never retried. One test covers the drain; a second, added when this was
+  reviewed, proves that a path still answering 503 once the wait is over fails the deploy.
+- **Second run, 34883249145 at `5dd212f`: green.** All nine paths held: three public 200 with noindex,
+  three staff 307 to `/staff/sign-in`, three private 401. The running worker carries
+  `STAGING_ACCESS_OPEN` as a variable, not a secret.
+- **`access.staging` is `awaiting_review`,** with step 16 of that run as its evidence, recorded as a new
+  change with its own event ("Deployment evidence attachment 2026-09-14"); the earlier events are intact.
+  Readiness is an administrator's decision and has not been recorded.
+
+Checked again independently at 19:06 UTC: the boundary holds on live staging, and health reports D1 and R2
+healthy.
 
 ### 5. `c16-noindex` — noindex on the non-production origin
 
@@ -636,8 +665,65 @@ Consequences, all of which were invisible until something actually tried to depl
 Record it in `docs/operations/CREDENTIAL_LOCATIONS.md` once it exists — that file already names the
 scopes and says where it belongs.
 
+**Closed 14 September 2026.** `CLOUDFLARE_API_TOKEN` was added as a repository secret at 18:45 UTC —
+scoped, as reported by the person who created it, to Workers Scripts, D1 and Workers R2 Storage, all Edit,
+on the NexPhase account, with intermediate token values revoked. The staging workflow authenticated
+through migrations, seed and deploy in run 34883249145. The production workflow has not run with it yet.
+The backup rehearsal (#6) runs from a shell, not from Actions, so it still needs a token exported locally
+as well as R2 S3 credentials.
+
+### 19. `c16-new-3` — production was released by hand on 14 September
+
+**Found 14 September 2026** while verifying the token work. Neither this register nor the staging report
+recorded it. Read from Cloudflare and GitHub:
+
+| UTC | what happened |
+|---|---|
+| 18:18:02–18:18:10 | 32 migrations, `0028_hot_katie_power` through `0059_secret_mother_askani`, applied to the production D1. The previous production migration was `0027`, on 3 September. |
+| 18:19:21 | Annotated tag `v0.1.0`, "Zelle manual payment release", on `98f0d5d` (Make Zelle staging mode explicit), which is **not on `main`**. |
+| 18:19:30–18:21:51 | Deploy production run 34880100538 for that tag: checks, build and the deploy guard passed; **Apply migrations failed** for want of `CLOUDFLARE_API_TOKEN` (#18). The workflow deployed nothing. |
+| 18:22:54 | Production worker version `c10fe49c-e2e3-4ab5-9fed-1c65c1926bdc` **uploaded directly**, not through Actions, carrying `v0.1.0`'s production configuration (`ZELLE_MODE=manual` and the Zelle recipient). The previous production deployment was 5 September. |
+
+The migrations went in before the tag run started, so they did not come from the workflow either.
+
+What it did not change: `nexphaselabs.net` still serves WordPress, so nothing public moved. On its
+workers.dev address the production worker reports D1 and R2 healthy, and it holds no Worker secrets.
+
+Why it matters: #2 and #3 made the tag and the workflow the designed path to production, with
+`npm run deploy` as a guarded break-glass. Whichever command was used, this release left no workflow record
+and no witness, which the deployment handoff rule in the three-person operating model requires. And
+production now runs a commit that `main` does not have, so the next release from `main` would silently
+drop it.
+
+**Owner action:** confirm this was the intended `v0.1.0` release and record it as a case — who performed it,
+who witnessed, the version id, the migration range — then merge `98f0d5d` into `main`. Until #20 is
+closed, do not re-run 34880100538: with the token in place it would now deploy production with nobody
+approving.
+
+### 20. `c16-new-4` — the production environment has no required reviewer
+
+**Found 14 September 2026.** `deploy-production.yml` runs in the `production` GitHub environment, whose
+protection rules are empty and which has no deployment branch or tag policy. While there was no token this
+did not matter, because the job could not authenticate. Now it can: pushing any `v*` tag deploys
+production and applies its migrations once the checks pass, with nobody approving. Order 3 of the
+completion register asks for a required reviewer, so that order is not complete.
+
+**Owner action:** GitHub → Settings → Environments → `production` → Required reviewers — at least one
+member other than the person who tags, under the handoff rule — and optionally a deployment tag rule
+limited to `v*`.
+
 ## Change log
 
+- **2026-09-14 (token, staging deploy, production finding)** — Verified the owner actions reported by the
+  parallel session against GitHub, Cloudflare and staging D1. Closed `c16-new-2` (token added; the staging
+  workflow authenticated), `c16-merge` (Deploy staging run 34883249145 green end to end) and `c16-protect`
+  (the boundary step passed in that run; `access.staging` awaits administrator review with it as
+  evidence). The first run, at `74bceac`, failed the boundary step on draining fail-closed isolates;
+  `5dd212f` added a bounded 503 wait, and a regression test now proves the bound. Found `c16-new-3` —
+  production was migrated and deployed by hand at 18:18–18:23 UTC, around the tag workflow, from a commit
+  not on `main` — and `c16-new-4`: the production environment has no required reviewer, which matters now
+  that the token works. The 684 → 700 test count in the entry below was measured before the discovery
+  branch merged; `main` runs 88 test files, 864 tests with the new regression test.
 - **2026-09-14 (public staging)** — Reconciled `c16-protect`, `c16-new-1` and `access.staging` with the
   owner's decision to make staging public (order 1 of Ammre's completion register). The decision was
   live but undeclared — `STAGING_ACCESS_OPEN` was a Worker secret — and the deploy's last step would
