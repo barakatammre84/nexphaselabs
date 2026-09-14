@@ -61,7 +61,7 @@ describe('301 targets', () => {
       '/shipping-policy/': '/legal/shipping',
       '/terms-of-service/': '/legal/terms',
       '/refund_returns/': '/legal/returns',
-      '/disclaimer/': '/legal/terms',
+      '/disclaimer/': '/legal/research-use',
       '/product-category/research-peptides/': '/catalog',
       '/form/simple-contact-form/': '/contact',
     });
@@ -135,6 +135,36 @@ describe('410 Gone', () => {
       status: 301,
       location: '/catalog',
     });
+  });
+});
+
+describe('the URLs no sitemap lists', () => {
+  // Chapter 1 §1.2 says to pull the list from Search Console as well as the
+  // sitemaps, because Search Console holds URLs a sitemap never carried. Until
+  // someone with access exports it, these are handled by shape.
+  it('drops WordPress plumbing', () => {
+    for (const path of [
+      '/wp-login.php',
+      '/xmlrpc.php',
+      '/wp-admin/edit.php',
+      '/wp-json/wp/v2/posts',
+      '/wp-content/uploads/2026/05/vial.jpg',
+      '/wp-includes/js/jquery.js',
+    ]) {
+      expect(decisionFor(path), path).toEqual({ status: 410 });
+    }
+  });
+
+  it('drops every feed, at any depth', () => {
+    for (const path of ['/feed/', '/comments/feed/', '/shop/feed/', '/product/bpc-157/feed/']) {
+      expect(decisionFor(path), path).toEqual({ status: 410 });
+    }
+  });
+
+  it('keeps shop pagination and filters on the catalog', () => {
+    for (const path of ['/shop/page/2/', '/shop/page/7/']) {
+      expect(decisionFor(path), path).toEqual({ status: 301, location: '/catalog' });
+    }
   });
 });
 

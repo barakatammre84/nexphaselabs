@@ -94,6 +94,17 @@ export async function listStorefrontProducts(now = new Date()): Promise<ListedPr
     .filter((product): product is ListedProduct => product !== null);
 }
 
+/**
+ * Is this already-loaded published product on the storefront today?
+ *
+ * The legacy /product/<slug> redirect needs this: a published product that is
+ * not listed has no page to send anyone to, and a 301 into a 404 is worse than
+ * the 404 it replaced.
+ */
+export async function isListed(product: CatalogProduct, now = new Date()): Promise<boolean> {
+  return toListed(product, await publishableStock([product.code]), now) !== null;
+}
+
 /** One storefront product by slug, or null when it is not listed (the page answers 404). */
 export async function getStorefrontProduct(slug: string, now = new Date()): Promise<ListedProduct | null> {
   const product = await getPublishedProduct(slug);

@@ -1,22 +1,31 @@
 import { getPublishedProduct } from '@/lib/catalog-data';
+import { isListed } from '@/lib/storefront';
 import { legacyResponse } from '@/lib/legacy-redirects';
 
 /**
  * The WordPress product URL, after the cutover.
  *
  * Seven product pages are indexed under /product/<slug> and they need a
- * decision each (chapter 1 §1.2): a product still sold redirects to its new
- * page and keeps whatever authority the old URL had; a product no longer sold
- * returns 410 Gone, which tells a search engine to drop the URL deliberately
- * rather than retry it for months.
+ * decision each (chapter 1 §1.2). Which products exist is data, not code, so
+ * the decision is a catalog lookup rather than a list kept here: a product
+ * published today and withdrawn tomorrow changes its own answer.
  *
- * Which products exist is data, not code, so the decision is a catalog lookup
- * rather than a list kept here. A product that is published today and withdrawn
- * tomorrow changes its own answer, and nobody has to remember to edit a map.
+ * There are three states, not two, and the third one is why this file changed
+ * on 14 September. The storefront listing rule (chapter 19) means a published
+ * product is not necessarily a product with a page: /catalog/<slug> answers 404
+ * unless the product is photographed, priced and backed by a publishable lot.
+ * Redirecting an indexed URL to a 404 is worse than leaving it to 404 on its
+ * own — a searcher who followed a Google result lands on a broken page and we
+ * put them there deliberately.
  *
- * If the catalog cannot be read, this answers 302 to /catalog rather than 410:
- * a temporary redirect is reversible, and telling a search engine a page is
- * permanently gone because a database was briefly unavailable is not.
+ *   listed              301 → /catalog/<slug>   the equivalent page, permanently
+ *   published, unlisted 302 → /catalog          awaiting a lot, photo or price
+ *   not in the catalog  410                     deliberately dropped
+ *
+ * The middle state is a 302 on purpose. "Out of stock this week" is not a
+ * permanent fact, and a 301 would consolidate the old URL onto the catalog for
+ * good; when the product is listed again this route starts answering 301 to its
+ * own page without anyone editing anything.
  */
 export async function GET(
   request: Request,
@@ -29,23 +38,31 @@ export async function GET(
   }
   try {
     const product = await getPublishedProduct(normalised);
-    return legacyResponse(
-      product
-        ? { status: 301, location: `/catalog/${product.slug}` }
-        : { status: 410 },
-      request.url,
-    );
+    if (!product) return legacyResponse({ status: 410 }, request.url);
+    if (await isListed(product)) {
+      return legacyResponse(
+        { status: 301, location: `/catalog/${product.slug}` },
+        request.url,
+      );
+    }
+    return temporarily('/catalog', request.url);
   } catch (error) {
+    // Telling a search engine a page is permanently gone because a database was
+    // briefly unavailable is not reversible. A temporary redirect is.
     console.error(
       '[legacy-product] catalog read failed',
       error instanceof Error ? error.message : error,
     );
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: new URL('/catalog', request.url).toString(),
-        'Cache-Control': 'no-store',
-      },
-    });
+    return temporarily('/catalog', request.url);
   }
+}
+
+function temporarily(location: string, origin: string): Response {
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: new URL(location, origin).toString(),
+      'Cache-Control': 'no-store',
+    },
+  });
 }

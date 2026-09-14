@@ -41,9 +41,12 @@ const EXACT: Record<string, LegacyDecision> = {
   '/shipping-policy': { status: 301, location: '/legal/shipping' },
   '/terms-of-service': { status: 301, location: '/legal/terms' },
   '/refund_returns': { status: 301, location: '/legal/returns' },
-  // The disclaimer was the research-use notice; the terms carry it now, and the
-  // notice itself is in the body of every page rather than on a page of its own.
-  '/disclaimer': { status: 301, location: '/legal/terms' },
+  // The disclaimer WAS the research-use notice, word for word: "All products
+  // sold by NexPhase Labs are strictly intended for in-vitro laboratory research
+  // and scientific study", down to the 21+ requirement. On 13 September the
+  // nearest equivalent was the terms; since 14 September there is a page that is
+  // the same document, so it goes there instead.
+  '/disclaimer': { status: 301, location: '/legal/research-use' },
   // The shop category page carries real authority for "research peptides".
   '/product-category/research-peptides': { status: 301, location: '/catalog' },
   // The one indexed form is the contact form.
@@ -60,6 +63,13 @@ const EXACT: Record<string, LegacyDecision> = {
   '/form': { status: 410 },
   '/hello-world': { status: 410 },
   '/category/uncategorized': { status: 410 },
+
+  // WordPress plumbing. No sitemap lists these and Search Console usually holds
+  // several of them; they are gone and should be dropped, not retried.
+  '/wp-login.php': { status: 410 },
+  '/xmlrpc.php': { status: 410 },
+  '/feed': { status: 410 },
+  '/comments/feed': { status: 410 },
 };
 
 /**
@@ -67,6 +77,9 @@ const EXACT: Record<string, LegacyDecision> = {
  * sitemap listed. Order matters: first match wins.
  */
 const PREFIXES: { prefix: string; decide: (rest: string) => LegacyDecision }[] = [
+  // Shop pagination and attribute filters: /shop/page/2, /shop/?filter_size=. The
+  // catalog is the equivalent, so the authority goes there rather than nowhere.
+  { prefix: '/shop/', decide: () => ({ status: 301, location: '/catalog' }) },
   // WooCommerce account and checkout endpoints: /my-account/orders, /checkout/order-received/123.
   { prefix: '/my-account/', decide: () => ({ status: 410 }) },
   { prefix: '/checkout/', decide: () => ({ status: 410 }) },
@@ -78,7 +91,15 @@ const PREFIXES: { prefix: string; decide: (rest: string) => LegacyDecision }[] =
   { prefix: '/tag/', decide: () => ({ status: 410 }) },
   { prefix: '/author/', decide: () => ({ status: 410 }) },
   { prefix: '/form/', decide: () => ({ status: 410 }) },
+  // WordPress internals and uploaded media. Nothing here moved to the new build.
+  { prefix: '/wp-content/', decide: () => ({ status: 410 }) },
+  { prefix: '/wp-includes/', decide: () => ({ status: 410 }) },
+  { prefix: '/wp-admin/', decide: () => ({ status: 410 }) },
+  { prefix: '/wp-json/', decide: () => ({ status: 410 }) },
 ];
+
+/** Every RSS feed WordPress emitted, at any depth: /feed, /shop/feed, /product/x/feed. */
+const FEED_SUFFIX = '/feed';
 
 /** Paths whose decision needs the catalog, so it is made by a route handler. */
 export const PRODUCT_PREFIX = '/product/';
@@ -96,6 +117,10 @@ export function normalisePath(pathname: string): string {
 export function legacyDecision(pathname: string): LegacyDecision | null {
   const path = normalisePath(pathname);
   if (path === '/') return null;
+  // A product feed is a feed, not a product page: /product/bpc-157/feed must be
+  // decided here, before the product short-circuit hands it to a catalog lookup
+  // that would never match it anyway.
+  if (path.endsWith(FEED_SUFFIX)) return { status: 410 };
   if (path.startsWith(PRODUCT_PREFIX)) return null; // decided against the catalog
   const exact = EXACT[path];
   // Belt and braces for the rule above: a path is never sent to itself, whatever
