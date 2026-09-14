@@ -1,6 +1,7 @@
 # A version tag (v1.2.3) → checks and build → migrate the production database → deploy the built worker → smoke test.
 # The `production` GitHub environment can require a reviewer before this job runs.
-# Needs repository secrets CLOUDFLARE_API_TOKEN (Workers, D1, R2 edit) and CLOUDFLARE_ACCOUNT_ID.
+# Needs repository secrets CLOUDFLARE_API_TOKEN (Workers, D1, R2 edit) and CLOUDFLARE_ACCOUNT_ID,
+# plus repository variable PRODUCTION_SMOKE_URL (the workers.dev production origin used before DNS cutover).
 #
 # The tag is the only way in. workflow_dispatch stays available so an interrupted release can be
 # re-run, but the first step refuses any ref that is not a v* tag — dispatching a branch does not
@@ -41,8 +42,17 @@ jobs:
             v*) echo "Releasing $REF_NAME" ;;
             *) echo "Refusing: tag '$REF_NAME' is not a v* version tag."; exit 1 ;;
           esac
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Require the production Worker smoke origin
+        env:
+          PRODUCTION_SMOKE_URL: ${{ vars.PRODUCTION_SMOKE_URL }}
+        run: |
+          if [ "$PRODUCTION_SMOKE_URL" != "https://nexphaselabs.ammre.workers.dev" ]; then
+            echo "Set PRODUCTION_SMOKE_URL to the production workers.dev origin before releasing."
+            echo "The public domain stays on WordPress until the separate cutover checklist is complete."
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -79,12 +89,19 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node scripts/deploy-guard.mjs production && npx wrangler deploy --config dist/server/wrangler.json
       - name: Smoke test
+        env:
+          PRODUCTION_SMOKE_URL: ${{ vars.PRODUCTION_SMOKE_URL }}
         run: |
           for i in 1 2 3 4 5 6; do
-            if curl -fsS "https://nexphaselabs.net/api/health" | grep -q '"ok":true'; then echo "healthy"; exit 0; fi
+            health=$(curl -fsS "$PRODUCTION_SMOKE_URL/api/health" || true)
+            if printf '%s' "$health" | grep -q '"ok":true' && printf '%s' "$health" | grep -q '"env":"production"'; then
+              echo "production Worker healthy"
+              exit 0
+            fi
             sleep 10
           done
-          echo "production did not report healthy"; exit 1
+          echo "production Worker did not report healthy at $PRODUCTION_SMOKE_URL/api/health"
+          exit 1
       - name: Rollback hint
         if: failure()
         run: |

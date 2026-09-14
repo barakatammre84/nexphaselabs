@@ -93,15 +93,22 @@ finish(rehearsalVerdict({ phases }).status === 'passed' ? 0 : 1);
 
 function checkCredentials() {
   const problems = [];
-  if (!process.env.CLOUDFLARE_API_TOKEN) {
+  const tokenPresent = Boolean(process.env.CLOUDFLARE_API_TOKEN);
+  if (!tokenPresent) {
     problems.push('CLOUDFLARE_API_TOKEN is not set. The D1 export cannot authenticate without it.');
   }
   if (!accountId) {
     problems.push('No account id: set CLOUDFLARE_ACCOUNT_ID, or keep account_id in wrangler.jsonc.');
   }
-  const whoami = spawnSync('npx', ['wrangler', 'whoami'], { encoding: 'utf8' });
-  const output = `${whoami.stdout ?? ''}${whoami.stderr ?? ''}`;
-  if (whoami.status !== 0) {
+  // Do not start a networked CLI process after a required credential is already
+  // known to be absent. Besides making preflight slow and flaky, Wrangler may
+  // silently fall back to an unrelated local OAuth session and obscure the
+  // missing deployment token this runbook explicitly requires.
+  const whoami = tokenPresent && accountId
+    ? spawnSync('npx', ['wrangler', 'whoami'], { encoding: 'utf8' })
+    : null;
+  const output = `${whoami?.stdout ?? ''}${whoami?.stderr ?? ''}`;
+  if (whoami && whoami.status !== 0) {
     problems.push(
       output.includes('10000')
         ? [
@@ -120,9 +127,9 @@ function checkCredentials() {
     reason: problems.join('\n') || undefined,
     detail: {
       accountId: accountId ? `${accountId.slice(0, 6)}…` : null,
-      apiToken: process.env.CLOUDFLARE_API_TOKEN ? 'present' : 'missing',
+      apiToken: tokenPresent ? 'present' : 'missing',
       r2Credentials: r2CredentialsPresent() ? 'present' : 'missing',
-      wranglerWhoami: whoami.status === 0 ? 'ok' : 'failed',
+      wranglerWhoami: !whoami ? 'not-run' : whoami.status === 0 ? 'ok' : 'failed',
     },
   };
 }
