@@ -1,6 +1,3 @@
-import { getDb } from '@/db';
-import { accounts } from '@/db/schema';
-import { eq } from 'drizzle-orm';
 import { orderNumberFromParam } from '@/lib/order-rules';
 import { getOrderByNumber, markOrderPaid } from '@/lib/orders';
 import { recordedBy } from '@/lib/lots-admin';
@@ -26,8 +23,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
   }
   const back = (query: string) => Response.redirect(new URL(`/manage/orders/${number}?${query}`, request.url), 303);
   try {
-    const [account] = await getDb().select({ email: accounts.email }).from(accounts).where(eq(accounts.id, detail.order.accountId)).limit(1);
-    const result = await markOrderPaid(detail, recordedBy(staff), reference, account?.email ?? '');
+    const result = await markOrderPaid(detail, recordedBy(staff), reference);
     if (!result.ok) return back(`error=${encodeURIComponent(result.error)}`);
   } catch (error) {
     console.error('[orders] mark paid failed', error instanceof Error ? error.message : error);

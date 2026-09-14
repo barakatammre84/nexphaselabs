@@ -46,7 +46,7 @@ describe('payment recovery with no external money movement', () => {
     expect(order.refundDueCents).toBe(200); expect(order.paidAt).not.toBeNull();
     expect((await settleBtcpayInvoice(number, invoice)).ok).toBe(true);
     expect(count('order_events')).toBe(2); expect(count('notifications')).toBe(2);
-    expect((await recordRefund(await detail(), 200, 'SYNTHETIC-REFUND', 'Synthetic admin', '')).ok).toBe(true);
+    expect((await recordRefund(await detail(), 200, 'SYNTHETIC-REFUND', 'Synthetic admin')).ok).toBe(true);
     expect((await settleBtcpayInvoice(number, invoice)).ok).toBe(true);
     expect((await detail()).order.paymentStatus).toBe('refunded'); expect(count('order_events')).toBe(3);
   });
@@ -102,7 +102,7 @@ describe('payment recovery with no external money movement', () => {
   it('requires a fresh refund review if the amount owed changes before recording', async () => {
     local.sqlite.exec("UPDATE orders SET status = 'cancelled', payment_status = 'refund_due', refund_due_cents = 200");
     local.beforeNextBatch(() => local.sqlite.exec('UPDATE orders SET refund_due_cents = 100'));
-    expect((await recordRefund(await detail(), 200, 'SYNTHETIC-REFUND', 'Synthetic admin', '')).ok).toBe(false);
+    expect((await recordRefund(await detail(), 200, 'SYNTHETIC-REFUND', 'Synthetic admin')).ok).toBe(false);
     expect(count('order_events')).toBe(0); expect((await detail()).order.refundCents ?? 0).toBe(0);
   });
 });

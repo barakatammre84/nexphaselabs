@@ -31,7 +31,7 @@ beforeEach(async () => {
 });
 afterEach(() => { expect(fetch).not.toHaveBeenCalled(); vi.unstubAllGlobals(); vi.useRealTimers(); local.sqlite.close(); delete env.DB; });
 async function readyToShip() {
-  expect((await markOrderPaid(await detail(), 'Test admin', 'SYNTHETIC-PAYMENT', 'test@example.invalid')).ok).toBe(true);
+  expect((await markOrderPaid(await detail(), 'Test admin', 'SYNTHETIC-PAYMENT')).ok).toBe(true);
   expect((await startFulfilment(await detail(), staff)).ok).toBe(true);
 }
 
@@ -64,7 +64,7 @@ describe('order, shipment, return and refund transactions', () => {
     expect(await recordReturn(await detail(), returns, staff)).toEqual({ ok: true });
     expect(local.sqlite.prepare('SELECT quantity_remaining FROM lots').get()!.quantity_remaining).toBe('6 mg');
     expect((await detail()).order.refundDueCents).toBe(100);
-    expect(await recordRefund(await detail(), 100, 'SYNTHETIC-REFUND', 'Test admin', 'test@example.invalid')).toEqual({ ok: true });
+    expect(await recordRefund(await detail(), 100, 'SYNTHETIC-REFUND', 'Test admin')).toEqual({ ok: true });
     expect((await detail()).order.paymentStatus).toBe('refunded');
     expect(count('lot_movements')).toBe(2);
     expect(count('order_events')).toBe(5);
@@ -119,7 +119,7 @@ describe('order, shipment, return and refund transactions', () => {
     expect((await recordReturn(beforeReturn, returns, staff)).ok).toBe(true);
     expect((await recordReturn(beforeReturn, returns, staff)).ok).toBe(false);
     const stale = await detail();
-    const results = await Promise.all([recordRefund(stale, 100, 'REF-A', 'Admin A', ''), recordRefund(stale, 100, 'REF-B', 'Admin B', '')]);
+    const results = await Promise.all([recordRefund(stale, 100, 'REF-A', 'Admin A'), recordRefund(stale, 100, 'REF-B', 'Admin B')]);
     expect(results.filter((result) => result.ok)).toHaveLength(1);
     expect((await detail()).order.refundCents).toBe(100);
     expect(count('notifications')).toBe(5);
@@ -136,12 +136,12 @@ describe('order, shipment, return and refund transactions', () => {
   });
   it.each([-1, 0, 0.5, Number.NaN, Number.POSITIVE_INFINITY])('rejects invalid refund cents at the transaction boundary: %s', async (amount) => {
     local.sqlite.exec("UPDATE orders SET status = 'cancelled', payment_status = 'refund_due', refund_due_cents = 200");
-    expect((await recordRefund(await detail(), amount, 'TEST-REF', 'Test admin', '')).ok).toBe(false);
+    expect((await recordRefund(await detail(), amount, 'TEST-REF', 'Test admin')).ok).toBe(false);
     expect(count('order_events')).toBe(0);
   });
   it('requires a refund reference even for direct service calls', async () => {
     local.sqlite.exec("UPDATE orders SET status = 'cancelled', payment_status = 'refund_due', refund_due_cents = 200");
-    expect((await recordRefund(await detail(), 100, ' ', 'Test admin', '')).ok).toBe(false);
+    expect((await recordRefund(await detail(), 100, ' ', 'Test admin')).ok).toBe(false);
   });
   it('ships 20 distinct lots without exceeding D1 parameter limits', async () => {
     const picks: Record<string, string> = { line1: 'lot1' };

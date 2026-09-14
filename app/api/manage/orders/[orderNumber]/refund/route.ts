@@ -1,6 +1,3 @@
-import { getDb } from '@/db';
-import { accounts } from '@/db/schema';
-import { eq } from 'drizzle-orm';
 import { orderNumberFromParam, refundDue, validateRefund } from '@/lib/order-rules';
 import { getOrderByNumber, recordRefund } from '@/lib/orders';
 import { recordedBy } from '@/lib/lots-admin';
@@ -27,8 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
   const validated = validateRefund({ amount: String(form.get('amount') ?? ''), reference: String(form.get('reference') ?? '') }, refundDue(detail.order) - (detail.order.refundCents ?? 0));
   if (!validated.ok) return back(`error=${encodeURIComponent(validated.error)}`);
   try {
-    const [account] = await getDb().select({ email: accounts.email }).from(accounts).where(eq(accounts.id, detail.order.accountId)).limit(1);
-    const result = await recordRefund(detail, validated.amountCents, validated.reference, recordedBy(staff), account?.email ?? '');
+    const result = await recordRefund(detail, validated.amountCents, validated.reference, recordedBy(staff));
     if (!result.ok) return back(`error=${encodeURIComponent(result.error)}`);
   } catch (error) {
     console.error('[orders] refund failed', error instanceof Error ? error.message : error);

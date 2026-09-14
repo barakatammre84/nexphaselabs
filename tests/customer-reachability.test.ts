@@ -32,7 +32,7 @@ async function shipOne() {
   const order = await syntheticOrder(1);
   await beginPayment(order.detail, 'invoice', '', 'Test');
   let detail = (await getOrderByNumber(order.detail.order.orderNumber))!;
-  await markOrderPaid(detail, 'Test', 'SYNTHETIC', '');
+  await markOrderPaid(detail, 'Test', 'SYNTHETIC');
   detail = (await getOrderByNumber(detail.order.orderNumber))!;
   await startFulfilment(detail, staff);
   detail = (await getOrderByNumber(detail.order.orderNumber))!;

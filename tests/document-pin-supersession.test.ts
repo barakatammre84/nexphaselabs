@@ -84,7 +84,7 @@ async function shipOneOrder() {
   const order = await syntheticOrder(1);
   await beginPayment(order.detail, 'invoice', '', 'Test');
   let detail = (await getOrderByNumber(order.detail.order.orderNumber))!;
-  expect((await markOrderPaid(detail, 'Test', 'SYNTHETIC', '')).ok).toBe(true);
+  expect((await markOrderPaid(detail, 'Test', 'SYNTHETIC')).ok).toBe(true);
   detail = (await getOrderByNumber(detail.order.orderNumber))!;
   expect((await startFulfilment(detail, staff)).ok).toBe(true);
   detail = (await getOrderByNumber(detail.order.orderNumber))!;

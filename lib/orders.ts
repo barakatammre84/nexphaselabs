@@ -633,7 +633,6 @@ export async function markOrderPaid(
   detail: OrderDetail,
   actor: string,
   reference: string | null,
-  _accountEmail: string,
 ) {
   const now = new Date();
   const allocation = await reservationEligibility(detail.order.id, now);
@@ -851,7 +850,6 @@ export async function recordRefund(
   amountCents: number,
   reference: string,
   actor: string,
-  _accountEmail: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!Number.isSafeInteger(amountCents) || amountCents <= 0)
     return {

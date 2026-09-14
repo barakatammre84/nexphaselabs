@@ -37,7 +37,6 @@ export async function POST(
       detail,
       `simulation:${buyer.id}`,
       order.paymentRef,
-      order.contactEmail ?? buyer.email,
     );
     if (!result.ok) return back(`error=${encodeURIComponent(result.error)}`);
     return back('paid=simulated');

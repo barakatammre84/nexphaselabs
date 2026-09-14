@@ -40,7 +40,7 @@ describe('inventory allocation transactions', () => {
     const first = await syntheticOrder(4);
     await beginPayment(first.detail, 'invoice', '', 'Test');
     let detail = (await getOrderByNumber(first.detail.order.orderNumber))!;
-    expect((await markOrderPaid(detail, 'Test', 'SYNTHETIC', '')).ok).toBe(true);
+    expect((await markOrderPaid(detail, 'Test', 'SYNTHETIC')).ok).toBe(true);
     local.sqlite.exec('UPDATE inventory_reservations SET expires_at = 0');
     expect((await (await syntheticBuyer(4)).submit()).ok).toBe(false);
     detail = (await getOrderByNumber(detail.order.orderNumber))!;
@@ -55,7 +55,7 @@ describe('inventory allocation transactions', () => {
     const first = await syntheticOrder(4); await beginPayment(first.detail, 'invoice', '', 'Test');
     local.sqlite.exec('UPDATE inventory_reservations SET expires_at = 0');
     const detail = (await getOrderByNumber(first.detail.order.orderNumber))!;
-    expect((await markOrderPaid(detail, 'Test admin', 'MONEY-RECEIVED', '')).ok).toBe(true);
+    expect((await markOrderPaid(detail, 'Test admin', 'MONEY-RECEIVED')).ok).toBe(true);
     expect((await getOrderByNumber(detail.order.orderNumber))!.order).toMatchObject({ status: 'cancelled', paymentStatus: 'refund_due', refundDueCents: 400 });
   });
   it('handles a matched webhook after reservation expiry without overselling', async () => {
