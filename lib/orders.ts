@@ -1,4 +1,4 @@
-import { and, desc, eq, like, sql, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, like, sql, isNull } from 'drizzle-orm';
 import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 import { getDb } from '@/db';
 import {
@@ -42,6 +42,7 @@ import {
   checkoutQuotes,
   inventoryReservations,
   paymentAttempts,
+  zellePaymentClaims,
 } from '@/db/commerce-schema';
 import { attachPaymentAttempt } from '@/lib/payment-attempts';
 import {
@@ -636,8 +637,9 @@ export async function markOrderPaid(
 ) {
   const now = new Date();
   const allocation = await reservationEligibility(detail.order.id, now);
+  let moved: Awaited<ReturnType<typeof transitionOrder>>;
   if (allocation.tracked && !allocation.valid) {
-    return transitionOrder(
+    moved = await transitionOrder(
       detail.order,
       'cancelled',
       'staff',
@@ -650,22 +652,34 @@ export async function markOrderPaid(
         ...(reference ? { paymentRef: reference } : {}),
       },
     );
+  } else {
+    moved = await transitionOrder(
+      detail.order,
+      'paid',
+      'staff',
+      actor,
+      reference
+        ? `Payment received. Reference: ${reference}.`
+        : 'Payment received.',
+      {
+        paymentStatus: 'paid',
+        paidAt: now,
+        ...(reference ? { paymentRef: reference } : {}),
+      },
+    );
   }
-  const moved = await transitionOrder(
-    detail.order,
-    'paid',
-    'staff',
-    actor,
-    reference
-      ? `Payment received. Reference: ${reference}.`
-      : 'Payment received.',
-    {
-      paymentStatus: 'paid',
-      paidAt: now,
-      ...(reference ? { paymentRef: reference } : {}),
-    },
-  );
   if (!moved.ok) return moved;
+  if (detail.order.paymentMethod === 'zelle') {
+    await getDb()
+      .update(zellePaymentClaims)
+      .set({ status: 'matched', updatedAt: now })
+      .where(
+        and(
+          eq(zellePaymentClaims.orderId, detail.order.id),
+          inArray(zellePaymentClaims.status, ['pending', 'review']),
+        ),
+      );
+  }
   return moved;
 }
 

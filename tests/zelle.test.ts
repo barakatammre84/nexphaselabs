@@ -8,12 +8,14 @@ import { getDb } from '@/db';
 import { accounts, orders } from '@/db/schema';
 import { zelleReceipts, zelleReconciliationRuns } from '@/db/commerce-schema';
 import { getOrderByNumber } from '@/lib/order-reads';
+import { markOrderPaid } from '@/lib/orders';
 import {
   recordZelleGmailMessage,
   recordZellePaymentClaim,
   recordZelleReconciliation,
   settleZelleReceipt,
   currentPacificDate,
+  zelleClaimForOrder,
 } from '@/lib/zelle';
 import { parseZelleGmailMessage, type ZelleGmailMessage } from '@/lib/zelle-core';
 
@@ -161,6 +163,27 @@ describe('Zelle order settlement', () => {
     ).toMatchObject({ ok: true });
     expect((await getOrderByNumber(number))!.order.paymentStatus).toBe('pending');
     expect(local.sqlite.prepare('SELECT count(*) n FROM order_events').get()!.n).toBe(0);
+  });
+
+  it('closes the customer claim after staff verifies a manual Chase payment', async () => {
+    const detail = (await getOrderByNumber(number))!;
+    await recordZellePaymentClaim(
+      detail.order,
+      'Research Buyer',
+      'Research Buyer (customer)',
+    );
+    expect(
+      await markOrderPaid(
+        detail,
+        'Synthetic admin',
+        'CHASE-TEST-REFERENCE',
+        'customer@example.invalid',
+      ),
+    ).toEqual({ ok: true });
+    expect(await zelleClaimForOrder(detail.order.id)).toMatchObject({
+      status: 'matched',
+      matchedReceiptId: null,
+    });
   });
 
   it('posts one exact receipt once and queues one order notification', async () => {
