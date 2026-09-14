@@ -33,8 +33,8 @@ Status values: `done` · `built, unproven` · `in progress` · `owner action` ·
 | 1 | `c16-merge` | Merge the operations-repair branch deliberately, with someone watching | Ammre | blocks order #1 | **merged** · staging deploy blocked by #18 |
 | 2 | `c16-guard` | Add the deploy guard | Ammre | blocks order #1 | **done** |
 | 3 | `c16-tagonly` | Make the v\* tag the only path to production | Ammre | blocks order #1 | **done** |
-| 4 | `c16-protect` | Protect staging | Ammre | blocks order #1 | **done in code** · secret is an owner action |
-| 5 | `c16-noindex` | Add a noindex header to the staging origin | Ammre | blocks order #1 | **done** |
+| 4 | `c16-protect` | Protect staging — **revised 14 Sep:** public by owner decision; what is protected is the public/private boundary | Ammre | blocks order #1 | **built, unproven in the deploy job** · holds on live staging (run by hand 14 Sep) · first job run waits on #18 |
+| 5 | `c16-noindex` | Add a noindex header to the staging origin | Ammre | blocks order #1 | **done** · bundle exception recorded 14 Sep |
 | 6 | `c16-backup` | Complete the D1 and R2 backup and restore rehearsal | Ammre | blocks order #1 | **runnable** · one command, needs credentials |
 | 7 | `c16-rto` | Record the elapsed recovery time | Ammre | blocks order #1 | **automatic** once #6 runs |
 | 8 | `c16-witness` | Witness the recovery result and record business acceptance | Melissa + Wisam | blocks order #1 | owner action |
@@ -51,7 +51,7 @@ Found during this pass and added to the register:
 
 | # | id | Item | Owner | When | Status |
 |---|----|------|-------|------|--------|
-| 17 | `c16-new-1` | The staging gate did not cover static assets — Workers Assets serves them ahead of the worker | Ammre | blocks order #1 | **done** |
+| 17 | `c16-new-1` | The staging gate did not cover static assets — Workers Assets serves them ahead of the worker | Ammre | blocks order #1 | **done** · revised 14 Sep for open mode |
 | 18 | `c16-new-2` | **There is no `CLOUDFLARE_API_TOKEN` repository secret.** Neither deploy workflow can authenticate, and it is the same cause as the backup rehearsal's error 10000 | Ammre | blocks order #1 | **owner action** |
 
 ## Item detail
@@ -186,6 +186,85 @@ need the Basic credentials as well.
 Evidence for `access.staging`, the launch-critical control: this section, plus the smoke step's
 output on the first staging deploy after the secret is set.
 
+**14 September 2026 — reconciled with the owner's decision to make staging public.** This supersedes
+the 401 expectations, the password owner action and the evidence plan above. None of those is being
+marked ready.
+
+The owner chose public staging on 14 September 2026 and the Basic-auth secret was removed (Ammre's
+technical completion register, reviewed the same day, order 1). What is protected now is not the whole
+environment but the line between the public storefront and everything behind a login.
+
+What was actually running, read from Cloudflare and probed anonymously that day:
+
+- Staging version `3d0e9b53-a54c-4279-b3f1-4ae2d5952875`, uploaded by hand at 16:53 UTC, had
+  `STAGING_ACCESS_OPEN` as a **Worker secret** and no `STAGING_ACCESS_PASSWORD`. The decision was live
+  and invisible: nothing in the repository said it, nobody can read a secret's value back, and the
+  workflow's last step still demanded 401 — so the first automated deploy after #18 would have failed
+  the approved configuration as "staging is OPEN".
+- `access.staging` in the staging database still said "Becomes Ready when STAGING_ACCESS_PASSWORD is
+  set", and its description still said "restricted to approved testers".
+
+What changed:
+
+- **The mode is declared.** `wrangler.jsonc` env.staging vars carry `STAGING_ACCESS_OPEN` = `true` with
+  the reason beside it, so the decision is reviewed with the code and baked into
+  `dist/server/wrangler.json`.
+- **The deploy's last step proves the boundary for the declared mode.**
+  `scripts/staging-access-check.mjs` replaces the inline curl. It reads the mode from the built
+  configuration, never from the answers — inferring it would pass 16.3 — and reads redirects without
+  following them:
+
+  | mode | paths | each must answer |
+  |---|---|---|
+  | open | `/`, `/catalog`, `/favicon.svg` | 200, noindex |
+  | open | `/manage`, `/manage/orders`, `/manage/controls` | a redirect to this origin's `/staff/sign-in` (or 401/403), noindex |
+  | open | `/api/manage/reports/orders.csv`, `/api/manage/reports/lots.csv`, `/api/orders/NX-00000/invoice` | 401/403, noindex |
+  | closed | all nine | 401 with the Basic challenge, noindex |
+
+  A staff page or private API that answers a stranger, a redirect anywhere but staff sign-in, a 404 or
+  500 where a login should be, a missing noindex, a password challenge when the configuration says open,
+  or an open storefront when it does not: each fails the deploy.
+- **A secret may not decide the mode.** A new step, before the migration, refuses to deploy while
+  `STAGING_ACCESS_OPEN` exists as a Worker secret.
+- `tests/staging-access-check.test.ts` — 16 tests. The real script runs against a stand-in worker built
+  from the real gate in `lib/environment-gate.ts`, in each state above; three more assert that the deploy
+  job ends with the check, refuses the secret before migrating, and that only staging declares open mode.
+- **`access.staging`.** Description revised to the boundary. The stale note was replaced by an
+  append-only correction in `drizzle/seed/controls-owners.sql` (change `oce_5f0d66c9e9c7658e9ae617c1`)
+  that lands only while the launch-pass change is still the latest, so a later edit by a person wins. It
+  was tested on fresh, repeated, staging-shaped and person-edited SQLite databases, then applied to
+  staging D1: one control row updated, one event appended, the launch-pass event untouched. Status stays
+  `in_progress` and evidence stays empty; across all thirty, 14 in progress, 16 not started, none with
+  evidence — as before.
+- The gate's header comment, `docs/DEPLOY.md`, `docs/operations/CREDENTIAL_LOCATIONS.md`,
+  `docs/operations/ROLLBACK_WALKTHROUGH.md` and the MAN-002 generator now describe public staging.
+  **The MAN-002 .docx has not been regenerated** — `python-docx` is not installed on this machine.
+
+Proven:
+
+| run | configuration read | result |
+|---|---|---|
+| live staging, 17:40 UTC | this branch's `dist/server/wrangler.json` (open) | **exit 0** — 3 public 200 + noindex, 3 staff 307 → `/staff/sign-in`, 3 private 401 |
+| built staging worker (`wrangler dev`), nothing overridden | the same (open) | exit 0, identical answers |
+| built worker, password set, switch overridden off | closed | exit 0 — 401 challenge on all nine |
+| built worker behind the password | open | **exit 1** — "still asks for the password" |
+| the previous build, opened without declaring it (16.3 shape) | closed | **exit 1** — "staging is OPEN … never as a Worker secret" |
+
+Typecheck clean, lint unchanged (one existing warning), 700 tests green.
+
+**Still to do, in order:**
+
+1. #18 — the Cloudflare API token.
+2. Immediately before the first deploy that carries this change:
+   `npx wrangler secret delete STAGING_ACCESS_OPEN --env staging`. Until that deploy finishes, staging
+   answers 503 to everything except health — the gate failing closed, loud and brief. The new step
+   refuses to deploy while the secret exists, so this cannot be skipped by accident.
+3. Evidence for `access.staging`: the first green Deploy staging run with "Staging access boundary"
+   passing. An administrator attaches it; nothing here does.
+
+Also changed by the decision: `/api/digest` and the feedback archive sit behind their own bearer tokens
+only, as in production. Provider webhooks and health were always exempt.
+
 ### 5. `c16-noindex` — noindex on the non-production origin
 
 `withNoindex()` in `lib/environment-gate.ts` sets `X-Robots-Tag: noindex, nofollow` on every
@@ -196,6 +275,14 @@ is present on the storefront in both `development` and `staging`, on the 401 cha
 503 refusal, and absent in production. It does not overwrite a stricter tag a page has already set,
 and it preserves the status, headers and body of the response it wraps. Covered by
 `tests/environment-gate.test.ts`; asserted after every staging deploy by the workflow step above.
+
+**Corrected 14 September 2026.** "Every non-production response" was not quite true. `worker.ts` hands
+hashed `/_next/static/*` bundles straight back to the asset store, without the header. Behind the
+password no anonymous request could reach them; on public staging they are fetchable without it (seen
+on live staging and on the built worker). They are scripts and stylesheets rather than documents, and
+`robots.txt` disallows the whole origin, so this is recorded, not changed. Every page, API answer,
+redirect and public file — the favicon, product images — does carry it, and the deploy now asserts it on
+nine paths (#4).
 
 ### 6. `c16-backup` — complete the backup and restore rehearsal
 
@@ -350,6 +437,12 @@ Proven on the running staging build:
 | `/vinext-client-entry-manifest.json` | 401 | 200 |
 | `/this-route-does-not-exist` | 401 | 404, the application's own page |
 
+**Revised 14 September 2026 for open mode (#4).** The storefront is public by the owner's decision, so its
+static files are public too, and the table above is now true of closed mode only. `run_worker_first`
+stays, for two reasons: public files such as the favicon and product images still pass through the
+worker, which is how they get `X-Robots-Tag: noindex` (the deploy checks `/favicon.svg`); and if staging
+is ever closed again, the gate covers the files the day it closes, with no second change.
+
 ### 11. `c16-1102` — cold-asset waterfall
 
 148 requests per page, 36 chunks of ~19KB each stalling 21–23s, 78s to interactive on a cold load.
@@ -412,7 +505,7 @@ group set in `vite.config.ts` is ignored. That was tested, not assumed: with a g
 left in as configuration that does nothing. Reducing the count further means reducing the number of
 distinct `'use client'` components and lucide icons on a page, or a framework change.
 
-**Still to do:** re-measure on the deployed staging worker once the gate secret is set — from two
+**Still to do:** re-measure on the deployed staging worker (public since 14 September, so no credentials are needed) — from two
 vantages, per the rule the parent register adopted after Correction 5: no performance finding enters
 the register from a single vantage. What to look for is Worker CPU per page, not wall-clock in a
 browser pane.
@@ -447,7 +540,9 @@ that opens: *type these verbatim*.
 - **Back up and restore** — the one-command rehearsal, the production confirmation, the individual
   steps, what error 10000 actually means, and Time Travel framed as a data decision that discards
   everything written since the timestamp.
-- **Staging access** — setting the secret, and proving the restriction from outside.
+- **Staging access** — setting the secret, and proving the restriction from outside. *(14 September
+  2026: rewritten in the generator for public staging — prove the boundary instead. The .docx has not
+  been regenerated; see #4.)*
 - **Where the credentials live** — the table from #14.
 
 Written in the generator, not the document. Regenerated with `python3
@@ -543,6 +638,15 @@ scopes and says where it belongs.
 
 ## Change log
 
+- **2026-09-14 (public staging)** — Reconciled `c16-protect`, `c16-new-1` and `access.staging` with the
+  owner's decision to make staging public (order 1 of Ammre's completion register). The decision was
+  live but undeclared — `STAGING_ACCESS_OPEN` was a Worker secret — and the deploy's last step would
+  have failed it. Declared the mode in `wrangler.jsonc`; replaced the last step with
+  `scripts/staging-access-check.mjs`, which proves the public/private boundary for the declared mode;
+  refused the secret before migrations; revised the control's wording and replaced its stale note in
+  staging D1 by an append-only correction; corrected the operator documents. Proven against live
+  staging and the built worker in both modes. `c16-protect` is built, unproven in the deploy job until
+  #18. Recorded the `/_next/static` noindex exception under #5. Test count 684 → 700.
 - **2026-09-12 (merged)** — Merged the launch branch to `main` on the owner's instruction and
   watched the run. It failed at Apply migrations and surfaced `c16-new-2`: the repository has no
   `CLOUDFLARE_API_TOKEN`, so neither deploy workflow has ever been able to authenticate. Nothing was

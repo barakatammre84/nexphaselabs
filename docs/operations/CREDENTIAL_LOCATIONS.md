@@ -47,7 +47,7 @@ npx wrangler secret list --env staging
 
 | Secret | Purpose | Environment |
 | --- | --- | --- |
-| `STAGING_ACCESS_PASSWORD` | Basic-auth password for the staging storefront; shared with testers through the approved password manager | staging (required — without it staging refuses every request) |
+| `STAGING_ACCESS_PASSWORD` | Basic-auth password for a closed staging storefront. **Not set:** staging has been public by the owner's decision since 14 September 2026 (`STAGING_ACCESS_OPEN` in `wrangler.jsonc`). Needed only if staging is closed again, and then shared with testers through the approved password manager | staging, closed mode only (a closed staging without it refuses every request) |
 | `SHIPPO_API_KEY` | Rates, labels, tracking | both |
 | `SHIPPO_WEBHOOK_TOKEN` | Secret URL token Shippo presents to the webhook | both |
 | `SHIPPO_FROM_JSON`, `SHIPPO_ORIGINS_JSON` | Private ship-from contacts | both |
@@ -63,6 +63,8 @@ npx wrangler secret list --env staging
 
 Everything else in `db/env.d.ts` is a non-secret variable and lives in `wrangler.jsonc`
 (`APP_ENV`, `PUBLIC_ORIGIN`, feature switches, shipping and tax configuration, sender addresses).
+`STAGING_ACCESS_OPEN` is one of those switches, not a credential: it is declared in `wrangler.jsonc` so
+the staging deploy can read it, and must never be set as a Worker secret.
 `.dev.vars` holds local development values only and is git-ignored; it is not a place to keep a
 production credential.
 

@@ -16,7 +16,6 @@ You need, in your own name — not shared, not borrowed:
 
 - A Cloudflare account login with access to the NexPhase account.
 - The repository checked out, `npm ci` run, and `npx wrangler whoami` naming the right account.
-- The staging password (`STAGING_ACCESS_PASSWORD`), from the password manager.
 - A terminal, and Ammre next to you or on a call.
 
 If any of those is missing, stop and fix that first. Discovering it during an incident is the thing
@@ -32,12 +31,14 @@ Read the top entry aloud: its id, when it was created, and who authored it. That
 staging right now. Write the id down — it is what you will be coming back to.
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' https://<staging-host>/          # expect 401
+curl -s -o /dev/null -w '%{http_code}\n' https://<staging-host>/          # expect 200
+curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' https://<staging-host>/manage   # expect 307 to /staff/sign-in
 curl -fsS https://<staging-host>/api/health                                # expect "ok":true
 ```
 
-The 401 is correct: staging is closed to anonymous requests. The health endpoint is deliberately
-exempt so you can check it without signing in.
+The 200 is correct: the owner chose public staging on 14 September 2026, so the storefront answers
+anyone, with a noindex header so it never competes with the real domain in search. The staff area is
+not public: `/manage` sends you to staff sign-in. The health endpoint answers without a login too.
 
 ## 2. Put a change on staging
 
@@ -48,10 +49,11 @@ gh run watch
 ```
 
 Read the steps as they pass. The three that matter: **Deploy guard**, which refuses a build that
-does not target staging; **Apply migrations**; and **Staging must be closed to anonymous requests**,
-which fails the deploy if the storefront ever answers 200 to a stranger.
+does not target staging; **Apply migrations**; and **Staging access boundary**, which fails the
+deploy if a staff page or private API ever answers a stranger, or a public page loses its noindex
+header.
 
-Sign in to staging with the password and confirm you can see the change.
+Open staging and confirm you can see the change.
 
 ## 3. Roll it back
 
@@ -72,7 +74,7 @@ curl -fsS https://<staging-host>/api/health
 npx wrangler deployments list --env staging          # the top entry is the rollback
 ```
 
-Sign in to staging again and confirm the change from step 2 is gone. Rolling back without checking
+Open staging again and confirm the change from step 2 is gone. Rolling back without checking
 is not a rollback; it is a hope.
 
 ## 5. Say what you would do next
