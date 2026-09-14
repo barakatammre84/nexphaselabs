@@ -4,6 +4,29 @@ The store supports Zelle through `orders@nexphaselabs.net`. Zelle is treated as
 an external bank transfer: a customer claim never marks an order paid. A receipt
 fetched directly from the controlled Gmail mailbox must be matched first.
 
+## Provider boundary
+
+Chase and Zelle's current small-business instructions describe payments made
+inside the customer's bank app to an enrolled email address or U.S. mobile
+number. Chase says an eligible business account can send, receive, or request
+money, that receipts usually arrive within minutes when real-time payment is
+supported, and that neither Chase nor Zelle provides purchase protection for a
+Zelle purchase. Zelle says the customer's financial institution determines
+limits and fees.
+
+The official small-business material does not document a merchant checkout
+API, bank webhook, or public receipt API. The application therefore must never
+represent a customer click as bank settlement. Checkout creates an order and a
+unique memo; settlement is proved separately from a Chase-authenticated receipt
+or staff review. Email parsing is a reconciliation aid with strict matching and
+an exception queue, not a payment-provider integration.
+
+Primary references:
+
+- [Chase Zelle support for business](https://www.chase.com/business/support/banking/online-banking/zelle)
+- [Chase business payment services](https://www.chase.com/business/banking/services/pay-and-transfer)
+- [Zelle small-business FAQ](https://www.zellepay.com/faq/small-business-using-zelle)
+
 ## Rollout modes
 
 `ZELLE_MODE` is the operating switch:

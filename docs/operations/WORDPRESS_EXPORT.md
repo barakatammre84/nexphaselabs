@@ -79,6 +79,23 @@ Fill this in and keep it with the files. This is `c11-exportrec`.
 
 Retention is a member decision (`c11-decom`). Until it is made, keep everything.
 
+## Preliminary public snapshot — 14 September 2026
+
+A restricted local preliminary snapshot was written to
+`NexPhase Labs Backups/2026-09-14-wordpress-public-snapshot`. It contains:
+
+- all 29 URLs in the indexed-URL list, with zero fetch failures;
+- 17 public WordPress page records and one public post record;
+- all 36 public media records and all 36 source media files, with zero fetch
+  failures; and
+- a SHA-256 manifest covering 69 source files and 20,307,139 bytes.
+
+This is useful evidence of the public site's current claims and assets. It does
+not close `c11-export` or `c11-exportrec`: it excludes customers, orders,
+SureCart payments, the WordPress WXR export, the private media/filesystem view,
+and the full database/hosting backup. The directory is currently local and must
+also be copied into the approved company-controlled archive.
+
 ## What this does not authorise
 
 Exporting is not decommissioning. **Keep the WordPress host running and unchanged** after the domain

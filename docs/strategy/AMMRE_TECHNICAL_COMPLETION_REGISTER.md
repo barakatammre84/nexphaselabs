@@ -49,6 +49,7 @@ is running it and the evidence is linked in `/manage/controls`.
 | 5 | Partial | Safe manual Zelle simulation is configured and tested. Dedicated Gmail read-only receipt ingestion and the approved Chase QR remain open. |
 | 6 | Partial | The current build passed a complete synthetic guest Zelle order, staff review, fulfillment, label/void, shipment, delivery, return, and refund. See [the rehearsal record](../operations/STAGING_ORDER_REHEARSAL_2026-09-14.md). External customer email and the live Gmail receipt path remain open. |
 | 7 | Open | Identify the active Cloudflare zone, preserve Google MX, then add and prove SPF, Google DKIM, and monitoring-mode DMARC. |
+| 12 | Partial | Staging D1 exported to a checksummed 249,338-byte archive and restored in isolation: 60 tables, integrity `ok`, no missing required tables, and no foreign-key violations. R2 copy and isolated restore remain blocked on the separate recovery credentials. |
 
 ## Ordered work
 
