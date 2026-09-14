@@ -80,7 +80,7 @@
         // Real staging origin on the account's workers.dev subdomain. Keep the STAGING_URL repository
         // variable identical; staging email links and payment return URLs are built from this.
         "PUBLIC_ORIGIN": "https://nexphaselabs-staging.ammre.workers.dev",
-        "RESEARCHER_TIER_ENABLED": "false",
+        "RESEARCHER_TIER_ENABLED": "true",
         "ZELLE_RECIPIENT_EMAIL": "orders@nexphaselabs.net",
         // Shippo test mode obtains real carrier test rates without buying live postage.
         // The API key and private ship-from contact are protected Worker secrets.
