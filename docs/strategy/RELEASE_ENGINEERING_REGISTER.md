@@ -700,6 +700,10 @@ who witnessed, the version id, the migration range — then merge `98f0d5d` into
 closed, do not re-run 34880100538: with the token in place it would now deploy production with nobody
 approving.
 
+**Update, 14 September 2026 (evening).** `98f0d5d` is now on `main`, brought in with the production-readiness
+merges that end at `0148ab8`, so a release from `main` no longer drops it. Confirming the release and
+recording its case are still open.
+
 ### 20. `c16-new-4` — the production environment has no required reviewer
 
 **Found 14 September 2026.** `deploy-production.yml` runs in the `production` GitHub environment, whose
@@ -714,6 +718,10 @@ limited to `v*`.
 
 ## Change log
 
+- **2026-09-14 (98f0d5d on main)** — `c16-new-3`: the commit production runs is now on `main`, so the next
+  release from `main` keeps it; the case record is still open. Committed Ammre's technical completion
+  register beside this file, verbatim, so the ordered work is tracked instead of living untracked in one
+  checkout.
 - **2026-09-14 (token, staging deploy, production finding)** — Verified the owner actions reported by the
   parallel session against GitHub, Cloudflare and staging D1. Closed `c16-new-2` (token added; the staging
   workflow authenticated), `c16-merge` (Deploy staging run 34883249145 green end to end) and `c16-protect`
