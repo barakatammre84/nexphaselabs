@@ -42,7 +42,9 @@ const PRIVATE_APIS = [
 ];
 const STAFF_SIGN_IN = '/staff/sign-in';
 const REDIRECTS = [301, 302, 303, 307, 308];
-const ATTEMPTS = 3;
+const NETWORK_ATTEMPTS = 3;
+const PROPAGATION_ATTEMPTS = 6;
+const PROPAGATION_DELAY_MS = 2_000;
 
 const [originArgument, configPath = 'dist/server/wrangler.json'] = process.argv.slice(2);
 
@@ -173,10 +175,18 @@ function signInTarget(answer) {
   }
 }
 
-/** One anonymous request. A network failure is retried; an answer, whatever it is, is not. */
+/**
+ * One anonymous request. Network failures are retried. In open mode only, a 503
+ * is also retried briefly: the version that lost the former access secret fails
+ * closed while Cloudflare drains it, so different paths can reach old and new
+ * isolates for a few seconds immediately after upload. Every other answer is
+ * final, including any response that could expose a private route.
+ */
 async function ask(path) {
-  let failure;
-  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+  let networkFailure;
+  let networkAttempts = 0;
+  let propagationAttempts = 0;
+  while (true) {
     try {
       const response = await fetch(`${origin}${path}`, {
         redirect: 'manual',
@@ -184,18 +194,24 @@ async function ask(path) {
         signal: AbortSignal.timeout(20_000),
       });
       await response.body?.cancel();
-      return {
+      const answer = {
         status: response.status,
         location: response.headers.get('location'),
         robots: response.headers.get('x-robots-tag') ?? '',
         basicChallenge: /^\s*basic\b/i.test(response.headers.get('www-authenticate') ?? ''),
       };
+      if (mode === 'open' && answer.status === 503 && ++propagationAttempts < PROPAGATION_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, PROPAGATION_DELAY_MS));
+        continue;
+      }
+      return answer;
     } catch (error) {
-      failure = error;
-      if (attempt < ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+      networkFailure = error;
+      if (++networkAttempts >= NETWORK_ATTEMPTS) break;
+      await new Promise((resolve) => setTimeout(resolve, networkAttempts * 1000));
     }
   }
-  return { unreachable: failure?.cause?.code ?? failure?.name ?? String(failure) };
+  return { unreachable: networkFailure?.cause?.code ?? networkFailure?.name ?? String(networkFailure) };
 }
 
 function parseOrigin(value) {

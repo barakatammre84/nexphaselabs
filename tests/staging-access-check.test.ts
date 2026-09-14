@@ -129,6 +129,25 @@ describe('staging access boundary check', { timeout: 30_000 }, () => {
       expect(result.output).toContain('307 → /staff/sign-in?return_to=%2Fmanage · noindex');
     });
 
+    it('waits for a fail-closed old isolate to drain immediately after deployment', async () => {
+      let firstRootRequest = true;
+      staging = worker(
+        { open: true },
+        {
+          '/': () => {
+            if (firstRootRequest) {
+              firstRootRequest = false;
+              return new Response('Staging access is not configured.', { status: 503 });
+            }
+            return application('/');
+          },
+        },
+      );
+      const result = await check([origin, openBuild()]);
+      expect(result.code).toBe(0);
+      expect(result.output).not.toContain('BAD');
+    });
+
     it('fails the deploy when a staff page renders for a stranger', async () => {
       staging = worker({ open: true }, { '/manage/orders': page('<table>orders</table>') });
       const result = await check([origin, openBuild()]);
