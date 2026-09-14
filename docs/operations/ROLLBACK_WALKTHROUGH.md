@@ -16,7 +16,7 @@ You need, in your own name — not shared, not borrowed:
 
 - A Cloudflare account login with access to the NexPhase account.
 - The repository checked out, `npm ci` run, and `npx wrangler whoami` naming the right account.
-- The staging password (`STAGING_ACCESS_PASSWORD`), from the password manager.
+- A staging staff account in your own name for checking protected tools.
 - A terminal, and Ammre next to you or on a call.
 
 If any of those is missing, stop and fix that first. Discovering it during an incident is the thing
@@ -32,12 +32,15 @@ Read the top entry aloud: its id, when it was created, and who authored it. That
 staging right now. Write the id down — it is what you will be coming back to.
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' https://<staging-host>/          # expect 401
+curl -s -o /dev/null -w '%{http_code}\n' https://<staging-host>/          # expect 200
+curl -sI https://<staging-host>/ | grep -i x-robots-tag                    # expect noindex
+curl -sI https://<staging-host>/manage | grep -i '^location: /staff/sign-in'
 curl -fsS https://<staging-host>/api/health                                # expect "ok":true
 ```
 
-The 401 is correct: staging is closed to anonymous requests. The health endpoint is deliberately
-exempt so you can check it without signing in.
+Public staging is intentionally open for review and unindexable. The staff redirect proves its
+private tools still require the application's own sign-in. The health endpoint is public so you can
+check it without signing in.
 
 ## 2. Put a change on staging
 
@@ -48,10 +51,10 @@ gh run watch
 ```
 
 Read the steps as they pass. The three that matter: **Deploy guard**, which refuses a build that
-does not target staging; **Apply migrations**; and **Staging must be closed to anonymous requests**,
-which fails the deploy if the storefront ever answers 200 to a stranger.
+does not target staging; **Apply migrations**; and **Verify the approved staging public/private
+boundary**, which checks public access, noindex, staff sign-in, and private API authentication.
 
-Sign in to staging with the password and confirm you can see the change.
+Sign in with your staging staff account and confirm you can see the change.
 
 ## 3. Roll it back
 

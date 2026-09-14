@@ -631,7 +631,7 @@ def build_technical():
         "npm run deploy:staging                   # builds, runs the guard, deploys",
     ])
     doc.add_paragraph(
-        "The deploy guard refuses to hand wrangler a build that does not target the environment named on the command line, and prints every field it checked. If it refuses, rebuild; never bypass it. The staging smoke steps then require the health endpoint to report ok and the storefront to answer 401 to an anonymous request. A 200 there means staging is open to the internet and the deploy has failed."
+        "The deploy guard refuses to hand wrangler a build that does not target the environment named on the command line, and prints every field it checked. If it refuses, rebuild; never bypass it. The staging smoke steps require the health endpoint to report ok, the public storefront to answer 200 with a noindex header, and staff pages plus private management APIs to refuse anonymous access."
     )
 
     doc.add_heading("Release to production", level=2)
@@ -699,15 +699,14 @@ def build_technical():
 
     doc.add_heading("Staging access", level=2)
     doc.add_paragraph(
-        "The staging storefront is closed by password. Without the secret the environment refuses every request with 503 and the deploy smoke test fails, which is deliberate: a missing secret should be a broken deploy rather than an open shop."
+        "Public staging pages are intentionally open for review and carry noindex on every response. Staff pages and private management APIs remain behind the application's staff authentication. The deploy fails if the public/private boundary or noindex header changes."
     )
     commands(doc, [
-        "npx wrangler secret put STAGING_ACCESS_PASSWORD --env staging",
-        "npx wrangler secret list --env staging",
-        "",
         "# prove it from outside, unauthenticated",
-        "curl -s -o /dev/null -w '%{http_code}\\n' https://<staging-host>/     # expect 401",
+        "curl -s -o /dev/null -w '%{http_code}\\n' https://<staging-host>/     # expect 200",
         "curl -sI https://<staging-host>/ | grep -i x-robots-tag              # expect noindex",
+        "curl -sI https://<staging-host>/manage | grep -i '^location: /staff/sign-in'",
+        "curl -s -o /dev/null -w '%{http_code}\\n' -X POST -H 'Origin: https://<staging-host>' https://<staging-host>/api/manage/notifications  # expect 401",
     ])
 
     doc.add_heading("Where the credentials live", level=1)
@@ -719,8 +718,7 @@ def build_technical():
         ["CLOUDFLARE_API_TOKEN", "GitHub repository secret, and the operator's own shell for manual runs", "Business and Systems lead, from the Cloudflare dashboard", "Both deploy workflows, D1 export"],
         ["CLOUDFLARE_ACCOUNT_ID", "GitHub repository secret and wrangler.jsonc (not secret)", "Anyone with repository access", "Deploy workflows"],
         ["R2 S3 access key and secret", "Cloudflare R2 API tokens page, held by the operator for a rehearsal", "Business and Systems lead", "Recovery rehearsal only"],
-        ["Worker secrets", "Cloudflare Workers secret store, per environment, set by wrangler secret put", "Business and Systems lead", "Payments, email, Shippo, digest, staging access"],
-        ["STAGING_ACCESS_PASSWORD", "Worker secret on the staging environment; shared with testers through the approved password manager", "Business and Systems lead", "Staging storefront access"],
+        ["Worker secrets", "Cloudflare Workers secret store, per environment, set by wrangler secret put", "Business and Systems lead", "Payments, email, Shippo, digest"],
         ["Google Workspace sending credentials", "Workspace admin console and the Worker secret store", "Business and Systems lead", "Customer email"],
         ["Shippo API key", "Shippo dashboard and the Worker secret store", "Business and Systems lead", "Rates, labels, tracking"],
         ["Payment provider credentials", "Provider dashboard and the Worker secret store", "Business and Systems lead with banking owner approval", "Checkout and refunds"],

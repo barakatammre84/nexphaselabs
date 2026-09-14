@@ -83,21 +83,26 @@ jobs:
             sleep 10
           done
           echo "staging did not report healthy at $STAGING_URL/api/health"; exit 1
-      - name: Staging must be closed to anonymous requests, and unindexable
-        # 16.3: staging serves the real schema, real prices and a working checkout. If this step
-        # ever passes a 200 to an anonymous curl, the storefront is public. Treat it as a failed
-        # deploy, not a warning.
+      - name: Verify the approved staging public/private boundary
+        # Public staging is intentional for review, but it must remain unindexable. Staff pages
+        # and private management APIs still require the application's own authentication.
         env:
           STAGING_URL: ${{ vars.STAGING_URL }}
         run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' "$STAGING_URL/")
-          case "$code" in
-            401) echo "storefront challenges anonymous requests (401)" ;;
-            503) echo "STAGING_ACCESS_PASSWORD is not set on the staging worker, so it refuses every request."
-                 echo "Set it and redeploy:  npx wrangler secret put STAGING_ACCESS_PASSWORD --env staging"
-                 exit 1 ;;
-            *)   echo "the storefront answered $code to an anonymous request — staging is OPEN."; exit 1 ;;
-          esac
+          public_code=$(curl -s -o /dev/null -w '%{http_code}' "$STAGING_URL/")
+          test "$public_code" = "200" || {
+            echo "public staging home answered $public_code instead of 200"; exit 1; }
           curl -sI "$STAGING_URL/" | grep -qi '^x-robots-tag: *noindex' || {
             echo "the staging origin is missing X-Robots-Tag: noindex"; exit 1; }
-          echo "staging is protected and unindexable"
+
+          staff_headers=$(curl -sI "$STAGING_URL/manage")
+          echo "$staff_headers" | grep -Eq '^HTTP/[^ ]+ 30[2378]' || {
+            echo "anonymous staff request did not redirect to sign-in"; exit 1; }
+          echo "$staff_headers" | grep -qi '^location: */staff/sign-in' || {
+            echo "anonymous staff redirect did not target /staff/sign-in"; exit 1; }
+
+          private_code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -X POST -H "Origin: $STAGING_URL" "$STAGING_URL/api/manage/notifications")
+          test "$private_code" = "401" || {
+            echo "private management API answered $private_code instead of 401 anonymously"; exit 1; }
+          echo "staging public pages are open and unindexable; staff surfaces remain protected"

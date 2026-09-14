@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { and, asc, eq, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { inventoryReservations } from '@/db/commerce-schema';
 import { lots, orderItems, orders } from '@/db/schema';

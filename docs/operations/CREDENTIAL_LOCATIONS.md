@@ -47,7 +47,6 @@ npx wrangler secret list --env staging
 
 | Secret | Purpose | Environment |
 | --- | --- | --- |
-| `STAGING_ACCESS_PASSWORD` | Basic-auth password for the staging storefront; shared with testers through the approved password manager | staging (required — without it staging refuses every request) |
 | `SHIPPO_API_KEY` | Rates, labels, tracking | both |
 | `SHIPPO_WEBHOOK_TOKEN` | Secret URL token Shippo presents to the webhook | both |
 | `SHIPPO_FROM_JSON`, `SHIPPO_ORIGINS_JSON` | Private ship-from contacts | both |
@@ -56,6 +55,9 @@ npx wrangler secret list --env staging
 | `RESEND_API_KEY` | Alternative mail provider | both |
 | `PAYMENT_BANK_INSTRUCTIONS` | Bank remittance text shown to a customer | production |
 | `ZELLE_GMAIL_OAUTH_CLIENT_SECRET`, `ZELLE_GMAIL_OAUTH_REFRESH_TOKEN` | Dedicated read-only Gmail authorization for Chase Zelle receipts | production |
+
+Public staging access was approved on 14 September 2026. `STAGING_ACCESS_PASSWORD` is retired; public
+responses remain unindexable, while staff pages and private APIs use application authentication.
 | `BTCPAY_API_KEY`, `BTCPAY_WEBHOOK_SECRET` | Bitcoin checkout and settlement | production |
 | `DIGEST_TOKEN` | Bearer token an external scheduler presents to `/api/digest` | both |
 | `CHATGPT_FEEDBACK_READ_TOKEN` | Read-only feedback archive API | both |
