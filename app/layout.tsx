@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { IBM_Plex_Mono, Sora, Source_Sans_3 } from 'next/font/google';
 import { SiteFooter } from '@/components/site/site-footer';
 import { SiteHeader } from '@/components/site/site-header';
@@ -8,6 +8,7 @@ import { FeedbackChat } from '@/components/site/feedback-chat';
 import { ProductRail } from '@/components/site/product-rail';
 import { appEnv } from '@/lib/site-config';
 import { ENTITY } from '@/lib/entity';
+import { BRAND_NAVY } from '@/lib/brand-mark';
 import './globals.css';
 
 const display = Sora({ variable: '--font-display', subsets: ['latin'] });
@@ -33,6 +34,7 @@ export const metadata: Metadata = {
     ],
     apple: '/apple-touch-icon.png',
   },
+  manifest: '/site.webmanifest',
   openGraph: {
     siteName: 'NexPhase Labs',
     images: [
@@ -40,6 +42,10 @@ export const metadata: Metadata = {
     ],
   },
   twitter: { card: 'summary_large_image', images: ['/og-image.png'] },
+};
+
+export const viewport: Viewport = {
+  themeColor: BRAND_NAVY,
 };
 
 export default function RootLayout({
