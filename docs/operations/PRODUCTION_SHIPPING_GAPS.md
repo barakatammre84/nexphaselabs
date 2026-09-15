@@ -25,19 +25,24 @@ refuses, loudly and in writing, rather than half-working.
 | `LIVE_SHIPPING_ENABLED=true` | var | Claude | A deliberate second gate so a misconfigured deploy cannot buy postage. |
 | `SHIPPO_WEBHOOK_TOKEN` | **secret** | Claude generates, **Ammre registers** | Without it, tracking never arrives and orders are never automatically marked delivered. The matching webhook URL has to be registered in the Shippo dashboard. |
 
-## B. Tax — this one stops the sale, not just the shipment
+## B. Tax — RESOLVED 15 September 2026
 
-`TAX_PROVIDER` is **absent in production**, and `lib/tax-provider.ts` refuses
-the simulated provider outside development and staging. **Production literally
-cannot accept an order until this is set.** Two routes:
+Was the binding constraint on this whole list. It is closed.
 
-- `cdtfa` — California rate lookup, no vendor signup, no cost.
-- `taxjar` — needs a real TaxJar account and live API key; the code also refuses
-  the TaxJar sandbox in production.
+`TAX_PROVIDER=cdtfa`, `CDTFA_DISTRICT_RATE=destination`, researched from CDTFA's
+own publications rather than left as a judgement call — reasoning and citations
+in `SALES_TAX_POSITION_2026-09-15.md`. No vendor account, no fee, no lead time;
+**TaxJar is not required**. Verified live against CDTFA: Oakland 10.75%, San
+Diego 7.75%, out-of-state zero.
 
-Which one is right depends on whether nexus is California only. **That is a
-question for the accountant, not an engineering decision**, and it is the single
-longest-lead item on this list if the answer is TaxJar.
+**Seller's permit and the rest of the Oakland operating requirements are in
+place** — stated by Ammre, 15 September. That was the last open question here.
+
+What remains is not a launch gate but a standing duty: economic nexus has to be
+watched per state, and the trap is the ~fifteen states that trigger on
+"$100,000 **or 200 transactions**". At a ~$90 order, 200 orders into one of them
+creates nexus at roughly $18,000. **Track orders per state, not revenue per
+state.** The order data already supports it; nothing builds that alert yet.
 
 ## C. Email — no credentials at all
 
