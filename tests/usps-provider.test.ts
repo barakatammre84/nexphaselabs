@@ -16,6 +16,11 @@ import {
   uspsPurchaseLabel,
   uspsQuote,
 } from '@/lib/usps-provider';
+import {
+  clearServiceStandardCache,
+  parseServiceStandard,
+  serviceStandardFromPayload,
+} from '@/lib/usps-service-standards';
 
 const origin = {
   name: 'NexPhase Labs',
@@ -60,7 +65,10 @@ function credentials(extra: Record<string, unknown> = {}) {
 type Route = { match: string; status?: number; body: unknown };
 function routedFetch(routes: Route[]) {
   const calls: { url: string; init: RequestInit }[] = [];
-  const mock = vi.fn(async (url: string, init: RequestInit = {}) => {
+  // fetch is handed a URL object for the standards lookup and a string
+  // elsewhere; normalising here is what the real fetch does anyway.
+  const mock = vi.fn(async (target: string | URL, init: RequestInit = {}) => {
+    const url = String(target);
     calls.push({ url, init });
     const route = routes.find((candidate) => url.includes(candidate.match));
     if (!route) throw new Error(`unrouted USPS call: ${url}`);
@@ -103,6 +111,7 @@ const priceRoute: Route = {
 beforeEach(() => {
   for (const key of Object.keys(env)) delete env[key];
   vi.unstubAllGlobals();
+  clearServiceStandardCache();
 });
 
 describe('value handling', () => {
@@ -695,5 +704,74 @@ describe('flat-rate containers', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.rates.map((rate) => rate.cents)).toEqual([1_560]);
+  });
+});
+
+describe('delivery estimates', () => {
+  /**
+   * Shaped from the live Service Standards 3.0 response measured 15 Sep 2026
+   * for 95242 -> 63118 by Ground Advantage.
+   */
+  const standardsRoute: Route = {
+    match: '/service-standards/v3/estimates',
+    body: [
+      {
+        mailClass: 'USPS_GROUND_ADVANTAGE',
+        serviceStandard: '4',
+        serviceStandardMessage: '4 Days',
+        cutOffTime: '1600',
+        delivery: { scheduledDeliveryDateTime: '2026-09-19T18:00:00' },
+      },
+    ],
+  };
+
+  it('prefers the standard USPS publishes over our own default', async () => {
+    credentials({ USPS_MAIL_CLASSES: 'USPS_GROUND_ADVANTAGE' });
+    routedFetch([tokenRoute, priceRoute, standardsRoute]);
+    const result = await uspsQuote(origin, destination, parcel);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // The price search said "2-5 Days" and our class default is 5; USPS's
+    // published standard for this lane is 4, and that is what wins.
+    expect(result.rates[0].estimatedDays).toBe(4);
+  });
+
+  it('keeps quoting when the standards lookup fails', async () => {
+    credentials({ USPS_MAIL_CLASSES: 'USPS_GROUND_ADVANTAGE' });
+    routedFetch([
+      tokenRoute,
+      priceRoute,
+      { match: '/service-standards/v3/estimates', status: 503, body: {} },
+    ]);
+    const result = await uspsQuote(origin, destination, parcel);
+    // A delivery estimate must never be able to cost us a shipping option.
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rates).toHaveLength(1);
+    expect(result.rates[0].estimatedDays).toBe(5);
+  });
+
+  it('ignores a standard USPS returned for a different mail class', () => {
+    expect(
+      serviceStandardFromPayload(
+        [{ mailClass: 'PRIORITY_MAIL', serviceStandard: '2' }],
+        'USPS_GROUND_ADVANTAGE',
+      ),
+    ).toBeNull();
+    expect(
+      serviceStandardFromPayload(
+        [{ mailClass: 'USPS_GROUND_ADVANTAGE', serviceStandard: '4' }],
+        'USPS_GROUND_ADVANTAGE',
+      ),
+    ).toBe(4);
+  });
+
+  it('refuses a service standard that is not a plain day count', () => {
+    expect(parseServiceStandard('4')).toBe(4);
+    expect(parseServiceStandard(4)).toBe(4);
+    expect(parseServiceStandard('4 Days')).toBeNull();
+    expect(parseServiceStandard('0')).toBeNull();
+    expect(parseServiceStandard('99')).toBeNull();
+    expect(parseServiceStandard(null)).toBeNull();
   });
 });

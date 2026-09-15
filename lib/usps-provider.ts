@@ -1,5 +1,9 @@
 import { env } from 'cloudflare:workers';
 import { boundedJson } from '@/lib/provider-response';
+import {
+  serviceStandardsEnabled,
+  uspsServiceStandardDays,
+} from '@/lib/usps-service-standards';
 import type { ShippingAddress } from '@/lib/shipping-provider';
 import type { Parcel, ShippingRate } from '@/lib/shipping-rates';
 
@@ -386,6 +390,17 @@ async function paymentToken(
   return { ok: true, token };
 }
 
+/**
+ * The same cached bearer token, for callers outside this module. Exported
+ * rather than duplicated so tracking shares one token and one cache with
+ * rating, instead of authenticating separately every five minutes.
+ */
+export async function uspsAccessTokenForTracking(
+  configuration: UspsConfiguration,
+): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
+  return accessToken(configuration);
+}
+
 /** Drops cached tokens. Used when USPS rejects a token we believed was valid. */
 function forgetTokens() {
   accessTokenCache = null;
@@ -547,6 +562,8 @@ function ratesFromOptions(
   configuration: UspsConfiguration,
   shipmentId: string,
   parts: Omit<UspsRateParts, 'mailClass' | 'rateIndicator' | 'cents'>,
+  /** USPS's own service standard for this lane, or null when it would not say. */
+  standardDays: number | null,
 ): ShippingRate[] {
   const options = asRecord(payload).rateOptions;
   if (!Array.isArray(options)) return [];
@@ -615,10 +632,11 @@ function ratesFromOptions(
           : descriptor.name,
       cents,
       currency: 'USD',
-      estimatedDays: commitmentDays(
-        asRecord(detail.commitment).name,
-        descriptor.fallbackDays,
-      ),
+      // USPS's published standard first; its inline commitment second; our own
+      // conservative default only when the Postal Service will not commit.
+      estimatedDays:
+        standardDays ??
+        commitmentDays(asRecord(detail.commitment).name, descriptor.fallbackDays),
       test: configuration.test,
     });
   }
@@ -689,8 +707,23 @@ export async function uspsQuote(
       : {}),
   };
 
+  const wantStandards = serviceStandardsEnabled();
   const responses = await Promise.all(
     configuration.classes.map(async (mailClass) => {
+      /**
+       * Asked for in parallel with the price, and never awaited on its own —
+       * a slow or unavailable standards lookup must not delay a quote.
+       */
+      const standard = wantStandards
+        ? uspsServiceStandardDays(
+            configuration.host,
+            bearer.token,
+            origin,
+            destination,
+            mailClass,
+            now,
+          )
+        : Promise.resolve(null);
       try {
         const response = await fetch(
           `${configuration.host}/prices/v3/total-rates/search`,
@@ -711,14 +744,16 @@ export async function uspsQuote(
         }
         if (!response.ok)
           return { mailClass, rates: [], status: response.status };
+        const payload = await boundedJson(response, 256 * 1024);
         return {
           mailClass,
           rates: ratesFromOptions(
-            await boundedJson(response, 256 * 1024),
+            payload,
             mailClass,
             configuration,
             shipmentId,
             parts,
+            await standard.catch(() => null),
           ),
           status: 200,
         };

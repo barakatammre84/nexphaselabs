@@ -366,14 +366,24 @@ export async function recordDelivery(
 
 /** Carrier-verified delivery uses the same guarded write as a staff entry but
  * has an explicit system actor in the immutable order history. */
+/**
+ * The delivery ledger names an actor on every row, so an automated delivery has
+ * to say which system observed it. Hardcoding Shippo was correct when Shippo
+ * was the only source; a USPS-sourced delivery recorded as a "Shippo tracking
+ * webhook" would be a false entry in an append-only record.
+ */
 export async function recordAutomatedDelivery(
   detail: OrderDetail,
   input: DeliveryInput,
+  source: 'shippo' | 'usps' = 'shippo',
 ): Promise<ShipmentResult> {
   return recordDelivery(detail, input, {
-    id: 'system_shippo',
+    id: `system_${source}`,
     email: 'system@localhost.invalid',
-    name: 'Shippo tracking webhook',
+    name:
+      source === 'usps'
+        ? 'USPS tracking poll'
+        : 'Shippo tracking webhook',
     role: 'ops',
     sessionId: 'system',
     mustChangePassword: false,

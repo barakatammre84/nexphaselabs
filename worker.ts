@@ -5,6 +5,7 @@ import { feedbackRealtime } from './lib/feedback-realtime';
 import { gateNonProduction, withNoindex } from './lib/environment-gate';
 import { legacyDecision, legacyResponse } from './lib/legacy-redirects';
 import { syncZelleMailbox } from './lib/zelle-gmail';
+import { pollUspsTracking } from '@/lib/usps-tracking';
 import { zelleInboxEnabled } from './lib/zelle-config';
 
 export { FeedbackRoom } from './lib/feedback-room';
@@ -61,17 +62,24 @@ export default {
     return withNoindex(response, runtimeEnv.APP_ENV);
   },
   async scheduled() {
-    const [notifications, maintenance, zelle] = await Promise.all([
+    // USPS has no tracking webhook in use here, so the parcel status that marks
+    // an order delivered is polled on this tick. It no-ops unless USPS is the
+    // configured provider, and an unchanged status writes nothing.
+    const [notifications, maintenance, zelle, tracking] = await Promise.all([
       dispatchNotifications(),
       cleanupExpiredCommerceRecords(),
       zelleInboxEnabled()
         ? syncZelleMailbox()
         : Promise.resolve({ ok: true, skipped: true }),
+      pollUspsTracking().catch((error: unknown) => ({
+        skipped: `tracking poll failed: ${error instanceof Error ? error.message : 'unknown'}`,
+      })),
     ]);
-    console.info('[scheduled] dispatch, maintenance and payment sync complete', {
+    console.info('[scheduled] dispatch, maintenance, payment sync and tracking complete', {
       notifications,
       maintenance,
       zelle,
+      tracking,
     });
   },
 };
