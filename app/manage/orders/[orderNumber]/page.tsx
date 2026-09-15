@@ -26,6 +26,8 @@ import { previewInvoice } from '@/lib/invoice';
 import { previewPackingSlip } from '@/lib/packing-slip';
 import { documentHistory } from '@/lib/issued-documents';
 import { canFulfil, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
+import { manualPaymentRecording } from '@/lib/manual-payment-rules';
+import { zelleMode } from '@/lib/zelle-config';
 import { trackingUrl } from '@/lib/tracking';
 import { formatCents } from '@/lib/visibility-rules';
 import { reservationEligibility } from '@/lib/inventory-reservations';
@@ -112,6 +114,7 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
   const detail = await getOrderByNumber(number);
   if (!detail) notFound();
   const { order, items, events } = detail;
+  const manualPayment = manualPaymentRecording(order.paymentMethod, zelleMode());
   const zelle = order.paymentMethod === 'zelle' ? await import('@/lib/zelle') : null;
   const [allocation, verification, zelleClaim, zelleReceipts] = await Promise.all([
     reservationEligibility(order.id),
@@ -528,7 +531,7 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                 </p>
               ))}
             {order.status === 'awaiting_payment' &&
-              (canVerifyAccounts(staff) ? (
+              (canVerifyAccounts(staff) && manualPayment.allowed ? (
                 <form
                   method="post"
                   action={`/api/manage/orders/${order.orderNumber}/paid`}
@@ -541,6 +544,8 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                     Bank or provider reference
                     <input
                       name="reference"
+                      required
+                      maxLength={120}
                       className="h-11 border border-foreground/20 bg-background px-3 font-mono text-sm"
                     />
                   </label>
@@ -557,7 +562,9 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                 </form>
               ) : (
                 <p className="mt-5 border border-border bg-secondary p-4 text-sm text-muted-foreground">
-                  Only an admin can record a payment.
+                  {manualPayment.allowed
+                    ? 'Only an admin can record a payment.'
+                    : manualPayment.reason}
                 </p>
               ))}
 
