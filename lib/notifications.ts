@@ -104,7 +104,8 @@ export async function dispatchNotifications(limit = 5, now = new Date()) {
         envelope.to[0] !== row.recipient ||
         typeof envelope.from !== 'string' ||
         typeof envelope.subject !== 'string' ||
-        typeof envelope.text !== 'string'
+        typeof envelope.text !== 'string' ||
+        (envelope.replyTo !== undefined && typeof envelope.replyTo !== 'string')
       )
         throw new Error('Invalid envelope');
     } catch {

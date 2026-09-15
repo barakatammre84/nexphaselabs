@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { senderFor, type SenderPurpose } from '@/lib/senders';
+import { replyToFor, senderFor, type SenderPurpose } from '@/lib/senders';
 import {
   deliverEmail,
   emailProviderConfigurationError,
@@ -19,9 +19,11 @@ export function notificationEnvelope(
   text: string,
   purpose: SenderPurpose = 'orders',
 ): NotificationEnvelope {
+  const replyTo = replyToFor(purpose);
   return {
     from: senderFor(purpose),
     to: [recipient],
+    ...(replyTo ? { replyTo } : {}),
     subject: env.APP_ENV === 'production' ? subject : `[TEST] ${subject}`,
     text,
   };
