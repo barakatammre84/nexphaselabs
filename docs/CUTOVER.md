@@ -83,15 +83,35 @@ customer-facing switch and uses the retained WordPress host for rollback.
    24 hours before cutover.
 5. **Prove production readiness.** Run a recovery rehearsal, enter and release
    real inventory with its lot documents, configure the approved live services,
-   release a reviewed `v*` tag, and smoke-test the Worker origin.
+   release a reviewed `v*` tag, and smoke-test the Worker origin. Release the tag
+   at least a day before cutover: it changes only the workers.dev origin, and the
+   release workflow has never finished a run (`v0.1.0` stopped at the migration
+   step on 14 September because `CLOUDFLARE_API_TOKEN` was empty then). Sign in
+   to each staff account on the workers.dev origin too: on 15 September none of
+   the three production admins had ever signed in, and each must choose a new
+   password first. The storefront lists a product only when it has a photograph,
+   a list price on an active pack size, and a released lot with its lab,
+   accession number and testing standard; `/manage/readiness` shows what each
+   pack is missing. On 15 September production had no list prices and no lots,
+   and NAD+ and GHK had no photograph, so the catalog would open empty and the
+   old WordPress product links would land on it.
 6. **Cut the application over** by attaching the root to the Worker instead of
-   the WordPress host, as a Workers custom domain. Keep the WordPress host
-   running and unchanged so the previous step can be reversed by editing one
-   DNS record. Leave `www` off the Worker, which has no `www` redirect of its
-   own; today WordPress sends `www` to the apex with a 301. Add a Cloudflare
-   redirect rule first that sends `www.nexphaselabs.net` to
-   `https://nexphaselabs.net` with the path and query kept (301), so `www`
-   stops depending on the WordPress host.
+   the WordPress host, as a Workers custom domain. Before attaching it:
+   - Write down the apex DNS records exactly as they are. Cloudflare creates its
+     own record for the Custom Domain and will not add one over an existing
+     CNAME, so the WordPress records may have to be removed first. Rolling back
+     then means removing the Custom Domain and re-creating the records you wrote
+     down. Keep the WordPress host running and unchanged until the rollback
+     window closes.
+   - Turn off Email Address Obfuscation (Security, Settings), or turn it off for
+     the apex with a configuration rule. It is on for the zone today: the live
+     privacy page carries `/cdn-cgi/l/email-protection` links. On the new site it
+     would rewrite every address the server renders, so the page React hydrates
+     would no longer match what the server sent.
+   - Leave `www` off the Worker, which has no `www` redirect of its own; today
+     WordPress sends `www` to the apex with a 301. Add a Cloudflare redirect rule
+     that sends `www.nexphaselabs.net` to `https://nexphaselabs.net` with the
+     path and query kept (301), so `www` stops depending on the WordPress host.
 7. **Decide what happens to the old store.** It has customers, orders and
    payment history in SureCart. That data does not move to the new system, so
    it needs an export and a retention decision before the host is cancelled.
