@@ -1,7 +1,7 @@
 import { isLabelSize } from '@/lib/hazard';
 import { renderLabelForLot } from '@/lib/hazard-label';
 import { lotNumberFromParam } from '@/lib/lot-rules';
-import { canRecordResults, getStaffFromRequest } from '@/lib/staff-auth';
+import { canPrintLabels, getStaffFromRequest } from '@/lib/staff-auth';
 
 /**
  * Print GHS container labels for a lot.
@@ -12,7 +12,8 @@ import { canRecordResults, getStaffFromRequest } from '@/lib/staff-auth';
  *
  * Refused outright — not warned about — when the classification, the
  * responsible-party details or the prescribed pictogram artwork is missing.
- * An under-labelled container is the citation.
+ * An under-labelled container is the citation. Quality and fulfilment staff can
+ * print them; the vials are filled on the fulfilment side.
  */
 export async function GET(
   request: Request,
@@ -20,7 +21,7 @@ export async function GET(
 ) {
   const staff = await getStaffFromRequest(request);
   if (!staff) return new Response('Unauthorized', { status: 401 });
-  if (!canRecordResults(staff)) return new Response('Forbidden', { status: 403 });
+  if (!canPrintLabels(staff)) return new Response('Forbidden', { status: 403 });
 
   const { lotNumber } = await params;
   const normalised = lotNumberFromParam(lotNumber);

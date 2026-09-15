@@ -349,13 +349,3 @@ export function buildLabelContent(subject: LabelSubject): LabelContent {
     useStatement: LABEL_USE_STATEMENT,
   };
 }
-
-/** `GHS-<lot or product>` then `-R1`, matching the other issued documents. */
-export function labelNumber(reference: string, revision: number): string {
-  const ref = reference.trim().toUpperCase();
-  return revision <= 1 ? `GHS-${ref}` : `GHS-${ref}-R${revision - 1}`;
-}
-
-export function labelSequenceKey(reference: string): string {
-  return `ghs_label:${reference.trim().toUpperCase()}`;
-}

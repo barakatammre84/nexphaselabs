@@ -28,7 +28,9 @@
  *    authenticate with a browser password and are already token-gated, and the
  *    deploy smoke test has to reach health on a worker whose secret is missing.
  *
- * worker.ts marks every non-production answer it renders noindex, in either mode.
+ * worker.ts marks every non-production answer it renders noindex, in either mode,
+ * and a production answer served anywhere but PUBLIC_ORIGIN: the production
+ * Worker's workers.dev address must never compete with the real domain.
  * The hashed /_next/static bundles it hands straight back to the asset store are
  * the one exception; robots.txt disallows the whole origin regardless.
  */
@@ -88,13 +90,28 @@ export function gateNonProduction(
   });
 }
 
-/** Never let a non-production origin compete with the real domain in search. */
-export function withNoindex(response: Response, appEnv: string | undefined): Response {
-  if (!isNonProduction(appEnv)) return response;
+/** Never let a non-production origin, or production on another host, compete with the real domain in search. */
+export function withNoindex(
+  response: Response,
+  appEnv: string | undefined,
+  requestUrl?: string,
+  publicOrigin?: string,
+): Response {
+  if (!isNonProduction(appEnv) && !offPublicOrigin(requestUrl, publicOrigin)) return response;
   if (response.headers.get('X-Robots-Tag')) return response;
   const out = new Response(response.body, response);
   out.headers.set('X-Robots-Tag', 'noindex, nofollow');
   return out;
+}
+
+/** A request that did not arrive on the public origin's host. Unknown input is never treated as off-host. */
+export function offPublicOrigin(requestUrl: string | undefined, publicOrigin: string | undefined): boolean {
+  if (!requestUrl || !publicOrigin) return false;
+  try {
+    return new URL(requestUrl).host !== new URL(publicOrigin).host;
+  } catch {
+    return false;
+  }
 }
 
 function refuse(status: number, body: string, headers: Record<string, string> = {}): Response {

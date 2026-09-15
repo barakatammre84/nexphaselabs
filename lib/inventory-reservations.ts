@@ -43,6 +43,25 @@ export async function planReservations(lines: { itemId: string; code: string; pa
 > {
   const minutes = reservationMinutes();
   if (!minutes) return { ok: false, error: 'Inventory reservation policy has not been configured.' };
+  const allocated = await allocateLines(lines, now);
+  if (!allocated.ok) return allocated;
+  return { ok: true, plan: { lines: allocated.lines, lots: allocated.lots, expiresAt: new Date(now.getTime() + minutes * 60_000) } };
+}
+
+/**
+ * With reservations switched off, an order is still refused when no single released
+ * lot can supply one of its lines in that pack size. Nothing is held.
+ */
+export async function checkAllocatableStock(lines: { itemId: string; code: string; packSize: string; packs: number }[], now = new Date()): Promise<
+  { ok: true } | { ok: false; error: string }
+> {
+  const allocated = await allocateLines(lines, now);
+  return allocated.ok ? { ok: true } : allocated;
+}
+
+async function allocateLines(lines: { itemId: string; code: string; packSize: string; packs: number }[], now: Date): Promise<
+  { ok: true; lines: ReservedLine[]; lots: ReviewedLot[] } | { ok: false; error: string }
+> {
   const codes = [...new Set(lines.map(l => l.code))];
   const rows = await getDb().select().from(lots).where(and(publishableLot(),
     sql`${lots.productCode} IN (SELECT value FROM json_each(${JSON.stringify(codes)}))`)).orderBy(asc(lots.releasedAt)).limit(1001);
@@ -77,7 +96,7 @@ export async function planReservations(lines: { itemId: string; code: string; pa
     reviewed.set(lot.id, { id: lot.id, remaining: lot.quantityRemaining!, held: reserved.get(lot.id) ?? 0, retest: lot.retestDate ? Math.floor(lot.retestDate.getTime() / 1000) : null });
     result.push({ itemId: line.itemId, lotId: lot.id, units: needed, unit });
   }
-  return { ok: true, plan: { lines: result, lots: [...reviewed.values()], expiresAt: new Date(now.getTime() + minutes * 60_000) } };
+  return { ok: true, lines: result, lots: [...reviewed.values()] };
 }
 
 /** The order INSERT checks all stock/other allocations in one statement. Competing orders cannot both win. */

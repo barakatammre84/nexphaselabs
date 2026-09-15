@@ -46,6 +46,7 @@ import {
 } from '@/db/commerce-schema';
 import { attachPaymentAttempt } from '@/lib/payment-attempts';
 import {
+  checkAllocatableStock,
   planReservations,
   reservationMinutes,
   reservationPlanGuard,
@@ -252,18 +253,22 @@ export async function createOrderFromCart(
   const orderId = id('ord');
   const accepted = eq(orders.id, orderId);
   const itemIds = new Map(cart.lines.map((line) => [line.itemId, id('oli')]));
+  const allocationLines = cart.lines.map((line) => ({
+    itemId: itemIds.get(line.itemId)!,
+    code: line.product.code,
+    packSize: line.variant.quantity,
+    packs: line.quantity,
+  }));
+  // Reservations hold stock for the order. With them switched off (production today), a
+  // line that no single released lot can supply is still refused rather than sold.
   const allocation = reservationMinutes()
-    ? await planReservations(
-        cart.lines.map((line) => ({
-          itemId: itemIds.get(line.itemId)!,
-          code: line.product.code,
-          packSize: line.variant.quantity,
-          packs: line.quantity,
-        })),
-        now,
-      )
+    ? await planReservations(allocationLines, now)
     : null;
   if (allocation && !allocation.ok) return allocation;
+  if (!allocation) {
+    const supply = await checkAllocatableStock(allocationLines, now);
+    if (!supply.ok) return supply;
+  }
   const plan = allocation?.ok ? allocation.plan : null;
 
   const attestation = await buildOrderAttestation({
@@ -638,7 +643,10 @@ export async function markOrderPaid(
   const now = new Date();
   const allocation = await reservationEligibility(detail.order.id, now);
   let moved: Awaited<ReturnType<typeof transitionOrder>>;
-  if (allocation.tracked && !allocation.valid) {
+  // Money that arrives after the reservation lapsed cancels the order with a refund due,
+  // and the caller has to say so rather than report a paid order.
+  const cancelledForStock = allocation.tracked && !allocation.valid;
+  if (cancelledForStock) {
     moved = await transitionOrder(
       detail.order,
       'cancelled',
@@ -680,7 +688,7 @@ export async function markOrderPaid(
         ),
       );
   }
-  return moved;
+  return { ...moved, outcome: cancelledForStock ? ('cancelled' as const) : ('paid' as const) };
 }
 
 /** Record a matched settlement once, including money arriving after cancellation.
@@ -689,12 +697,12 @@ export async function markOrderPaid(
 export async function settleBtcpayInvoice(
   orderNumber: string,
   invoiceId: string,
-): Promise<{ ok: boolean; note: string; retryable?: boolean }> {
+): Promise<{ ok: boolean; note: string; retryable?: boolean; unmatched?: boolean }> {
   const db = getDb();
   // Re-read once if cancellation/another settlement wins during the batch.
   for (let attempt = 0; attempt < 2; attempt++) {
     const detail = await getOrderByNumber(orderNumber);
-    if (!detail) return { ok: false, note: 'unknown order' };
+    if (!detail) return { ok: false, note: 'unknown order', unmatched: true };
     const order = detail.order;
     if (order.paymentMethod !== 'btcpay' || order.paymentRef !== invoiceId) {
       const [attempt] = await db
@@ -722,7 +730,7 @@ export async function settleBtcpayInvoice(
           note: 'payment request needs reconciliation before settlement can attach',
           retryable: true,
         };
-      return { ok: false, note: 'invoice does not match order' };
+      return { ok: false, note: 'invoice does not match order', unmatched: true };
     }
     if (
       order.paidAt ||

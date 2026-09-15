@@ -15,6 +15,7 @@ const ERROR_TEXT: Record<string, string> = {
   invalid: 'That email address and password do not match.',
   locked: 'This account is locked after repeated failed attempts. Try again in 15 minutes.',
   unavailable: 'Sign-in is temporarily unavailable. Try again shortly.',
+  throttled: 'Too many failed sign-in attempts from this network. Try again in 15 minutes.',
 };
 
 type Props = { searchParams: Promise<{ error?: string; return_to?: string; signed_out?: string }> };

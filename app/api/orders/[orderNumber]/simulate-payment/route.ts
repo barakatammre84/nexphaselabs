@@ -2,6 +2,7 @@ import { getBuyerFromRequest } from '@/lib/buyer-session';
 import { orderNumberFromParam } from '@/lib/order-rules';
 import { getOrderForAccount, markOrderPaid } from '@/lib/orders';
 import { buyerSimulationEnabled } from '@/lib/payments';
+import { redirectWithNotice } from '@/lib/notice';
 import { sameOrigin } from '@/lib/staff-auth';
 
 /** Test-only settlement; never accepts proof of a real payment from a buyer. */
@@ -38,8 +39,9 @@ export async function POST(
       `simulation:${buyer.id}`,
       order.paymentRef,
     );
-    if (!result.ok) return back(`error=${encodeURIComponent(result.error)}`);
-    return back('paid=simulated');
+    if (!result.ok)
+      return redirectWithNotice(request, `/account/orders/${number}?error=notice`, result.error);
+    return back(result.outcome === 'cancelled' ? 'cancelled=1' : 'paid=simulated');
   } catch {
     return back('error=unavailable');
   }

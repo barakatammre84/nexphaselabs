@@ -12,6 +12,7 @@ export default async function RecoverOrderPage({ searchParams }: { searchParams:
       <label className="block text-sm font-semibold">Recovery code<input name="code" type="password" required minLength={64} maxLength={64} autoComplete="off" className="mt-2 h-12 w-full rounded border border-border bg-background px-3" /></label>
       <button className="min-h-12 bg-primary px-6 font-semibold text-primary-foreground">Open order</button>
     </form>
+    <p className="mt-6 text-sm text-muted-foreground">Ordered with an account? <Link href="/account/sign-in?return_to=%2Faccount%2Forders" className="text-primary underline">Sign in to see your orders</Link>.</p>
     <p className="mt-6 text-sm text-muted-foreground">No code saved? Use the original browser to create one. If that browser is unavailable, <Link href="/contact" className="text-primary underline">contact support</Link>. An email address alone cannot unlock private order details.</p>
   </main>;
 }

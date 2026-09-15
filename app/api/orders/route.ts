@@ -9,6 +9,7 @@ import { researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
 import { validateCheckout } from '@/lib/checkout-input';
 import { connectingAddress, normaliseResearchSetting } from '@/lib/attestation';
 import { allow, rateLimitKey } from '@/lib/rate-limit';
+import { redirectWithNotice } from '@/lib/notice';
 import { sameOrigin } from '@/lib/staff-auth';
 import { visibilityFor } from '@/lib/visibility-rules';
 
@@ -23,11 +24,9 @@ export async function POST(request: Request) {
   } catch {
     return new Response('Bad request', { status: 400 });
   }
+  // A refusal's words travel in a short-lived cookie, never in the link (lib/notice.ts).
   const back = (why: string) =>
-    Response.redirect(
-      new URL(`/account/cart?error=${encodeURIComponent(why)}`, request.url),
-      303,
-    );
+    redirectWithNotice(request, '/account/cart?error=notice', why);
 
   const visibility = visibilityFor(
     {

@@ -366,14 +366,16 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
                 </p>
               )}
 
-              <a
-                href={`/api/manage/lots/${encodeURIComponent(lot.lotNumber)}/coa`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-11 items-center justify-center gap-2 border border-foreground/20 px-5 text-sm font-bold hover:bg-background"
-              >
-                <FileText className="size-4" /> Preview
-              </a>
+              {canRecordResults(staff) && (
+                <a
+                  href={`/api/manage/lots/${encodeURIComponent(lot.lotNumber)}/coa`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-11 items-center justify-center gap-2 border border-foreground/20 px-5 text-sm font-bold hover:bg-background"
+                >
+                  <FileText className="size-4" /> Preview
+                </a>
+              )}
 
               {canRecordResults(staff) && coa.blockers.length === 0 && (
                 <form
@@ -444,37 +446,39 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
             })}
           </dl>
 
-          <form
-            method="post"
-            action={`/api/manage/lots/${encodeURIComponent(lot.lotNumber)}/documents`}
-            encType="multipart/form-data"
-            className="flex flex-col gap-4 border border-border bg-secondary p-5"
-          >
-            <p className="text-sm font-semibold">Upload a document</p>
-            <label className="flex flex-col gap-1.5 text-sm">
-              Type
-              <select name="type" required className="h-11 border border-foreground/20 bg-background px-3 font-mono text-sm">
-                {DOCUMENT_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {DOCUMENT_LABEL[type]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1.5 text-sm">
-              File (PDF, PNG or JPEG, up to 25 MB)
-              <input name="file" type="file" required accept="application/pdf,image/png,image/jpeg" className="text-sm" />
-            </label>
-            <button
-              type="submit"
-              className="inline-flex h-11 items-center justify-center bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90"
+          {canRecordResults(staff) && (
+            <form
+              method="post"
+              action={`/api/manage/lots/${encodeURIComponent(lot.lotNumber)}/documents`}
+              encType="multipart/form-data"
+              className="flex flex-col gap-4 border border-border bg-secondary p-5"
             >
-              Upload
-            </button>
-            <p className="text-xs leading-5 text-muted-foreground">
-              A new upload replaces the current file of that type. The previous file is kept, never deleted.
-            </p>
-          </form>
+              <p className="text-sm font-semibold">Upload a document</p>
+              <label className="flex flex-col gap-1.5 text-sm">
+                Type
+                <select name="type" required className="h-11 border border-foreground/20 bg-background px-3 font-mono text-sm">
+                  {DOCUMENT_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {DOCUMENT_LABEL[type]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1.5 text-sm">
+                File (PDF, PNG or JPEG, up to 25 MB)
+                <input name="file" type="file" required accept="application/pdf,image/png,image/jpeg" className="text-sm" />
+              </label>
+              <button
+                type="submit"
+                className="inline-flex h-11 items-center justify-center bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90"
+              >
+                Upload
+              </button>
+              <p className="text-xs leading-5 text-muted-foreground">
+                A new upload replaces the current file of that type. The previous file is kept, never deleted.
+              </p>
+            </form>
+          )}
         </div>
 
         {documents.some((d) => d.supersededAt) && (

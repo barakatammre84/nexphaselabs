@@ -4,6 +4,7 @@ import { acknowledgementsCurrent } from '@/lib/account-rules';
 import { addToCart } from '@/lib/cart';
 import { parseQuantityInput } from '@/lib/order-rules';
 import { researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
+import { redirectWithNotice } from '@/lib/notice';
 import { sameOrigin } from '@/lib/staff-auth';
 import { visibilityFor } from '@/lib/visibility-rules';
 
@@ -68,8 +69,9 @@ export async function POST(request: Request) {
 
   try {
     const result = await addToCart(account.id, sku, quantity, visibility);
+    // The refusal's words travel in a short-lived cookie, never in the link (lib/notice.ts).
     if (!result.ok)
-      return go(`${back}?cart=error&why=${encodeURIComponent(result.error)}`);
+      return redirectWithNotice(request, `${back}?cart=error`, result.error, cookie ? [cookie] : []);
   } catch (error) {
     console.error(
       '[cart] add failed',

@@ -13,6 +13,9 @@ import { getStorefrontProduct, listStorefrontProducts } from '@/lib/storefront';
 import { listReleasedLotsForProduct } from '@/lib/lots-public';
 import { currentSds } from '@/lib/product-documents';
 import { STOREFRONT_COPY } from '@/lib/storefront-copy';
+import { openCheckoutEnabled } from '@/lib/site-config';
+import { cookies } from 'next/headers';
+import { NOTICE_COOKIE, readNotice } from '@/lib/notice';
 import { currentViewer } from '@/lib/visibility';
 import { formatCents, priceFor } from '@/lib/visibility-rules';
 
@@ -38,7 +41,7 @@ export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ cart?: string; why?: string }>;
+  searchParams: Promise<{ cart?: string }>;
 };
 
 export async function generateMetadata({
@@ -69,7 +72,10 @@ function SpecRow({ label, value }: { label: string; value: string }) {
 
 export default async function ProductPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
-  const { cart: cartFlag, why } = await searchParams;
+  const { cart: cartFlag } = await searchParams;
+  // A refusal's words come from the cookie the cart route set, never from the link (lib/notice.ts).
+  const cartNotice =
+    cartFlag === 'error' ? readNotice((await cookies()).get(NOTICE_COOKIE)?.value) : null;
   const loaded = await loadCatalog(() => getStorefrontProduct(slug));
 
   if (loaded.unavailable) {
@@ -99,6 +105,11 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
   // Tier-aware visibility: one rule, evaluated here, decides whether prices
   // and released lots render. Anonymous and unverified visitors see neither.
   const { account, visibility } = await currentViewer();
+  // Prices can show to a tier that cannot order yet (researchers while ordering is
+  // wholesale-only); only a buyer who can order gets an order button.
+  const canOrder =
+    openCheckoutEnabled() ||
+    (account?.tier === 'institutional' && account.verificationStatus === 'approved');
   const releasedLots = visibility.availability
     ? ((await loadCatalog(() => listReleasedLotsForProduct(product.code)))
         .data ?? [])
@@ -144,12 +155,21 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
                 productName={product.name}
                 productSlug={product.slug}
                 hasReleasedLot={hasReleasedLot && product.stock === 'in_stock'}
+                pricing={visibility.pricing}
+                canOrder={canOrder}
+                orderingNote={STOREFRONT_COPY.orderingWholesaleOnly}
                 variants={activeVariants.map((variant) => ({
                   sku: variant.sku,
                   quantity: variant.quantity,
                   presentation: variant.presentation,
+                  sellable: product.sellableSkus.includes(variant.sku),
                   priceCents: priceFor(variant, visibility.pricing),
-                  priceBreaks: variant.priceBreaks,
+                  // Only this viewer's tier leaves the server: nobody receives another tier's break prices.
+                  priceBreaks: variant.priceBreaks.map((row) => ({
+                    minQuantity: row.minQuantity,
+                    listPriceCents: visibility.pricing === 'researcher' ? row.listPriceCents : null,
+                    institutionalPriceCents: visibility.pricing === 'institutional' ? row.institutionalPriceCents : null,
+                  })),
                 }))}
               />
             )}
@@ -402,8 +422,8 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
               role="alert"
               className="border-b border-border bg-secondary px-6 py-3 text-sm"
             >
-              {cartFlag === 'error' && why
-                ? why.slice(0, 200)
+              {cartFlag === 'error'
+                ? (cartNotice ?? 'That pack size could not be added to the cart.')
                 : cartFlag === 'invalid'
                   ? 'That pack size is not valid.'
                   : 'The cart is temporarily unavailable.'}
@@ -431,11 +451,11 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
                   <span className="flex flex-wrap items-center justify-end gap-3 text-right font-mono text-sm">
                     {cents === null ? (
                       'Price on request'
-                    ) : !product.sellableSkus.includes(variant.sku) ? (
+                    ) : !product.sellableSkus.includes(variant.sku) || !canOrder ? (
                       <>
                         <span>{formatCents(cents)}</span>
                         <span className="text-xs text-muted-foreground">
-                          Out of stock
+                          {product.sellableSkus.includes(variant.sku) ? 'Wholesale ordering only' : 'Out of stock'}
                         </span>
                       </>
                     ) : (

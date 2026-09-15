@@ -7,6 +7,7 @@ import { legacyDecision, legacyResponse } from './lib/legacy-redirects';
 import { syncZelleMailbox } from './lib/zelle-gmail';
 import { zelleInboxEnabled } from './lib/zelle-config';
 import { shieldLargeUpload } from './lib/large-uploads';
+import { runScheduledJobs } from './lib/scheduled-jobs';
 
 export { FeedbackRoom } from './lib/feedback-room';
 
@@ -63,20 +64,17 @@ export default {
       const asset = await runtimeEnv.ASSETS.fetch(request);
       if (asset.ok) return asset;
     }
-    return withNoindex(response, runtimeEnv.APP_ENV);
+    return withNoindex(response, runtimeEnv.APP_ENV, request.url, runtimeEnv.PUBLIC_ORIGIN);
   },
   async scheduled() {
-    const [notifications, maintenance, zelle] = await Promise.all([
-      dispatchNotifications(),
-      cleanupExpiredCommerceRecords(),
-      zelleInboxEnabled()
-        ? syncZelleMailbox()
-        : Promise.resolve({ ok: true, skipped: true }),
-    ]);
-    console.info('[scheduled] dispatch, maintenance and payment sync complete', {
-      notifications,
-      maintenance,
-      zelle,
+    // Each job settles on its own; one failure no longer stops the others (lib/scheduled-jobs.ts).
+    await runScheduledJobs({
+      notifications: () => dispatchNotifications(),
+      maintenance: () => cleanupExpiredCommerceRecords(),
+      zelle: () =>
+        zelleInboxEnabled()
+          ? syncZelleMailbox()
+          : Promise.resolve({ ok: true, skipped: true }),
     });
   },
 };

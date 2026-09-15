@@ -1,6 +1,7 @@
 import { getBuyerFromRequest } from '@/lib/buyer-session';
 import { orderNumberFromParam } from '@/lib/order-rules';
 import { getOrderForAccount } from '@/lib/order-reads';
+import { redirectWithNotice } from '@/lib/notice';
 import { sameOrigin } from '@/lib/staff-auth';
 import { recordZellePaymentClaim } from '@/lib/zelle';
 
@@ -26,8 +27,7 @@ export async function POST(
     payerName,
     `${account.name} (${account.id})`,
   );
-  const url = new URL(`/account/orders/${number}`, request.url);
-  if (result.ok) url.searchParams.set('zelle', 'claimed');
-  else url.searchParams.set('error', result.error);
-  return Response.redirect(url, 303);
+  if (!result.ok)
+    return redirectWithNotice(request, `/account/orders/${number}?error=notice`, result.error);
+  return Response.redirect(new URL(`/account/orders/${number}?zelle=claimed`, request.url), 303);
 }

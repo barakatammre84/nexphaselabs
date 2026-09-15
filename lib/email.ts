@@ -1,6 +1,6 @@
 import { appEnv } from '@/lib/site-config';
 import { deliverEmail, emailProviderConfigurationError } from '@/lib/email-provider';
-import { senderFor, type SenderPurpose } from '@/lib/senders';
+import { replyToFor, senderFor, type SenderPurpose } from '@/lib/senders';
 
 /**
  * Transactional email.
@@ -26,7 +26,9 @@ export type EmailResult = { ok: true; id: string | null } | { ok: false; error: 
 
 
 export async function sendEmail(message: EmailMessage): Promise<EmailResult> {
-  const from = senderFor(message.purpose ?? 'accounts');
+  const purpose = message.purpose ?? 'accounts';
+  const from = senderFor(purpose);
+  const replyTo = replyToFor(purpose);
   const configurationError = emailProviderConfigurationError(message.to);
   if (configurationError) {
     if (
@@ -46,6 +48,7 @@ export async function sendEmail(message: EmailMessage): Promise<EmailResult> {
     {
       from,
       to: [message.to],
+      ...(replyTo ? { replyTo } : {}),
       subject:
         appEnv() === 'production' ? message.subject : `[TEST] ${message.subject}`,
       text: message.text,

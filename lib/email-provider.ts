@@ -6,6 +6,8 @@ export type EmailEnvelope = {
   to: string[];
   subject: string;
   text: string;
+  /** The mailbox replies should reach when it is not the sending address (lib/senders.ts). */
+  replyTo?: string;
 };
 
 export type EmailDeliveryResult =
@@ -130,6 +132,7 @@ export async function gmailRawMessage(
   const lines = [
     `From: ${header(envelope.from, 'from')}`,
     `To: ${header(envelope.to[0], 'recipient')}`,
+    ...(envelope.replyTo ? [`Reply-To: ${header(envelope.replyTo, 'reply-to')}`] : []),
     `Subject: =?UTF-8?B?${subject}?=`,
     `Message-ID: ${await deterministicMessageId(key)}`,
     'MIME-Version: 1.0',
@@ -354,7 +357,14 @@ async function deliverWithResend(
         'Content-Type': 'application/json',
         'Idempotency-Key': key,
       },
-      body: JSON.stringify(envelope),
+      // Resend's API names this field reply_to.
+      body: JSON.stringify({
+        from: envelope.from,
+        to: envelope.to,
+        subject: envelope.subject,
+        text: envelope.text,
+        ...(envelope.replyTo ? { reply_to: envelope.replyTo } : {}),
+      }),
     });
     if (!response.ok)
       return {

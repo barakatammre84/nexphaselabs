@@ -8,7 +8,10 @@ type PurchaseVariant = {
   sku: string;
   quantity: string;
   presentation: string;
+  /** A released lot can supply this pack size today. */
+  sellable: boolean;
   priceCents: number | null;
+  /** Break prices for this viewer's own tier only. */
   priceBreaks: PriceBreak[];
 };
 
@@ -21,28 +24,41 @@ export function ProductPurchasePanel({
   productSlug,
   variants,
   hasReleasedLot,
+  pricing,
+  canOrder,
+  orderingNote,
 }: {
   productName: string;
   productSlug: string;
   variants: PurchaseVariant[];
   hasReleasedLot: boolean;
+  /** The tier whose prices this viewer sees. */
+  pricing: 'researcher' | 'institutional';
+  /** Whether this viewer can place an order at all; prices can show before ordering opens to them. */
+  canOrder: boolean;
+  orderingNote?: string;
 }) {
-  const [selectedSku, setSelectedSku] = useState(variants[0]?.sku ?? '');
+  const [selectedSku, setSelectedSku] = useState(
+    (variants.find((variant) => variant.sellable) ?? variants[0])?.sku ?? '',
+  );
   const [quantity, setQuantity] = useState(1);
   const selected = useMemo(
     () => variants.find((variant) => variant.sku === selectedSku) ?? variants[0],
     [selectedSku, variants],
   );
   if (!selected) return null;
-  const available = hasReleasedLot && selected.priceCents !== null;
+  const available = canOrder && hasReleasedLot && selected.sellable && selected.priceCents !== null;
 
-  // Volume pricing, computed from the same module the cart and the order guard
-  // use. With no ladder entered for this pack size, every value below is the
-  // single price and nothing extra renders.
-  const asVariant = { listPriceCents: selected.priceCents, institutionalPriceCents: null };
-  const unitPrice = effectiveUnitPrice(asVariant, selected.priceBreaks, quantity, 'researcher');
-  const ladder = priceLadder(asVariant, selected.priceBreaks, 'researcher', quantity);
-  const next = nextBreak(asVariant, selected.priceBreaks, quantity, 'researcher');
+  // Volume pricing at the viewer's own tier, from the same module the cart and the
+  // order guard use. With no ladder entered for this pack size, every value below is
+  // the single price and nothing extra renders.
+  const asVariant =
+    pricing === 'institutional'
+      ? { listPriceCents: null, institutionalPriceCents: selected.priceCents }
+      : { listPriceCents: selected.priceCents, institutionalPriceCents: null };
+  const unitPrice = effectiveUnitPrice(asVariant, selected.priceBreaks, quantity, pricing);
+  const ladder = priceLadder(asVariant, selected.priceBreaks, pricing, quantity);
+  const next = nextBreak(asVariant, selected.priceBreaks, quantity, pricing);
   const listPrice = selected.priceCents;
 
   return (
@@ -74,6 +90,7 @@ export function ProductPurchasePanel({
               }`}
             >
               {variant.quantity}
+              {!variant.sellable && <span className="ml-1 text-xs font-semibold opacity-70">· out of stock</span>}
             </button>
           ))}
         </div>
@@ -147,9 +164,16 @@ export function ProductPurchasePanel({
           <ShoppingCart className="size-4" />
           {available && unitPrice !== null
             ? `Add to cart · ${money(unitPrice * quantity)}`
-            : 'Not currently available'}
+            : !canOrder
+              ? 'Not available to order'
+              : !selected.sellable
+                ? 'This pack size is out of stock'
+                : 'Not currently available'}
         </button>
       </form>
+      {!canOrder && orderingNote && (
+        <p className="mt-3 text-center text-xs font-semibold text-muted-foreground">{orderingNote}</p>
+      )}
       <p className="mt-3 text-center text-xs font-semibold text-muted-foreground">
         {productName} is supplied for laboratory research use only. Shipping and tax appear before payment.
       </p>

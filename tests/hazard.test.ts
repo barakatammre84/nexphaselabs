@@ -5,8 +5,6 @@ import {
   formatStatement,
   isPictogramCode,
   labelBlockers,
-  labelNumber,
-  labelSequenceKey,
   parseStatement,
   validateHazard,
   type HazardInput,
@@ -273,13 +271,5 @@ describe('buildLabelContent', () => {
     expect(buildLabelContent(subject()).hazardStatements[0]).toBe(
       'H315 Causes skin irritation.',
     );
-  });
-});
-
-describe('label numbering', () => {
-  it('numbers labels for reference without archiving them', () => {
-    expect(labelNumber('cert-001', 1)).toBe('GHS-CERT-001');
-    expect(labelNumber('CERT-001', 3)).toBe('GHS-CERT-001-R2');
-    expect(labelSequenceKey(' cert-001 ')).toBe('ghs_label:CERT-001');
   });
 });

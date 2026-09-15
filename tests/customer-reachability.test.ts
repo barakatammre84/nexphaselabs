@@ -12,6 +12,7 @@ import { seedCommerceFixture, syntheticOrder } from './helpers/commerce-fixture'
 import { beginPayment, getOrderByNumber, markOrderPaid } from '@/lib/orders';
 import { recordShipment, startFulfilment } from '@/lib/fulfilment';
 import {
+  accountReachability,
   lotConsignees,
   reachability,
   reachabilitySummary,
@@ -220,5 +221,18 @@ describe('the recall query', () => {
   it('lists the lots a recall would have to chase', async () => {
     await shipOne();
     expect(await shippedLotNumbers()).toEqual(['SYNTHETIC-LOT']);
+  });
+
+  it('answers the same questions for one customer on the staff account page', async () => {
+    await shipOne();
+    const { account_id: accountId, email } = local.sqlite
+      .prepare('SELECT o.account_id, a.email FROM orders o JOIN accounts a ON a.id = o.account_id')
+      .get() as { account_id: string; email: string };
+    expect(await shippedLotNumbers(50, accountId)).toEqual(['SYNTHETIC-LOT']);
+    expect(await shippedLotNumbers(50, 'acc_someone_else')).toEqual([]);
+    const reach = await accountReachability(accountId);
+    expect(reach).toMatchObject({ email });
+    expect(['reachable', 'unproven', 'unreachable']).toContain(reach?.state);
+    expect(await accountReachability('acc_missing')).toBeNull();
   });
 });

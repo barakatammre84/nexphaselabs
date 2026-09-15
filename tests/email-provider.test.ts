@@ -88,6 +88,39 @@ describe('email providers', () => {
     ).rejects.toThrow('Invalid subject');
   });
 
+  it('names the reply mailbox in both providers', async () => {
+    const envelope = {
+      from: 'NexPhase Labs Orders <orders@nexphaselabs.net>',
+      to: ['customer@example.org'],
+      replyTo: 'orders@nexphaselabs.net',
+      subject: 'Order received',
+      text: 'Reply to this message with questions.',
+    };
+    expect(decodeBase64Url(await gmailRawMessage(envelope, 'order:event-2'))).toContain(
+      '\r\nReply-To: orders@nexphaselabs.net\r\n',
+    );
+    expect(
+      decodeBase64Url(await gmailRawMessage({ ...envelope, replyTo: undefined }, 'order:event-3')),
+    ).not.toContain('Reply-To');
+    await expect(
+      gmailRawMessage({ ...envelope, replyTo: 'orders@nexphaselabs.net\r\nBcc: thief@example.org' }, 'bad'),
+    ).rejects.toThrow('Invalid reply-to');
+
+    Object.assign(env, {
+      APP_ENV: 'staging',
+      TEST_EMAIL_ALLOWLIST: 'customer@example.org',
+      EMAIL_PROVIDER: 'resend',
+      RESEND_API_KEY: 'resend-test-key',
+    });
+    const fetcher = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(Response.json({ id: 'resend-message-1' }));
+    expect(await deliverEmail(envelope, 'order:event-4')).toEqual({ ok: true, providerId: 'resend-message-1' });
+    const body = JSON.parse(String(fetcher.mock.calls[0][1]?.body));
+    expect(body).toMatchObject({ reply_to: 'orders@nexphaselabs.net', to: ['customer@example.org'] });
+    expect(body).not.toHaveProperty('replyTo');
+  });
+
   it('authorizes a delegated sender and sends through the Gmail API', async () => {
     Object.assign(env, {
       APP_ENV: 'staging',

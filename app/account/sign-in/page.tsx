@@ -29,14 +29,17 @@ const ERROR_TEXT: Record<string, string> = {
   locked:
     'This account is locked after repeated failed attempts. Try again in 15 minutes.',
   unverified:
-    'Confirm your email address first. Check your inbox for the link we sent.',
+    'Confirm your email address first. If the link has expired or never arrived, send a new one below.',
   unavailable: 'Sign-in is temporarily unavailable. Try again shortly.',
+  throttled:
+    'Too many failed sign-in attempts from this network. Try again in 15 minutes.',
 };
 
 const VERIFY_TEXT: Record<string, string> = {
   verified: 'Your email address is confirmed. Sign in to continue.',
   already: 'That link was already used. Sign in to continue.',
-  expired: 'That link has expired. Sign in to request a new one.',
+  expired: 'That link has expired. Enter your email address below and we will send a new one.',
+  resend_missing: 'Enter the email address you signed up with to get a new confirmation link.',
   invalid: 'That verification link is not valid.',
   unavailable: 'Verification is temporarily unavailable. Try again shortly.',
 };
@@ -100,6 +103,22 @@ export default async function AccountSignInPage({ searchParams }: Props) {
           >
             <AlertCircle className="size-4 text-destructive" /> {error}
           </p>
+        )}
+
+        {(params.verify === 'expired' || params.verify === 'resend_missing' || params.error === 'unverified') && (
+          <form
+            method="post"
+            action="/api/account/verify/resend"
+            className="mt-6 flex flex-col gap-3 rounded-lg border border-border bg-secondary p-5"
+          >
+            <label htmlFor="resend-email" className="text-sm font-semibold">
+              Send a new confirmation link
+            </label>
+            <input id="resend-email" name="email" type="email" required autoComplete="email" className={input} />
+            <button type="submit" className="action-secondary w-fit">
+              Send link
+            </button>
+          </form>
         )}
 
         <form

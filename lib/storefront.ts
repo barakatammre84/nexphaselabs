@@ -85,6 +85,12 @@ async function publishableStock(codes: string[]): Promise<PublishableStock[]> {
     .limit(5000);
 }
 
+/** Whether a publishable lot can supply this pack size today: the add-to-cart stock check. */
+export async function packAvailable(productCode: string, packSize: string, now = new Date()): Promise<boolean> {
+  const stock = await publishableStock([productCode]);
+  return stock.some((lot) => lotUsable(lot, now) && lotSuppliesPack(lot, packSize));
+}
+
 /** Every product on the storefront, in catalog order, with its stock state. */
 export async function listStorefrontProducts(now = new Date()): Promise<ListedProduct[]> {
   const published = await listPublishedProducts();

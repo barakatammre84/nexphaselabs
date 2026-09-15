@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { ArrowLeft, CircleCheck } from 'lucide-react';
 import { AccountServiceForms } from '@/components/manage/account-service-forms';
 import { describeToken, getAccountDetail } from '@/lib/account-service';
+import { accountReachability, reachabilityLabel, shippedLotNumbers } from '@/lib/customer-reachability';
 import { canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
 import { accountServiceAction } from '../actions';
 
@@ -34,6 +35,8 @@ export default async function AccountPage({ params, searchParams }: Props) {
   const { account, organization, acknowledgements, orders, sessions, tokens, events } = detail;
   const now = new Date();
   const live = sessions.filter((s) => !s.revokedAt && s.expiresAt > now).length;
+  // What a recall needs from this record: can we reach them today, and what did they receive.
+  const [reach, shippedLots] = await Promise.all([accountReachability(account.id), shippedLotNumbers(50, account.id)]);
 
   return (
     <main className="bg-background text-foreground">
@@ -61,6 +64,22 @@ export default async function AccountPage({ params, searchParams }: Props) {
             <h2 className="utility-label text-primary">Account</h2>
             <dl className="mt-4 border-t border-border">
               <Row label="Email verified" value={stamp(account.emailVerifiedAt)} />
+              <Row
+                label="Reachability"
+                value={
+                  reach ? (
+                    <>
+                      {reachabilityLabel(reach.state)}
+                      {reach.secondRoute ? ' · phone on file' : ''}
+                      {reach.reasons.length > 0 && (
+                        <span className="block text-xs text-muted-foreground">{reach.reasons.join(' ')}</span>
+                      )}
+                    </>
+                  ) : (
+                    '—'
+                  )
+                }
+              />
               <Row label="Last sign-in" value={stamp(account.lastLoginAt)} />
               <Row label="Lockout" value={account.lockedUntil && account.lockedUntil > now ? `locked until ${stamp(account.lockedUntil)}` : `none (${account.failedAttempts} recent failures)`} />
               <Row label="Terms / RUO versions" value={`${account.termsVersion ?? '—'} / ${account.ruoVersion ?? '—'}`} />
@@ -150,6 +169,27 @@ export default async function AccountPage({ params, searchParams }: Props) {
             </ul>
           </div>
         </div>
+
+        <h2 className="mt-12 utility-label text-primary">Lots shipped to this account ({shippedLots.length})</h2>
+        {shippedLots.length === 0 ? (
+          <p className="mt-4 text-sm text-muted-foreground">Nothing shipped yet.</p>
+        ) : (
+          <ul className="mt-4 flex flex-wrap gap-2">
+            {shippedLots.map((lotNumber) => (
+              <li key={lotNumber}>
+                <Link
+                  href={`/manage/lots/${encodeURIComponent(lotNumber)}`}
+                  className="inline-flex border border-border px-3 py-1 font-mono text-xs font-semibold text-primary hover:underline"
+                >
+                  {lotNumber}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-2 text-xs text-muted-foreground">
+          Each lot page lists everyone who received that lot and how reachable they are.
+        </p>
 
         <h2 className="mt-12 utility-label text-primary">Service history</h2>
         <ul className="mt-4 divide-y divide-border border border-border text-sm">
