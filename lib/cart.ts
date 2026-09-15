@@ -3,6 +3,7 @@ import { getDb } from '@/db';
 import { cartItems, productVariants, products, type ProductRow, type ProductVariantRow } from '@/db/schema';
 import { MAX_CART_LINES, MAX_LINE_QUANTITY } from '@/lib/order-rules';
 import { effectiveUnitPrice, readPriceBreaks } from '@/lib/price-breaks';
+import { packAvailable } from '@/lib/storefront';
 import { priceFor, type Visibility } from '@/lib/visibility-rules';
 
 /**
@@ -89,6 +90,10 @@ export async function addToCart(accountId: string, sku: string, quantity: number
   if (!row) return { ok: false, error: 'That pack size is not available.' };
   if (priceFor(row.variant, visibility.pricing) === null) {
     return { ok: false, error: 'That pack size is priced on request. Email research@nexphaselabs.net.' };
+  }
+  // The pack table marks a size no lot can supply as out of stock; the cart must agree.
+  if (!(await packAvailable(row.product.code, row.variant.quantity))) {
+    return { ok: false, error: 'That pack size is out of stock. Choose another size, or check back when the next lot is released.' };
   }
 
   const existing = await db

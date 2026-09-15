@@ -73,6 +73,8 @@ describe('checkout acceptance is guarded at commit', () => {
     expect(count('orders')).toBe(1); expect(count('notifications')).toBe(1);
   });
   it('accepts the full 20-line cart within D1 parameter limits', async () => {
+    // Enough released stock for every line: this test is about D1 parameter limits, not stock.
+    local.sqlite.exec("UPDATE lots SET quantity_remaining = '250 mg'");
     for (let i = 2; i <= 20; i++) {
       await getDb().insert(productVariants).values({ id: `variant${i}`, productId: 'product1', sku: `TEST-SKU-${i}`, quantity: `${i} mg`, presentation: 'powder', institutionalPriceCents: 100, active: true });
       await getDb().insert(cartItems).values({ id: `cart${i}`, accountId: account.id, variantId: `variant${i}`, quantity: 1 });
@@ -80,5 +82,13 @@ describe('checkout acceptance is guarded at commit', () => {
     expect((await submit()).ok).toBe(true);
     expect(count('order_items')).toBe(20);
     expect(count('notifications')).toBe(1);
+  });
+  it('refuses a cart released stock cannot supply, with reservations switched off', async () => {
+    // Production runs without reservations; an order still must not promise stock no lot holds.
+    local.sqlite.exec('UPDATE cart_items SET quantity = 6'); // 6 × 2 mg against a 10 mg lot
+    const result = await submit();
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('Not enough allocatable released stock') });
+    expect(count('orders')).toBe(0);
+    expect(count('cart_items')).toBe(1);
   });
 });

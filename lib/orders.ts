@@ -46,6 +46,7 @@ import {
 } from '@/db/commerce-schema';
 import { attachPaymentAttempt } from '@/lib/payment-attempts';
 import {
+  checkAllocatableStock,
   planReservations,
   reservationMinutes,
   reservationPlanGuard,
@@ -252,18 +253,22 @@ export async function createOrderFromCart(
   const orderId = id('ord');
   const accepted = eq(orders.id, orderId);
   const itemIds = new Map(cart.lines.map((line) => [line.itemId, id('oli')]));
+  const allocationLines = cart.lines.map((line) => ({
+    itemId: itemIds.get(line.itemId)!,
+    code: line.product.code,
+    packSize: line.variant.quantity,
+    packs: line.quantity,
+  }));
+  // Reservations hold stock for the order. With them switched off (production today), a
+  // line that no single released lot can supply is still refused rather than sold.
   const allocation = reservationMinutes()
-    ? await planReservations(
-        cart.lines.map((line) => ({
-          itemId: itemIds.get(line.itemId)!,
-          code: line.product.code,
-          packSize: line.variant.quantity,
-          packs: line.quantity,
-        })),
-        now,
-      )
+    ? await planReservations(allocationLines, now)
     : null;
   if (allocation && !allocation.ok) return allocation;
+  if (!allocation) {
+    const supply = await checkAllocatableStock(allocationLines, now);
+    if (!supply.ok) return supply;
+  }
   const plan = allocation?.ok ? allocation.plan : null;
 
   const attestation = await buildOrderAttestation({
