@@ -10,10 +10,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-type Props = { searchParams: Promise<{ email?: string; sent?: string }> };
+type Props = { searchParams: Promise<{ email?: string; sent?: string; resent?: string }> };
 
 export default async function CheckEmailPage({ searchParams }: Props) {
-  const { email, sent } = await searchParams;
+  const { email, sent, resent } = await searchParams;
   const shown =
     email && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : null;
 
@@ -25,7 +25,18 @@ export default async function CheckEmailPage({ searchParams }: Props) {
         <h1 className="mt-6 font-display text-4xl font-extrabold tracking-[-0.05em]">
           Check your email
         </h1>
-        {sent === '0' ? (
+        {resent === '1' ? (
+          <p className="mt-5 leading-7 text-muted-foreground">
+            If{' '}
+            {shown ? (
+              <span className="font-semibold text-foreground">{shown}</span>
+            ) : (
+              'that address'
+            )}{' '}
+            has an account waiting to be confirmed, a new confirmation link is
+            on its way. Open it within 24 hours; earlier links no longer work.
+          </p>
+        ) : sent === '0' ? (
           <p className="mt-5 leading-7 text-muted-foreground">
             Your account was created, but the confirmation email could not be
             sent. Email{' '}

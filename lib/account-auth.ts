@@ -173,6 +173,20 @@ export async function issueVerification(accountId: string, email: string, name: 
   return result.ok;
 }
 
+/**
+ * Sends a fresh confirmation link to an account still waiting for one. Says nothing
+ * about whether the address has an account; the caller answers the same way either way.
+ */
+export async function resendVerification(email: string): Promise<void> {
+  const [account] = await getDb()
+    .select({ id: accounts.id, email: accounts.email, name: accounts.name, status: accounts.status })
+    .from(accounts)
+    .where(eq(accounts.email, email.trim().toLowerCase()))
+    .limit(1);
+  if (!account || account.status !== 'pending_email') return;
+  await issueVerification(account.id, account.email, account.name);
+}
+
 export type VerifyResult = 'verified' | 'already' | 'invalid' | 'expired';
 
 export async function verifyEmailToken(token: string): Promise<VerifyResult> {
