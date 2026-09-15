@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Lock } from 'lucide-react';
 import {
+  canFulfil,
   canHandleFeedback,
   canManageStaff,
   requireStaff,
@@ -57,9 +58,11 @@ export default async function ManageLayout({
             <Link href="/manage/payments/zelle" className="hover:text-primary">
               Zelle
             </Link>
-            <Link href="/manage/procurement" className="hover:text-primary">
-              Procurement
-            </Link>
+            {canFulfil(staff) && (
+              <Link href="/manage/procurement" className="hover:text-primary">
+                Procurement
+              </Link>
+            )}
             <Link href="/manage/reports" className="hover:text-primary">
               Reports
             </Link>
