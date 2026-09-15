@@ -1,5 +1,6 @@
 import { accountCookie, accountSignIn, safeAccountReturnPath } from '@/lib/account-auth';
 import { validateSignIn } from '@/lib/account-rules';
+import { recordSignInFailure, signInThrottled } from '@/lib/sign-in-throttle';
 import { sameOrigin, urlIsSecure } from '@/lib/staff-auth';
 
 export async function POST(request: Request) {
@@ -20,7 +21,9 @@ export async function POST(request: Request) {
 
   let result: Awaited<ReturnType<typeof accountSignIn>>;
   try {
+    if (await signInThrottled('account', request)) return back('throttled');
     result = await accountSignIn(credentials.email, credentials.password, request.headers.get('user-agent'));
+    if (!result.ok && (result.reason === 'invalid' || result.reason === 'locked')) await recordSignInFailure('account', request);
   } catch (error) {
     console.error('[account] sign-in failed', error instanceof Error ? error.message : error);
     return back('unavailable');

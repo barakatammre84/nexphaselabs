@@ -31,6 +31,8 @@ const ERROR_TEXT: Record<string, string> = {
   unverified:
     'Confirm your email address first. Check your inbox for the link we sent.',
   unavailable: 'Sign-in is temporarily unavailable. Try again shortly.',
+  throttled:
+    'Too many failed sign-in attempts from this network. Try again in 15 minutes.',
 };
 
 const VERIFY_TEXT: Record<string, string> = {

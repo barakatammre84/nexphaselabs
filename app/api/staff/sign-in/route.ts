@@ -1,3 +1,4 @@
+import { recordSignInFailure, signInThrottled } from '@/lib/sign-in-throttle';
 import { safeReturnPath, sameOrigin, sessionCookie, signIn, urlIsSecure } from '@/lib/staff-auth';
 
 /**
@@ -6,7 +7,8 @@ import { safeReturnPath, sameOrigin, sessionCookie, signIn, urlIsSecure } from '
  * Failure responses never say whether the email exists or whether the
  * account is active. A locked account is told it is locked, because that is
  * useful to the legitimate owner and reveals nothing an attacker could not
- * infer from ten failures.
+ * infer from ten failures. A network with repeated failures is throttled before any
+ * password is checked (lib/sign-in-throttle.ts), which says nothing about any account.
  */
 export async function POST(request: Request) {
   if (!sameOrigin(request)) {
@@ -33,7 +35,9 @@ export async function POST(request: Request) {
 
   let result: Awaited<ReturnType<typeof signIn>>;
   try {
+    if (await signInThrottled('staff', request)) return back('throttled');
     result = await signIn(email, password, request.headers.get('user-agent'));
+    if (!result.ok && (result.reason === 'invalid' || result.reason === 'locked')) await recordSignInFailure('staff', request);
   } catch (error) {
     console.error('[staff] sign-in failed', error instanceof Error ? error.message : error);
     return back('unavailable');

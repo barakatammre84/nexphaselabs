@@ -27,3 +27,12 @@ export async function allow(key: string, limit: number, windowSeconds: number, n
   return count <= limit;
 }
 
+/** How many times `key` has counted in the current window, without counting this look. */
+export async function currentCount(key: string, windowSeconds: number, now = new Date()): Promise<number> {
+  const start = windowStart(now.getTime(), windowSeconds);
+  const rows = await getDb().all<{ count: number }>(sql`
+    SELECT count FROM rate_limits WHERE key = ${key} AND window_start = ${start}
+  `);
+  return Number(rows[0]?.count ?? 0);
+}
+
