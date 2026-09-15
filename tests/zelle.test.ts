@@ -18,6 +18,8 @@ import {
   zelleClaimForOrder,
 } from '@/lib/zelle';
 import { parseZelleGmailMessage, type ZelleGmailMessage } from '@/lib/zelle-core';
+import { zelleConfigurationStatus } from '@/lib/zelle-config';
+import { syncZelleMailbox } from '@/lib/zelle-gmail';
 
 let local: ReturnType<typeof localD1>;
 const number = 'NX-260914-0001';
@@ -249,5 +251,38 @@ describe('Zelle order settlement', () => {
     const rows = await getDb().select().from(zelleReconciliationRuns);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ businessDate: '2026-09-14', actor: 'Synthetic admin' });
+  });
+});
+
+describe('Zelle inbox settings', () => {
+  it('reads an empty dedicated Gmail client setting as unset, as the configuration status does', async () => {
+    Object.assign(env, {
+      ZELLE_GMAIL_MAILBOX: 'orders@nexphaselabs.net',
+      ZELLE_GMAIL_OAUTH_REFRESH_TOKEN: 'synthetic-refresh-token',
+      ZELLE_GMAIL_OAUTH_CLIENT_ID: '',
+      ZELLE_GMAIL_OAUTH_CLIENT_SECRET: '',
+      GOOGLE_WORKSPACE_OAUTH_CLIENT_ID: 'workspace-client.apps.googleusercontent.com',
+      GOOGLE_WORKSPACE_OAUTH_CLIENT_SECRET: 'workspace-client-secret',
+    });
+    // The desk counts the Workspace client as configured; the sync must agree instead of failing on ''.
+    expect(zelleConfigurationStatus()).toMatchObject({ inboxConfigured: true, missing: [] });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (url: string) =>
+        url === 'https://oauth2.googleapis.com/token'
+          ? Response.json({ access_token: 'synthetic-access-token', expires_in: 3600 })
+          : url.endsWith('/profile')
+            ? Response.json({ emailAddress: 'orders@nexphaselabs.net' })
+            : Response.json({ messages: [] }),
+      ),
+    );
+    try {
+      expect(await syncZelleMailbox()).toMatchObject({ ok: true, scanned: 0 });
+      const grant = new URLSearchParams(String(vi.mocked(fetch).mock.calls[0][1]?.body));
+      expect(grant.get('client_id')).toBe('workspace-client.apps.googleusercontent.com');
+      expect(grant.get('client_secret')).toBe('workspace-client-secret');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

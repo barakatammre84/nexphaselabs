@@ -3,6 +3,9 @@ import { localD1 } from './helpers/local-d1';
 
 const { env } = vi.hoisted(() => ({ env: {} as { DB?: D1Database } }));
 vi.mock('cloudflare:workers', () => ({ env }));
+// handoffOrder checks canFulfil from lib/staff-auth, which imports the framework's request helpers.
+vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }), headers: async () => new Headers() }));
+vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 
 import { getDb } from '@/db';
 import { accounts, orderEvents, orders, staffUsers } from '@/db/schema';
@@ -146,5 +149,14 @@ describe('order ownership and handoffs', () => {
     await handoffOrder(stale, { assignedTo: first.id, serviceDueAt: '2026-09-09T12:00:00Z' }, admin, now);
     expect((await handoffOrder(stale, { assignedTo: second.id, serviceDueAt: '2026-09-10T12:00:00Z' }, admin, now)).ok).toBe(false);
     expect(await getDb().select().from(orderEvents)).toHaveLength(1);
+  });
+
+  it('keeps quality staff, who hold no order permission, from claiming an order', async () => {
+    const current = await order();
+    expect(
+      await handoffOrder(current, { assignedTo: second.id, serviceDueAt: '2026-09-09T12:00:00Z' }, second, now),
+    ).toEqual({ ok: false, error: 'Only operations and administrators can claim or hand off an order.' });
+    expect((await getDb().select().from(orders))[0].assignedTo).toBeNull();
+    expect(await getDb().select().from(orderEvents)).toHaveLength(0);
   });
 });

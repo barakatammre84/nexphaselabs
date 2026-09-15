@@ -32,10 +32,11 @@ export async function accountServiceAction(accountId: string, _prev: AccountServ
   if (!staff) redirect('/staff/sign-in?return_to=%2Fmanage%2Faccounts');
   if (!canVerifyAccounts(staff)) return fail('Only an admin can service customer accounts.');
   if (!/^acc_[a-f0-9]{8,32}$/.test(accountId)) return fail('Unknown account.');
-  const detail = await getAccountDetail(accountId);
-  if (!detail) return fail('Unknown account.');
   let outcome;
+  // The account is read inside the try, so a database error returns a form message instead of the framework's error page.
   try {
+    const detail = await getAccountDetail(accountId);
+    if (!detail) return fail('Unknown account.');
     switch (op) {
       case 'reset':
         outcome = await staffSendPasswordReset(detail.account, staff);

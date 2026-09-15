@@ -4,6 +4,7 @@ import {
   canFulfil,
   canHandleFeedback,
   canManageStaff,
+  canVerifyAccounts,
   requireStaff,
 } from '@/lib/staff-auth';
 import { feedbackCounts } from '@/lib/feedback';
@@ -63,9 +64,12 @@ export default async function ManageLayout({
                 Procurement
               </Link>
             )}
-            <Link href="/manage/reports" className="hover:text-primary">
-              Reports
-            </Link>
+            {/* The report exports answer only canVerifyAccounts (app/api/manage/reports). */}
+            {canVerifyAccounts(staff) && (
+              <Link href="/manage/reports" className="hover:text-primary">
+                Reports
+              </Link>
+            )}
             <Link href="/manage/activity" className="hover:text-primary">
               Activity
             </Link>

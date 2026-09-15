@@ -26,6 +26,10 @@ export default {
     );
     if (gate) return gate;
     const { pathname } = new URL(request.url);
+    // Redirects, 410s and fallback assets are marked like pages. Only the
+    // /_next/static bundles and the feedback socket leave unmarked (lib/environment-gate.ts).
+    const noindex = (answer: Response) =>
+      withNoindex(answer, runtimeEnv.APP_ENV, request.url, runtimeEnv.PUBLIC_ORIGIN);
     // Static assets normally never reach the worker at all — Workers Assets serves
     // them ahead of it, which means the password gate above would not have covered
     // the bundles. Staging sets assets.run_worker_first so every request passes the
@@ -39,7 +43,7 @@ export default {
     // exists, 410 where the page is genuinely gone. Product pages are decided
     // against the catalog in app/product/[slug]/route.ts, not here.
     const legacy = legacyDecision(pathname);
-    if (legacy) return legacyResponse(legacy, request.url);
+    if (legacy) return noindex(legacyResponse(legacy, request.url));
     // Every WordPress URL carries a trailing slash, and the framework answers
     // /product/<slug>/ with its own 308 to the slashless form. Strip it here so
     // an indexed product URL takes one hop to its new page instead of two.
@@ -50,6 +54,8 @@ export default {
       forwarded = new Request(url, request);
     }
     if (pathname === '/api/feedback/realtime') {
+      // Never through noindex(): the room's 101 carries the WebSocket itself, and
+      // copying the response to add a header would lose the socket.
       return feedbackRealtime(request, runtimeEnv);
     }
     // Document and image uploads can be larger than the framework's server-action
@@ -62,9 +68,9 @@ export default {
     // really has it, so the application's own not-found page still wins.
     if (response.status === 404 && (request.method === 'GET' || request.method === 'HEAD')) {
       const asset = await runtimeEnv.ASSETS.fetch(request);
-      if (asset.ok) return asset;
+      if (asset.ok) return noindex(asset);
     }
-    return withNoindex(response, runtimeEnv.APP_ENV, request.url, runtimeEnv.PUBLIC_ORIGIN);
+    return noindex(response);
   },
   async scheduled() {
     // Each job settles on its own; one failure no longer stops the others (lib/scheduled-jobs.ts).

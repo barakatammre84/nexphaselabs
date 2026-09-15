@@ -1,4 +1,5 @@
 import { feedbackTokenHash } from '@/lib/feedback-core';
+import { STAFF_ROLES, roleHasPermission, type StaffRole } from '@/lib/staff-roles';
 
 const PUBLIC_ID = /^FB-\d{6}-[A-F0-9]{8}$/;
 const STAFF_COOKIE = 'nx_staff';
@@ -30,15 +31,23 @@ async function authorizedRole(
   const staffToken = cookieValue(request, STAFF_COOKIE);
   if (staffToken) {
     const staff = await runtimeEnv.DB.prepare(
-      `SELECT s.id FROM staff_sessions s
+      `SELECT u.role FROM staff_sessions s
        INNER JOIN staff_users u ON u.id = s.user_id
        WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > unixepoch()
          AND u.active = 1 AND u.must_change_password = 0
        LIMIT 1`,
     )
       .bind(await feedbackTokenHash(staffToken))
-      .first();
-    if (staff) return 'staff';
+      .first<{ role: string }>();
+    // The permission canHandleFeedback checks on every other feedback read, taken from
+    // lib/staff-roles.ts because this runs in the worker, ahead of the framework. A
+    // session without it counts as no staff session; only a visitor token can admit it.
+    if (
+      staff &&
+      (STAFF_ROLES as string[]).includes(staff.role) &&
+      roleHasPermission(staff.role as StaffRole, 'feedback.manage')
+    )
+      return 'staff';
   }
   const token = cookieValue(request, 'nx_feedback');
   if (!token) return null;

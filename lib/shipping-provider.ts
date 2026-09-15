@@ -95,8 +95,9 @@ function configuredOrigins(simulated: boolean, issues: string[]) {
   } else {
     let address: ShippingAddress | null = null;
     try {
+      // `||` as in scripts/shippo-verify.mjs: an empty SHIPPO_FROM_JSON is unset, not unparseable.
       address = JSON.parse(
-        env.SHIPPO_FROM_JSON ?? env.SHIPPING_FROM_JSON ?? 'null',
+        env.SHIPPO_FROM_JSON || env.SHIPPING_FROM_JSON || 'null',
       ) as ShippingAddress | null;
     } catch {
       /* reported below */
@@ -224,7 +225,7 @@ export function configuredBusinessOrigin(): ShippingAddress | null {
       return null;
     }
     const address = JSON.parse(
-      env.SHIPPO_FROM_JSON ?? env.SHIPPING_FROM_JSON ?? 'null',
+      env.SHIPPO_FROM_JSON || env.SHIPPING_FROM_JSON || 'null',
     ) as ShippingAddress | null;
     return address && !addressError(address) ? address : null;
   } catch {

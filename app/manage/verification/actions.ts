@@ -34,14 +34,16 @@ export async function decideVerificationAction(organizationId: string, _prev: Lo
   if (!canVerifyAccounts(staff)) return fail('Only an admin can decide verification.');
 
   if (!/^org_[a-z0-9]{8,32}$/.test(organizationId)) return fail('Unknown organisation.');
-  const detail = await getOrganizationDetail(organizationId);
-  if (!detail) return fail('Unknown organisation.');
 
-  const validated = validateVerificationDecision(values);
-  if (!validated.ok) return { values, errors: validated.errors, violations: [] };
-
+  // The organisation is read inside the try, so a database error returns a form message instead of the framework's error page.
   let outcome;
   try {
+    const detail = await getOrganizationDetail(organizationId);
+    if (!detail) return fail('Unknown organisation.');
+
+    const validated = validateVerificationDecision(values);
+    if (!validated.ok) return { values, errors: validated.errors, violations: [] };
+
     outcome = await decideVerification(detail, validated.value.decision, validated.value.note, staff);
   } catch (error) {
     console.error('[verification] decision failed', error instanceof Error ? error.message : error);

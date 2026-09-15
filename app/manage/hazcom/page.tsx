@@ -232,16 +232,17 @@ export default async function HazcomPage({ searchParams }: Props) {
             </ul>
           )}
 
-          <div className="mt-5 flex flex-wrap items-end gap-3">
-            <a
-              href="/api/manage/hazcom"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex h-11 items-center justify-center gap-2 border border-foreground/20 px-5 text-sm font-bold hover:bg-background"
-            >
-              <FileText className="size-4" /> Preview
-            </a>
-            {admin && (
+          {/* The preview route is admin only, like issuing (app/api/manage/hazcom/route.ts). */}
+          {admin && (
+            <div className="mt-5 flex flex-wrap items-end gap-3">
+              <a
+                href="/api/manage/hazcom"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-11 items-center justify-center gap-2 border border-foreground/20 px-5 text-sm font-bold hover:bg-background"
+              >
+                <FileText className="size-4" /> Preview
+              </a>
               <form method="post" action="/api/manage/hazcom" className="flex flex-wrap items-end gap-3">
                 <input type="hidden" name="intent" value="issue" />
                 {programmes.length > 0 && (
@@ -263,8 +264,8 @@ export default async function HazcomPage({ searchParams }: Props) {
                   {programmes.length === 0 ? `Issue ${preview.documentNumber}` : 'Reissue'}
                 </button>
               </form>
-            )}
-          </div>
+            </div>
+          )}
           <p className="mt-4 text-xs leading-5 text-muted-foreground">
             The programme is a snapshot of the inventory and the arrangements as they stand. It is
             reissued rather than edited, so what the programme said on any past date stays on file.

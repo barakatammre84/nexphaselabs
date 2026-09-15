@@ -17,7 +17,7 @@ const field = 'min-h-11 rounded-md border border-input bg-background px-3 text-s
 export function OrderHandoffForm({ action, initial, people, currentStaffId, editable }: Props) {
   const [state, formAction, pending] = useActionState(action, { values: initial, errors: [], saved: false });
   const values = { ...initial, ...state.values };
-  if (!editable) return <p className="mt-3 text-xs text-muted-foreground">Only the current owner or an administrator can change this assignment.</p>;
+  if (!editable) return <p className="mt-3 text-xs text-muted-foreground">Operations and administrators claim and hand off orders; only the current owner or an administrator can change this assignment.</p>;
   return (
     <form action={formAction} className="mt-4 grid gap-3 md:grid-cols-2">
       {state.errors.length > 0 && <p role="alert" className="flex gap-2 border border-destructive/40 p-3 text-sm md:col-span-2"><AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />{state.errors.join(' ')}</p>}

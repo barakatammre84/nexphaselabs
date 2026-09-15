@@ -9,10 +9,14 @@ export { RUO_ACKNOWLEDGEMENT, RUO_VERSION, TERMS_VERSION } from '@/lib/policy';
 
 /**
  * Whether researcher (non-institutional) accounts may sign up and see list pricing.
- * Reads RESEARCHER_TIER_ENABLED; CONSUMER_TIER_ENABLED is honoured as a legacy alias.
+ * Reads RESEARCHER_TIER_ENABLED. CONSUMER_TIER_ENABLED is honoured as a legacy alias
+ * only while RESEARCHER_TIER_ENABLED is unset or empty, so a leftover
+ * CONSUMER_TIER_ENABLED=true cannot override production's explicit "false".
  */
 export function researcherTierEnabled(): boolean {
-  return env.RESEARCHER_TIER_ENABLED === 'true' || env.CONSUMER_TIER_ENABLED === 'true';
+  const explicit = env.RESEARCHER_TIER_ENABLED;
+  if (explicit) return explicit === 'true';
+  return env.CONSUMER_TIER_ENABLED === 'true';
 }
 /** @deprecated use researcherTierEnabled */
 export const consumerTierEnabled = researcherTierEnabled;

@@ -75,10 +75,11 @@ export async function supplierQualificationAction(supplierId: string, _prev: Pro
   if (!canVerifyAccounts(staff)) return fail('Only an admin can qualify or suspend a supplier.');
   if (!/^sup_[a-f0-9]{8,32}$/.test(supplierId)) return fail('Unknown supplier.');
   if (values.to !== 'qualified' && values.to !== 'suspended') return fail('Unknown decision.');
-  const current = await getSupplier(supplierId);
-  if (!current) return fail('Unknown supplier.');
   let outcome;
+  // The supplier is read inside the try, so a database error returns a form message instead of the framework's error page.
   try {
+    const current = await getSupplier(supplierId);
+    if (!current) return fail('Unknown supplier.');
     outcome = await setSupplierQualification(
       current.supplier,
       values.to,
@@ -133,10 +134,10 @@ export async function purchaseOrderTransitionAction(poNumber: string, _prev: Pro
   const number = poNumberFromParam(poNumber);
   if (!number) return fail('Unknown purchase order.');
   if (!(PO_STATUSES as readonly string[]).includes(values.to)) return fail('Unknown status.');
-  const detail = await getPurchaseOrder(number);
-  if (!detail) return fail('Unknown purchase order.');
   let outcome;
   try {
+    const detail = await getPurchaseOrder(number);
+    if (!detail) return fail('Unknown purchase order.');
     outcome = await transitionPurchaseOrder(detail.order, values.to as PoStatus, staff, values.note.trim().slice(0, 300) || null);
   } catch (error) {
     console.error('[procurement] transition failed', error instanceof Error ? error.message : error);

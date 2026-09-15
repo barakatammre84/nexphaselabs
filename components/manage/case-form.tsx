@@ -6,11 +6,10 @@ import { AlertCircle, CircleCheck } from 'lucide-react';
 import type { CaseFormState } from '@/app/manage/cases/actions';
 import {
   CASE_SEVERITIES,
-  CASE_STATUSES,
   CASE_STATUS_LABEL,
   CASE_TYPES,
   CASE_TYPE_LABEL,
-  type CaseStatus,
+  caseStatusOptions,
   type CaseType,
 } from '@/lib/operational-case-rules';
 
@@ -67,7 +66,7 @@ export function CaseForm({ action, initial = {}, people, staff, mode, editable =
         <label className="grid gap-2 text-sm font-semibold">
           Status
           <select name="status" defaultValue={values.status} className={inputClass}>
-            {CASE_STATUSES.map((value) => <option key={value} value={value}>{CASE_STATUS_LABEL[value as CaseStatus]}</option>)}
+            {caseStatusOptions(staff.role, initial.status).map((value) => <option key={value} value={value}>{CASE_STATUS_LABEL[value]}</option>)}
           </select>
         </label>
       )}

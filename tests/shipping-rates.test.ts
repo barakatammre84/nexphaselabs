@@ -8,6 +8,7 @@ import {
   usdCents,
 } from '@/lib/shipping-rates';
 import {
+  configuredBusinessOrigin,
   quoteShipping,
   reconcileShippingLabelRefund,
   requestShippingLabelRefund,
@@ -163,6 +164,21 @@ describe('USPS/UPS/FedEx eligible rate comparison', () => {
         expect.stringContaining('sender email'),
       ]),
     );
+  });
+  it('treats an empty SHIPPO_FROM_JSON as unset, as shippo:verify does', () => {
+    Object.assign(env, {
+      APP_ENV: 'staging',
+      SHIPPING_PROVIDER: 'shippo',
+      SHIPPO_API_KEY: 'shippo_test_synthetic',
+      SHIPPO_CARRIER_ACCOUNTS: 'account1',
+      SHIPPO_FROM_JSON: '',
+      SHIPPING_FROM_JSON: JSON.stringify(address),
+    });
+    // '' used to reach JSON.parse and leave checkout with no ship-from location at all
+    const configuration = shippingConfiguration();
+    expect(configuration.issues).toEqual([]);
+    expect(configuration.from).toEqual(address);
+    expect(configuredBusinessOrigin()).toEqual(address);
   });
   it('requests rates from explicit accounts without purchasing a label, and reports partial carrier errors', async () => {
     Object.assign(env, {

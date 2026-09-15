@@ -14,7 +14,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
   if (!(await allow(rateLimitKey('reconcile-payment', staff.id), 20, 3600))) return new Response('Try again later', { status: 429 });
   const detail = await getOrderByNumber(number);
   if (!detail) return new Response('Not found', { status: 404 });
-  const back = (error?: string) => Response.redirect(new URL(`/manage/orders/${number}${error ? `?error=${encodeURIComponent(error)}` : ''}`, request.url), 303);
+  // Success says so too: without the flag the order page showed nothing, and staff could not tell a match from a no-op.
+  const back = (error?: string) => Response.redirect(new URL(`/manage/orders/${number}?${error ? `error=${encodeURIComponent(error)}` : 'reconciled=1'}`, request.url), 303);
   try {
     const form = await request.formData();
     const result = await reconcilePaymentAttempt(detail.order, String(form.get('reference') ?? '').trim(), `${staff.name} (${staff.id})`);
