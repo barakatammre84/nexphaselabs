@@ -154,37 +154,58 @@ No label is ever public.
 
 ---
 
-## 5b. Only some USPS prices are ours to buy
+## 5b. Flat Rate is a claim about packaging, so we check the packaging
 
-Measured live, 15 September 2026, one 0.5 lb 9x6x4 in box, 95242 to 63118:
+A USPS price search returns every rate USPS *could* charge for a parcel, not
+the rates we may lawfully buy. Six of the eight prices for an ordinary box come
+back as Flat Rate, and a Flat Rate price is only valid if the goods actually
+travel in that USPS-supplied container. Measured live, 15 September 2026, one
+0.5 lb **9x6x4 in box**, 95242 to 63118:
 
-| | Price | Indicator | Service |
-| --- | --- | --- | --- |
-| **usable** | **$8.95** | SP | USPS Ground Advantage Machinable Single-piece |
-| excluded | $12.90 | FE | Priority Mail Flat Rate Envelope |
-| excluded | $13.25 | FA | Priority Mail Legal Flat Rate Envelope |
-| excluded | $14.00 | FP | Priority Mail Padded Flat Rate Envelope |
-| excluded | $24.80 | FB | Priority Mail Medium Flat Rate Box |
-| excluded | $32.55 | PM | Priority Mail Large Flat Rate Box APO/FPO/DPO |
-| excluded | $34.00 | PL | Priority Mail Large Flat Rate Box |
-| **usable** | **$15.60** | SP | Priority Mail Machinable Single-piece |
+| | Price | Ind. | Service | Why |
+| --- | --- | --- | --- | --- |
+| **usable** | **$8.95** | SP | Ground Advantage Single-piece | dimensional rate |
+| excluded | $12.90 | FE | Flat Rate Envelope | four inches thick |
+| excluded | $13.25 | FA | Legal Flat Rate Envelope | four inches thick |
+| excluded | $14.00 | FP | Padded Flat Rate Envelope | four inches thick |
+| usable | $24.80 | FB | Medium Flat Rate Box | fits |
+| usable | $34.00 | PL | Large Flat Rate Box | fits |
+| excluded | $32.55 | PM | Large Flat Rate Box APO/FPO | not stocked |
+| **usable** | **$15.60** | SP | Priority Mail Single-piece | dimensional rate |
 
-Six of the eight are Flat Rate prices, valid only inside USPS-supplied
-packaging this business does not stock. Sorting by price and taking the cheapest
-would have sold a **$12.90 Flat Rate Envelope for a four-inch-thick box** — a
-label that cannot lawfully carry that parcel — while also undercharging the
-customer $2.70 against the $15.60 that actually applies.
+Sorting by price and taking the cheapest would have sold that **$12.90 Flat Rate
+Envelope for a four-inch-thick box** — postage that cannot lawfully carry the
+parcel — while also undercharging the customer $2.70 against the $15.60 that
+applies. Cheapest was both unusable and wrong in the customer's favour.
 
-So `USPS_RATE_INDICATORS` exists, and defaults to `SP` (Single-piece), the
-dimension-and-weight rate for our own boxes. A second guard rejects any rate
-whose returned `processingCategory` differs from the one requested, which is
-how the envelope rates give themselves away — they come back as `FLATS` even
-though `MACHINABLE` was asked for.
+Two gates now stand in the way, and both must pass:
 
-**Add an indicator only when the packaging is on the shelf.** If Flat Rate boxes
-are ever stocked, set `USPS_RATE_INDICATORS=SP,FB` (or whichever) — and note
-that flat rate is only a saving for heavy or distant parcels. At 0.5 lb it is
-$24.80 against $15.60.
+1. **`USPS_RATE_INDICATORS`** — what packaging we stock. Currently
+   `SP,FS,FB,PL,FE,FA,FP`. **Remove an indicator the day that packaging runs
+   out**, or a label will be bought for a container that is not on the shelf.
+   `PM` (APO/FPO) is deliberately absent.
+2. **A dimensional fit test** — `FLAT_RATE_CONTAINERS` in
+   `lib/usps-provider.ts` holds each container's inside dimensions, and the
+   parcel is turned longest-side-to-longest-side to see whether it fits. The
+   Medium box is listed in both its top-loading and side-loading shapes and a
+   parcel qualifies if it fits either. Flat Rate also caps at 70 lb.
+
+Non-flat-rate rates keep a separate guard: if USPS returns a different
+`processingCategory` from the one requested, it priced a different kind of
+mailpiece and the rate is dropped.
+
+Container dimensions are USPS's published figures, **except envelope depth**,
+which is ours. USPS publishes no thickness maximum for a Flat Rate Envelope —
+the rule is that it must close with its own adhesive, unmodified — so a
+conservative 0.75 in (1 in padded) is used rather than a guess presented as a
+standard. Adjust it against a real envelope if it proves tight.
+
+The rate's display name now comes from USPS's own product description, so the
+fulfilment screen reads "Priority Mail Machinable Medium Flat Rate Box" and the
+packer knows which container to reach for.
+
+`node scripts/usps-live-check.mjs` prints this whole table live, with the reason
+each rate was excluded. Run it after changing what is stocked.
 
 ---
 

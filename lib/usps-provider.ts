@@ -75,6 +75,62 @@ const DEFAULT_MAIL_CLASSES: MailClass[] = [
   'PRIORITY_MAIL',
 ];
 
+/**
+ * USPS-supplied Flat Rate containers, by rate indicator.
+ *
+ * A Flat Rate price is only lawful if the shipment actually travels in that
+ * container, so offering one is a claim about physical packaging. Each entry
+ * lists the container's usable inside dimensions in inches; `shapes` holds
+ * more than one entry where USPS sells the same rate in two forms, and a
+ * parcel qualifies if it fits ANY of them.
+ *
+ * Envelope depths are OUR operational limit, not a USPS specification. USPS
+ * publishes no thickness maximum for a Flat Rate Envelope — the rule is that
+ * it must close using its own adhesive without modification — so a deliberately
+ * conservative figure is used rather than a guess dressed up as a standard.
+ *
+ * Flat Rate caps out at 70 lb regardless of container.
+ */
+const FLAT_RATE_MAX_POUNDS = 70;
+const FLAT_RATE_CONTAINERS: Record<
+  string,
+  { label: string; shapes: [number, number, number][] }
+> = {
+  FS: { label: 'Small Flat Rate Box', shapes: [[8.625, 5.375, 1.625]] },
+  FB: {
+    label: 'Medium Flat Rate Box',
+    // Top-loading and side-loading are both sold at the medium price.
+    shapes: [
+      [11, 8.5, 5.5],
+      [13.75, 11.75, 3.25],
+    ],
+  },
+  PL: { label: 'Large Flat Rate Box', shapes: [[11.875, 11.875, 5.5]] },
+  PM: {
+    label: 'Large Flat Rate Box (APO/FPO/DPO)',
+    shapes: [[11.875, 11.875, 5.5]],
+  },
+  FE: { label: 'Flat Rate Envelope', shapes: [[12.5, 9.5, 0.75]] },
+  FA: { label: 'Legal Flat Rate Envelope', shapes: [[15, 9.5, 0.75]] },
+  FP: { label: 'Padded Flat Rate Envelope', shapes: [[12.5, 9.5, 1]] },
+};
+
+/**
+ * Whether a parcel physically fits a container, comparing longest-to-longest
+ * so the parcel may be turned in any direction. Conservative by design: it
+ * never reports a fit it is not sure of.
+ */
+export function fitsContainer(
+  parcel: [number, number, number],
+  shapes: [number, number, number][],
+): boolean {
+  const sorted = [...parcel].sort((a, b) => b - a);
+  return shapes.some((shape) => {
+    const capacity = [...shape].sort((a, b) => b - a);
+    return sorted.every((side, index) => side <= capacity[index] + 1e-9);
+  });
+}
+
 /* ------------------------------------------------------------------------ */
 /* Configuration                                                             */
 /* ------------------------------------------------------------------------ */
@@ -510,12 +566,28 @@ function ratesFromOptions(
         ? detail.rateIndicator
         : null;
     if (!rateIndicator) continue;
-    // Postage we could not lawfully use on this parcel is not a rate.
+    // Packaging we do not stock is not a rate we can sell.
     if (!configuration.rateIndicators.has(rateIndicator)) continue;
-    // Second, independent guard: the flat-rate envelope prices come back as
-    // FLATS even when MACHINABLE was requested, so a category that changed
-    // under us means USPS priced a different kind of mailpiece.
-    if (
+
+    const container = FLAT_RATE_CONTAINERS[rateIndicator];
+    if (container) {
+      /**
+       * A Flat Rate price is a promise that the goods travel in that exact
+       * USPS container, so it only survives if the parcel actually fits and
+       * is within the Flat Rate weight cap. This is what keeps a $12.90
+       * envelope rate away from a four-inch-thick box.
+       */
+      const inches: [number, number, number] = [
+        parts.lengthHundredths / 100,
+        parts.widthHundredths / 100,
+        parts.heightHundredths / 100,
+      ];
+      if (!fitsContainer(inches, container.shapes)) continue;
+      if (parts.weightHundredths / 100 > FLAT_RATE_MAX_POUNDS) continue;
+    } else if (
+      // Dimension-and-weight rates are priced for the category we asked about;
+      // a category that changed under us means USPS priced a different kind of
+      // mailpiece from the one being shipped.
       typeof detail.processingCategory === 'string' &&
       detail.processingCategory !==
         PROCESSING_CATEGORIES[configuration.processingCode]
@@ -534,7 +606,13 @@ function ratesFromOptions(
       accountId: `usps-crid-${configuration.crid}`,
       carrier: 'USPS',
       service: descriptor.service,
-      serviceName: descriptor.name,
+      // USPS names the exact product ("Priority Mail Medium Flat Rate Box"),
+      // which is what tells the packer which container to use. Falling back to
+      // the bare class name would lose that.
+      serviceName:
+        typeof detail.description === 'string' && detail.description.trim()
+          ? detail.description.trim().slice(0, 120)
+          : descriptor.name,
       cents,
       currency: 'USD',
       estimatedDays: commitmentDays(

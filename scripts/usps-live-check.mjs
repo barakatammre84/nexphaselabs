@@ -17,6 +17,33 @@ import { readFileSync } from 'node:fs';
 
 const HOST = 'https://apis.usps.com';
 
+/** Mirrors FLAT_RATE_CONTAINERS in lib/usps-provider.ts. Keep the two in step. */
+const CONTAINERS = {
+  FS: [[8.625, 5.375, 1.625]],
+  FB: [[11, 8.5, 5.5], [13.75, 11.75, 3.25]],
+  PL: [[11.875, 11.875, 5.5]],
+  PM: [[11.875, 11.875, 5.5]],
+  FE: [[12.5, 9.5, 0.75]],
+  FA: [[15, 9.5, 0.75]],
+  FP: [[12.5, 9.5, 1]],
+};
+const CONTAINER_NAMES = {
+  FS: 'Small Flat Rate Box',
+  FB: 'Medium Flat Rate Box',
+  PL: 'Large Flat Rate Box',
+  PM: 'Large Flat Rate Box (APO/FPO)',
+  FE: 'Flat Rate Envelope',
+  FA: 'Legal Flat Rate Envelope',
+  FP: 'Padded Flat Rate Envelope',
+};
+const fits = (parcel, shapes) => {
+  const sorted = [...parcel].sort((a, b) => b - a);
+  return shapes.some((shape) => {
+    const capacity = [...shape].sort((a, b) => b - a);
+    return sorted.every((side, i) => side <= capacity[i] + 1e-9);
+  });
+};
+
 function fromDevVars(name) {
   try {
     const line = readFileSync('.dev.vars', 'utf8')
@@ -146,14 +173,20 @@ for (const mailClass of ['USPS_GROUND_ADVANTAGE', 'PRIORITY_MAIL']) {
   );
   for (const option of options) {
     const detail = Array.isArray(option.rates) ? (option.rates[0] ?? {}) : {};
-    const eligible =
-      allowed.has(detail.rateIndicator) &&
-      detail.processingCategory === base.processingCategory;
+    const indicator = detail.rateIndicator ?? '?';
+    const container = CONTAINERS[indicator];
+    let verdict;
+    if (!allowed.has(indicator)) verdict = 'not stocked';
+    else if (container && !fits([base.length, base.width, base.height], container))
+      verdict = `will not fit a ${CONTAINER_NAMES[indicator]}`;
+    else if (container && base.weight > 70) verdict = 'over the 70 lb flat-rate limit';
+    else if (!container && detail.processingCategory !== base.processingCategory)
+      verdict = `priced as ${detail.processingCategory}, not ${base.processingCategory}`;
     console.log(
-      `  ${eligible ? 'USABLE  ' : 'excluded'} $${Number(option.totalBasePrice).toFixed(2).padStart(6)}` +
-        `  ${String(detail.rateIndicator ?? '?').padEnd(3)}` +
+      `  ${verdict ? 'excluded' : 'USABLE  '} $${Number(option.totalBasePrice).toFixed(2).padStart(6)}` +
+        `  ${String(indicator).padEnd(3)}` +
         `  ${detail.description ?? mailClass}` +
-        `${eligible ? '' : ' — needs USPS-supplied packaging'}`,
+        `${verdict ? ` — ${verdict}` : ''}`,
     );
   }
 }

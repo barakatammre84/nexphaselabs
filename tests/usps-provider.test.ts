@@ -5,6 +5,7 @@ vi.mock('cloudflare:workers', () => ({ env }));
 
 import {
   decodeUspsRateId,
+  fitsContainer,
   encodeUspsRateId,
   idempotencyKeyFromLabelId,
   labelR2Key,
@@ -587,5 +588,112 @@ describe('packaging entitlement', () => {
     expect(uspsConfiguration().issues.join(' ')).toContain(
       'USPS_RATE_INDICATORS',
     );
+  });
+});
+
+describe('flat-rate containers', () => {
+  it('turns a parcel to see whether it fits, and refuses when it cannot', () => {
+    // A Medium Flat Rate Box, entered in a different order.
+    expect(fitsContainer([5.5, 11, 8.5], [[11, 8.5, 5.5]])).toBe(true);
+    // Our 9x6x4 box against a Flat Rate Envelope: four inches thick, no.
+    expect(fitsContainer([9, 6, 4], [[12.5, 9.5, 0.75]])).toBe(false);
+    // The same box fits a Medium, so that rate is legitimately available.
+    expect(fitsContainer([9, 6, 4], [[11, 8.5, 5.5]])).toBe(true);
+    // A parcel qualifies if it fits either shape the medium box is sold in.
+    expect(
+      fitsContainer(
+        [13, 11, 3],
+        [
+          [11, 8.5, 5.5],
+          [13.75, 11.75, 3.25],
+        ],
+      ),
+    ).toBe(true);
+    // One oversized side is enough to disqualify it.
+    expect(fitsContainer([12, 8, 5], [[11, 8.5, 5.5]])).toBe(false);
+  });
+
+  const flatRateRoute: Route = {
+    match: '/prices/v3/total-rates/search',
+    body: {
+      rateOptions: [
+        {
+          totalBasePrice: 12.9,
+          rates: [
+            {
+              mailClass: 'PRIORITY_MAIL',
+              rateIndicator: 'FE',
+              description: 'Priority Mail Flat Rate Envelope',
+              processingCategory: 'FLATS',
+            },
+          ],
+        },
+        {
+          totalBasePrice: 24.8,
+          rates: [
+            {
+              mailClass: 'PRIORITY_MAIL',
+              rateIndicator: 'FB',
+              description: 'Priority Mail Machinable Medium Flat Rate Box',
+              processingCategory: 'MACHINABLE',
+            },
+          ],
+        },
+        {
+          totalBasePrice: 15.6,
+          rates: [
+            {
+              mailClass: 'PRIORITY_MAIL',
+              rateIndicator: 'SP',
+              description: 'Priority Mail Machinable Single-piece',
+              processingCategory: 'MACHINABLE',
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  const stocked = {
+    USPS_MAIL_CLASSES: 'PRIORITY_MAIL',
+    USPS_RATE_INDICATORS: 'SP,FB,FE',
+  };
+
+  it('offers the flat-rate box the parcel fits and drops the envelope it does not', async () => {
+    credentials(stocked);
+    routedFetch([tokenRoute, flatRateRoute]);
+    // The 9x6x4 parcel fits a Medium box but is four inches too thick for any
+    // envelope, so the cheapest returned price is correctly not on offer.
+    const result = await uspsQuote(origin, destination, parcel);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rates.map((rate) => rate.cents).sort((a, b) => a - b)).toEqual([
+      1_560, 2_480,
+    ]);
+    expect(result.rates.map((rate) => rate.serviceName)).toContain(
+      'Priority Mail Machinable Medium Flat Rate Box',
+    );
+  });
+
+  it('offers the envelope once the parcel is actually envelope-shaped', async () => {
+    credentials(stocked);
+    routedFetch([tokenRoute, flatRateRoute]);
+    const flat = { length: 11, width: 8, height: 0.5, weight: 0.5 };
+    const result = await uspsQuote(origin, destination, flat);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rates.map((rate) => rate.cents).sort((a, b) => a - b)).toEqual([
+      1_290, 1_560, 2_480,
+    ]);
+  });
+
+  it('drops flat rate over its 70 lb ceiling but keeps the dimensional rate', async () => {
+    credentials(stocked);
+    routedFetch([tokenRoute, flatRateRoute]);
+    const heavy = { length: 9, width: 6, height: 4, weight: 80 };
+    const result = await uspsQuote(origin, destination, heavy);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rates.map((rate) => rate.cents)).toEqual([1_560]);
   });
 });
