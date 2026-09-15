@@ -64,7 +64,7 @@ export default {
       const asset = await runtimeEnv.ASSETS.fetch(request);
       if (asset.ok) return asset;
     }
-    return withNoindex(response, runtimeEnv.APP_ENV);
+    return withNoindex(response, runtimeEnv.APP_ENV, request.url, runtimeEnv.PUBLIC_ORIGIN);
   },
   async scheduled() {
     // Each job settles on its own; one failure no longer stops the others (lib/scheduled-jobs.ts).

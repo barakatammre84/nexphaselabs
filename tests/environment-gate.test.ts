@@ -113,3 +113,23 @@ describe('non-production access gate', () => {
     expect(withNoindex(strict, 'staging').headers.get('X-Robots-Tag')).toBe('none');
   });
 });
+
+describe('production answers away from the public origin', () => {
+  const html = () => new Response('<html></html>', { headers: { 'Content-Type': 'text/html' } });
+
+  it("marks the production Worker's workers.dev address noindex", () => {
+    const answer = withNoindex(html(), 'production', 'https://nexphaselabs.ammre.workers.dev/catalog', 'https://nexphaselabs.net');
+    expect(answer.headers.get('X-Robots-Tag')).toBe('noindex, nofollow');
+  });
+
+  it('leaves the public origin indexable', () => {
+    const answer = withNoindex(html(), 'production', 'https://nexphaselabs.net/catalog', 'https://nexphaselabs.net');
+    expect(answer.headers.get('X-Robots-Tag')).toBeNull();
+  });
+
+  it('changes nothing when the host cannot be compared', () => {
+    expect(withNoindex(html(), 'production', 'https://nexphaselabs.ammre.workers.dev/', undefined).headers.get('X-Robots-Tag')).toBeNull();
+    expect(withNoindex(html(), 'production', undefined, 'https://nexphaselabs.net').headers.get('X-Robots-Tag')).toBeNull();
+    expect(withNoindex(html(), 'production', 'not a url', 'https://nexphaselabs.net').headers.get('X-Robots-Tag')).toBeNull();
+  });
+});
