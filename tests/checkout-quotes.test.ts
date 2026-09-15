@@ -11,6 +11,7 @@ vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 import { getCart } from '@/lib/cart';
 import {
   acceptedCheckoutQuote,
+  checkoutQuotesRequired,
   createCheckoutQuotes,
 } from '@/lib/checkout-quotes';
 import {
@@ -232,5 +233,24 @@ describe('server-owned checkout quotes', () => {
       error: expect.stringContaining('No eligible delivery options'),
     });
     expect(result.ok ? '' : result.error).not.toMatch(/USPS|UPS|FedEx/);
+  });
+});
+
+describe('whether an order needs a delivery and tax quote', () => {
+  it('is required in production unless the switch is explicitly off', () => {
+    env.APP_ENV = 'production';
+    delete env.CHECKOUT_QUOTES_REQUIRED;
+    expect(checkoutQuotesRequired()).toBe(true);
+    env.CHECKOUT_QUOTES_REQUIRED = 'false';
+    expect(checkoutQuotesRequired()).toBe(false);
+    delete env.CHECKOUT_QUOTES_REQUIRED;
+  });
+
+  it('stays opt-in outside production', () => {
+    delete env.CHECKOUT_QUOTES_REQUIRED;
+    expect(checkoutQuotesRequired()).toBe(false);
+    env.CHECKOUT_QUOTES_REQUIRED = 'true';
+    expect(checkoutQuotesRequired()).toBe(true);
+    delete env.CHECKOUT_QUOTES_REQUIRED;
   });
 });

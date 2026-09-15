@@ -14,8 +14,15 @@ import { quoteTax } from '@/lib/tax-provider';
 
 export const CHECKOUT_QUOTE_MINUTES = 30;
 
+/**
+ * Whether an order needs a current delivery and tax quote before it is accepted. Production
+ * never takes an order without its shipping and tax, so there an unset switch means required;
+ * only an explicit "false" turns it off. Other environments keep it opt-in.
+ */
 export function checkoutQuotesRequired(): boolean {
-  return env.CHECKOUT_QUOTES_REQUIRED === 'true';
+  if (env.CHECKOUT_QUOTES_REQUIRED === 'true') return true;
+  if (env.CHECKOUT_QUOTES_REQUIRED === 'false') return false;
+  return env.APP_ENV === 'production';
 }
 
 function hex(bytes: ArrayBuffer): string {
