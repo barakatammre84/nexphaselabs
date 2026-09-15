@@ -266,6 +266,14 @@ export function canRecordResults(staff: StaffPrincipal): boolean {
   return hasStaffPermission(staff, 'quality.manage');
 }
 
+/**
+ * Printing GHS container labels: quality at release, fulfilment when filling vials.
+ * A label is generated on demand and changes no record.
+ */
+export function canPrintLabels(staff: StaffPrincipal): boolean {
+  return canRecordResults(staff) || canFulfil(staff);
+}
+
 export function hasStaffPermission(
   staff: Pick<StaffPrincipal, 'role'>,
   permission: StaffPermission,
