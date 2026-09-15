@@ -128,6 +128,14 @@
         // Whether destination district rates or the 7.25% statewide base applies
         // is a nexus question for the accountant — see CDTFA_DISTRICT_RATE.
         "TAX_PROVIDER": "cdtfa",
+        // Full destination rate, not the 7.25% base. Deliveries into our own
+        // Oakland district are REQUIRED to carry the full 10.75%, so the base-only
+        // setting would under-collect 3.5 points on those and the business would
+        // pay the shortfall itself. Collecting district tax on out-of-district
+        // California sales is expressly permitted by CDTFA as a courtesy, and is
+        // what becomes mandatory above $500,000 of California sales anyway.
+        // Reasoning and citations: docs/operations/SALES_TAX_POSITION_2026-09-15.md
+        "CDTFA_DISTRICT_RATE": "destination",
         "EMAIL_FROM": "NexPhase Labs <research@nexphaselabs.net>",
       },
       "d1_databases": [
