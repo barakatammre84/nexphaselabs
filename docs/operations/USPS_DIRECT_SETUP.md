@@ -85,7 +85,7 @@ the developer-portal username:
 > Company: NexPhase Labs (8486 Ventures LLC)
 > Contact phone: (415) 930-1422
 > Contact email: sam@nexphaselabs.net
-> Developer Portal username: _[the username shown at developers.usps.com]_
+> Developer Portal username: Wisam Ibrahim
 > URL being called: apis.usps.com
 > Customer Registration ID (CRID): 59918139
 > Mailer ID (MID): 904260903
@@ -101,6 +101,21 @@ the developer-portal username:
 > USPS Ground Advantage and Priority Mail.
 
 Do **not** include the consumer secret; USPS says so explicitly.
+
+**Ask for exactly three things**, and say all three in one request — each is
+granted separately and a missing one means another wait in the same queue:
+
+| Ask | Why it is needed |
+| --- | --- |
+| **USPS Ship enrolment** (outbound *and* return) | USPS's own stated prerequisite for the Labels API. Return labels are included now because adding them later is a second ticket. |
+| **Domestic Labels 3.0 API** | Creates the label. Not in the default product. |
+| **Payments 3.0 API** | Authorises the EPS account to pay for the label. Also not in the default product — proven by the 401 above. Labels without this grants a label that cannot be paid for. |
+
+Optional, and only if batch hand-offs are wanted: the **SCAN Forms 3.0 API**
+produces one manifest for a bundle of parcels and gets them an acceptance scan
+the same day, instead of the default 12:30am CT manifest. It can be requested
+later without penalty, so leave it out if a tighter request is likelier to move
+faster.
 
 **Step 3 — Create the app and take the credentials.** cop.usps.com → My Apps →
 Developer Apps → Add App → select the APIs → Add App → Manage → copy the
