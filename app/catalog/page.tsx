@@ -46,7 +46,7 @@ export default async function CatalogPage({
   return (
     <main className="text-foreground">
       <section className="mx-auto max-w-[1280px] px-4 pb-6 pt-3 sm:px-6">
-        <div className="ion-panel bg-gradient-to-br from-white via-white to-blue-50 p-7 sm:p-10 lg:p-12">
+        <div className="ion-panel bg-gradient-to-br from-white via-white to-aqua-wash p-7 sm:p-10 lg:p-12">
           <div className="grid gap-8 lg:grid-cols-[1fr_0.85fr] lg:items-end">
             <div>
               <span className="ion-kicker">
@@ -60,7 +60,7 @@ export default async function CatalogPage({
                 catalog number or CAS; the certificate is one click from the pack size.
               </p>
             </div>
-            <div className="rounded-[1.4rem] border border-blue-100 bg-white/80 p-5 shadow-sm">
+            <div className="rounded-[1.4rem] border border-aqua-line bg-white/80 p-5 shadow-sm">
               <p className="text-sm font-extrabold text-[var(--ion-navy)]">
                 Conditions of supply
               </p>

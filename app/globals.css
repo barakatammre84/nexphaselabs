@@ -45,6 +45,12 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-navy: var(--ion-navy);
+  --color-aqua: var(--ion-aqua);
+  --color-aqua-deep: var(--ion-aqua-deep);
+  --color-aqua-soft: var(--ion-aqua-soft);
+  --color-aqua-line: var(--ion-aqua-line);
+  --color-aqua-wash: var(--ion-aqua-wash);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -55,77 +61,88 @@
 }
 
 :root {
-  --ion-navy: #111174;
-  --ion-blue: #347ff2;
-  --ion-blue-bright: #4d98ff;
-  --ion-ice: #f3f7ff;
-  --ion-ink: #17172b;
+  /*
+   * Brand palette, taken from the logo.
+   * Aqua Blue #56CFFC (C66 M18 Y0 K1) and Dark Navy #0E123B (C76 M69 Y0 K77).
+   * The logo aqua is too light to read on white (1.8:1), so text, links and
+   * buttons on light surfaces use --ion-aqua-deep: the same hue, darkened to
+   * 5.7:1 on white. The bright aqua is for navy surfaces (10:1 on navy),
+   * highlights and decoration.
+   */
+  --ion-navy: #0e123b;
+  --ion-aqua: #56cffc;
+  --ion-aqua-deep: #046e95;
+  --ion-aqua-soft: #bdebfd;
+  --ion-aqua-line: #cdeffc;
+  --ion-aqua-wash: #eaf7fd;
+  --ion-ice: #f3f8fb;
+  --ion-ink: #0e123b;
   --background: #ffffff;
-  --foreground: #17172b;
+  --foreground: #0e123b;
   --card: #ffffff;
-  --card-foreground: #17172b;
+  --card-foreground: #0e123b;
   --popover: #ffffff;
-  --popover-foreground: #17172b;
-  --primary: #347ff2;
+  --popover-foreground: #0e123b;
+  --primary: #046e95;
   --primary-foreground: #ffffff;
-  --secondary: #f3f7ff;
-  --secondary-foreground: #17172b;
-  --muted: #eef3fb;
-  --muted-foreground: #697083;
-  --accent: #e6efff;
-  --accent-foreground: #111174;
+  --secondary: #f3f8fb;
+  --secondary-foreground: #0e123b;
+  --muted: #edf3f7;
+  --muted-foreground: #5e6478;
+  --accent: #e3f6fe;
+  --accent-foreground: #0e123b;
   --destructive: #bd3828;
-  --border: #dbe3f0;
-  --input: #cbd6e8;
-  --ring: #347ff2;
-  --chart-1: #347ff2;
-  --chart-2: #68c4ff;
-  --chart-3: #f1785b;
-  --chart-4: #58707c;
-  --chart-5: #071a2c;
+  --border: #d8e2ea;
+  --input: #c6d3de;
+  --ring: #046e95;
+  --chart-1: #046e95;
+  --chart-2: #56cffc;
+  --chart-3: #0e123b;
+  --chart-4: #5e6478;
+  --chart-5: #bdebfd;
   --radius: 0.8rem;
-  --sidebar: #f3f7ff;
-  --sidebar-foreground: #17172b;
-  --sidebar-primary: #347ff2;
+  --sidebar: #f3f8fb;
+  --sidebar-foreground: #0e123b;
+  --sidebar-primary: #046e95;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e6efff;
-  --sidebar-accent-foreground: #111174;
-  --sidebar-border: #dbe3f0;
-  --sidebar-ring: #347ff2;
+  --sidebar-accent: #e3f6fe;
+  --sidebar-accent-foreground: #0e123b;
+  --sidebar-border: #d8e2ea;
+  --sidebar-ring: #046e95;
 }
 
 .dark {
-  --background: #071a2c;
-  --foreground: #eef8f8;
-  --card: #0d2638;
-  --card-foreground: #eef8f8;
-  --popover: #0d2638;
-  --popover-foreground: #eef8f8;
-  --primary: #5dd6ef;
-  --primary-foreground: #071a2c;
-  --secondary: #102d40;
-  --secondary-foreground: #eef8f8;
-  --muted: #173447;
-  --muted-foreground: #9eb2bb;
-  --accent: #164557;
-  --accent-foreground: #eef8f8;
+  --background: #0b0e30;
+  --foreground: #eef6fb;
+  --card: #121845;
+  --card-foreground: #eef6fb;
+  --popover: #121845;
+  --popover-foreground: #eef6fb;
+  --primary: #56cffc;
+  --primary-foreground: #0e123b;
+  --secondary: #161c4a;
+  --secondary-foreground: #eef6fb;
+  --muted: #1b2250;
+  --muted-foreground: #a3adc4;
+  --accent: #1d2a5c;
+  --accent-foreground: #eef6fb;
   --destructive: #ff8a76;
-  --border: #284758;
-  --input: #365568;
-  --ring: #5dd6ef;
-  --chart-1: #5dd6ef;
-  --chart-2: #078fb8;
-  --chart-3: #f1785b;
-  --chart-4: #9eb2bb;
-  --chart-5: #eef8f8;
-  --sidebar: #0d2638;
-  --sidebar-foreground: #eef8f8;
-  --sidebar-primary: #5dd6ef;
-  --sidebar-primary-foreground: #071a2c;
-  --sidebar-accent: #164557;
-  --sidebar-accent-foreground: #eef8f8;
-  --sidebar-border: #284758;
-  --sidebar-ring: #5dd6ef;
+  --border: #2a3366;
+  --input: #3a4478;
+  --ring: #56cffc;
+  --chart-1: #56cffc;
+  --chart-2: #046e95;
+  --chart-3: #bdebfd;
+  --chart-4: #a3adc4;
+  --chart-5: #eef6fb;
+  --sidebar: #121845;
+  --sidebar-foreground: #eef6fb;
+  --sidebar-primary: #56cffc;
+  --sidebar-primary-foreground: #0e123b;
+  --sidebar-accent: #1d2a5c;
+  --sidebar-accent-foreground: #eef6fb;
+  --sidebar-border: #2a3366;
+  --sidebar-ring: #56cffc;
 }
 
 @layer base {
@@ -137,8 +154,8 @@
     font-family: var(--font-body), Arial, sans-serif;
     background-color: var(--ion-ice);
     background-image:
-      linear-gradient(rgba(52, 127, 242, 0.045) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(52, 127, 242, 0.045) 1px, transparent 1px);
+      linear-gradient(rgba(4, 110, 149, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(4, 110, 149, 0.045) 1px, transparent 1px);
     background-size: 42px 42px;
   }
   html {
@@ -169,7 +186,7 @@
 @layer utilities {
   .action-primary {
     @apply inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-6 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90;
-    box-shadow: 0 10px 24px rgba(52, 127, 242, 0.22);
+    box-shadow: 0 10px 24px rgba(4, 110, 149, 0.22);
   }
   .action-secondary {
     @apply inline-flex min-h-11 items-center justify-center rounded-full border border-border bg-white px-6 py-2 text-sm font-bold hover:border-primary hover:text-primary;
@@ -182,14 +199,14 @@
 .site-header {
   background: linear-gradient(
     180deg,
-    rgba(243, 247, 255, 0.96),
-    rgba(243, 247, 255, 0)
+    rgba(243, 248, 251, 0.96),
+    rgba(243, 248, 251, 0)
   );
 }
 
 .research-notice-bar {
   color: white;
-  background: linear-gradient(90deg, #0e0e68, #245ed2 55%, #347ff2);
+  background: linear-gradient(90deg, var(--ion-navy), #0a4a74 55%, var(--ion-aqua-deep));
 }
 
 .brand-logo {
@@ -227,8 +244,8 @@
 }
 
 .header-icon-link:hover {
-  border-color: var(--ion-blue);
-  color: var(--ion-blue);
+  border-color: var(--ion-aqua-deep);
+  color: var(--ion-aqua-deep);
   transform: translateY(-1px);
 }
 
@@ -247,7 +264,7 @@
 }
 
 .header-cart-link:hover {
-  background: var(--ion-blue);
+  background: var(--ion-aqua-deep);
   transform: translateY(-1px);
 }
 
@@ -259,21 +276,21 @@
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   border-radius: 0 0.8rem 0.8rem 0;
-  background: linear-gradient(180deg, var(--ion-blue), var(--ion-navy));
+  background: linear-gradient(180deg, var(--ion-aqua-deep), var(--ion-navy));
   padding: 1.15rem 0.7rem;
   color: white;
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.11em;
   text-transform: uppercase;
-  box-shadow: 0 10px 30px rgba(17, 17, 116, 0.3);
+  box-shadow: 0 10px 30px rgba(14, 18, 59, 0.3);
 }
 
 .product-finder-layer {
   position: fixed;
   inset: 0;
   z-index: 80;
-  background: rgb(8 14 57 / 48%);
+  background: rgb(14 18 59 / 48%);
   backdrop-filter: blur(4px);
 }
 
@@ -286,7 +303,7 @@
   border-right: 1px solid var(--border);
   background: white;
   padding: 2rem 1.5rem;
-  box-shadow: 30px 0 80px rgb(17 17 116 / 24%);
+  box-shadow: 30px 0 80px rgb(14 18 59 / 24%);
   animation: product-finder-in 180ms ease-out;
 }
 
@@ -304,10 +321,10 @@
 .ion-panel {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(116, 142, 206, 0.2);
+  border: 1px solid rgba(106, 140, 163, 0.2);
   border-radius: 2rem;
   background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 24px 60px rgba(34, 46, 113, 0.1);
+  box-shadow: 0 24px 60px rgba(14, 18, 59, 0.1);
 }
 
 a.ion-panel {
@@ -319,8 +336,8 @@ a.ion-panel {
 
 a.ion-panel:hover {
   transform: translateY(-3px);
-  border-color: rgba(52, 127, 242, 0.42);
-  box-shadow: 0 28px 68px rgba(34, 46, 113, 0.16);
+  border-color: rgba(4, 110, 149, 0.42);
+  box-shadow: 0 28px 68px rgba(14, 18, 59, 0.16);
 }
 
 .ion-hero {
@@ -332,11 +349,11 @@ a.ion-panel:hover {
   background:
     radial-gradient(
       circle at 76% 45%,
-      rgba(77, 152, 255, 0.86),
+      rgba(86, 207, 252, 0.5),
       transparent 34%
     ),
-    linear-gradient(135deg, #10106f 0%, #0c259a 48%, #347ff2 100%);
-  box-shadow: 0 28px 70px rgba(17, 17, 116, 0.26);
+    linear-gradient(135deg, var(--ion-navy) 0%, #0b2a55 48%, var(--ion-aqua-deep) 100%);
+  box-shadow: 0 28px 70px rgba(14, 18, 59, 0.26);
 }
 
 .ion-hero::before {
@@ -367,10 +384,10 @@ a.ion-panel:hover {
 }
 
 .ion-trust-strip {
-  border: 1px solid rgba(116, 142, 206, 0.18);
+  border: 1px solid rgba(106, 140, 163, 0.18);
   border-radius: 1.6rem;
   background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 14px 36px rgba(34, 46, 113, 0.08);
+  box-shadow: 0 14px 36px rgba(14, 18, 59, 0.08);
 }
 
 .ion-kicker {
@@ -378,9 +395,9 @@ a.ion-panel:hover {
   align-items: center;
   min-height: 2rem;
   border-radius: 999px;
-  background: rgba(52, 127, 242, 0.11);
+  background: rgba(4, 110, 149, 0.11);
   padding: 0.35rem 0.8rem;
-  color: var(--ion-blue);
+  color: var(--ion-aqua-deep);
   font-size: 0.76rem;
   font-weight: 800;
 }
@@ -396,16 +413,16 @@ a.ion-panel:hover {
 .ion-page-hero {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(116, 142, 206, 0.18);
+  border: 1px solid rgba(106, 140, 163, 0.18);
   border-radius: 2rem;
   background:
     radial-gradient(
       circle at 94% 8%,
-      rgba(77, 152, 255, 0.18),
+      rgba(86, 207, 252, 0.2),
       transparent 32%
     ),
-    linear-gradient(135deg, #ffffff 0%, #ffffff 60%, #edf4ff 100%);
-  box-shadow: 0 24px 60px rgba(34, 46, 113, 0.1);
+    linear-gradient(135deg, #ffffff 0%, #ffffff 60%, var(--ion-aqua-wash) 100%);
+  box-shadow: 0 24px 60px rgba(14, 18, 59, 0.1);
 }
 
 .ion-page-hero::after {
@@ -415,11 +432,11 @@ a.ion-panel:hover {
   top: -8rem;
   width: 24rem;
   height: 24rem;
-  border: 1px solid rgba(52, 127, 242, 0.13);
+  border: 1px solid rgba(4, 110, 149, 0.13);
   border-radius: 50%;
   box-shadow:
-    0 0 0 3rem rgba(52, 127, 242, 0.035),
-    0 0 0 6rem rgba(52, 127, 242, 0.025);
+    0 0 0 3rem rgba(4, 110, 149, 0.035),
+    0 0 0 6rem rgba(4, 110, 149, 0.025);
   pointer-events: none;
 }
 
@@ -459,12 +476,12 @@ form[id] {
   height: 5px;
   background: linear-gradient(
     90deg,
-    #078fb8 0 19%,
+    var(--ion-aqua) 0 19%,
     transparent 19% 21%,
-    #071a2c 21% 63%,
+    var(--ion-navy) 21% 63%,
     transparent 63% 64%,
-    #f1785b 64% 68%,
-    #071a2c 68% 100%
+    var(--ion-aqua-deep) 64% 68%,
+    var(--ion-navy) 68% 100%
   );
 }
 
@@ -540,11 +557,11 @@ form[id] {
 }
 .checkout-summary {
   border: 1px solid var(--border);
-  border-top: 5px solid var(--ion-blue);
+  border-top: 5px solid var(--ion-aqua-deep);
   border-radius: 1.35rem;
   background: white;
   padding: 1.35rem;
-  box-shadow: 0 16px 38px rgba(34, 46, 113, 0.08);
+  box-shadow: 0 16px 38px rgba(14, 18, 59, 0.08);
 }
 
 @media (max-width: 520px) {
@@ -589,16 +606,16 @@ html {
   gap: 0.65rem;
   border: 1px solid rgb(255 255 255 / 22%);
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--ion-navy), var(--ion-blue));
+  background: linear-gradient(135deg, var(--ion-navy), var(--ion-aqua-deep));
   padding: 0.75rem 1.1rem;
   color: white;
-  box-shadow: 0 14px 36px rgb(17 17 116 / 28%);
+  box-shadow: 0 14px 36px rgb(14 18 59 / 28%);
   font-size: 0.875rem;
   font-weight: 700;
 }
 .feedback-launcher:hover {
-  background: linear-gradient(135deg, #0d0d60, var(--ion-blue-bright));
-  box-shadow: 0 16px 42px rgb(17 17 116 / 34%);
+  background: linear-gradient(135deg, #080b26, #035877);
+  box-shadow: 0 16px 42px rgb(14 18 59 / 34%);
   transform: translateY(-1px);
 }
 .feedback-launcher svg,
@@ -611,8 +628,8 @@ html {
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 999px;
-  background: #8ed8ff;
-  box-shadow: 0 0 0 3px rgb(142 216 255 / 18%);
+  background: var(--ion-aqua);
+  box-shadow: 0 0 0 3px rgb(86 207 252 / 18%);
 }
 .feedback-launcher i.feedback-unread {
   display: grid;
@@ -631,10 +648,10 @@ html {
   max-height: calc(100vh - 6rem);
   overflow-x: hidden;
   overflow-y: auto;
-  border: 1px solid rgb(116 142 206 / 28%);
+  border: 1px solid rgb(106 140 163 / 28%);
   border-radius: 1.5rem;
   background: rgb(255 255 255 / 98%);
-  box-shadow: 0 28px 80px rgb(17 17 116 / 22%);
+  box-shadow: 0 28px 80px rgb(14 18 59 / 22%);
   backdrop-filter: blur(18px);
 }
 .feedback-panel-header {
@@ -645,15 +662,15 @@ html {
   background: linear-gradient(
     135deg,
     var(--ion-navy),
-    #1f52c7 72%,
-    var(--ion-blue)
+    #0a4a74 72%,
+    var(--ion-aqua-deep)
   );
   padding: 1.25rem 1.25rem 1.1rem;
   color: white;
 }
 .feedback-kicker {
   margin-bottom: 0.25rem;
-  color: #bdddff;
+  color: var(--ion-aqua-soft);
   font-size: 0.72rem;
   font-weight: 700;
 }
@@ -694,9 +711,9 @@ html {
   background: #d4dee1;
 }
 .feedback-signal-live {
-  border-color: var(--ion-blue);
-  background: var(--ion-blue-bright);
-  box-shadow: 0 0 0 3px rgb(52 127 242 / 14%);
+  border-color: var(--ion-aqua-deep);
+  background: var(--ion-aqua);
+  box-shadow: 0 0 0 3px rgb(4 110 149 / 14%);
 }
 .feedback-report-nav {
   display: flex;
@@ -769,7 +786,7 @@ html {
 }
 .feedback-resolution {
   margin: 0 0 0.75rem 0.95rem;
-  border-left: 3px solid var(--ion-blue);
+  border-left: 3px solid var(--ion-aqua-deep);
   background: var(--secondary);
   padding: 0.65rem 0.75rem;
   font-size: 0.78rem;
@@ -1019,17 +1036,17 @@ html {
   transform: translateX(-50%);
   border: 1px solid rgb(255 255 255 / 22%);
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--ion-navy), var(--ion-blue));
+  background: linear-gradient(135deg, var(--ion-navy), var(--ion-aqua-deep));
   padding: 0.75rem 0.9rem;
   color: white;
-  box-shadow: 0 14px 40px rgb(17 17 116 / 30%);
+  box-shadow: 0 14px 40px rgb(14 18 59 / 30%);
   font-size: 0.75rem;
 }
 .feedback-picker-guide strong {
   flex: 1;
 }
 .feedback-picker-guide span {
-  color: #d8e9ff;
+  color: #d6f2fd;
 }
 .feedback-picker-guide button {
   border-color: rgb(255 255 255 / 42%);
@@ -1042,11 +1059,11 @@ body.feedback-picking-element
   cursor: crosshair !important;
 }
 [data-nx-feedback-target='true'] {
-  outline: 3px solid var(--ion-blue-bright) !important;
+  outline: 3px solid var(--ion-aqua-deep) !important;
   outline-offset: 3px !important;
 }
 [data-nx-feedback-selected='true'] {
-  outline: 3px dashed var(--ion-blue) !important;
+  outline: 3px dashed var(--ion-aqua-deep) !important;
   outline-offset: 3px !important;
 }
 .feedback-profile label,
@@ -1128,7 +1145,7 @@ body.feedback-picking-element
   align-items: center;
   gap: 0.45rem;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--ion-navy), var(--ion-blue));
+  background: linear-gradient(135deg, var(--ion-navy), var(--ion-aqua-deep));
   padding: 0.55rem 0.85rem;
   color: var(--primary-foreground);
   font-size: 0.75rem;

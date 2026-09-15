@@ -155,7 +155,7 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
             )}
 
             {/* Rule 1 — conditions of supply, in the body, directly under the price, above the fold. */}
-            <div className="mt-6 max-w-2xl rounded-[1.25rem] border border-blue-100 bg-secondary px-5 py-4">
+            <div className="mt-6 max-w-2xl rounded-[1.25rem] border border-aqua-line bg-secondary px-5 py-4">
               <p className="text-sm font-extrabold text-primary">Conditions of supply</p>
               <p className="mt-2 text-sm font-semibold leading-6">
                 {REGULATORY_STATEMENT}

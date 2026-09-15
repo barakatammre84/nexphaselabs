@@ -46,7 +46,7 @@ export function ProductPurchasePanel({
   const listPrice = selected.priceCents;
 
   return (
-    <div className="mt-7 rounded-[1.5rem] border border-border bg-white p-5 shadow-[0_16px_38px_rgba(34,46,113,0.08)]">
+    <div className="mt-7 rounded-[1.5rem] border border-border bg-white p-5 shadow-[0_16px_38px_rgba(14,18,59,0.08)]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="font-display text-lg font-extrabold text-[var(--ion-navy)]">Choose a pack size</p>

@@ -32,7 +32,7 @@ export function ResearchNoticeBlock() {
     >
       <div className="mx-auto flex max-w-[1404px] flex-col justify-between gap-8 md:flex-row md:items-end">
         <div className="max-w-3xl">
-          <p className="text-sm font-extrabold text-blue-200">Research-use boundary</p>
+          <p className="text-sm font-extrabold text-aqua-soft">Research-use boundary</p>
           <h2 className="mt-4 font-display text-3xl font-bold tracking-tight sm:text-4xl">
             For controlled laboratory research&mdash;not human or veterinary
             use.

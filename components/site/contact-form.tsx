@@ -61,7 +61,7 @@ export function ContactForm() {
         <p className="mt-4 text-sm leading-6 text-white/70">
           Keep this reference. A person replies {SUPPORT.firstReply} during our hours ({SUPPORT.hours}). Replies go to the email address you gave, and the conversation stays open in this browser.
         </p>
-        <button type="button" onClick={() => setState({ phase: 'idle' })} className="mt-5 text-sm font-extrabold text-blue-200 underline-offset-4 hover:underline">
+        <button type="button" onClick={() => setState({ phase: 'idle' })} className="mt-5 text-sm font-extrabold text-aqua-soft underline-offset-4 hover:underline">
           Send another message
         </button>
       </div>
@@ -74,15 +74,15 @@ export function ContactForm() {
       <div className="mt-4 grid gap-3">
         <label className="grid gap-1 text-xs font-bold text-white/70">
           Name
-          <input name="name" required maxLength={80} autoComplete="name" className="rounded-lg border border-white/20 bg-white/90 px-3 py-2 text-sm font-normal text-slate-900" />
+          <input name="name" required maxLength={80} autoComplete="name" className="rounded-lg border border-white/20 bg-white/90 px-3 py-2 text-sm font-normal text-navy" />
         </label>
         <label className="grid gap-1 text-xs font-bold text-white/70">
           Email for the reply
-          <input name="email" type="email" required maxLength={120} autoComplete="email" className="rounded-lg border border-white/20 bg-white/90 px-3 py-2 text-sm font-normal text-slate-900" />
+          <input name="email" type="email" required maxLength={120} autoComplete="email" className="rounded-lg border border-white/20 bg-white/90 px-3 py-2 text-sm font-normal text-navy" />
         </label>
         <label className="grid gap-1 text-xs font-bold text-white/70">
           What is this about?
-          <select name="topic" required defaultValue="order" className="rounded-lg border border-white/20 bg-white/90 px-3 py-2 text-sm font-normal text-slate-900">
+          <select name="topic" required defaultValue="order" className="rounded-lg border border-white/20 bg-white/90 px-3 py-2 text-sm font-normal text-navy">
             {CONTACT_TOPICS.map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}
@@ -92,11 +92,11 @@ export function ContactForm() {
         </label>
         <label className="grid gap-1 text-xs font-bold text-white/70">
           Order, lot or catalog number (if you have one)
-          <input name="reference" maxLength={40} placeholder="e.g. NX-260912-0007 or GHKCU50-2605-01" className="rounded-lg border border-white/20 bg-white/90 px-3 py-2 text-sm font-normal text-slate-900" />
+          <input name="reference" maxLength={40} placeholder="e.g. NX-260912-0007 or GHKCU50-2605-01" className="rounded-lg border border-white/20 bg-white/90 px-3 py-2 text-sm font-normal text-navy" />
         </label>
         <label className="grid gap-1 text-xs font-bold text-white/70">
           Message
-          <textarea name="message" required minLength={1} maxLength={2000} rows={5} className="rounded-lg border border-white/20 bg-white/90 px-3 py-2 text-sm font-normal text-slate-900" />
+          <textarea name="message" required minLength={1} maxLength={2000} rows={5} className="rounded-lg border border-white/20 bg-white/90 px-3 py-2 text-sm font-normal text-navy" />
         </label>
       </div>
       {state.phase === 'error' ? (

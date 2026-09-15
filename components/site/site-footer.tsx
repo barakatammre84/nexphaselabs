@@ -104,7 +104,7 @@ export async function SiteFooter() {
             for compliance with all applicable federal, state, and local law and
             for the safe handling, use, and disposal of every material received.
           </p>
-          <div className="mt-8 flex flex-col justify-between gap-3 text-xs text-white/45 sm:flex-row sm:items-center">
+          <div className="mt-8 flex flex-col justify-between gap-3 text-xs text-white/55 sm:flex-row sm:items-center">
             <p>
               &copy; {new Date().getFullYear()} {ENTITY.legalName}, trading as{' '}
               {ENTITY.tradingName}. Oakland, California.

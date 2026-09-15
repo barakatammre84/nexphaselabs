@@ -75,7 +75,7 @@ export default async function AccountPage({ searchParams }: Props) {
   return (
     <main className="text-foreground">
       <section className="mx-auto max-w-[1232px] px-4 py-8 sm:px-6 sm:py-12">
-        <div className="ion-panel bg-gradient-to-br from-white via-white to-blue-50 p-7 sm:p-10">
+        <div className="ion-panel bg-gradient-to-br from-white via-white to-aqua-wash p-7 sm:p-10">
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div>
             <p className="ion-kicker">Account dashboard</p>

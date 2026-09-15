@@ -108,7 +108,7 @@ export function CheckoutExperience({
       </ol>
 
       <div className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_19rem]">
-        <div className="rounded-[1.5rem] border border-border bg-white p-5 shadow-[0_16px_38px_rgba(34,46,113,0.07)] sm:p-7">
+        <div className="rounded-[1.5rem] border border-border bg-white p-5 shadow-[0_16px_38px_rgba(14,18,59,0.07)] sm:p-7">
           <div className="flex items-start gap-3">
             <PackageCheck className="mt-0.5 size-5 text-primary" />
             <div>
