@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { notificationRecordHref } from '@/lib/notification-links';
 import { redirect } from 'next/navigation';
 import { desc, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
@@ -135,7 +136,7 @@ export default async function NotificationsPage({
                   <div>
                     <Link
                       className="font-semibold text-primary hover:underline"
-                      href={`/manage/orders/${row.orderNumber}`}
+                      href={notificationRecordHref(row.category, row.orderNumber)}
                     >
                       {row.orderNumber}
                     </Link>

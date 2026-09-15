@@ -227,11 +227,12 @@ export async function createOrderFromCart(
         now,
       )
     : null;
-  if (openCheckoutEnabled() && checkoutQuotesRequired() && !quote)
+  // Both checkout modes: a wholesale order is quoted for its organization's
+  // address the way a guest order is quoted for the address typed in.
+  if (checkoutQuotesRequired() && !quote)
     return {
       ok: false,
-      error:
-        'Compare delivery options again and choose a current UPS or FedEx rate.',
+      error: 'Compare delivery options again and choose a current delivery rate.',
     };
   if (checkoutQuoteId && !quote)
     return {

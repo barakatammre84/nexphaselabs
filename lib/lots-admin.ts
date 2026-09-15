@@ -1,12 +1,14 @@
 import { SQL, and, asc, desc, eq, getTableColumns, is, isNull, sql } from 'drizzle-orm';
 import type { SQLiteTable, SQLiteUpdateSetSource } from 'drizzle-orm/sqlite-core';
 import { getDb } from '@/db';
+import { inventoryReservations } from '@/db/commerce-schema';
 import {
   lotDocuments,
   lotMovements,
   lotStatusEvents,
   lotTests,
   lots,
+  orders,
   products,
   purchaseOrderEvents,
   purchaseOrderLines,
@@ -543,7 +545,13 @@ export async function correctLot(
   staff: StaffPrincipal,
 ): Promise<CorrectionResult> {
   const v = validated.value;
-  if (validated.changes.some((c) => c.field === 'quantityReceived') && current.quantityRemaining !== current.quantityReceived) {
+  const quantityChanging = validated.changes.some((c) => c.field === 'quantityReceived');
+  // The received quantity sets how much can be sold. Raising a released lot through an
+  // inventory movement already requires a hold first, so a correction must too.
+  if (quantityChanging && current.status === 'released') {
+    return { ok: false, error: 'Put the lot on hold before correcting its received quantity, then release it again once the record is right.' };
+  }
+  if (quantityChanging && current.quantityRemaining !== current.quantityReceived) {
     return { ok: false, error: 'Quantity received cannot be corrected after material has been shipped from this lot. Record an adjustment movement instead.' };
   }
   if (current.status === 'released' && (!v.manufacturerName || !v.manufacturerAddress)) {
@@ -585,7 +593,6 @@ export async function correctLot(
       return [key, col];
     }),
   ) as unknown as typeof columns; // runtime: aliased SQL for overridden columns, the column itself otherwise
-  const quantityChanging = validated.changes.some((c) => c.field === 'quantityReceived');
   // A corrected received quantity must reach the purchase-order line the lot arrived against,
   // or the two records diverge: the line total, its closure and the order status are recomputed
   // in the same batch, guarded on the claim.
@@ -667,6 +674,19 @@ export async function correctLot(
         .from(lots)
         .where(and(eq(lots.id, current.id), eq(lots.supersededById, newId))),
     ),
+    // Stock held for open orders follows the record it was held against. Without this
+    // a correction stranded every reservation on the superseded row: paid orders could
+    // not ship, and orders awaiting payment were cancelled with a refund due once paid.
+    db
+      .update(inventoryReservations)
+      .set({ lotId: newId })
+      .where(
+        and(
+          eq(inventoryReservations.lotId, current.id),
+          sql`${inventoryReservations.orderId} IN (SELECT ${orders.id} FROM ${orders} WHERE ${orders.status} IN ('submitted', 'awaiting_payment', 'paid', 'fulfilling'))`,
+          sql`EXISTS (SELECT 1 FROM ${lots} WHERE ${lots.id} = ${current.id} AND ${lots.supersededById} = ${newId})`,
+        ),
+      ),
     db.insert(lotStatusEvents).select(
       db
         .select({

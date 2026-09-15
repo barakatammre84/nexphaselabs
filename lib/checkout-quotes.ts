@@ -142,7 +142,7 @@ export async function createCheckoutQuotes(
   accountId: string,
   cart: Cart,
   shipTo: ShipTo,
-  contactEmail: string,
+  contactEmail: string | null,
 ): Promise<
   | { ok: true; quotes: CheckoutQuoteView[]; warning: string | null }
   | { ok: false; error: string }

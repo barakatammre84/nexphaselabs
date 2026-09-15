@@ -10,11 +10,12 @@ vi.mock('next/headers', () => ({
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 
 import { getDb } from '@/db';
-import { fulfillmentQuotes } from '@/db/commerce-schema';
+import { fulfillmentQuotes, shippingLabels } from '@/db/commerce-schema';
 import { orders } from '@/db/schema';
 import { getOrderByNumber } from '@/lib/orders';
 import {
   buyShippingLabel,
+  clearFailedLabelPurchase,
   quoteFulfillment,
   shippingLabelHistory,
   voidShippingLabel,
@@ -210,5 +211,43 @@ describe('shipping label automation', () => {
       label: { state: 'attention' },
     });
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('clearing a failed label purchase', () => {
+  it('clears a purchase that bought nothing so the order can be relabelled, and refuses anything else', async () => {
+    const order = await fulfillingOrder();
+    const quoted = await quoteFulfillment(order, { length: 8, width: 6, height: 4, weight: 1 }, staff);
+    if (!quoted.ok) throw new Error(quoted.error);
+    // What a rejected purchase leaves behind: an attention label, nothing bought, nothing to refund.
+    await getDb().insert(shippingLabels).values({
+      id: `lbl_${'b'.repeat(32)}`,
+      orderId: order.id,
+      quoteId: quoted.quotes[0].id,
+      state: 'attention',
+      carrier: 'UPS',
+      serviceName: 'Ground',
+      amountCents: 900,
+      error: 'Synthetic: the rate expired before purchase',
+      createdBy: 'test',
+    });
+    expect(await buyShippingLabel(order, quoted.quotes[1].id, staff)).toMatchObject({ ok: false, duplicate: true });
+
+    expect(await clearFailedLabelPurchase(order, 'no', staff)).toMatchObject({ ok: false });
+    expect(
+      await clearFailedLabelPurchase(order, 'Carrier dashboard shows no label for this order', staff),
+    ).toMatchObject({ ok: true, label: { state: 'voided', refundState: null } });
+
+    const replacement = await quoteFulfillment(order, { length: 8, width: 6, height: 4, weight: 1 }, staff);
+    if (!replacement.ok) throw new Error(replacement.error);
+    expect(await buyShippingLabel(order, replacement.quotes[0].id, staff)).toMatchObject({
+      ok: true,
+      label: { state: 'ready' },
+    });
+    // A label that exists is never cleared here; it is refunded through the carrier.
+    expect(
+      await clearFailedLabelPurchase(order, 'Carrier dashboard shows no label for this order', staff),
+    ).toMatchObject({ ok: false });
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

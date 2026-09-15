@@ -64,7 +64,7 @@ export function OrderShippingDesk({
   const [label, setLabel] = useState(initialLabel);
   const [history, setHistory] = useState(initialHistory);
   const [busy, setBusy] = useState<
-    'quote' | 'label' | 'refund' | 'reconcile' | null
+    'quote' | 'label' | 'refund' | 'reconcile' | 'clear' | null
   >(null);
   const [message, setMessage] = useState<string | null>(
     initialLabel?.error ?? null,
@@ -114,7 +114,9 @@ export function OrderShippingDesk({
             {label.state === 'ready'
               ? `${label.test ? 'Test label' : 'Shipping label'} ready`
               : label.state === 'voided'
-                ? 'Label cancelled and refund confirmed'
+                ? label.refundState
+                  ? 'Label cancelled and refund confirmed'
+                  : 'Failed label purchase cleared'
                 : label.state === 'voiding'
                   ? 'Label refund pending'
                   : 'Label request needs reconciliation'}
@@ -273,6 +275,67 @@ export function OrderShippingDesk({
           {label.error && (
             <p className="mt-3 text-destructive">{label.error}</p>
           )}
+          {label.state === 'attention' &&
+            !label.refundState &&
+            !label.trackingNumber && (
+              <form
+                className="mt-4 grid gap-3 border-t border-border pt-4"
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  if (busy) return;
+                  setBusy('clear');
+                  setMessage(null);
+                  try {
+                    const response = await fetch(
+                      `/api/manage/orders/${encodeURIComponent(orderNumber)}/shipping/clear-failed`,
+                      { method: 'POST', body: new FormData(event.currentTarget) },
+                    );
+                    const result = (await response.json()) as {
+                      ok?: boolean;
+                      label?: Label;
+                      error?: string;
+                    };
+                    if (result.label) recordLabel(result.label);
+                    setMessage(
+                      result.ok
+                        ? 'Failed purchase cleared. Compare rates to buy a replacement label.'
+                        : (result.error ?? 'The failed purchase could not be cleared.'),
+                    );
+                  } catch {
+                    setMessage('The failed purchase could not be cleared. Try again.');
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+              >
+                <p className="text-xs leading-5 text-muted-foreground">
+                  The carrier did not confirm this purchase. Check the carrier
+                  account for a label on this order before clearing it; if one
+                  was bought, refund it there first.
+                </p>
+                <label className="flex flex-col gap-1.5 text-xs font-semibold">
+                  What you checked
+                  <input
+                    name="reason"
+                    required
+                    minLength={3}
+                    maxLength={300}
+                    className="h-10 border border-foreground/20 bg-background px-3 text-sm font-normal"
+                  />
+                </label>
+                <label className="flex items-start gap-2 text-xs leading-5">
+                  <input type="checkbox" name="confirm" required className="mt-0.5" />
+                  The carrier account shows no label for this order.
+                </label>
+                <button
+                  type="submit"
+                  disabled={Boolean(busy)}
+                  className="action-secondary w-fit"
+                >
+                  {busy === 'clear' ? 'Clearing…' : 'Clear failed purchase'}
+                </button>
+              </form>
+            )}
         </div>
       )}
       {(!label || label.state === 'voided') && (

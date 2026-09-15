@@ -6,6 +6,7 @@ import { ResearchNoticeBlock } from '@/components/site/research-notice';
 import { REGULATORY_STATEMENT } from '@/lib/catalog';
 import { listPublishedProducts, loadCatalog } from '@/lib/catalog-data';
 import { currentSdsByProduct } from '@/lib/product-documents';
+import { listStorefrontProductLinks } from '@/lib/storefront';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -15,9 +16,12 @@ export const metadata: Metadata = {
 
 export default async function SdsLibraryPage() {
   const loaded = await loadCatalog(async () => {
-    const list = await listPublishedProducts();
+    const [list, listed] = await Promise.all([listPublishedProducts(), listStorefrontProductLinks()]);
     const sheets = await currentSdsByProduct(list.map((p) => p.id));
-    return list.map((p) => ({ product: p, sds: sheets.get(p.id) ?? null }));
+    // Every published material keeps its sheet, but only a listed product has a
+    // catalog page to link to; the rest would answer 404.
+    const pages = new Set(listed.map((p) => p.slug));
+    return list.map((p) => ({ product: p, sds: sheets.get(p.id) ?? null, hasPage: pages.has(p.slug) }));
   });
   const rows = loaded.data ?? [];
 
@@ -57,13 +61,17 @@ export default async function SdsLibraryPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ product, sds }) => (
+                {rows.map(({ product, sds, hasPage }) => (
                   <tr key={product.code} className="border-b border-border last:border-b-0">
                     <td className="p-4 font-mono text-xs">{product.code}</td>
                     <td className="p-4">
-                      <Link href={`/catalog/${product.slug}`} className="font-semibold hover:text-primary">
-                        {product.name}
-                      </Link>
+                      {hasPage ? (
+                        <Link href={`/catalog/${product.slug}`} className="font-semibold hover:text-primary">
+                          {product.name}
+                        </Link>
+                      ) : (
+                        <span className="font-semibold">{product.name}</span>
+                      )}
                     </td>
                     <td className="p-4 font-mono text-xs">{product.casNumber}</td>
                     <td className="p-4">

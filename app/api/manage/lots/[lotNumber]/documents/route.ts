@@ -1,4 +1,5 @@
 import { DOCUMENT_LABEL, MAX_DOCUMENT_BYTES, isDocumentType, putLotDocument } from '@/lib/documents';
+import { readUploadForm, UploadTooLargeError } from '@/lib/large-uploads';
 import { lotNumberFromParam } from '@/lib/lot-rules';
 import { attachLotDocument, getLot } from '@/lib/lots-admin';
 import { canRecordResults, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
@@ -26,9 +27,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ lot
 
   let form: FormData;
   try {
-    form = await request.formData();
-  } catch {
-    return back('error=badform');
+    form = await readUploadForm(request, MAX_DOCUMENT_BYTES);
+  } catch (error) {
+    return back(error instanceof UploadTooLargeError ? 'error=size' : 'error=badform');
   }
   const type = String(form.get('type') ?? '');
   const file = form.get('file');
