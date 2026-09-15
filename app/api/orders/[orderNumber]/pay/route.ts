@@ -1,6 +1,7 @@
 import { getBuyerFromRequest } from '@/lib/buyer-session';
 import { orderNumberFromParam } from '@/lib/order-rules';
 import { beginPayment, getOrderForAccount } from '@/lib/orders';
+import { redirectWithNotice } from '@/lib/notice';
 import { sameOrigin } from '@/lib/staff-auth';
 
 /** Customer picks a payment method for their submitted order. */
@@ -36,7 +37,8 @@ export async function POST(
       account.email,
       `${account.name} (${account.id})`,
     );
-    if (!result.ok) return back(`error=${encodeURIComponent(result.error)}`);
+    if (!result.ok)
+      return redirectWithNotice(request, `/account/orders/${number}?error=notice`, result.error);
   } catch (error) {
     console.error(
       '[orders] pay failed',

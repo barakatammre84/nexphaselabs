@@ -1,6 +1,7 @@
 import { getBuyerFromRequest } from '@/lib/buyer-session';
 import { orderNumberFromParam } from '@/lib/order-rules';
 import { cancelOrderByCustomer, getOrderForAccount } from '@/lib/orders';
+import { redirectWithNotice } from '@/lib/notice';
 import { sameOrigin } from '@/lib/staff-auth';
 
 /** Customer cancels an order that has not been paid. */
@@ -20,12 +21,11 @@ export async function POST(
     detail.order.paymentMethod === 'zelle' &&
     (await (await import('@/lib/zelle')).zelleClaimForOrder(detail.order.id))
   ) {
-    const url = new URL(`/account/orders/${number}`, request.url);
-    url.searchParams.set(
-      'error',
+    return redirectWithNotice(
+      request,
+      `/account/orders/${number}?error=notice`,
       'Your Zelle payment is being checked. Contact order support instead of cancelling or sending again.',
     );
-    return Response.redirect(url, 303);
   }
   let reason: string | null = null;
   try {
@@ -48,7 +48,8 @@ export async function POST(
       `${account.name} (${account.id})`,
       reason,
     );
-    if (!result.ok) return back(`error=${encodeURIComponent(result.error)}`);
+    if (!result.ok)
+      return redirectWithNotice(request, `/account/orders/${number}?error=notice`, result.error);
   } catch (error) {
     console.error(
       '[orders] cancel failed',

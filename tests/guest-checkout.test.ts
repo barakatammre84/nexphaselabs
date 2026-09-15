@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { localD1 } from './helpers/local-d1';
+import { noticeFrom } from './helpers/notice';
 const { env } = vi.hoisted(() => ({ env: {} as Record<string, unknown> }));
 vi.mock('cloudflare:workers', () => ({ env }));
 vi.mock('next/headers', () => ({
@@ -160,7 +161,8 @@ describe('guest purchase end to end', () => {
     const { confirm_age: _omitted, ...withoutAge } = fields;
     const refused = await submit(request('/api/orders', cookie, withoutAge));
     expect(refused.status).toBe(303);
-    expect(decodeURIComponent(refused.headers.get('location')!)).toContain('21 years of age');
+    expect(new URL(refused.headers.get('location')!).searchParams.get('error')).toBe('notice');
+    expect(noticeFrom(refused)).toContain('21 years of age');
     expect(count('orders')).toBe(0);
     const submitted = await submit(request('/api/orders', cookie, fields));
     const location = new URL(submitted.headers.get('location')!);

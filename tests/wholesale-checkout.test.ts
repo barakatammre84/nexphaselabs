@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { localD1 } from './helpers/local-d1';
+import { noticeFrom } from './helpers/notice';
 
 const { env, account } = vi.hoisted(() => ({
   env: {} as Record<string, unknown>,
@@ -197,7 +198,9 @@ describe('wholesale checkout', () => {
     expect(response.status).toBe(303);
     const location = new URL(response.headers.get('location') ?? '');
     expect(location.pathname).toBe('/account/cart');
-    expect(location.searchParams.get('error')).toContain('Compare delivery options');
+    // The refusal travels in a short-lived cookie; the URL carries only a code (lib/notice.ts).
+    expect(location.searchParams.get('error')).toBe('notice');
+    expect(noticeFrom(response)).toContain('Compare delivery options');
     expect(count('orders')).toBe(0);
   });
 

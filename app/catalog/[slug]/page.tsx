@@ -14,6 +14,8 @@ import { listReleasedLotsForProduct } from '@/lib/lots-public';
 import { currentSds } from '@/lib/product-documents';
 import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 import { openCheckoutEnabled } from '@/lib/site-config';
+import { cookies } from 'next/headers';
+import { NOTICE_COOKIE, readNotice } from '@/lib/notice';
 import { currentViewer } from '@/lib/visibility';
 import { formatCents, priceFor } from '@/lib/visibility-rules';
 
@@ -39,7 +41,7 @@ export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ cart?: string; why?: string }>;
+  searchParams: Promise<{ cart?: string }>;
 };
 
 export async function generateMetadata({
@@ -70,7 +72,10 @@ function SpecRow({ label, value }: { label: string; value: string }) {
 
 export default async function ProductPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
-  const { cart: cartFlag, why } = await searchParams;
+  const { cart: cartFlag } = await searchParams;
+  // A refusal's words come from the cookie the cart route set, never from the link (lib/notice.ts).
+  const cartNotice =
+    cartFlag === 'error' ? readNotice((await cookies()).get(NOTICE_COOKIE)?.value) : null;
   const loaded = await loadCatalog(() => getStorefrontProduct(slug));
 
   if (loaded.unavailable) {
@@ -417,8 +422,8 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
               role="alert"
               className="border-b border-border bg-secondary px-6 py-3 text-sm"
             >
-              {cartFlag === 'error' && why
-                ? why.slice(0, 200)
+              {cartFlag === 'error'
+                ? (cartNotice ?? 'That pack size could not be added to the cart.')
                 : cartFlag === 'invalid'
                   ? 'That pack size is not valid.'
                   : 'The cart is temporarily unavailable.'}

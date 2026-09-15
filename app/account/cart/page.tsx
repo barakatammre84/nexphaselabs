@@ -3,6 +3,8 @@ import { RESEARCH_SETTINGS } from '@/lib/account-rules';
 import Link from 'next/link';
 import { AlertCircle, ArrowLeft, CircleCheck, Trash2 } from 'lucide-react';
 import { getBuyer } from '@/lib/buyer-session';
+import { cookies } from 'next/headers';
+import { NOTICE_COOKIE, readNotice } from '@/lib/notice';
 import { openCheckoutEnabled } from '@/lib/site-config';
 import { CheckoutExperience } from '@/components/site/checkout-experience';
 import { requireAccount } from '@/lib/account-auth';
@@ -34,6 +36,17 @@ export default async function CartPage({ searchParams }: Props) {
     ? await getBuyer()
     : await requireAccount('/account/cart');
   const { added, error } = await searchParams;
+  // Fixed words for known codes; a refusal's own words come from the cookie its route set,
+  // never from the link (lib/notice.ts). Anything else in `error` shows nothing.
+  const errorText =
+    error === 'invalid'
+      ? 'That change was not valid.'
+      : error === 'unavailable'
+        ? 'The cart is temporarily unavailable.'
+        : error === 'notice'
+          ? (readNotice((await cookies()).get(NOTICE_COOKIE)?.value) ??
+            'That could not be completed. Review your cart and try again.')
+          : null;
   const { visibility } = await currentViewer();
   const loaded = await loadCatalog(() =>
     account
@@ -83,17 +96,13 @@ export default async function CartPage({ searchParams }: Props) {
             <CircleCheck className="size-4 text-primary" /> Added to your cart.
           </p>
         )}
-        {error && (
+        {errorText && (
           <p
             role="alert"
             className="mt-6 flex items-center gap-2 border border-destructive/40 bg-secondary p-4 text-sm"
           >
             <AlertCircle className="size-4 text-destructive" />{' '}
-            {error === 'invalid'
-              ? 'That change was not valid.'
-              : error === 'unavailable'
-                ? 'The cart is temporarily unavailable.'
-                : error}
+            {errorText}
           </p>
         )}
 

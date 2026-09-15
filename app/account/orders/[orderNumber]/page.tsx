@@ -7,6 +7,7 @@ import { orderNextStep } from '@/lib/workflow-display';
 import { currentDocument } from '@/lib/issued-documents';
 import { getBuyer } from '@/lib/buyer-session';
 import { cookies } from 'next/headers';
+import { NOTICE_COOKIE, readNotice } from '@/lib/notice';
 import { recoveredOrder, RECOVERY_COOKIE } from '@/lib/guest-order-recovery';
 import { OrderRecoveryCode } from '@/components/site/order-recovery-code';
 import { OrderNotOpenHere } from '@/components/site/order-not-open-here';
@@ -47,6 +48,15 @@ type Props = {
 export default async function OrderPage({ params, searchParams }: Props) {
   const { orderNumber } = await params;
   const { submitted, payment, error, cancelled, paid, zelle } = await searchParams;
+  // Fixed words for known codes; a refusal's own words come from the cookie its route set,
+  // never from the link (lib/notice.ts). Anything else in `error` shows nothing.
+  const errorText =
+    error === 'unavailable'
+      ? 'That could not be completed. Try again shortly.'
+      : error === 'notice'
+        ? (readNotice((await cookies()).get(NOTICE_COOKIE)?.value) ??
+          'That could not be completed. Try again shortly.')
+        : null;
   const account = await getBuyer();
   const number = orderNumberFromParam(orderNumber);
   if (!number) notFound();
@@ -152,14 +162,12 @@ export default async function OrderPage({ params, searchParams }: Props) {
             This order has been cancelled.
           </p>
         )}
-        {error && (
+        {errorText && (
           <p
             role="alert"
             className="mt-6 border border-destructive/40 bg-secondary p-4 text-sm"
           >
-            {error === 'unavailable'
-              ? 'That could not be completed. Try again shortly.'
-              : error}
+            {errorText}
           </p>
         )}
         <p className="mt-6 font-mono text-xs text-muted-foreground">
