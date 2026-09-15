@@ -154,6 +154,40 @@ No label is ever public.
 
 ---
 
+## 5b. Only some USPS prices are ours to buy
+
+Measured live, 15 September 2026, one 0.5 lb 9x6x4 in box, 95242 to 63118:
+
+| | Price | Indicator | Service |
+| --- | --- | --- | --- |
+| **usable** | **$8.95** | SP | USPS Ground Advantage Machinable Single-piece |
+| excluded | $12.90 | FE | Priority Mail Flat Rate Envelope |
+| excluded | $13.25 | FA | Priority Mail Legal Flat Rate Envelope |
+| excluded | $14.00 | FP | Priority Mail Padded Flat Rate Envelope |
+| excluded | $24.80 | FB | Priority Mail Medium Flat Rate Box |
+| excluded | $32.55 | PM | Priority Mail Large Flat Rate Box APO/FPO/DPO |
+| excluded | $34.00 | PL | Priority Mail Large Flat Rate Box |
+| **usable** | **$15.60** | SP | Priority Mail Machinable Single-piece |
+
+Six of the eight are Flat Rate prices, valid only inside USPS-supplied
+packaging this business does not stock. Sorting by price and taking the cheapest
+would have sold a **$12.90 Flat Rate Envelope for a four-inch-thick box** — a
+label that cannot lawfully carry that parcel — while also undercharging the
+customer $2.70 against the $15.60 that actually applies.
+
+So `USPS_RATE_INDICATORS` exists, and defaults to `SP` (Single-piece), the
+dimension-and-weight rate for our own boxes. A second guard rejects any rate
+whose returned `processingCategory` differs from the one requested, which is
+how the envelope rates give themselves away — they come back as `FLATS` even
+though `MACHINABLE` was asked for.
+
+**Add an indicator only when the packaging is on the shelf.** If Flat Rate boxes
+are ever stocked, set `USPS_RATE_INDICATORS=SP,FB` (or whichever) — and note
+that flat rate is only a saving for heavy or distant parcels. At 0.5 lb it is
+$24.80 against $15.60.
+
+---
+
 ## 6. Known limits, stated plainly
 
 - **Refund disputes cannot be read back.** Cancelling an unused label is
@@ -171,12 +205,17 @@ No label is ever public.
   above. The `shipping_labels` row records what USPS actually charged, while
   the `fulfillment_quotes` row keeps what the customer was shown, so a
   divergence is visible rather than absorbed.
-- **Untested against the live API.** No call has been made with a real consumer
-  key, because none exists yet. Every request and response shape is now checked
-  against USPS's published OpenAPI spec for Labels 3.9.16, kept in
-  `docs/vendor/usps-labels-3.9.16.yaml`. The first live quote after step 3 is
-  still the real proof, and should be done on staging (`apis-tem.usps.com`,
-  which this code selects automatically outside production).
+- **Verified live on 15 September 2026.** `node scripts/usps-live-check.mjs`
+  authenticated against `apis.usps.com` and priced a real parcel. Shapes are
+  also checked against USPS's published OpenAPI spec for Labels 3.9.16, kept in
+  `docs/vendor/usps-labels-3.9.16.yaml`. Re-run that script any time; it touches
+  only the login and pricing endpoints and cannot buy postage.
+- **USPS returns no delivery commitment from the price search.** Every rate came
+  back with no `commitment` object at all. The delivery-day figures shown are
+  our own per-class fallbacks (Ground Advantage 5, Priority 3, Express 1) and
+  must not be presented to a customer as a USPS guarantee. Real commitments need
+  the Service Standards API, which the app already has access to and which is
+  not wired up.
 - **PO Box number outstanding.** The ship-from ZIP is 95242; the box number
   arrives Saturday and must be in `SHIPPO_ORIGINS_JSON` before a label is bought.
 

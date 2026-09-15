@@ -507,3 +507,85 @@ describe('label cancellation', () => {
     expect(result.uncertain).toBe(true);
   });
 });
+
+describe('packaging entitlement', () => {
+  /**
+   * Measured against the live USPS API on 15 September 2026 for a 9x6x4 in
+   * box, 95242 -> 63118. USPS offers seven Priority Mail rates, six of which
+   * require USPS-supplied packaging this business does not stock. Only SP is
+   * buyable, and it is not the cheapest — which is exactly why "take the
+   * lowest price" is the wrong rule.
+   */
+  const priorityRoute: Route = {
+    match: '/prices/v3/total-rates/search',
+    body: {
+      rateOptions: [
+        {
+          totalBasePrice: 12.9,
+          rates: [
+            {
+              mailClass: 'PRIORITY_MAIL',
+              rateIndicator: 'FE',
+              description: 'Priority Mail Flat Rate Envelope',
+              processingCategory: 'FLATS',
+            },
+          ],
+        },
+        {
+          totalBasePrice: 24.8,
+          rates: [
+            {
+              mailClass: 'PRIORITY_MAIL',
+              rateIndicator: 'FB',
+              description: 'Priority Mail Machinable Medium Flat Rate Box',
+              processingCategory: 'MACHINABLE',
+            },
+          ],
+        },
+        {
+          totalBasePrice: 15.6,
+          rates: [
+            {
+              mailClass: 'PRIORITY_MAIL',
+              rateIndicator: 'SP',
+              description: 'Priority Mail Machinable Single-piece',
+              processingCategory: 'MACHINABLE',
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  it('buys the rate for our own box, not the cheaper one we cannot use', async () => {
+    credentials({ USPS_MAIL_CLASSES: 'PRIORITY_MAIL' });
+    routedFetch([tokenRoute, priorityRoute]);
+    const result = await uspsQuote(origin, destination, parcel);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rates).toHaveLength(1);
+    expect(result.rates[0].cents).toBe(1_560);
+    expect(result.rates[0].id).toContain('-SP-');
+  });
+
+  it('will sell flat-rate packaging only once it is deliberately enabled', async () => {
+    credentials({
+      USPS_MAIL_CLASSES: 'PRIORITY_MAIL',
+      USPS_RATE_INDICATORS: 'SP,FB',
+    });
+    routedFetch([tokenRoute, priorityRoute]);
+    const result = await uspsQuote(origin, destination, parcel);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // FB is now allowed; FE stays out because USPS priced it as FLATS when
+    // MACHINABLE was asked for, so it is a different kind of mailpiece.
+    expect(result.rates.map((rate) => rate.cents).sort()).toEqual([1_560, 2_480]);
+  });
+
+  it('refuses an invalid rate-indicator configuration rather than guessing', () => {
+    credentials({ USPS_RATE_INDICATORS: 'not-an-indicator' });
+    expect(uspsConfiguration().issues.join(' ')).toContain(
+      'USPS_RATE_INDICATORS',
+    );
+  });
+});

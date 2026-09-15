@@ -42,6 +42,13 @@ declare namespace Cloudflare {
     USPS_MAIL_CLASSES?: string;
     /** Override the API host. Only https://apis.usps.com or https://apis-tem.usps.com. */
     USPS_API_HOST?: string;
+    /**
+     * Comma-separated USPS rate indicators we are entitled to buy. Defaults to
+     * "SP" (Single-piece), the rate for our own boxes. Flat Rate indicators
+     * (FE, FP, FA, FB, PL, PM) require USPS-supplied packaging — only add one
+     * once that packaging is actually stocked.
+     */
+    USPS_RATE_INDICATORS?: string;
     /** 'MACHINABLE' (default) or 'NONSTANDARD'. */
     USPS_PROCESSING_CATEGORY?: string;
     SHIPPO_API_KEY?: string;

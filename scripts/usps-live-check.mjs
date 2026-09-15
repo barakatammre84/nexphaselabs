@@ -136,12 +136,24 @@ for (const mailClass of ['USPS_GROUND_ADVANTAGE', 'PRIORITY_MAIL']) {
     console.log(`  ${mailClass}: no priced option returned`);
     continue;
   }
-  for (const option of options.slice(0, 4)) {
+  /**
+   * Show every rate USPS offers and mark which ones we could lawfully buy.
+   * Flat Rate prices are only valid inside USPS-supplied packaging, so the
+   * cheapest number on this list is usually NOT the one to sell.
+   */
+  const allowed = new Set(
+    (fromWrangler('USPS_RATE_INDICATORS') || 'SP').split(',').map((v) => v.trim()),
+  );
+  for (const option of options) {
     const detail = Array.isArray(option.rates) ? (option.rates[0] ?? {}) : {};
+    const eligible =
+      allowed.has(detail.rateIndicator) &&
+      detail.processingCategory === base.processingCategory;
     console.log(
-      `  ${mailClass}: $${Number(option.totalBasePrice).toFixed(2)}` +
-        ` (rate indicator ${detail.rateIndicator ?? '?'}` +
-        `, ${detail.commitment?.name ?? 'no commitment given'})`,
+      `  ${eligible ? 'USABLE  ' : 'excluded'} $${Number(option.totalBasePrice).toFixed(2).padStart(6)}` +
+        `  ${String(detail.rateIndicator ?? '?').padEnd(3)}` +
+        `  ${detail.description ?? mailClass}` +
+        `${eligible ? '' : ' — needs USPS-supplied packaging'}`,
     );
   }
 }

@@ -136,6 +136,36 @@ export function uspsConfiguration() {
   const processingCode: ProcessingCode =
     env.USPS_PROCESSING_CATEGORY === 'NONSTANDARD' ? 'N' : 'M';
 
+  /**
+   * Which USPS rate indicators we are entitled to buy.
+   *
+   * This is not a preference, it is a physical constraint. A price search for
+   * one parcel comes back with every rate USPS could theoretically charge,
+   * including Flat Rate Envelope (FE), Padded (FP), Legal (FA) and the Flat
+   * Rate Boxes (FB, PL, PM). Those prices are only valid inside USPS-supplied
+   * packaging, which this business does not stock. Measured live on 15 Sep
+   * 2026, a 9x6x4 in box from 95242 to 63118 priced at $12.90 as a Flat Rate
+   * Envelope and $15.60 as Single-piece — so taking the cheapest rate would
+   * have bought envelope postage for a four-inch-thick box and undercharged
+   * the customer by $2.70 at the same time.
+   *
+   * SP (Single-piece) is the dimension-and-weight rate for our own boxes and
+   * is the only default. Anything else has to be turned on deliberately, by
+   * someone who has confirmed the packaging is on the shelf.
+   */
+  const rateIndicators = new Set(
+    (env.USPS_RATE_INDICATORS ?? 'SP')
+      .split(',')
+      .map((value) => value.trim().toUpperCase())
+      .filter(Boolean),
+  );
+  if (
+    !rateIndicators.size ||
+    rateIndicators.size > 12 ||
+    [...rateIndicators].some((value) => !/^[A-Z0-9]{1,4}$/.test(value))
+  )
+    issues.push('USPS_RATE_INDICATORS is invalid.');
+
   return {
     issues,
     test,
@@ -149,6 +179,7 @@ export function uspsConfiguration() {
     labelsReady,
     classes,
     processingCode,
+    rateIndicators,
     /** Cache key: any credential change must invalidate a held token. */
     fingerprint: `${host}|${clientId}|${crid}|${mid}|${manifestMid}|${accountNumber}`,
   };
@@ -438,9 +469,13 @@ function mailingDate(now: Date): string {
 }
 
 /**
- * USPS states a delivery window in prose ("2-5 Days"). Customers are promised
- * the far end of it, never the near end, so the largest integer in the string
- * wins and an unparseable commitment falls back to the class default.
+ * USPS states a delivery window in prose ("2-5 Days") when it states one at
+ * all — measured live on 15 Sep 2026, total-rates/search returned no
+ * commitment object whatsoever, so in practice this almost always falls back
+ * to the class default. Customers are promised the far end of any window we
+ * do get, never the near end, so the largest integer in the string wins.
+ * These fallbacks are our own estimate and must not be shown as a USPS
+ * guarantee.
  */
 function commitmentDays(value: unknown, fallback: number): number {
   const name = typeof value === 'string' ? value : '';
@@ -475,6 +510,17 @@ function ratesFromOptions(
         ? detail.rateIndicator
         : null;
     if (!rateIndicator) continue;
+    // Postage we could not lawfully use on this parcel is not a rate.
+    if (!configuration.rateIndicators.has(rateIndicator)) continue;
+    // Second, independent guard: the flat-rate envelope prices come back as
+    // FLATS even when MACHINABLE was requested, so a category that changed
+    // under us means USPS priced a different kind of mailpiece.
+    if (
+      typeof detail.processingCategory === 'string' &&
+      detail.processingCategory !==
+        PROCESSING_CATEGORIES[configuration.processingCode]
+    )
+      continue;
     const id = encodeUspsRateId({
       ...parts,
       mailClass,
