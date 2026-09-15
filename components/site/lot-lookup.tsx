@@ -61,7 +61,6 @@ const TEST_LABEL: Record<string, string> = {
   identity: 'Identity',
   purity: 'Purity',
   water: 'Water content',
-  endotoxin: 'Bacterial endotoxin',
   heavy_metal: 'Heavy metal',
   residual_solvent: 'Residual solvent',
 };

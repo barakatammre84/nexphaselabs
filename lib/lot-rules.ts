@@ -78,10 +78,21 @@ export const TEST_TYPE_LABEL: Record<TestType, string> = {
   identity: 'Identity',
   purity: 'Purity',
   water: 'Water content',
-  endotoxin: 'Bacterial endotoxin',
+  endotoxin: 'Bacterial endotoxin (staff record only, never published)',
   heavy_metal: 'Heavy metal',
   residual_solvent: 'Residual solvent',
 };
+
+/**
+ * Results staff may record but that never leave the staff system: not on the lot page, the lot
+ * lookup or its API, and not on an issued certificate. Sterility and endotoxin are pharmaceutical
+ * release specifications, and publishing them signals injectable intent (CLAUDE.md).
+ */
+const UNPUBLISHED_TEST_TYPES: ReadonlySet<string> = new Set(['endotoxin']);
+
+export function isPublishedTestType(testType: string): boolean {
+  return !UNPUBLISHED_TEST_TYPES.has(testType);
+}
 
 export type LotTestInput = {
   testType: string;
