@@ -92,10 +92,13 @@
         // Manual mode enables a safe Zelle simulation here. The application replaces these real
         // enrollment values with unmistakable fake details and never contacts a payment provider.
         "ZELLE_MODE": "manual",
-        // Postage is bought straight from USPS. The consumer key below is a public
-        // identifier; USPS_CLIENT_SECRET is a Worker secret and is never written here.
-        // See docs/operations/USPS_DIRECT_SETUP.md.
-        "SHIPPING_PROVIDER": "usps",
+        // Launch runs on Shippo, because USPS refuses COMMERCIAL pricing until it
+        // grants the pending request and direct would therefore sell at RETAIL.
+        // Every USPS_* value below stays configured: flipping SHIPPING_PROVIDER to
+        // "usps" is the whole switch once USPS answers. The consumer key is a
+        // public identifier; USPS_CLIENT_SECRET is a Worker secret, never written
+        // here. See docs/operations/USPS_DIRECT_SETUP.md.
+        "SHIPPING_PROVIDER": "shippo",
         "USPS_CLIENT_ID": "MrjdcYO6qS4bZsYy0KOGw4jAg44CU4IHNJSY6tRJvAfvtm2G",
         "USPS_CRID": "59918139",
         "USPS_MID": "904260903",

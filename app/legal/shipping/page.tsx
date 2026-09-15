@@ -48,10 +48,10 @@ export default function ShippingPage() {
 
       <LegalSection heading="4. Carriers, cost and tracking">
         <p>
-          Shipments travel by USPS with tracking, on postage we buy directly from the Postal Service. Shipping
-          options and their cost are shown at checkout before you pay, and depend on the service, the destination
-          and whether cold packaging is needed. We may choose a different USPS service than the one shown if it
-          gets the material there in better condition, at no extra charge to you.
+          Shipments travel by USPS with tracking. Shipping options and their cost are shown at checkout before
+          you pay, and depend on the service, the destination and whether cold packaging is needed. We may choose
+          a different USPS service than the one shown if it gets the material there in better condition, at no
+          extra charge to you.
         </p>
       </LegalSection>
 
