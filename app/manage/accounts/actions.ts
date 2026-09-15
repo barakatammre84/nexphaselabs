@@ -2,7 +2,7 @@
 
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { getAccountDetail, reinstateAccount, revokeAccountSessions, staffResendVerification, staffSendPasswordReset, suspendAccount } from '@/lib/account-service';
+import { confirmEmailByStaff, getAccountDetail, reinstateAccount, revokeAccountSessions, staffResendVerification, staffSendPasswordReset, suspendAccount } from '@/lib/account-service';
 import { canVerifyAccounts, getStaff } from '@/lib/staff-auth';
 
 export type AccountServiceState = { values: Record<string, string>; errors: string[] };
@@ -43,6 +43,9 @@ export async function accountServiceAction(accountId: string, _prev: AccountServ
         break;
       case 'verify':
         outcome = await staffResendVerification(detail.account, staff);
+        break;
+      case 'confirm_email':
+        outcome = await confirmEmailByStaff(detail.account, values.reason, staff);
         break;
       case 'suspend':
         outcome = await suspendAccount(detail.account, values.reason, staff);

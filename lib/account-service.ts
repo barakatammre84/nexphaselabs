@@ -259,6 +259,58 @@ export async function staffResendVerification(account: Account, staff: StaffPrin
   return sent ? { ok: true, detail: 'Verification email sent.' } : { ok: false, error: 'The verification email could not be sent. Check the email configuration.' };
 }
 
+/**
+ * Confirm a customer's email address by hand. The check-email page tells a customer whose
+ * confirmation email could not be sent to write to research@ and have the address confirmed
+ * by hand; this is that step. It does what an opened confirmation link does (the account
+ * becomes active and the address is marked verified), retires any confirmation link still
+ * outstanding, and records who confirmed the address and how. A note is required: a
+ * confirmation with no record of how it was made is not evidence.
+ */
+export async function confirmEmailByStaff(account: Account, note: string, staff: StaffPrincipal): Promise<ServiceResult> {
+  if (account.status === 'suspended') return { ok: false, error: 'Reinstate the account before confirming its email address.' };
+  if (account.status !== 'pending_email') return { ok: false, error: 'This email address is already confirmed.' };
+  const how = note.trim().slice(0, 300);
+  if (!how) return { ok: false, error: 'Say how the address was confirmed, for example the message the customer sent from it.' };
+  const db = getDb();
+  const now = new Date();
+  const marker = id('chg');
+  const [updated] = await db.batch([
+    db
+      .update(accounts)
+      .set({ status: 'active', emailVerifiedAt: now, updatedAt: now, lastChangeId: marker })
+      .where(and(eq(accounts.id, account.id), eq(accounts.status, 'pending_email')))
+      .returning({ id: accounts.id }),
+    // An emailed link that arrives later must not act on the account again.
+    db
+      .update(emailTokens)
+      .set({ usedAt: now })
+      .where(
+        and(
+          eq(emailTokens.accountId, account.id),
+          eq(emailTokens.purpose, 'verify_email'),
+          isNull(emailTokens.usedAt),
+          sql`(SELECT last_change_id FROM accounts a WHERE a.id = ${account.id}) = ${marker}`,
+        ),
+      ),
+    db.insert(accountEvents).select(
+      db
+        .select({
+          id: sql<string>`${id('aev')}`.as('id'),
+          accountId: accounts.id,
+          action: sql<string>`'email_confirmed_by_staff'`.as('action'),
+          detail: sql<string>`${how}`.as('detail'),
+          actor: sql<string>`${by(staff)}`.as('actor'),
+          createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
+        })
+        .from(accounts)
+        .where(and(eq(accounts.id, account.id), eq(accounts.lastChangeId, marker))),
+    ),
+  ]);
+  if (!updated || updated.length === 0) return { ok: false, error: 'This account changed while you were editing. Reload and try again.' };
+  return { ok: true, detail: 'Email address confirmed. The customer can now sign in.' };
+}
+
 /** Suspend: sign-in refused and every session ended. The organisation's verification is untouched. */
 export async function suspendAccount(account: Account, reason: string, staff: StaffPrincipal): Promise<ServiceResult> {
   if (account.status === 'suspended') return { ok: false, error: 'This account is already suspended.' };
