@@ -1,5 +1,6 @@
 import { getProductByCode } from '@/lib/catalog-data';
 import { MAX_IMAGE_BYTES, putProductImage } from '@/lib/documents';
+import { readUploadForm, UploadTooLargeError } from '@/lib/large-uploads';
 import { attachProductImage, clearProductImage } from '@/lib/product-documents';
 import {
   canEditCatalog,
@@ -29,9 +30,9 @@ export async function POST(
 
   let form: FormData;
   try {
-    form = await request.formData();
-  } catch {
-    return back('image=badform');
+    form = await readUploadForm(request, MAX_IMAGE_BYTES);
+  } catch (error) {
+    return back(error instanceof UploadTooLargeError ? 'image=size' : 'image=badform');
   }
   if (form.get('action') === 'remove') {
     try {

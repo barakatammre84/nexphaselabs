@@ -6,6 +6,7 @@ import { gateNonProduction, withNoindex } from './lib/environment-gate';
 import { legacyDecision, legacyResponse } from './lib/legacy-redirects';
 import { syncZelleMailbox } from './lib/zelle-gmail';
 import { zelleInboxEnabled } from './lib/zelle-config';
+import { shieldLargeUpload } from './lib/large-uploads';
 
 export { FeedbackRoom } from './lib/feedback-room';
 
@@ -50,6 +51,10 @@ export default {
     if (pathname === '/api/feedback/realtime') {
       return feedbackRealtime(request, runtimeEnv);
     }
+    // Document and image uploads can be larger than the framework's server-action
+    // body limit, which vinext also applies to route handlers. Relabelled here, they
+    // reach their routes unread (lib/large-uploads.ts).
+    forwarded = shieldLargeUpload(forwarded, pathname);
     const response = await handler.fetch(forwarded, runtimeEnv, ctx);
     // Anything else under the asset directory — favicon, product images, the client
     // manifest — reaches the handler as a 404. Serve it only when the asset store

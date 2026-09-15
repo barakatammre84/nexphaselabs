@@ -1,5 +1,6 @@
 import { getProductByCode } from '@/lib/catalog-data';
 import { MAX_DOCUMENT_BYTES, putProductDocument } from '@/lib/documents';
+import { readUploadForm, UploadTooLargeError } from '@/lib/large-uploads';
 import { attachSds } from '@/lib/product-documents';
 import { canEditCatalog, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
 
@@ -17,9 +18,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
 
   let form: FormData;
   try {
-    form = await request.formData();
-  } catch {
-    return back('sds=badform');
+    form = await readUploadForm(request, MAX_DOCUMENT_BYTES);
+  } catch (error) {
+    return back(error instanceof UploadTooLargeError ? 'sds=size' : 'sds=badform');
   }
   const file = form.get('file');
   const revision = String(form.get('revision') ?? '').trim().slice(0, 80) || null;

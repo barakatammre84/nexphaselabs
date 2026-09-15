@@ -1,5 +1,6 @@
 import { getAccountFromRequest } from '@/lib/account-auth';
 import { MAX_DOCUMENT_BYTES, putOrganizationDocument } from '@/lib/documents';
+import { readUploadForm, UploadTooLargeError } from '@/lib/large-uploads';
 import { DOCUMENT_KINDS } from '@/lib/organization-rules';
 import { attachOrganizationDocument, getOrganizationForAccount, listOrganizationDocuments } from '@/lib/organizations';
 import { sameOrigin } from '@/lib/staff-auth';
@@ -20,9 +21,9 @@ export async function POST(request: Request) {
 
   let form: FormData;
   try {
-    form = await request.formData();
-  } catch {
-    return back('doc=badform');
+    form = await readUploadForm(request, MAX_DOCUMENT_BYTES);
+  } catch (error) {
+    return back(error instanceof UploadTooLargeError ? 'doc=size' : 'doc=badform');
   }
   const kind = String(form.get('kind') ?? '');
   const file = form.get('file');
