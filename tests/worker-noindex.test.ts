@@ -99,3 +99,18 @@ describe('noindex on answers the worker makes before the framework', () => {
     expect(framework).not.toHaveBeenCalled();
   });
 });
+
+describe('browser security headers on answers the worker finishes', () => {
+  it('protects framework pages, old-URL redirects and fallback assets alike', async () => {
+    const page = await visit('https://nexphaselabs.net/catalog', production);
+    expect(page.headers.get('X-Frame-Options')).toBe('DENY');
+    expect(page.headers.get('Strict-Transport-Security')).toBe('max-age=31536000');
+    const redirect = await visit('https://nexphaselabs.net/shop/', production);
+    expect(redirect.status).toBe(301);
+    expect(redirect.headers.get('X-Content-Type-Options')).toBe('nosniff');
+    framework.mockResolvedValue(new Response('not found', { status: 404 }));
+    assets.mockResolvedValue(new Response('icon', { status: 200 }));
+    const asset = await visit('https://nexphaselabs.net/favicon.ico', production);
+    expect(asset.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
+  });
+});
