@@ -256,6 +256,62 @@ each rate was excluded. Run it after changing what is stocked.
 
 ---
 
+## 5c. What else in the USPS catalogue is worth having
+
+Every entry below was probed against the live API on 15 September 2026 rather
+than read off its description, because the descriptions have been misleading
+twice already.
+
+**Self-service — do this at cop.usps.com, no support ticket.**
+
+- **Addresses 3.0** returns **403**, and the message is the useful part: *"USPS
+  implemented Addresses API Access Controls 8/1/2026. If you still require
+  access, please visit the Business Portal to initiate the sign-up process (My
+  Account > API Licenses > Add an Addresses API License)."* This is a licence
+  the account holder grants themselves in minutes — it is **not** part of the
+  support request and must not be bundled into it. Worth having: validating a
+  consignee address before a label is bought is what stops a parcel being
+  undeliverable, and USPS prices against the standardised ZIP+4.
+
+**Already granted and working — buildable today, nothing to wait for.**
+
+- **Service Standards 3.0** returns **200** right now. Asked about 95242 to
+  63118 by Ground Advantage it answered `serviceStandard: "4"`,
+  `serviceStandardMessage: "4 Days"`, `scheduledDeliveryDateTime`
+   2026-09-19T18:00, and a 16:00 acceptance cut-off. **This is the delivery
+  commitment the price search does not return**, and it means the per-class
+  fallbacks currently shown (Ground Advantage 5, Priority 3) can be replaced
+  with USPS's own figures. Not yet wired up.
+- **Tracking 3.2** — see section 6.
+
+**Worth adding to the support request, at the end, after the four that matter.**
+
+- **Adjustments 3.0** (401 today). USPS re-bills when the weight or dimensions
+  declared on a label differ from what its equipment measures. Those adjustments
+  land against the EPS account after the fact, which means the postage figure
+  recorded on a label can quietly stop being what was actually paid. For a build
+  that deliberately records the charged amount, this is the API that keeps that
+  record true.
+- **SCAN Forms 3.0** (401 today). One manifest and one acceptance scan for a
+  batch of parcels, instead of the default 12:30am CT manifest. Only matters once
+  several parcels go out at once.
+
+**Deliberately not requested.**
+
+- **Informed Delivery Mail and Package Campaigns** — marketing creative attached
+  to physical mailpieces. For this product category, promotional content riding
+  on a shipment is exactly the sort of thing [[education-marketing-line]] exists
+  to prevent.
+- **International Labels and Prices** — shipping this catalogue across a border
+  is a regulatory decision, not an integration.
+- **PMOD, Containers, Appointments, Logistics Shipments, Indemnity Claims** —
+  pallet, trailer and bulk-induction features for a scale this business is
+  nowhere near.
+- **QR Codes (Smart Locker), Carrier Pickup** — pickup happens at the counter
+  from a PO Box origin.
+
+---
+
 ## 6. Known limits, stated plainly
 
 - **Refund disputes cannot be read back.** Cancelling an unused label is
