@@ -212,4 +212,25 @@ describe('server-owned checkout quotes', () => {
       shipping_service: 'UPS Ground',
     });
   });
+
+  it('names no carrier when no delivery option is eligible, whichever services are configured', async () => {
+    // The simulated provider offers no Priority Mail, so no rate survives the approved-service filter.
+    env.SHIPPING_ALLOWED_SERVICES = 'usps_priority';
+    const guest = await syntheticBuyer();
+    const cart = await getCart(
+      guest.buyer.id,
+      visibilityFor(null, false, true),
+    );
+    const result = await createCheckoutQuotes(
+      guest.buyer.id,
+      cart,
+      shipTo,
+      'synthetic@example.invalid',
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringContaining('No eligible delivery options'),
+    });
+    expect(result.ok ? '' : result.error).not.toMatch(/USPS|UPS|FedEx/);
+  });
 });

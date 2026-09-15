@@ -100,6 +100,52 @@ describe('public feedback and ChatGPT archive routes', () => {
     expect((await postFeedback(request({ message: '' }))).status).toBe(422);
   });
 
+  it('lists reports in the shape the widget reads, whether or not a report is open', async () => {
+    const created = await postFeedback(
+      request({
+        message: 'The catalog search clears my query.',
+        title: 'Search clears the query',
+        kind: 'bug',
+        severity: 'minor',
+        page: '/catalog',
+      }),
+    );
+    const cookie = created.headers.get('set-cookie')!;
+    const read = async (query = '') =>
+      (await (
+        await getFeedback(
+          new Request(`https://test.example.org/api/feedback${query}`, {
+            headers: { cookie },
+          }),
+        )
+      ).json()) as {
+        conversation: { id: string } | null;
+        conversations: Record<string, unknown>[];
+      };
+    const open = await read();
+    // A well-formed reference this visitor does not own opens no report, but
+    // the list beside it must still be one the widget can render.
+    const unopened = await read('?conversation=FB-000000-00000000');
+    expect(unopened.conversation).toBeNull();
+    expect(unopened.conversations).toEqual(open.conversations);
+    // components/site/feedback-chat.tsx keys, opens and badges reports by `id` and `unread`.
+    expect(unopened.conversations).toEqual([
+      {
+        id: open.conversation!.id,
+        subject: expect.any(String),
+        kind: 'bug',
+        severity: 'minor',
+        status: expect.any(String),
+        priority: expect.any(String),
+        unread: 0,
+        lastSender: 'visitor',
+        lastMessageAt: expect.any(String),
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String),
+      },
+    ]);
+  });
+
   it('keeps the archive unavailable without its independent bearer token and returns safe structured records with it', async () => {
     await postFeedback(
       request({ message: 'Searchable feedback', name: 'Test', page: '/faq' }),

@@ -1,11 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { ChevronDown, Search } from 'lucide-react';
 
 export type FaqSection = {
   heading: string;
-  items: { q: string; a: string }[];
+  /** `link` follows the answer when the answer sends the reader to a page. */
+  items: { q: string; a: string; link?: { href: string; label: string } }[];
 };
 
 export function FaqExplorer({ sections }: { sections: FaqSection[] }) {
@@ -94,7 +96,18 @@ export function FaqExplorer({ sections }: { sections: FaqSection[] }) {
                       {item.q}
                       <ChevronDown className="size-5 shrink-0 text-primary transition-transform group-open:rotate-180" />
                     </summary>
-                    <p className="max-w-3xl pb-6 text-sm leading-7 text-muted-foreground sm:text-base">{item.a}</p>
+                    <p className="max-w-3xl pb-6 text-sm leading-7 text-muted-foreground sm:text-base">
+                      {item.a}
+                      {item.link && (
+                        <>
+                          {' '}
+                          <Link href={item.link.href} className="font-semibold text-primary">
+                            {item.link.label}
+                          </Link>
+                          .
+                        </>
+                      )}
+                    </p>
                   </details>
                 ))}
               </div>

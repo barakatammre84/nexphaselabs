@@ -211,7 +211,8 @@ export async function createCheckoutQuotes(
   if (!rows.length)
     return {
       ok: false,
-      error: 'No eligible USPS, UPS or FedEx delivery options were returned.',
+      // Carrier-neutral: which carriers and services are approved is configuration.
+      error: 'No eligible delivery options were returned.',
     };
   await getDb().insert(checkoutQuotes).values(rows);
   return {

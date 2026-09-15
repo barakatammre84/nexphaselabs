@@ -374,7 +374,8 @@ export async function quoteShipping(
       return {
         ok: false as const,
         error:
-          'No eligible rate was returned from the configured USPS, UPS, or FedEx accounts. Check the accounts, package details, and service requirements.',
+          // Carrier-neutral: checkout shows this, and SHIPPING_ALLOWED_SERVICES decides which carriers apply.
+          'No eligible rate was returned from the configured carrier accounts. Check the accounts, package details, and service requirements.',
       };
     return {
       ok: true as const,

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('cloudflare:workers', () => ({ env: {} }));
 import type { CatalogProduct } from '@/lib/catalog-data';
-import { listingBlockers, normaliseSort, sellableSkus, sortStorefront, toListed, type PublishableStock } from '@/lib/storefront';
+import { listingBlockers, normaliseSort, sellableSkus, sortStorefront, toListed, visibleStock, type ListedProduct, type PublishableStock } from '@/lib/storefront';
 
 /**
  * The storefront listing rule (Chapter 19): listed means photographed, priced
@@ -74,11 +74,35 @@ describe('sort', () => {
   const a = toListed(product({ name: 'Alpha', createdAt: new Date('2026-09-02T00:00:00Z') }), [bulk], now)!;
   const b = toListed(product({ code: 'NPL-0002', name: 'Beta', createdAt: new Date('2026-09-10T00:00:00Z'), variants: [{ ...product().variants[0], listPriceCents: 900 }] }), [{ ...bulk, productCode: 'NPL-0002' }], now)!;
   it('orders by name, lowest price, or newest, and falls back to A–Z', () => {
-    expect(sortStorefront([b, a], 'az').map((p) => p.name)).toEqual(['Alpha', 'Beta']);
-    expect(sortStorefront([a, b], 'za').map((p) => p.name)).toEqual(['Beta', 'Alpha']);
-    expect(sortStorefront([a, b], 'price').map((p) => p.name)).toEqual(['Beta', 'Alpha']);
-    expect(sortStorefront([a, b], 'newest').map((p) => p.name)).toEqual(['Beta', 'Alpha']);
-    expect(normaliseSort('bogus')).toBe('az');
-    expect(normaliseSort('newest')).toBe('newest');
+    expect(sortStorefront([b, a], 'az', 'researcher').map((p) => p.name)).toEqual(['Alpha', 'Beta']);
+    expect(sortStorefront([a, b], 'za', 'researcher').map((p) => p.name)).toEqual(['Beta', 'Alpha']);
+    expect(sortStorefront([a, b], 'price', 'researcher').map((p) => p.name)).toEqual(['Beta', 'Alpha']);
+    expect(sortStorefront([a, b], 'newest', 'researcher').map((p) => p.name)).toEqual(['Beta', 'Alpha']);
+    expect(normaliseSort('bogus', 'researcher')).toBe('az');
+    expect(normaliseSort('newest', 'researcher')).toBe('newest');
+  });
+  it('never gives a viewer shown no prices an order derived from prices', () => {
+    expect(normaliseSort('price', 'none')).toBe('az');
+    expect(normaliseSort('price', 'researcher')).toBe('price');
+    // Even a caller that skips normaliseSort gets the default order.
+    expect(sortStorefront([b, a], 'price', 'none').map((p) => p.name)).toEqual(['Alpha', 'Beta']);
+  });
+  it('orders by the price tier the viewer is shown, never another tier', () => {
+    const c = toListed(product({ code: 'NPL-0003', name: 'Gamma', variants: [{ ...product().variants[0], listPriceCents: 1900 }] }), [{ ...bulk, productCode: 'NPL-0003' }], now)!;
+    const tier = (p: ListedProduct, institutionalPriceCents: number) => ({ ...p, variants: p.variants.map((v) => ({ ...v, institutionalPriceCents })) });
+    const list = [tier(a, 800), tier(b, 1200), tier(c, 300)];
+    expect(sortStorefront(list, 'price', 'researcher').map((p) => p.name)).toEqual(['Beta', 'Gamma', 'Alpha']);
+    expect(sortStorefront(list, 'price', 'institutional').map((p) => p.name)).toEqual(['Gamma', 'Alpha', 'Beta']);
+  });
+});
+
+describe('stock state', () => {
+  it('follows availability: a viewer without it sees neither in stock nor out of stock', () => {
+    const out = toListed(product(), [expired], now)!;
+    const inStock = toListed(product(), [vial5], now)!;
+    expect(visibleStock(out, { availability: true })).toBe('out_of_stock');
+    expect(visibleStock(inStock, { availability: true })).toBe('in_stock');
+    expect(visibleStock(out, { availability: false })).toBeNull();
+    expect(visibleStock(inStock, { availability: false })).toBeNull();
   });
 });

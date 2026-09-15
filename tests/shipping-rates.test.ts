@@ -253,6 +253,39 @@ describe('USPS/UPS/FedEx eligible rate comparison', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it('names no carrier when no returned rate is an approved service', async () => {
+    // Staging approves USPS services only; the buyer sees this error at checkout.
+    Object.assign(env, {
+      APP_ENV: 'staging',
+      SHIPPING_PROVIDER: 'shippo',
+      SHIPPO_API_KEY: 'shippo_test_synthetic',
+      SHIPPO_CARRIER_ACCOUNTS: 'account1',
+      SHIPPING_FROM_JSON: JSON.stringify(address),
+      SHIPPING_ALLOWED_SERVICES: 'usps_ground_advantage,usps_priority',
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        Response.json(
+          payload([
+            raw(),
+            raw({
+              object_id: 'rate2',
+              provider: 'FedEx',
+              servicelevel: { token: 'fedex_ground', name: 'Ground' },
+            }),
+          ]),
+        ),
+      ),
+    );
+    const result = await quoteShipping(address, parcel, policy);
+    expect(result).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('No eligible rate'),
+    });
+    expect(result.ok ? '' : result.error).not.toMatch(/USPS|UPS|FedEx/);
+  });
+
   it('rejects duplicate named-origin IDs before contacting Shippo', async () => {
     Object.assign(env, {
       APP_ENV: 'staging',

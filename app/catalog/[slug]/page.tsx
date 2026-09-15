@@ -9,7 +9,7 @@ import { ProductPurchasePanel } from '@/components/site/product-purchase-panel';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
 import { REGULATORY_STATEMENT, STANDARD_DOCUMENTATION } from '@/lib/catalog';
 import { loadCatalog } from '@/lib/catalog-data';
-import { getStorefrontProduct, listStorefrontProducts } from '@/lib/storefront';
+import { getStorefrontProduct, listStorefrontProducts, visibleStock } from '@/lib/storefront';
 import { listReleasedLotsForProduct } from '@/lib/lots-public';
 import { currentSds } from '@/lib/product-documents';
 import { STOREFRONT_COPY } from '@/lib/storefront-copy';
@@ -117,6 +117,8 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
   const activeVariants = product.variants.filter((v) => v.active);
   const sds = (await loadCatalog(() => currentSds(product.id))).data ?? null;
   const hasReleasedLot = releasedLots.length > 0;
+  // Stock state is lot availability: null for a viewer who is not shown it.
+  const stock = visibleStock(product, visibility);
 
   return (
     <main className="material-page text-foreground">
@@ -142,7 +144,7 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
             </h1>
             <p className="mt-3 text-sm text-muted-foreground">
               CAS {product.casNumber} &middot; {product.form}
-              {product.stock === 'out_of_stock' && (
+              {stock === 'out_of_stock' && (
                 <span className="ml-3 rounded-full bg-[var(--ion-navy)] px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-white">
                   Out of stock
                 </span>
@@ -399,9 +401,12 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
         </p>
         {visibility.pricing !== 'none' && (
           <div className="mt-5 flex max-w-2xl flex-wrap items-center justify-between gap-3 border-l-4 border-primary bg-secondary px-4 py-3 text-sm">
-            <span>
-              Choose a pack below. No account or email verification is required.
-            </span>
+            {/* True of guest checkout only: in a closed storefront, whoever sees prices here is signed in. */}
+            {openCheckoutEnabled() && (
+              <span>
+                Choose a pack below. No account or email verification is required.
+              </span>
+            )}
             <span className="font-semibold">
               Shipping and tax appear before payment.
             </span>
@@ -412,7 +417,9 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
             <span className="utility-label text-muted-foreground">
               Quantity
             </span>
-            <span className="utility-label text-muted-foreground">Status</span>
+            {stock !== null && (
+              <span className="utility-label text-muted-foreground">Status</span>
+            )}
             {visibility.pricing !== 'none' && (
               <span className="utility-label text-muted-foreground">Price</span>
             )}
@@ -442,11 +449,13 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
                     {variant.presentation}
                   </span>
                 </span>
-                <span
-                  className={`text-sm ${product.sellableSkus.includes(variant.sku) ? 'text-primary' : 'text-destructive'}`}
-                >
-                  {product.sellableSkus.includes(variant.sku) ? 'In stock' : 'Out of stock'}
-                </span>
+                {stock !== null && (
+                  <span
+                    className={`text-sm ${product.sellableSkus.includes(variant.sku) ? 'text-primary' : 'text-destructive'}`}
+                  >
+                    {product.sellableSkus.includes(variant.sku) ? 'In stock' : 'Out of stock'}
+                  </span>
+                )}
                 {visibility.pricing !== 'none' && (
                   <span className="flex flex-wrap items-center justify-end gap-3 text-right font-mono text-sm">
                     {cents === null ? (

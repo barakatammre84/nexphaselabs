@@ -3,6 +3,7 @@ import { documentResponse } from '@/lib/documents';
 import { currentDocument, getIssuedObject } from '@/lib/issued-documents';
 import { getOrderForAccount } from '@/lib/orders';
 import { recoveredOrder, recoveryTokenFromRequest } from '@/lib/guest-order-recovery';
+import { orderNumberFromParam } from '@/lib/order-rules';
 
 /**
  * The customer's own invoice.
@@ -22,8 +23,9 @@ export async function GET(
   if (!account && !recoveryToken) return new Response('Unauthorized', { status: 401 });
 
   const { orderNumber } = await params;
-  const normalised = decodeURIComponent(orderNumber).trim().toUpperCase();
-  if (!/^[A-Z0-9][A-Z0-9-]{2,31}$/.test(normalised)) {
+  // Null for anything that is not an order number, a malformed percent-escape included.
+  const normalised = orderNumberFromParam(orderNumber);
+  if (!normalised) {
     return new Response('Not found', { status: 404 });
   }
 

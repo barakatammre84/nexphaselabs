@@ -113,6 +113,14 @@ describe('an indexed WordPress product URL', () => {
     }
   });
 
+  it('answers a malformed percent-escape the way it answers any other unknown slug', async () => {
+    // decodeURIComponent throws on these, which used to surface as a 500.
+    expect((await call('no-such-product')).status).toBe(410);
+    for (const slug of ['%E0%A4%A', '%', 'ghk-cu%']) {
+      expect((await call(slug)).status, slug).toBe(410);
+    }
+  });
+
   it('stays reversible when the catalog cannot be read', async () => {
     local.sqlite.close();
     const response = await call('ghk-cu');

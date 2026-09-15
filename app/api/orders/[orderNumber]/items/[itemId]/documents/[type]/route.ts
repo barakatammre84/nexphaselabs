@@ -3,6 +3,7 @@ import { documentResponse, getLotDocument } from '@/lib/documents';
 import { pinnedDocument } from '@/lib/document-pins';
 import { getOrderForAccount } from '@/lib/orders';
 import { recoveredOrder, recoveryTokenFromRequest } from '@/lib/guest-order-recovery';
+import { orderNumberFromParam } from '@/lib/order-rules';
 
 /**
  * The certificate or SDS AS SHIPPED for one line of the customer's own order.
@@ -23,8 +24,9 @@ export async function GET(
   if (!account && !recoveryToken) return new Response('Unauthorized', { status: 401 });
 
   const { orderNumber, itemId, type } = await params;
-  const normalised = decodeURIComponent(orderNumber).trim().toUpperCase();
-  if (!/^[A-Z0-9][A-Z0-9-]{2,31}$/.test(normalised)) return new Response('Not found', { status: 404 });
+  // Null for anything that is not an order number, a malformed percent-escape included.
+  const normalised = orderNumberFromParam(orderNumber);
+  if (!normalised) return new Response('Not found', { status: 404 });
   if (type !== 'coa' && type !== 'sds') return new Response('Not found', { status: 404 });
   if (!/^[a-z]{2,4}_[A-Za-z0-9]{6,40}$/.test(itemId)) return new Response('Not found', { status: 404 });
 

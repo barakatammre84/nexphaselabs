@@ -8,6 +8,7 @@ import {
 } from '@/lib/catalog-data';
 import { lotSuppliesPack } from '@/lib/lot-quantities';
 import { publishableLot } from '@/lib/lots-public';
+import { priceFor, type Visibility } from '@/lib/visibility-rules';
 
 /**
  * The storefront listing rule (Chapter 19 §19.2, 14 Sep 2026).
@@ -71,6 +72,15 @@ export function toListed(product: CatalogProduct, stock: PublishableStock[], now
   return { ...product, stock: skus.length ? 'in_stock' : 'out_of_stock', sellableSkus: skus };
 }
 
+/**
+ * The stock state a viewer may see, or null. Whether a pack can be supplied
+ * today is lot availability, which lib/visibility-rules.ts shows only with
+ * `availability`; a viewer without it sees neither "in stock" nor "out of stock".
+ */
+export function visibleStock(product: ListedProduct, visibility: Pick<Visibility, 'availability'>): StockState | null {
+  return visibility.availability ? product.stock : null;
+}
+
 async function publishableStock(codes: string[]): Promise<PublishableStock[]> {
   if (!codes.length) return [];
   return getDb()
@@ -127,24 +137,33 @@ export async function listStorefrontProductLinks(): Promise<
 
 export type StorefrontSort = 'az' | 'za' | 'price' | 'newest';
 
-export function normaliseSort(raw: string | undefined): StorefrontSort {
-  return raw === 'za' || raw === 'price' || raw === 'newest' ? raw : 'az';
+/**
+ * The sort a viewer asked for, if they may have it. An order by price reveals
+ * price, so a viewer shown no prices gets the default order instead.
+ */
+export function normaliseSort(raw: string | undefined, pricing: Visibility['pricing']): StorefrontSort {
+  if (raw === 'price') return pricing === 'none' ? 'az' : 'price';
+  return raw === 'za' || raw === 'newest' ? raw : 'az';
 }
 
-function lowestPrice(product: ListedProduct): number {
+/** The lowest price shown to this viewer's tier; a product with none sorts last. */
+function lowestPrice(product: ListedProduct, pricing: Visibility['pricing']): number {
   const prices = product.variants
-    .filter((v) => v.active && approvedPrice(v.listPriceCents))
-    .map((v) => v.listPriceCents as number);
+    .filter((v) => v.active)
+    .map((v) => priceFor(v, pricing))
+    .filter((cents): cents is number => approvedPrice(cents));
   return prices.length ? Math.min(...prices) : Number.MAX_SAFE_INTEGER;
 }
 
-export function sortStorefront(list: ListedProduct[], sort: StorefrontSort): ListedProduct[] {
+export function sortStorefront(list: ListedProduct[], sort: StorefrontSort, pricing: Visibility['pricing']): ListedProduct[] {
   const copy = [...list];
   switch (sort) {
     case 'za':
       return copy.sort((a, b) => b.name.localeCompare(a.name));
     case 'price':
-      return copy.sort((a, b) => lowestPrice(a) - lowestPrice(b) || a.name.localeCompare(b.name));
+      // Never a price order for a viewer shown no prices, whatever the caller passed.
+      if (pricing === 'none') return copy.sort((a, b) => a.name.localeCompare(b.name));
+      return copy.sort((a, b) => lowestPrice(a, pricing) - lowestPrice(b, pricing) || a.name.localeCompare(b.name));
     case 'newest':
       return copy.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || a.name.localeCompare(b.name));
     default:

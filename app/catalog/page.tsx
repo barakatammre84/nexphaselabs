@@ -7,7 +7,7 @@ import { ProductImage } from '@/components/site/product-image';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
 import { REGULATORY_STATEMENT } from '@/lib/catalog';
 import { loadCatalog } from '@/lib/catalog-data';
-import { listStorefrontProducts, normaliseSort, sortStorefront } from '@/lib/storefront';
+import { listStorefrontProducts, normaliseSort, sortStorefront, visibleStock } from '@/lib/storefront';
 import { searchMaterials, searchQuery } from '@/lib/workflow-display';
 import { listActiveClasses } from '@/lib/classes';
 import { currentViewer } from '@/lib/visibility';
@@ -30,7 +30,9 @@ export default async function CatalogPage({
   const rawParams = await searchParams;
   const query = searchQuery(rawParams.q);
   const selectedClass = (rawParams.class ?? '').slice(0, 120);
-  const sort = normaliseSort(rawParams.sort);
+  // Read first: whether this visitor may sort by price or see stock depends on it.
+  const { visibility } = await currentViewer();
+  const sort = normaliseSort(rawParams.sort, visibility.pricing);
   const catalog = await loadCatalog(async () => ({
     products: await listStorefrontProducts(),
     classes: await listActiveClasses(),
@@ -40,8 +42,8 @@ export default async function CatalogPage({
   const results = sortStorefront(
     searchMaterials(all, query).filter((product) => !selectedClass || product.chemicalClass === selectedClass),
     sort,
+    visibility.pricing,
   );
-  const { visibility } = await currentViewer();
 
   return (
     <main className="text-foreground">
@@ -149,7 +151,7 @@ export default async function CatalogPage({
                 <select id="catalog-sort" name="sort" defaultValue={sort} className="min-h-13 rounded-full border border-input bg-secondary px-4 text-sm font-bold text-[var(--ion-navy)] outline-none focus:border-primary">
                   <option value="az">Name A–Z</option>
                   <option value="za">Name Z–A</option>
-                  <option value="price">Price, low to high</option>
+                  {visibility.pricing !== 'none' && <option value="price">Price, low to high</option>}
                   <option value="newest">Newest</option>
                 </select>
                 <button type="submit" className="action-primary gap-2">
@@ -198,7 +200,7 @@ export default async function CatalogPage({
                             <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1.5 text-[10px] font-extrabold text-[var(--ion-navy)] shadow-sm backdrop-blur">
                               {product.chemicalClass}
                             </span>
-                            {product.stock === 'out_of_stock' && (
+                            {visibleStock(product, visibility) === 'out_of_stock' && (
                               <span className="absolute right-3 top-3 rounded-full bg-[var(--ion-navy)] px-3 py-1.5 text-[10px] font-extrabold text-white shadow-sm">
                                 Out of stock
                               </span>
@@ -234,7 +236,7 @@ export default async function CatalogPage({
                               })()}
                             </div>
                             <span className="flex items-center justify-between text-sm font-extrabold text-primary">
-                              {!open ? 'View specifications' : product.stock === 'in_stock' ? 'Select options' : 'View product'}
+                              {!open ? 'View specifications' : visibleStock(product, visibility) === 'in_stock' ? 'Select options' : 'View product'}
                               <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                             </span>
                           </div>

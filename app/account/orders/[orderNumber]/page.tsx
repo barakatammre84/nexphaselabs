@@ -88,6 +88,10 @@ export default async function OrderPage({ params, searchParams }: Props) {
     Boolean(owned) &&
     (order.status === 'submitted' || order.status === 'awaiting_payment') &&
     !zelleClaim;
+  // A recovery code opens the order read-only. Payment is chosen and its instructions
+  // shown only in the browser that placed the order, so this viewer is told where to go.
+  const payElsewhere =
+    !owned && (order.status === 'submitted' || order.status === 'awaiting_payment');
 
   return (
     <main className="bg-background text-foreground">
@@ -185,9 +189,11 @@ export default async function OrderPage({ params, searchParams }: Props) {
         <div className="mt-6 rounded-lg bg-secondary p-5">
           <h2 className="font-semibold">What happens next</h2>
           <p className="mt-2 text-sm leading-6">
-            {order.status === 'awaiting_payment' && !instructions
-              ? 'Payment instructions are unavailable. Contact order support below before sending payment.'
-              : orderNextStep(order)}
+            {payElsewhere
+              ? 'This order is waiting for payment. Preparation begins after payment is confirmed.'
+              : order.status === 'awaiting_payment' && !instructions
+                ? 'Payment instructions are unavailable. Contact order support below before sending payment.'
+                : orderNextStep(order)}
           </p>
           {order.status === 'submitted' && methods.length > 0 && (
             <a href="#order-payment" className="action-primary mt-4">
@@ -326,7 +332,18 @@ export default async function OrderPage({ params, searchParams }: Props) {
             Payment
           </h2>
         )}
-        {order.status === 'submitted' && (
+        {payElsewhere && (
+          <div className="mt-5 border border-border bg-secondary p-6">
+            <h2 className="font-display text-xl font-bold tracking-tight">
+              Payment
+            </h2>
+            <p className="mt-2 text-sm leading-6">
+              To pay, open this order in the browser that placed it, or contact
+              order support below. Do not send payment without instructions.
+            </p>
+          </div>
+        )}
+        {owned && order.status === 'submitted' && (
           <form
             method="post"
             action={`/api/orders/${order.orderNumber}/pay`}
