@@ -77,9 +77,9 @@ the developer-portal username:
 
 > **Subject:** Request Labels 3.0 and Payments 3.0 API access — USPS Ship enrolment
 >
-> I am requesting access to the Domestic Labels 3.0 API **and the Payments 3.0
-> API** for our business account, and enrolment in USPS Ship for outbound and
-> return labels.
+> I am requesting access to the Domestic Labels 3.0 API, the Payments 3.0 API
+> and the Ship Enrollment 3.0 API for our business account, and enrolment in
+> USPS Ship for outbound and return labels.
 >
 > Name: Wisam Ibrahim
 > Company: NexPhase Labs (8486 Ventures LLC)
@@ -94,11 +94,12 @@ the developer-portal username:
 > ZIP Code: 94609
 >
 > Our app is created and approved and currently carries the default API
-> product. We have confirmed via the OAuth scope list that neither `labels` nor
-> `payments` is included: a call to POST /payments/v3/payment-authorization
-> returns 401 "Insufficient OAuth scope". Our Enterprise Payment Account is
-> created and funded. We are an e-commerce shipper sending domestic parcels by
-> USPS Ground Advantage and Priority Mail.
+> product. We have confirmed via the OAuth scope list that `labels`, `payments`
+> and `ship-enrollment` are not included: POST /payments/v3/payment-authorization
+> and POST /ship-enrollment/v3/enrollment both return 401 "Insufficient OAuth
+> scope". Our Enterprise Payment Account is created and funded. We are an
+> e-commerce shipper sending domestic parcels by USPS Ground Advantage and
+> Priority Mail.
 
 Do **not** include the consumer secret; USPS says so explicitly.
 
@@ -110,6 +111,7 @@ granted separately and a missing one means another wait in the same queue:
 | **USPS Ship enrolment** (outbound *and* return) | USPS's own stated prerequisite for the Labels API. Return labels are included now because adding them later is a second ticket. |
 | **Domestic Labels 3.0 API** | Creates the label. Not in the default product. |
 | **Payments 3.0 API** | Authorises the EPS account to pay for the label. Also not in the default product — proven by the 401 above. Labels without this grants a label that cannot be paid for. |
+| **Ship Enrollment 3.0 API** *(secondary)* | `POST /ship-enrollment/v3/enrollment` answers whether a MID is enrolled in USPS Ship, for Outbound, Returns, both or neither, with the enrolment date. It is the only way to confirm the grant landed without attempting a purchase. Also returns 401 insufficient scope today. Ask for it, but do not let it hold up the first three. |
 
 Optional, and only if batch hand-offs are wanted: the **SCAN Forms 3.0 API**
 produces one manifest for a bundle of parcels and gets them an acceptance scan
@@ -276,6 +278,17 @@ each rate was excluded. Run it after changing what is stocked.
   also checked against USPS's published OpenAPI spec for Labels 3.9.16, kept in
   `docs/vendor/usps-labels-3.9.16.yaml`. Re-run that script any time; it touches
   only the login and pricing endpoints and cannot buy postage.
+- **Tracking already works and needs no grant.** Verified live 15 Sep 2026.
+  Tracking 3.2 is `POST /tracking/v3r2/tracking` with a JSON ARRAY body of 1 to
+  35 items — not a GET, which is what makes a naive port fail with an OAS
+  validation error. A non-existent number returns 404 "Duplicate", which is a
+  package-not-found, not a permission problem. The response carries `status`,
+  `statusCategory`, `statusSummary`, `trackingEvents[]`, `uniqueTrackingID` and
+  `deliveryDateExpectation`. Up to 35 numbers per call means one request can
+  cover every in-transit parcel, which suits the existing `*/5` cron. Note the
+  legacy `/tracking/v3` path returns 401 for new users and retires 31 Jul 2027 —
+  use v3r2 only. The site's tracking pipeline is still pointed at Shippo
+  (`lib/shippo-tracking.ts`) and has not yet been ported.
 - **USPS returns no delivery commitment from the price search.** Every rate came
   back with no `commitment` object at all. The delivery-day figures shown are
   our own per-class fallbacks (Ground Advantage 5, Priority 3, Express 1) and
