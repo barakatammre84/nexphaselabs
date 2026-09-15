@@ -312,7 +312,7 @@ describe('label purchase', () => {
 
   it('buys one label, keys it for idempotency and stores the PDF privately', async () => {
     credentials({ USPS_EPS_ACCOUNT_NUMBER: '1000012345' });
-    const put = vi.fn(async () => undefined);
+    const put = vi.fn(async (_key: string, _bytes: Uint8Array) => undefined);
     env.DOCS = { put };
     const calls = routedFetch([tokenRoute, paymentRoute, labelRoute]);
     const result = await uspsPurchaseLabel(
@@ -332,7 +332,7 @@ describe('label purchase', () => {
     expect(put).toHaveBeenCalledTimes(1);
     const [key, bytes] = put.mock.calls[0];
     expect(key).toBe(`shipping-labels/2026/${labelId}.pdf`);
-    expect(Array.from((bytes as Uint8Array).slice(0, 4))).toEqual([
+    expect(Array.from(bytes.slice(0, 4))).toEqual([
       0x25, 0x50, 0x44, 0x46,
     ]);
 

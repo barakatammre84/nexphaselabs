@@ -108,13 +108,13 @@ products**, because production has no released lots. To sell GHK-Cu these must l
 | --- | --- | --- |
 | 3.1 | `RESEARCHER_TIER_ENABLED=true` in production vars | currently `false`; researcher pricing never appears |
 | 3.2 | `OPEN_CHECKOUT_ENABLED=true` in production vars | not set at all; guest checkout is off |
-| 3.3 | A real tax configuration | `TAX_PROVIDER` is unset and the code **refuses simulated tax outside staging**. Production cannot accept any order until this is decided. Not a toggle — a decision about how California tax is charged. |
+| 3.3 | `TAX_PROVIDER=cdtfa` in production vars | BUILT 15 Sep, commit 835f7e0. Uses California's free public rate API — no TaxJar, no subscription. Needs only a California business origin address, which is already known. Open: ask the accountant whether to charge each customer's full district rate (shipped default) or only the 7.25% base for districts you are not engaged in business in (`CDTFA_DISTRICT_RATE=statewide`). |
 | 3.4 | GHK-Cu product + variant published with a real price | `NPL-004-50MG`, $29.00 |
 | 3.5 | GHK-Cu lot entered and **released** in production | `GHKCU50-2605-01`, container 50 mg, ILS Laboratories, COA-2026-ZKMVY2, purity 99.80%. Needs the manufacturer's full name and address — the release blockers refuse without it. |
 | 3.6 | COA PDF uploaded to the production R2 bucket | staging has it; `nexphase-documents` does not |
 | 3.7 | Live Shippo key | test key cannot buy a real label |
 | 3.3b | `POLICIES_COUNSEL_REVIEWED=true` in production vars | counsel review is COMPLETE (Ammre, 14 Sep). Until this is set, all six legal pages render a DRAFT banner to customers. |
-| 3.8 | Zelle: Gmail read-only receipt credentials, verified Chase recipient name, official QR | `ZELLE_RECIPIENT_NAME` is `8486 llc`, unverified against Chase |
+| 3.8 | Zelle: Gmail read-only receipt credentials, official Chase QR | Recipient name CONFIRMED by the owner 15 Sep and corrected to `8486 Ventures LLC`. Chase still uses the legal name, not the DBA; when that changes it is a one-value config edit. |
 
 Release of a lot is a named, recorded act. Do it yourself in `/manage`; do not let it be
 simulated.
