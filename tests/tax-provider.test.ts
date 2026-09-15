@@ -215,3 +215,57 @@ describe('CDTFA California tax provider', () => {
     expect(taxConfiguration()).toMatchObject({ ok: false });
   });
 });
+
+describe('a California address CDTFA will not geocode', () => {
+  /**
+   * CDTFA rejects PO Boxes outright — "Invalid value: 'PO Box'", verified
+   * against the live service on 15 September 2026. A Californian with a PO Box
+   * is an ordinary customer, so this must not be an error that stops a sale.
+   */
+  const poBox = {
+    ...address,
+    street1: 'PO Box 1234',
+    city: 'Lodi',
+    zip: '95242',
+  };
+  const rejection = () =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify({
+          errors: [{ field: 'Address', message: "Invalid value: 'PO Box'" }],
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+  it('charges the statewide base rate and says so, rather than refusing the order', async () => {
+    Object.assign(env, {
+      APP_ENV: 'staging',
+      TAX_PROVIDER: 'cdtfa',
+      SHIPPING_FROM_JSON: JSON.stringify(address),
+    });
+    vi.stubGlobal('fetch', vi.fn(rejection));
+    const result = await quoteTax({ ...input, to: poBox });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // 7.25% of the $100 subtotal; California shipping is not taxed by default.
+    expect(result.cents).toBe(725);
+    expect(result.jurisdiction).toContain('NOT GEOCODED');
+  });
+
+  it('still refuses when the rate service is genuinely broken', async () => {
+    Object.assign(env, {
+      APP_ENV: 'staging',
+      TAX_PROVIDER: 'cdtfa',
+      SHIPPING_FROM_JSON: JSON.stringify(address),
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('gateway down', { status: 502 })),
+    );
+    const result = await quoteTax(input);
+    // A transient outage must not quietly undercharge; it stops the order.
+    expect(result.ok).toBe(false);
+  });
+
+});

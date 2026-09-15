@@ -92,14 +92,14 @@
         // Manual mode enables a safe Zelle simulation here. The application replaces these real
         // enrollment values with unmistakable fake details and never contacts a payment provider.
         "ZELLE_MODE": "manual",
-        // Direct USPS, by the owner's decision of 15 September 2026. Note the
-        // live consequence: USPS still refuses COMMERCIAL pricing until it grants
-        // the pending Labels/Payments request, so quotes are RETAIL until then and
-        // labels refuse outright. Shippo stays configured below; switching back is
-        // this one word. The consumer key is a public identifier;
-        // USPS_CLIENT_SECRET is a Worker secret, never written here.
-        // See docs/operations/USPS_DIRECT_SETUP.md.
-        "SHIPPING_PROVIDER": "usps",
+        // Shippo, by the owner's decision of 15 September 2026. Staging runs on
+        // the Shippo TEST key, which is a complete rehearsal — the live key is a
+        // launch-day value, not a build dependency, and the code refuses a test
+        // key in production by design. Every USPS_* value stays configured and
+        // SHIPPING_PROVIDER=usps is the whole switch. The USPS consumer key is a
+        // public identifier; USPS_CLIENT_SECRET is a Worker secret, never here.
+        // See docs/operations/CARRIER_DECISION_2026-09-15.md.
+        "SHIPPING_PROVIDER": "shippo",
         "USPS_CLIENT_ID": "MrjdcYO6qS4bZsYy0KOGw4jAg44CU4IHNJSY6tRJvAfvtm2G",
         "USPS_CRID": "59918139",
         "USPS_MID": "904260903",
@@ -122,8 +122,12 @@
         "SHIPPING_ALLOWED_SERVICES": "usps_ground_advantage,usps_priority",
         "CHECKOUT_QUOTES_REQUIRED": "true",
         "INVENTORY_RESERVATION_MINUTES": "30",
-        "TAX_PROVIDER": "simulated",
-        "TAX_SIMULATED_RATE_BPS": "825",
+        // The real California provider, so staging exercises what production will.
+        // CDTFA is free, needs no vendor account, and returns rooftop-accurate
+        // district rates; out-of-state destinations are correctly taxed at zero.
+        // Whether destination district rates or the 7.25% statewide base applies
+        // is a nexus question for the accountant — see CDTFA_DISTRICT_RATE.
+        "TAX_PROVIDER": "cdtfa",
         "EMAIL_FROM": "NexPhase Labs <research@nexphaselabs.net>",
       },
       "d1_databases": [

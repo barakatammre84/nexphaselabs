@@ -115,7 +115,15 @@ const CALIFORNIA_MAXIMUM_RATE = 0.115;
 
 type CdtfaRate =
   | { ok: true; rate: number; jurisdiction: string; tac: string | null }
-  | { ok: false; error: string };
+  /**
+   * CDTFA could not place the address on the map. Distinct from a service
+   * failure because it is not transient and will never succeed on retry —
+   * most often a PO Box, which CDTFA rejects outright ("Invalid value: 'PO
+   * Box'"). A California customer using a PO Box is an ordinary customer, so
+   * this must not be treated as an error that blocks checkout.
+   */
+  | { ok: false; geocodeFailed: true }
+  | { ok: false; geocodeFailed?: false; error: string };
 
 async function cdtfaRate(to: ShippingAddress): Promise<CdtfaRate> {
   const query = new URLSearchParams({
@@ -128,6 +136,18 @@ async function cdtfaRate(to: ShippingAddress): Promise<CdtfaRate> {
       signal: AbortSignal.timeout(12_000),
       headers: { Accept: 'application/json' },
     });
+    if (response.status === 400) {
+      // A 400 carries a field-level complaint. An address or city CDTFA cannot
+      // parse is a permanent condition for this address, not an outage.
+      const body = await response.text().catch(() => '');
+      if (/\"field\"\s*:\s*\"(Address|City)\"/i.test(body))
+        return { ok: false, geocodeFailed: true };
+      return {
+        ok: false,
+        error:
+          'The California tax rate service rejected that address. Check the address before submitting the order.',
+      };
+    }
     if (!response.ok)
       return {
         ok: false,
@@ -141,6 +161,12 @@ async function cdtfaRate(to: ShippingAddress): Promise<CdtfaRate> {
           'The California tax rate service returned an unreadable response. The order was not submitted.',
       };
     const info = (payload as { taxRateInfo?: unknown }).taxRateInfo;
+    /**
+     * Deliberately NOT treated as un-geocodable. A 200 with no rate is an
+     * unexplained answer, and quietly charging the statewide floor on an
+     * unexplained answer is how a business under-collects without noticing.
+     * Only CDTFA explicitly rejecting the address earns the fallback.
+     */
     if (!Array.isArray(info) || info.length === 0)
       return {
         ok: false,
@@ -253,6 +279,23 @@ export async function quoteTax(input: TaxQuoteInput) {
         tac: null,
       };
     const rate = await cdtfaRate(input.to);
+    /**
+     * An address CDTFA will not geocode falls back to the statewide base rate
+     * rather than refusing the sale. The jurisdiction says so on the order, so
+     * the handful of affected orders are identifiable and correctable at filing
+     * time — and a PO Box customer can still buy. Blocking checkout over a
+     * district increment would be the worse error.
+     */
+    if (!rate.ok && rate.geocodeFailed)
+      return {
+        ok: true as const,
+        cents: Math.round(taxableCents * CALIFORNIA_BASE_RATE),
+        provider: configuration.provider,
+        test: configuration.test,
+        jurisdiction: 'CALIFORNIA STATEWIDE BASE (ADDRESS NOT GEOCODED)',
+        ratePpm: Math.round(CALIFORNIA_BASE_RATE * 1_000_000),
+        tac: null,
+      };
     if (!rate.ok) return { ok: false as const, error: rate.error };
     return {
       ok: true as const,
