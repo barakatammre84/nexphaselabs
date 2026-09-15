@@ -496,6 +496,8 @@ export async function purchaseShippingLabel(
       transactionId: `sim-label-${suffix}`,
       trackingNumber: `TEST${suffix}`,
       labelUrl: null,
+      postageCents: null,
+      warnings: [] as string[],
       test: true,
     };
   }
@@ -537,6 +539,9 @@ export async function purchaseShippingLabel(
       transactionId: bought.trackingNumber,
       trackingNumber: bought.trackingNumber,
       labelUrl: bought.labelUrl,
+      // USPS reprices at label time, so this is the figure EPS is charged.
+      postageCents: bought.postageCents,
+      warnings: bought.warnings,
       test: bought.test,
     };
   }
@@ -599,6 +604,9 @@ export async function purchaseShippingLabel(
       transactionId,
       trackingNumber,
       labelUrl,
+      // Shippo bills the rate it sold; there is no separate carrier reprice.
+      postageCents: null,
+      warnings: [] as string[],
       test: configuration.test,
     };
   } catch {

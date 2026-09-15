@@ -674,10 +674,30 @@ export type UspsPurchase =
       ok: true;
       trackingNumber: string;
       labelUrl: string;
+      /** What USPS actually charged, which is not always what was quoted. */
       postageCents: number | null;
+      warnings: string[];
       test: boolean;
     }
   | { ok: false; uncertain: boolean; error: string };
+
+/** USPS advisories ride alongside a successful label and are worth keeping. */
+function labelWarnings(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .slice(0, 10)
+    .map((entry) => {
+      const warning = asRecord(entry);
+      const code =
+        typeof warning.warningCode === 'string' ? warning.warningCode : '';
+      const description =
+        typeof warning.warningDescription === 'string'
+          ? warning.warningDescription
+          : '';
+      return `${code ? `${code}: ` : ''}${description}`.trim().slice(0, 300);
+    })
+    .filter(Boolean);
+}
 
 /**
  * Buys one label. `labelId` is the caller's durable claim row, reused as the
@@ -794,14 +814,15 @@ export async function uspsPurchaseLabel(
       error: 'USPS returned a label response we could not read. Reconcile it in the USPS dashboard.',
     };
   }
+  /**
+   * The `application/vnd.usps.labels+json` body is FLAT: LabelVendorResponse is
+   * an allOf over LabelMetadata, so trackingNumber, postage and labelImage sit
+   * at the top level. `labelAddress` is the standardised address, not a
+   * metadata container — reading postage from it silently yields nothing.
+   */
   const body = asRecord(payload);
-  const metadata = asRecord(body.labelMetadata ?? body.labelAddress);
   const trackingNumber =
-    typeof metadata.trackingNumber === 'string'
-      ? metadata.trackingNumber.trim()
-      : typeof body.trackingNumber === 'string'
-        ? body.trackingNumber.trim()
-        : '';
+    typeof body.trackingNumber === 'string' ? body.trackingNumber.trim() : '';
   const image = typeof body.labelImage === 'string' ? body.labelImage : '';
   const bytes = image ? decodeBase64(image) : null;
   if (!/^[A-Za-z0-9]{10,40}$/.test(trackingNumber) || !bytes)
@@ -828,7 +849,8 @@ export async function uspsPurchaseLabel(
     ok: true,
     trackingNumber,
     labelUrl: `r2:${key}`,
-    postageCents: priceToCents(metadata.postage),
+    postageCents: priceToCents(body.postage),
+    warnings: labelWarnings(body.warnings),
     test: configuration.test,
   };
 }
@@ -900,11 +922,13 @@ export async function uspsCancelLabel(
     };
   }
   const body = asRecord(payload);
+  // USPS documents exactly two outcomes: CANCELED (no charge) and DISPUTED
+  // (a refund request, identified by disputeId, that a human must chase).
   const status = typeof body.status === 'string' ? body.status.toUpperCase() : '';
   const disputeId = typeof body.disputeId === 'string' ? body.disputeId : '';
   if (status === 'CANCELED' || status === 'CANCELLED')
     return { ok: true, status: 'success', reference: trackingNumber };
-  if (disputeId && /^[A-Za-z0-9_-]{1,120}$/.test(disputeId))
+  if (status === 'DISPUTED' && /^[A-Za-z0-9_-]{1,120}$/.test(disputeId))
     return { ok: true, status: 'pending', reference: disputeId };
   return {
     ok: false,

@@ -286,10 +286,35 @@ describe('rating', () => {
 
 describe('label purchase', () => {
   const labelId = 'sl_0123456789abcdef0123456789abcdef';
+  /**
+   * The vnd.usps.labels+json body is flat — LabelVendorResponse is an allOf
+   * over LabelMetadata — and `labelAddress` is the standardised address, not a
+   * metadata container. Shaped from the spec's own Base64EncodedImagesExample.
+   */
   const labelRoute: Route = {
     match: '/labels/v3/label',
     body: {
-      labelMetadata: { trackingNumber: '9205590006662200704797', postage: 8.15 },
+      labelAddress: {
+        firstName: 'ADA MARIE',
+        lastName: 'LOVELACE',
+        streetAddress: '2700 S JEFFERSON AVE',
+        city: 'SAINT LOUIS',
+        state: 'MO',
+        ZIPCode: '63118',
+      },
+      routingInformation: '420631182628',
+      trackingNumber: '9205590006662200704797',
+      SKU: 'DPXX0XXXXC01270',
+      postage: 8.72,
+      zone: '08',
+      weightUOM: 'lb',
+      weight: 0.5,
+      warnings: [
+        {
+          warningCode: '160423',
+          warningDescription: 'ADVISORY - serial numbers in range are in use.',
+        },
+      ],
       labelImage: pdf,
     },
   };
@@ -326,7 +351,13 @@ describe('label purchase', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.trackingNumber).toBe('9205590006662200704797');
-    expect(result.postageCents).toBe(815);
+    // Read from the flat body, and it is USPS's repriced figure (8.72) rather
+    // than the 8.15 that was quoted. Reading postage from labelAddress, as an
+    // earlier version did, silently yields nothing at all.
+    expect(result.postageCents).toBe(872);
+    expect(result.warnings).toEqual([
+      '160423: ADVISORY - serial numbers in range are in use.',
+    ]);
     expect(result.labelUrl).toBe(`r2:shipping-labels/2026/${labelId}.pdf`);
 
     expect(put).toHaveBeenCalledTimes(1);
@@ -385,7 +416,7 @@ describe('label purchase', () => {
       {
         match: '/labels/v3/label',
         body: {
-          labelMetadata: { trackingNumber: '9205590006662200704797' },
+          trackingNumber: '9205590006662200704797',
           labelImage: Buffer.from('not a pdf').toString('base64'),
         },
       },
@@ -443,15 +474,11 @@ describe('label cancellation', () => {
       paymentRoute,
       {
         match: '/labels/v3/label/',
-        body: { disputeId: 'DISPUTE-20260915-01', status: 'REFUND_REQUESTED' },
+        body: { status: 'DISPUTED', disputeId: '103789' },
       },
     ]);
     const result = await uspsCancelLabel('9205590006662200704797');
-    expect(result).toEqual({
-      ok: true,
-      status: 'pending',
-      reference: 'DISPUTE-20260915-01',
-    });
+    expect(result).toEqual({ ok: true, status: 'pending', reference: '103789' });
   });
 
   it('refuses an answer USPS did not actually give', async () => {

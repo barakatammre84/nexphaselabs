@@ -219,6 +219,10 @@ export async function buyShippingLabel(
       providerRef: purchased.transactionId,
       labelUrl: purchased.labelUrl,
       trackingNumber: purchased.trackingNumber,
+      // A carrier that reprices at label time makes the quote an estimate. The
+      // label row carries what was really charged; the quote row keeps what was
+      // shown, so the two can be compared.
+      ...(purchased.postageCents ? { amountCents: purchased.postageCents } : {}),
       test: purchased.test,
       error: null,
       updatedAt,

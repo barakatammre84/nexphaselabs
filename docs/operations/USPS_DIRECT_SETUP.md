@@ -137,6 +137,15 @@ route is refused rather than silently repriced.
 as the `X-Idempotency-Key` UUID. A retry of the same claim cannot buy a second
 label, and that same key is the handle USPS uses for reprint and cancellation.
 
+**The response is flat, and postage is not what was quoted.** In the
+`application/vnd.usps.labels+json` body, `LabelVendorResponse` is an `allOf`
+over `LabelMetadata`, so `trackingNumber`, `postage`, `warnings` and
+`labelImage` all sit at the top level — `labelAddress` is the standardised
+address, not a metadata container. USPS also reprices at label time, so the
+`postage` it returns is the figure EPS is charged and it can differ from the
+quote. The label row records the charged amount; the quote row keeps the shown
+amount.
+
 **The label is bytes, not a link.** USPS returns a base64 PDF. It is checked for
 a real `%PDF` header, written to the private R2 bucket under
 `shipping-labels/<year>/<label id>.pdf`, and recorded as `r2:<key>`. The staff
@@ -158,11 +167,16 @@ No label is ever public.
   by the PO Box.
 - **Quoted postage is not the invoice.** USPS reprices at label time; the actual
   postage comes back on the label response and is what EPS is charged.
-- **Untested against the live API.** Every path here is covered by tests against
-  the documented request and response shapes, but no call has been made with a
-  real consumer key, because none exists yet. The first live quote after step 3
-  is the real proof and should be done on staging (`apis-tem.usps.com`, which
-  this code selects automatically outside production).
+- **Quoted postage is an estimate; the label carries the real figure.** See
+  above. The `shipping_labels` row records what USPS actually charged, while
+  the `fulfillment_quotes` row keeps what the customer was shown, so a
+  divergence is visible rather than absorbed.
+- **Untested against the live API.** No call has been made with a real consumer
+  key, because none exists yet. Every request and response shape is now checked
+  against USPS's published OpenAPI spec for Labels 3.9.16, kept in
+  `docs/vendor/usps-labels-3.9.16.yaml`. The first live quote after step 3 is
+  still the real proof, and should be done on staging (`apis-tem.usps.com`,
+  which this code selects automatically outside production).
 - **PO Box number outstanding.** The ship-from ZIP is 95242; the box number
   arrives Saturday and must be in `SHIPPO_ORIGINS_JSON` before a label is bought.
 
