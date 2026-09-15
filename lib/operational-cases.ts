@@ -251,6 +251,86 @@ export async function createOperationalCase(
   return { ok: true, caseNumber };
 }
 
+/**
+ * A signed payment settlement that could not be matched to an order. The webhook still
+ * acknowledges it, or the provider would redeliver it indefinitely, so this case is what puts
+ * the money in front of staff instead of a log line. Redelivery of the same invoice finds the
+ * existing case instead of opening another. The longest-serving active administrator owns it;
+ * with none, this throws and the webhook asks for redelivery rather than dropping the payment.
+ */
+export async function recordUnmatchedSettlement(input: {
+  provider: string;
+  invoiceId: string;
+  orderNumber: string | null;
+  reason: string;
+}): Promise<{ caseNumber: string; created: boolean }> {
+  const db = getDb();
+  const title = `Unmatched ${input.provider} settlement ${input.invoiceId}`.slice(0, 160);
+  const [existing] = await db
+    .select({ caseNumber: operationalCases.caseNumber })
+    .from(operationalCases)
+    .where(eq(operationalCases.title, title))
+    .limit(1);
+  if (existing) return { caseNumber: existing.caseNumber, created: false };
+  const [owner] = await db
+    .select({ id: staffUsers.id, name: staffUsers.name })
+    .from(staffUsers)
+    .where(and(eq(staffUsers.role, 'admin'), eq(staffUsers.active, true)))
+    .orderBy(asc(staffUsers.createdAt))
+    .limit(1);
+  if (!owner) throw new Error('No active administrator can own an unmatched settlement case.');
+  const [linked] = input.orderNumber
+    ? await db
+        .select({ orderNumber: orders.orderNumber })
+        .from(orders)
+        .where(eq(orders.orderNumber, input.orderNumber))
+        .limit(1)
+    : [];
+  const now = new Date();
+  const caseId = id('case');
+  const actorName = `${input.provider} webhook`;
+  const summary = [
+    `${input.provider} reported invoice ${input.invoiceId} as settled, but it matches no order: ${input.reason}.`,
+    input.orderNumber ? `It names order ${input.orderNumber}.` : 'It names no order.',
+    'Nothing was marked paid. Find the payer in the provider dashboard, then attach the payment to the right order or refund it.',
+  ]
+    .join(' ')
+    .slice(0, 3000);
+  const caseNumber = `OPS-${now.toISOString().slice(0, 10).replaceAll('-', '')}-${randomToken().slice(0, 6).toUpperCase()}`;
+  await db.batch([
+    db.insert(operationalCases).values({
+      id: caseId,
+      caseNumber,
+      type: 'incident',
+      severity: 'high',
+      status: 'open',
+      title,
+      summary,
+      ownerId: owner.id,
+      ownerName: owner.name,
+      dueOn: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)),
+      linkedOrderNumber: linked?.orderNumber ?? null,
+      createdBy: actorName,
+      lastChangeId: id('casechg'),
+      createdAt: now,
+      updatedAt: now,
+    }),
+    db.insert(operationalCaseEvents).values({
+      id: id('caseev'),
+      caseId,
+      fromStatus: null,
+      toStatus: 'open',
+      ownerId: owner.id,
+      ownerName: owner.name,
+      action: 'created',
+      note: summary.slice(0, 1000),
+      actor: actorName,
+      createdAt: now,
+    }),
+  ]);
+  return { caseNumber, created: true };
+}
+
 export async function updateOperationalCase(
   current: OperationalCase,
   input: CaseInput,

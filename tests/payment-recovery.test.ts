@@ -3,7 +3,7 @@ import { localD1 } from './helpers/local-d1';
 const { env } = vi.hoisted(() => ({ env: {} as { DB?: D1Database; APP_ENV?: string; BTCPAY_STORE_ID?: string; BTCPAY_WEBHOOK_SECRET?: string } }));
 vi.mock('cloudflare:workers', () => ({ env }));
 import { getDb } from '@/db';
-import { accounts, orders } from '@/db/schema';
+import { accounts, orders, staffUsers } from '@/db/schema';
 import { paymentAttempts } from '@/db/commerce-schema';
 import { cancelOrderByCustomer, getOrderByNumber, recordRefund, settleBtcpayInvoice } from '@/lib/orders';
 import { POST } from '@/app/api/payments/btcpay/webhook/route';
@@ -20,6 +20,8 @@ async function request(body: Record<string, unknown>, valid = true) {
   return POST(new Request('https://example.invalid/api/payments/btcpay/webhook', { method: 'POST', body: raw, headers: { 'BTCPay-Sig': `sha256=${signature}` } }));
 }
 const event = () => ({ type: 'InvoiceSettled', invoiceId: invoice, storeId: 'synthetic-store', metadata: { orderId: number } });
+const admin = () => getDb().insert(staffUsers).values({ id: 'staff_admin', email: 'admin@example.invalid', name: 'Synthetic admin', passwordHash: 'disabled', role: 'admin' });
+const cases = () => local.sqlite.prepare('SELECT * FROM operational_cases').all() as Record<string, unknown>[];
 beforeEach(async () => {
   local = localD1(); Object.assign(env, { DB: local.binding, APP_ENV: 'production', BTCPAY_STORE_ID: 'synthetic-store', BTCPAY_WEBHOOK_SECRET: 'synthetic-secret' });
   vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('No provider calls allowed')));
@@ -90,6 +92,29 @@ describe('payment recovery with no external money movement', () => {
     local.sqlite.exec('UPDATE orders SET payment_method = NULL, payment_ref = NULL, status = \'submitted\'');
     expect((await settleBtcpayInvoice(number, invoice)).ok).toBe(true);
     expect((await detail()).order).toMatchObject({ paymentRef: invoice, paymentStatus: 'paid', status: 'paid' });
+  });
+  it('opens one staff case for a signed settlement that names no order, including redelivery', async () => {
+    await admin();
+    const orphan = { ...event(), metadata: {} };
+    expect((await request(orphan)).status).toBe(200);
+    expect((await request(orphan)).status).toBe(200);
+    expect(cases()).toHaveLength(1);
+    expect(cases()[0]).toMatchObject({ type: 'incident', severity: 'high', status: 'open', owner_id: 'staff_admin', linked_order_number: null });
+    expect(String(cases()[0].title)).toContain(invoice);
+    expect(count('operational_case_events')).toBe(1);
+    expect((await detail()).order.paymentStatus).toBe('pending');
+  });
+  it('links the case to the order a mismatched settlement names', async () => {
+    await admin();
+    local.sqlite.exec("UPDATE orders SET payment_ref = 'Replacement123'");
+    expect((await request(event())).status).toBe(200);
+    expect(cases()).toHaveLength(1);
+    expect(cases()[0].linked_order_number).toBe(number);
+    expect(count('order_events')).toBe(0);
+  });
+  it('asks BTCPay to redeliver when no administrator can own the case', async () => {
+    expect((await request({ ...event(), metadata: { orderId: 'NX-260904-0999' } })).status).toBe(500);
+    expect(cases()).toHaveLength(0);
   });
   it('rejects invalid signatures and other stores', async () => {
     expect((await request(event(), false)).status).toBe(401);

@@ -697,12 +697,12 @@ export async function markOrderPaid(
 export async function settleBtcpayInvoice(
   orderNumber: string,
   invoiceId: string,
-): Promise<{ ok: boolean; note: string; retryable?: boolean }> {
+): Promise<{ ok: boolean; note: string; retryable?: boolean; unmatched?: boolean }> {
   const db = getDb();
   // Re-read once if cancellation/another settlement wins during the batch.
   for (let attempt = 0; attempt < 2; attempt++) {
     const detail = await getOrderByNumber(orderNumber);
-    if (!detail) return { ok: false, note: 'unknown order' };
+    if (!detail) return { ok: false, note: 'unknown order', unmatched: true };
     const order = detail.order;
     if (order.paymentMethod !== 'btcpay' || order.paymentRef !== invoiceId) {
       const [attempt] = await db
@@ -730,7 +730,7 @@ export async function settleBtcpayInvoice(
           note: 'payment request needs reconciliation before settlement can attach',
           retryable: true,
         };
-      return { ok: false, note: 'invoice does not match order' };
+      return { ok: false, note: 'invoice does not match order', unmatched: true };
     }
     if (
       order.paidAt ||
