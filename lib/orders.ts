@@ -638,7 +638,10 @@ export async function markOrderPaid(
   const now = new Date();
   const allocation = await reservationEligibility(detail.order.id, now);
   let moved: Awaited<ReturnType<typeof transitionOrder>>;
-  if (allocation.tracked && !allocation.valid) {
+  // Money that arrives after the reservation lapsed cancels the order with a refund due,
+  // and the caller has to say so rather than report a paid order.
+  const cancelledForStock = allocation.tracked && !allocation.valid;
+  if (cancelledForStock) {
     moved = await transitionOrder(
       detail.order,
       'cancelled',
@@ -680,7 +683,7 @@ export async function markOrderPaid(
         ),
       );
   }
-  return moved;
+  return { ...moved, outcome: cancelledForStock ? ('cancelled' as const) : ('paid' as const) };
 }
 
 /** Record a matched settlement once, including money arriving after cancellation.

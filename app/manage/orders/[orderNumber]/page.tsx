@@ -231,7 +231,16 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
             issued.
           </p>
         )}
-        {paid && (
+        {paid === 'cancelled' ? (
+          <p
+            role="alert"
+            className="mt-6 flex items-center gap-2 border border-destructive/40 bg-secondary p-4 text-sm"
+          >
+            <AlertCircle className="size-4 shrink-0 text-destructive" /> Payment recorded, but the
+            order was cancelled: its stock reservation had lapsed or the reserved lot is no longer
+            available. A full refund is now due and nothing may be shipped.
+          </p>
+        ) : paid ? (
           <p
             role="status"
             className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm"
@@ -239,7 +248,7 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
             <CircleCheck className="size-4 text-primary" /> Payment recorded.
             The customer notification was queued.
           </p>
-        )}
+        ) : null}
         {fulfilling && (
           <p
             role="status"

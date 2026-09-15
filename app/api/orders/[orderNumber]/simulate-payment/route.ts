@@ -39,7 +39,7 @@ export async function POST(
       order.paymentRef,
     );
     if (!result.ok) return back(`error=${encodeURIComponent(result.error)}`);
-    return back('paid=simulated');
+    return back(result.outcome === 'cancelled' ? 'cancelled=1' : 'paid=simulated');
   } catch {
     return back('error=unavailable');
   }

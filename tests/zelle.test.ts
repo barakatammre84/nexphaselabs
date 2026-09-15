@@ -178,7 +178,7 @@ describe('Zelle order settlement', () => {
         'Synthetic admin',
         'CHASE-TEST-REFERENCE',
       ),
-    ).toEqual({ ok: true });
+    ).toEqual({ ok: true, outcome: 'paid' });
     expect(await zelleClaimForOrder(detail.order.id)).toMatchObject({
       status: 'matched',
       matchedReceiptId: null,

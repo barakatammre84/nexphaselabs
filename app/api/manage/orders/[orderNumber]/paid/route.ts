@@ -34,9 +34,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
   try {
     const result = await markOrderPaid(detail, recordedBy(staff), reference);
     if (!result.ok) return back(`error=${encodeURIComponent(result.error)}`);
+    // Late money cancels the order with a refund due; the page must not say "Payment recorded" alone.
+    return back(result.outcome === 'cancelled' ? 'paid=cancelled' : 'paid=1');
   } catch (error) {
     console.error('[orders] mark paid failed', error instanceof Error ? error.message : error);
     return back('error=unavailable');
   }
-  return back('paid=1');
 }
