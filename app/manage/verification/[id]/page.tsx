@@ -11,7 +11,7 @@ import { decideVerificationAction } from '../actions';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Verification', robots: { index: false, follow: false } };
 
-type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ decided?: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ decided?: string; emailed?: string }> };
 
 function Row({ label, value }: { label: string; value: string | null | undefined }) {
   return (
@@ -24,7 +24,7 @@ function Row({ label, value }: { label: string; value: string | null | undefined
 
 export default async function VerificationDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
-  const { decided } = await searchParams;
+  const { decided, emailed } = await searchParams;
   const staff = await requireStaff(`/manage/verification/${id}`);
   if (!/^org_[a-z0-9]{8,32}$/.test(id)) notFound();
   const detail = await getOrganizationDetail(id);
@@ -41,7 +41,10 @@ export default async function VerificationDetailPage({ params, searchParams }: P
         </Link>
         {decided && (
           <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
-            <CircleCheck className="size-4 text-primary" /> Decision recorded: {org.verificationStatus}. The applicant has been emailed.
+            <CircleCheck className="size-4 text-primary" /> Decision recorded: {org.verificationStatus}.{' '}
+            {emailed === '0'
+              ? `The applicant was NOT emailed: the site could not send the message. Email ${account.email} yourself from research@nexphaselabs.net.`
+              : 'The applicant has been emailed.'}
           </p>
         )}
         <p className="mt-6 font-mono text-xs text-muted-foreground">

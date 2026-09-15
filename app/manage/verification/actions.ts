@@ -50,5 +50,6 @@ export async function decideVerificationAction(organizationId: string, _prev: Lo
     return fail('The decision could not be recorded. Try again shortly.');
   }
   if (!outcome.ok) return fail(outcome.error);
-  redirect(`/manage/verification/${organizationId}?decided=${outcome.status}`);
+  // Whether the applicant was emailed travels with the redirect, so the page never claims a message the site could not send.
+  redirect(`/manage/verification/${organizationId}?decided=${outcome.status}${outcome.emailed ? '' : '&emailed=0'}`);
 }

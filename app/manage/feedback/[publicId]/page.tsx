@@ -6,6 +6,7 @@ import { getDb } from '@/db';
 import { feedbackEvents } from '@/db/feedback-schema';
 import { FeedbackStaffThread } from '@/components/manage/feedback-staff-thread';
 import { feedbackConversation, feedbackNotesFor } from '@/lib/feedback';
+import { emailProviderConfigured } from '@/lib/email-provider';
 import { canHandleFeedback, requireStaff } from '@/lib/staff-auth';
 
 export const dynamic = 'force-dynamic';
@@ -100,6 +101,8 @@ export default async function FeedbackConversationPage({
           </div>
           <FeedbackStaffThread
             publicId={publicId}
+            visitorEmail={conversation.visitorEmail}
+            repliesEmailed={emailProviderConfigured()}
             status={conversation.status}
             priority={conversation.priority}
             labels={labelsFrom(conversation.labels)}
