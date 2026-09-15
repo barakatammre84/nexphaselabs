@@ -9,6 +9,8 @@ import { getBuyer } from '@/lib/buyer-session';
 import { cookies } from 'next/headers';
 import { recoveredOrder, RECOVERY_COOKIE } from '@/lib/guest-order-recovery';
 import { OrderRecoveryCode } from '@/components/site/order-recovery-code';
+import { OrderNotOpenHere } from '@/components/site/order-not-open-here';
+import { openCheckoutEnabled } from '@/lib/site-config';
 import {
   ORDER_STATUS_LABEL,
   orderNumberFromParam,
@@ -55,7 +57,11 @@ export default async function OrderPage({ params, searchParams }: Props) {
       (await cookies()).get(RECOVERY_COOKIE)?.value,
       number,
     ));
-  if (!detail) notFound();
+  if (!detail) {
+    // The same answer whether or not the order exists, so it confirms nothing, but a
+    // customer following an order email on another device learns how to open it.
+    return <OrderNotOpenHere orderNumber={number} openCheckout={openCheckoutEnabled()} />;
+  }
   const { order, items, events } = detail;
   const invoice = await currentDocument('invoice', 'order', order.orderNumber);
   const methods =

@@ -71,7 +71,9 @@ export async function requireBuyer(
 ): Promise<AccountPrincipal> {
   const buyer = await getBuyer();
   if (buyer) return buyer;
-  if (openCheckoutEnabled()) redirect('/catalog');
+  // Open checkout has no sign-in wall, so a visitor without a live session goes where an
+  // order can be reopened (a recovery code, or signing in) instead of back to the catalog.
+  if (openCheckoutEnabled()) redirect('/account/orders/recover');
   redirect(`/account/sign-in?return_to=${encodeURIComponent(returnTo)}`);
 }
 

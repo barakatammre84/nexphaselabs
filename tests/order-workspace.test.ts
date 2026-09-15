@@ -2,8 +2,9 @@ import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.stubGlobal('React', React);
-const { state } = vi.hoisted(() => ({
+const { state, page } = vi.hoisted(() => ({
   state: { status: 'submitted', paymentStatus: 'unpaid' },
+  page: { missing: false },
 }));
 vi.mock('next/link', () => ({
   default: ({
@@ -21,6 +22,7 @@ vi.mock('@/lib/buyer-session', () => ({
   getBuyer: async () => ({ id: 'local' }),
 }));
 vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }));
+vi.mock('@/lib/site-config', () => ({ openCheckoutEnabled: () => true }));
 vi.mock('@/lib/guest-order-recovery', () => ({ recoveredOrder: async () => null, RECOVERY_COOKIE: 'nx_order_view' }));
 // The order page shows a download link when an invoice has been issued. This
 // suite is about the order workspace, not documents, so there is never one.
@@ -28,7 +30,7 @@ vi.mock('@/lib/issued-documents', () => ({
   currentDocument: async () => null,
 }));
 vi.mock('@/lib/order-reads', () => ({
-  getOrderForAccount: async () => ({
+  getOrderForAccount: async () => page.missing ? null : ({
     order: {
       ...state,
       orderNumber: 'NX-260904-0001',
@@ -53,6 +55,7 @@ async function render() {
 beforeEach(() => {
   state.status = 'submitted';
   state.paymentStatus = 'unpaid';
+  page.missing = false;
 });
 describe('customer order workspace', () => {
   it('disables payment submission and directs to support when no methods exist', async () => {
@@ -74,5 +77,12 @@ describe('customer order workspace', () => {
     expect(html).toContain('This order is closed');
     expect(html).not.toContain('Confirm cancellation');
     expect(html).not.toContain('Get payment instructions');
+  });
+  it('tells a browser that cannot open the order how to reach it', async () => {
+    page.missing = true;
+    const html = await render();
+    expect(html).toContain('This order is not open in this browser');
+    expect(html).toContain('href="/account/orders/recover"');
+    expect(html).toContain('return_to=%2Faccount%2Forders%2FNX-260904-0001');
   });
 });
