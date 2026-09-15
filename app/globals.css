@@ -195,37 +195,21 @@
 .brand-logo {
   display: inline-flex;
   align-items: center;
-  gap: 0.65rem;
 }
 
-.brand-logo__mark {
-  display: grid;
-  place-items: center;
+.brand-logo__wordmark {
+  display: block;
+  width: auto;
+  height: 1.25rem;
+}
+
+.site-footer .brand-logo__wordmark {
+  height: 1.4rem;
+}
+
+.brand-logo--compact img {
   width: 2.4rem;
   height: 2.4rem;
-}
-
-.brand-logo__type {
-  display: flex;
-  align-items: baseline;
-  gap: 0.16rem;
-  color: var(--ion-navy);
-  font-family: var(--font-display), sans-serif;
-  font-size: 1.15rem;
-  font-weight: 800;
-  letter-spacing: -0.055em;
-}
-
-.brand-logo__labs {
-  color: var(--ion-blue);
-}
-
-.site-footer .brand-logo__type {
-  color: white;
-}
-
-.site-footer .brand-logo__labs {
-  color: #68c4ff;
 }
 
 .header-icon-link {
@@ -450,8 +434,8 @@ details > summary::-webkit-details-marker {
   .site-header {
     padding-inline: 0.65rem;
   }
-  .brand-logo__type {
-    font-size: 1rem;
+  .brand-logo__wordmark {
+    height: 1rem;
   }
   .environment-banner {
     font-size: 0.7rem;

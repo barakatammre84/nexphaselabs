@@ -59,7 +59,7 @@ export async function SiteFooter() {
       <div className="mx-auto max-w-[1280px] rounded-[2rem] bg-[var(--ion-navy)] px-6 py-12 text-white sm:px-10 lg:px-12">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_repeat(4,1fr)]">
           <div className="max-w-sm">
-            <BrandLogo />
+            <BrandLogo tone="dark" />
             <p className="mt-5 text-sm leading-6 text-white/65">
               {open
                 ? 'A family-run supplier of research peptides in Oakland, California.'
