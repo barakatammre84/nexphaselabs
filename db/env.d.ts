@@ -40,6 +40,8 @@ declare namespace Cloudflare {
     USPS_EPS_ACCOUNT_NUMBER?: string;
     /** Comma-separated USPS mail classes to price, e.g. "USPS_GROUND_ADVANTAGE,PRIORITY_MAIL". */
     USPS_MAIL_CLASSES?: string;
+    /** Override the API host. Only https://apis.usps.com or https://apis-tem.usps.com. */
+    USPS_API_HOST?: string;
     /** 'MACHINABLE' (default) or 'NONSTANDARD'. */
     USPS_PROCESSING_CATEGORY?: string;
     SHIPPO_API_KEY?: string;

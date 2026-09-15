@@ -92,9 +92,21 @@
         // Manual mode enables a safe Zelle simulation here. The application replaces these real
         // enrollment values with unmistakable fake details and never contacts a payment provider.
         "ZELLE_MODE": "manual",
-        // Shippo test mode obtains real carrier test rates without buying live postage.
-        // The API key and private ship-from contact are protected Worker secrets.
-        "SHIPPING_PROVIDER": "shippo",
+        // Postage is bought straight from USPS. The consumer key below is a public
+        // identifier; USPS_CLIENT_SECRET is a Worker secret and is never written here.
+        // See docs/operations/USPS_DIRECT_SETUP.md.
+        "SHIPPING_PROVIDER": "usps",
+        "USPS_CLIENT_ID": "MrjdcYO6qS4bZsYy0KOGw4jAg44CU4IHNJSY6tRJvAfvtm2G",
+        "USPS_CRID": "59918139",
+        "USPS_MID": "904260903",
+        "USPS_MANIFEST_MID": "904260903",
+        "USPS_MAIL_CLASSES": "USPS_GROUND_ADVANTAGE,PRIORITY_MAIL",
+        // Credentials issued in the Customer Onboarding Portal are not always
+        // enabled in the USPS test environment. Pricing calls cost nothing, so
+        // staging is pointed at the live host to prove a real quote. Labels still
+        // refuse until USPS_EPS_ACCOUNT_NUMBER is set, so nothing here can spend.
+        "USPS_API_HOST": "https://apis.usps.com",
+        // Shippo is retained and reachable by setting SHIPPING_PROVIDER back to "shippo".
         "SHIPPO_CARRIER_ACCOUNTS": "256b9f9e2b784b0fb2ee5971d31e3c5e",
         "SHIPPING_DEFAULT_PARCEL_JSON": "{\"length\":8,\"width\":6,\"height\":4,\"baseWeight\":0.4,\"perPackWeight\":0.1}",
         "SHIPPING_ALLOWED_SERVICES": "usps_ground_advantage,usps_priority",

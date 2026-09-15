@@ -203,6 +203,19 @@ describe('configuration', () => {
     credentials({ APP_ENV: 'production' });
     expect(uspsConfiguration().host).toBe('https://apis.usps.com');
   });
+
+  it('lets a deployment point staging at the live host, but only at USPS', () => {
+    credentials({ USPS_API_HOST: 'https://apis.usps.com' });
+    const pointed = uspsConfiguration();
+    expect(pointed.host).toBe('https://apis.usps.com');
+    expect(pointed.issues).toEqual([]);
+
+    credentials({ USPS_API_HOST: 'https://apis.usps.com.evil.test' });
+    const refused = uspsConfiguration();
+    expect(refused.issues.join(' ')).toContain('USPS_API_HOST');
+    // A refused override must not silently fall back to a working host.
+    expect(refused.host).toBe('https://apis-tem.usps.com');
+  });
 });
 
 describe('rating', () => {

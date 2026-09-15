@@ -82,7 +82,21 @@ const DEFAULT_MAIL_CLASSES: MailClass[] = [
 export function uspsConfiguration() {
   const issues: string[] = [];
   const test = env.APP_ENV === 'staging' || env.APP_ENV === 'development';
-  const host = test ? TEST_HOST : LIVE_HOST;
+  /**
+   * Staging talks to the USPS test environment by default. Credentials issued
+   * in the Customer Onboarding Portal are not always enabled there, and pricing
+   * calls spend nothing, so a deployment may point staging at the live host to
+   * prove a real quote. Only the two USPS hosts are accepted; this is never a
+   * free-form URL.
+   */
+  const requestedHost = (env.USPS_API_HOST ?? '').trim();
+  if (requestedHost && requestedHost !== LIVE_HOST && requestedHost !== TEST_HOST)
+    issues.push('USPS_API_HOST must be the USPS live or test API host.');
+  const host = requestedHost === LIVE_HOST || requestedHost === TEST_HOST
+    ? requestedHost
+    : test
+      ? TEST_HOST
+      : LIVE_HOST;
 
   const clientId = (env.USPS_CLIENT_ID ?? '').trim();
   const clientSecret = (env.USPS_CLIENT_SECRET ?? '').trim();
