@@ -248,13 +248,19 @@ export async function accountReachability(accountId: string): Promise<Reachabili
   });
 }
 
-/** Lots a recall would have to chase, with how reachable their consignees are. Newest shipment first. */
-export async function shippedLotNumbers(limit = 50): Promise<string[]> {
+/** Lots a recall would have to chase, newest shipment first; only one account's when `accountId` is given. */
+export async function shippedLotNumbers(limit = 50, accountId?: string): Promise<string[]> {
   const rows = await getDb()
     .selectDistinct({ lotNumber: orderItems.lotNumber })
     .from(orderItems)
     .innerJoin(orders, eq(orders.id, orderItems.orderId))
-    .where(and(isNotNull(orderItems.lotNumber), isNotNull(orders.shippedAt)))
+    .where(
+      and(
+        isNotNull(orderItems.lotNumber),
+        isNotNull(orders.shippedAt),
+        accountId ? eq(orders.accountId, accountId) : undefined,
+      ),
+    )
     .orderBy(desc(orders.shippedAt))
     .limit(limit);
   return rows.map((row) => row.lotNumber).filter((value): value is string => Boolean(value));
