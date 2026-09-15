@@ -57,7 +57,7 @@ export async function quoteFulfillment(
     orderId: order.id,
     originId: result.originId,
     originLabel: result.originLabel,
-    provider: result.test ? 'test' : 'shippo',
+    provider: result.provider,
     shipmentId: rate.shipmentId,
     rateId: rate.id,
     carrier: rate.carrier,
@@ -179,6 +179,14 @@ export async function buyShippingLabel(
   const purchased = await purchaseShippingLabel(
     quote.rateId,
     order.orderNumber,
+    {
+      to: toAddress(order),
+      // The claim row already written above is the USPS idempotency key, so a
+      // retry of this same claim can never buy a second label.
+      labelId: attempt.id,
+      originId: quote.originId,
+      institution: order.consigneeInstitution,
+    },
   );
   const updatedAt = new Date();
   if (!purchased.ok) {

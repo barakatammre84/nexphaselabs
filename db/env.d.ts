@@ -24,7 +24,24 @@ declare namespace Cloudflare {
     POLICIES_COUNSEL_REVIEWED?: string;
     /** "true" deliberately opens a deployed non-production storefront to anyone. A stated choice, never a default. */
     STAGING_ACCESS_OPEN?: string;
+    /** 'simulated' | 'shippo' | 'usps'. 'usps' buys postage from USPS directly. */
     SHIPPING_PROVIDER?: string;
+    /** USPS APIs v3 consumer key, from the app in the USPS Customer Onboarding Portal. */
+    USPS_CLIENT_ID?: string;
+    /** Secret consumer key pair. Set with `wrangler secret put USPS_CLIENT_SECRET`. */
+    USPS_CLIENT_SECRET?: string;
+    /** Customer Registration ID: the business address across all USPS systems. */
+    USPS_CRID?: string;
+    /** Mailer ID used for labels. */
+    USPS_MID?: string;
+    /** Mailer ID that owns the Shipping Services File manifest; defaults to USPS_MID. */
+    USPS_MANIFEST_MID?: string;
+    /** Enterprise Payment System account that postage is drawn from. Labels refuse to buy without it. */
+    USPS_EPS_ACCOUNT_NUMBER?: string;
+    /** Comma-separated USPS mail classes to price, e.g. "USPS_GROUND_ADVANTAGE,PRIORITY_MAIL". */
+    USPS_MAIL_CLASSES?: string;
+    /** 'MACHINABLE' (default) or 'NONSTANDARD'. */
+    USPS_PROCESSING_CATEGORY?: string;
     SHIPPO_API_KEY?: string;
     /** Secret URL token for Shippo webhook calls; at least 32 random characters. */
     SHIPPO_WEBHOOK_TOKEN?: string;
