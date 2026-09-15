@@ -62,7 +62,7 @@ Terms → add a bank account (ACH) and fund it. Postage is drawn from this
 balance at the moment each label is bought. Write down the **EPS account
 number**. Nothing else on this list can proceed first.
 
-**Step 2 — Enrol in USPS Ship.** The Labels API is not in the default API
+**Step 2 — Enrol in USPS Ship.** *(Ready-to-send text below.)* The Labels API is not in the default API
 product. USPS states: *"The Label API requires you to be enrolled in USPS Ship
 for both outbound and return labels and have an active Enterprise Payment
 Account."* Request it by submitting a USPS API service request from the Email
@@ -71,6 +71,34 @@ developer portal username, `apis.usps.com`, CRID 59918139, MID 904260903,
 country and ZIP. **Never include the consumer secret in that request.** This is
 a human review at USPS with an unknown lead time — start it the same day as
 step 1, not after.
+
+Submit at <https://emailus.usps.com/s/web-tools-inquiry>. Paste this, filling in
+the developer-portal username:
+
+> **Subject:** Request Labels 3.0 API access — USPS Ship enrolment
+>
+> I am requesting access to the Domestic Labels 3.0 API for our business
+> account, and enrolment in USPS Ship for outbound and return labels.
+>
+> Name: Wisam Ibrahim
+> Company: NexPhase Labs (8486 Ventures LLC)
+> Contact phone: (415) 930-1422
+> Contact email: sam@nexphaselabs.net
+> Developer Portal username: _[the username shown at developers.usps.com]_
+> URL being called: apis.usps.com
+> Customer Registration ID (CRID): 59918139
+> Mailer ID (MID): 904260903
+> Label Mailer ID (MID): 904260904
+> Country: United States
+> ZIP Code: 94609
+>
+> Our app is created and approved and currently carries the default API
+> product. We have confirmed via the OAuth scope list that `labels` is not
+> included. We are an e-commerce shipper sending domestic parcels by USPS
+> Ground Advantage and Priority Mail, and are setting up an Enterprise Payment
+> Account for postage.
+
+Do **not** include the consumer secret; USPS says so explicitly.
 
 **Step 3 — Create the app and take the credentials.** cop.usps.com → My Apps →
 Developer Apps → Add App → select the APIs → Add App → Manage → copy the
