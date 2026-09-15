@@ -431,3 +431,65 @@ export async function reconcileShippingLabelRefund(
     label,
   };
 }
+
+/**
+ * Clears a label purchase the carrier did not complete, so the order can be
+ * relabelled or cancelled. A failed or unconfirmed purchase is left in
+ * `attention` with no provider reference and nothing to refund, and nothing could
+ * move it on: the desk offered neither a replacement label nor a refund check,
+ * and cancellation refuses any label that is not voided.
+ *
+ * Nothing is asked of the carrier. The person clearing it has checked the carrier
+ * account for a label on this order and records what they found; a label that
+ * was in fact bought is refunded there first.
+ */
+export async function clearFailedLabelPurchase(
+  order: Order,
+  reason: string,
+  staff: StaffPrincipal,
+) {
+  const cleanReason = reason.trim();
+  if (cleanReason.length < 3 || cleanReason.length > 300)
+    return {
+      ok: false as const,
+      error: 'Say what you checked in the carrier account, in 3 to 300 characters.',
+    };
+  const existing = await currentShippingLabel(order.id);
+  if (
+    !existing ||
+    existing.state !== 'attention' ||
+    existing.refundState ||
+    existing.providerRef
+  )
+    return {
+      ok: false as const,
+      error: 'Only a label purchase that bought nothing can be cleared here.',
+      label: existing ?? undefined,
+    };
+  const now = new Date();
+  const [label] = await getDb()
+    .update(shippingLabels)
+    .set({
+      state: 'voided',
+      refundReason: cleanReason,
+      refundRequestedBy: `${staff.name} (${staff.id})`,
+      refundRequestedAt: now,
+      refundUpdatedAt: now,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(shippingLabels.id, existing.id),
+        eq(shippingLabels.state, 'attention'),
+        isNull(shippingLabels.refundState),
+        isNull(shippingLabels.providerRef),
+      ),
+    )
+    .returning();
+  return label
+    ? { ok: true as const, label }
+    : {
+        ok: false as const,
+        error: 'The label changed while you were working. Reload and check it again.',
+      };
+}
