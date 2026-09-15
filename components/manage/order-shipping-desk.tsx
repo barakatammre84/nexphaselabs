@@ -131,23 +131,31 @@ export function OrderShippingDesk({
           </p>
           {label.state === 'ready' && (
             <div className="mt-4 flex flex-wrap gap-3">
-              <a
-                target="_blank"
-                rel="noreferrer"
-                className="action-secondary"
-                href={
-                  label.test
-                    ? `/api/manage/orders/${encodeURIComponent(orderNumber)}/shipping/label-pdf`
-                    : (label.labelUrl ?? '#')
-                }
-              >
-                {label.test ? (
-                  <Printer className="mr-2 size-4" />
-                ) : (
-                  <ExternalLink className="mr-2 size-4" />
-                )}
-                Open label
-              </a>
+              {label.labelUrl ? (
+                <a
+                  target="_blank"
+                  rel="noreferrer"
+                  className="action-secondary"
+                  href={
+                    label.test
+                      ? `/api/manage/orders/${encodeURIComponent(orderNumber)}/shipping/label-pdf`
+                      : label.labelUrl
+                  }
+                >
+                  {label.test ? (
+                    <Printer className="mr-2 size-4" />
+                  ) : (
+                    <ExternalLink className="mr-2 size-4" />
+                  )}
+                  Open label
+                </a>
+              ) : (
+                <p className="self-center text-xs text-muted-foreground">
+                  {label.test
+                    ? 'This test label has no file to print.'
+                    : 'The carrier returned no label file. Reconcile this label before shipping.'}
+                </p>
+              )}
               <button
                 type="button"
                 className="action-primary"
