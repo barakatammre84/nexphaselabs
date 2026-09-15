@@ -168,7 +168,18 @@ export default async function CatalogPage({
               </div>
             </form>
 
-            {results.length === 0 && (
+            {/* Before the first lot is released nothing is listed; that is not a failed search. */}
+            {all.length === 0 && !catalog.unavailable && (
+              <div className="ion-panel mt-6 p-7 text-sm leading-6">
+                No materials are listed yet. A material appears here once a lot of it has been
+                tested, documented and released.{' '}
+                <Link className="font-bold text-primary" href="/documentation">
+                  See how lots are documented
+                </Link>
+                .
+              </div>
+            )}
+            {results.length === 0 && all.length > 0 && (
               <div className="ion-panel mt-6 p-7 text-sm">
                 No matching materials. Try a shorter name or catalog number.{' '}
                 <a

@@ -178,3 +178,22 @@ describe('product page purchase banner', () => {
     expect(html).not.toContain('No account or email verification is required.');
   });
 });
+
+describe("before the first lot is released", () => {
+  it("says nothing is listed yet instead of reporting a failed search", async () => {
+    viewAs("anonymous");
+    catalog.products = [];
+    const html = await catalogPage();
+    expect(html).toContain("No materials are listed yet.");
+    expect(html).not.toContain("No matching materials");
+    expect(renderToStaticMarkup(await Home())).toContain("Materials are listed here once their first lot is released");
+  });
+
+  it("still reports a search that matches nothing once materials are listed", async () => {
+    viewAs("anonymous");
+    const html = renderToStaticMarkup(await CatalogPage({ searchParams: Promise.resolve({ q: "no-such-material" }) }));
+    expect(html).toContain("No matching materials");
+    expect(html).not.toContain("No materials are listed yet.");
+    expect(renderToStaticMarkup(await Home())).not.toContain("Materials are listed here once");
+  });
+});

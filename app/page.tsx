@@ -244,6 +244,15 @@ export default async function Home() {
           </Link>
         </div>
         {catalog.unavailable && <CatalogUnavailable compact />}
+        {!catalog.unavailable && featured.length === 0 && (
+          <p className="ion-panel p-7 text-sm leading-6 text-muted-foreground">
+            Materials are listed here once their first lot is released with its analytical record.{' '}
+            <Link href="/documentation" className="font-bold text-primary">
+              See how lots are documented
+            </Link>
+            .
+          </p>
+        )}
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {featured.map((product) => (
             <Link
