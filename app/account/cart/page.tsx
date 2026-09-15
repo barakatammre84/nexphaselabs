@@ -18,7 +18,7 @@ import { AGE_STATEMENT, RUO_ACKNOWLEDGEMENT } from '@/lib/policy';
 import { currentViewer } from '@/lib/visibility';
 import { formatCents } from '@/lib/visibility-rules';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
-import { checkoutQuotesRequired } from '@/lib/checkout-quotes';
+import { checkoutQuotesRequired, onlineOrderingOpen } from '@/lib/checkout-quotes';
 import { CustomerNav } from '@/components/site/customer-nav';
 import { SupportStrip } from '@/components/site/support-strip';
 
@@ -209,7 +209,15 @@ export default async function CartPage({ searchParams }: Props) {
 
             <SupportStrip className="mt-8" />
 
-            {open ? (
+            {!onlineOrderingOpen() ? (
+              <p
+                role="status"
+                className="mt-10 flex items-start gap-2 border border-border bg-secondary p-6 text-sm leading-6"
+              >
+                <AlertCircle className="mt-1 size-4 shrink-0 text-primary" />
+                {STOREFRONT_COPY.orderingNotOpen}
+              </p>
+            ) : open ? (
               <CheckoutExperience
                 subtotalCents={cart.subtotalCents}
                 token={crypto.randomUUID().replace(/-/g, '')}

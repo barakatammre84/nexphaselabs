@@ -210,4 +210,23 @@ describe('wholesale checkout', () => {
     expect(response.status).toBe(403);
     expect(count('checkout_quotes')).toBe(0);
   });
+
+  it('tells the buyer ordering is not open, not which settings are missing, until shipping and tax are set up', async () => {
+    // Production before live shipping and tax: nothing is set up, and every order still needs a quote.
+    env.APP_ENV = 'production';
+    for (const key of ['SHIPPING_PROVIDER', 'SHIPPING_SIMULATION_ENABLED', 'TAX_PROVIDER', 'TAX_SIMULATED_RATE_BPS']) delete env[key];
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const response = await quote(post('/api/checkout/quotes', {}));
+    expect(response.status).toBe(422);
+    const { error } = (await response.json()) as { error: string };
+    expect(error).toContain('Online ordering is not open yet');
+    expect(error).not.toMatch(/shippo|taxjar|provider|configur|live shipping/i);
+    // Staff still get the reason, in the log as on /manage/readiness.
+    expect(warn).toHaveBeenCalledWith(
+      '[checkout-quote] online ordering is not open:',
+      expect.stringContaining('Shipping provider is not configured.'),
+    );
+    warn.mockRestore();
+    expect(count('checkout_quotes')).toBe(0);
+  });
 });

@@ -10,7 +10,8 @@ import {
   type ShippingAddress,
 } from '@/lib/shipping-provider';
 import { parcelError, type Parcel } from '@/lib/shipping-rates';
-import { quoteTax } from '@/lib/tax-provider';
+import { STOREFRONT_COPY } from '@/lib/storefront-copy';
+import { quoteTax, taxConfiguration } from '@/lib/tax-provider';
 
 export const CHECKOUT_QUOTE_MINUTES = 30;
 
@@ -23,6 +24,17 @@ export function checkoutQuotesRequired(): boolean {
   if (env.CHECKOUT_QUOTES_REQUIRED === 'true') return true;
   if (env.CHECKOUT_QUOTES_REQUIRED === 'false') return false;
   return env.APP_ENV === 'production';
+}
+
+/**
+ * Whether a buyer can check out at all. Where an order needs a quote, that takes working
+ * shipping and tax settings. Until both are set up, checkout could only answer with setting
+ * names meant for staff, so buyers are told ordering is not open and /manage/readiness lists
+ * what is missing.
+ */
+export function onlineOrderingOpen(): boolean {
+  if (!checkoutQuotesRequired()) return true;
+  return shippingConfiguration().issues.length === 0 && taxConfiguration().ok;
 }
 
 function hex(bytes: ArrayBuffer): string {
@@ -154,6 +166,15 @@ export async function createCheckoutQuotes(
   | { ok: true; quotes: CheckoutQuoteView[]; warning: string | null }
   | { ok: false; error: string }
 > {
+  if (!onlineOrderingOpen()) {
+    // The buyer is told ordering is not open; which settings are missing is for staff.
+    const tax = taxConfiguration();
+    console.warn(
+      '[checkout-quote] online ordering is not open:',
+      [...shippingConfiguration().issues, ...(tax.ok ? [] : [tax.error])].join(' '),
+    );
+    return { ok: false, error: STOREFRONT_COPY.orderingNotOpen };
+  }
   if (!cart.orderable || cart.lines.length === 0)
     return {
       ok: false,

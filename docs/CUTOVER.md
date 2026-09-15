@@ -11,6 +11,8 @@ Recorded from the owner on 15 September 2026:
 - **Friday 18 September goes live catalog-only.** The domain moves to the Worker with the catalog,
   lot records and account sign-up, and no orders are taken yet. Production keeps checkout closed
   (`OPEN_CHECKOUT_ENABLED` unset), and orders stay refused until shipping and tax quoting work.
+  Until then the cart tells buyers that online ordering is not open yet, and `/manage/readiness`
+  lists the settings that are still missing.
 - **Ordering waits for the ship-from PO Box**, which arrives Saturday 19 September. Live shipping,
   its origin and the tracking webhook are configured after that. Guest checkout in production has
   not been decided.
