@@ -1,8 +1,23 @@
 # Cutover plan: nexphaselabs.net
 
-Written 2026-09-03 and updated 2026-09-14. Staging and the production Worker
+Written 2026-09-03 and updated 2026-09-15. Staging and the production Worker
 origin are deployed, but the public domain still serves the existing WordPress
 store. Do not attach the custom domain until every gate below is complete.
+
+## Go-live decisions, 15 September 2026
+
+Recorded from the owner on 15 September 2026:
+
+- **Friday 18 September goes live catalog-only.** The domain moves to the Worker with the catalog,
+  lot records and account sign-up, and no orders are taken yet. Production keeps checkout closed
+  (`OPEN_CHECKOUT_ENABLED` unset), and orders stay refused until shipping and tax quoting work.
+- **Ordering waits for the ship-from PO Box**, which arrives Saturday 19 September. Live shipping,
+  its origin and the tracking webhook are configured after that. Guest checkout in production has
+  not been decided.
+- **The legal entity is 8486 Ventures LLC, doing business as Nexphaselabs.** The brand is written
+  NexPhase Labs on the site. Chase Zelle pays the legal name, not the DBA.
+- **Counsel has signed off every legal page**, so `POLICIES_COUNSEL_REVIEWED=true` is set for
+  production and staging in `wrangler.jsonc`.
 
 ## What is live today
 
