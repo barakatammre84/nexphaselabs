@@ -18,7 +18,7 @@ export default function PrivacyPage() {
     >
       <LegalSection heading="1. Who is responsible">
         <p>
-          The site is operated by {ENTITY.legalName}, trading as {ENTITY.tradingName}, Oakland, California. Questions
+          The site is operated by {ENTITY.legalName}, doing business as {ENTITY.dbaName}, Oakland, California. Questions
           about this policy go to <span className="font-semibold text-foreground">{SUPPORT.email}</span>.
         </p>
       </LegalSection>

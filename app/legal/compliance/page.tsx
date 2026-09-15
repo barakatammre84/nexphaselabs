@@ -21,7 +21,7 @@ export default function CompliancePage() {
     >
       <LegalSection id="entity" heading="1. Who is selling">
         <p>
-          {ENTITY.tradingName} is the trading name of {ENTITY.legalName}, a {ENTITY.jurisdiction} limited liability
+          {ENTITY.legalName}, doing business as {ENTITY.dbaName}, is a {ENTITY.jurisdiction} limited liability
           company based in {ENTITY.city}, {ENTITY.region}. The company is owned and run by its members, with no
           outside investors. Every document we issue — certificate of analysis, invoice, packing slip — names the
           issuing entity.

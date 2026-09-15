@@ -17,7 +17,7 @@ export const ENTITY = {
   /** Trading name, used as the letterhead. */
   tradingName: 'NexPhase Labs',
   /** Registered entity. */
-  legalName: '8486 LLC',
+  legalName: '8486 Ventures LLC',
   jurisdiction: 'California',
   streetAddress: null as string | null,
   city: 'Oakland',
@@ -25,6 +25,12 @@ export const ENTITY = {
   country: 'United States',
   email: 'orders@nexphaselabs.net',
   website: 'nexphaselabs.net',
+  /**
+   * The fictitious business name exactly as filed. `tradingName` is the brand as the site and
+   * letterhead write it; statements of legal identity use this form. Chase Zelle pays the legal
+   * name, not the DBA (ZELLE_RECIPIENT_NAME in wrangler.jsonc).
+   */
+  dbaName: 'Nexphaselabs',
 } as const;
 
 /** One-line form used in email footers. */

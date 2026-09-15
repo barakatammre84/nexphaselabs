@@ -106,8 +106,8 @@ export async function SiteFooter() {
           </p>
           <div className="mt-8 flex flex-col justify-between gap-3 text-xs text-white/45 sm:flex-row sm:items-center">
             <p>
-              &copy; {new Date().getFullYear()} {ENTITY.legalName}, trading as{' '}
-              {ENTITY.tradingName}. Oakland, California.
+              &copy; {new Date().getFullYear()} {ENTITY.legalName}, doing business as{' '}
+              {ENTITY.dbaName}. Oakland, California.
             </p>
           </div>
         </div>

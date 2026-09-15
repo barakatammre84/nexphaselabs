@@ -18,8 +18,8 @@ export default function TermsPage() {
     >
       <LegalSection id="who" heading="1. Who we are and what these terms cover">
         <p>
-          {ENTITY.tradingName} is the trading name of {ENTITY.legalName}, a California limited liability company based
-          in Oakland, California (&ldquo;NexPhase Labs&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;). These terms, together
+          {ENTITY.legalName}, a California limited liability company based in Oakland, California, doing business as{' '}
+          {ENTITY.dbaName} (&ldquo;NexPhase Labs&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;). These terms, together
           with the{' '}
           <Link href="/legal/research-use" className="font-semibold text-primary">
             research-use policy

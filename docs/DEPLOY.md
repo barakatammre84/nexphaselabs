@@ -94,6 +94,9 @@ environments run the defaults described here.
 - `POLICIES_COUNSEL_REVIEWED`: every legal page shows a "Draft — not yet
   reviewed by counsel" banner unless this is exactly `true`
   (`lib/site-config.ts`). Set it only after counsel has signed off the wording.
+  Counsel signed off every legal page on 15 September 2026, so `wrangler.jsonc`
+  sets it to `true` for production and staging; remove it again if a policy's
+  wording changes before counsel reviews the change.
 - `EMAIL_SENDER_SCHEME`: `purpose` gives each kind of email its own sender
   (`lib/senders.ts`), for orders, support, accounts and quality, with Reply-To
   set to that sender's address. Any other value, or none, sends everything from

@@ -77,14 +77,14 @@ export default function AboutPage() {
             <p className="ion-kicker">Who we are</p>
             <h2 className="ion-heading mt-4 text-3xl">A small company, run by the people who own it.</h2>
             <p className="mt-4 leading-7 text-muted-foreground">
-              {ENTITY.tradingName} is the trading name of {ENTITY.legalName}, a {ENTITY.jurisdiction} company owned and
+              {ENTITY.legalName}, doing business as {ENTITY.dbaName}, is a {ENTITY.jurisdiction} company owned and
               run by its members, with no outside investors. We receive, hold and ship our own inventory from{' '}
               {ENTITY.city}, {ENTITY.region}, and the people answering support are the people running the business.
             </p>
             <dl className="mt-6 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
               {[
                 ['Operating entity', ENTITY.legalName],
-                ['Trading as', ENTITY.tradingName],
+                ['Doing business as', ENTITY.dbaName],
                 ['Organized in', `${ENTITY.jurisdiction}, ${ENTITY.country}`],
                 ['Based in', `${ENTITY.city}, ${ENTITY.region}`],
               ].map(([label, value]) => (
