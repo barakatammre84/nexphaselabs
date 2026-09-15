@@ -41,10 +41,15 @@ export function ControlForm({ control, staff, people, action }: Props) {
   const values = { ...initial, ...state.values };
   const admin = staff.role === 'admin';
   const editable = admin || control.ownerId === staff.id;
+  // Only an administrator records readiness or a waiver, but an owner saving a work
+  // note must keep the one already recorded: a select with no matching option would
+  // silently submit its first status instead.
   const statuses = admin
     ? CONTROL_STATUSES
     : CONTROL_STATUSES.filter(
-        (status) => status !== 'ready' && status !== 'not_applicable',
+        (status) =>
+          (status !== 'ready' && status !== 'not_applicable') ||
+          status === control.status,
       );
 
   if (!editable) {

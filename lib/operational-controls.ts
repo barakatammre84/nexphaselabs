@@ -183,7 +183,8 @@ export async function updateOperationalControl(
   if (!admin && current?.ownerId !== staff.id) {
     return { ok: false, error: 'Only an administrator or the assigned owner can update this control.' };
   }
-  if (!admin && (status === 'ready' || status === 'not_applicable')) {
+  // An owner may keep readiness or a waiver an administrator recorded, never grant one.
+  if (!admin && (status === 'ready' || status === 'not_applicable') && status !== current?.status) {
     return { ok: false, error: 'Submit evidence for review; an administrator records readiness or a waiver.' };
   }
 

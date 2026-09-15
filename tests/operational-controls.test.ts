@@ -218,3 +218,22 @@ describe('operating control register', () => {
     ).toBe('in_progress');
   });
 });
+
+describe('an owner saving after an administrator decision', () => {
+  it('keeps readiness an administrator recorded, and still cannot turn it into a waiver', async () => {
+    const evidenceUrl = 'https://example.invalid/evidence/physical-count';
+    expect((await updateOperationalControl(key, { status: 'ready', ownerId: owner.id, evidenceUrl }, admin)).ok).toBe(true);
+
+    // What the owner's form submits when they only add a work note to a ready control.
+    expect(
+      (await updateOperationalControl(key, { status: 'ready', evidenceUrl, note: 'Recount booked for 1 October' }, owner)).ok,
+    ).toBe(true);
+    const control = (await listOperationalControls()).find((item) => item.key === key);
+    expect(control?.status).toBe('ready');
+    expect(control?.note).toBe('Recount booked for 1 October');
+
+    expect(
+      (await updateOperationalControl(key, { status: 'not_applicable', evidenceUrl, note: 'Not needed' }, owner)).ok,
+    ).toBe(false);
+  });
+});
