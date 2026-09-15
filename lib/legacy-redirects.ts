@@ -64,6 +64,19 @@ const EXACT: Record<string, LegacyDecision> = {
   '/hello-world': { status: 410 },
   '/category/uncategorized': { status: 410 },
 
+  // The old sitemaps, as the live index listed them on 15 September 2026. Search Console
+  // re-fetches the index it was given; send it and each child to the new sitemap so
+  // discovery carries over instead of failing. /sitemap.xml itself is the new site's own.
+  '/sitemap_index.xml': { status: 301, location: '/sitemap.xml' },
+  '/wp-sitemap.xml': { status: 301, location: '/sitemap.xml' },
+  '/archives-sitemap-1.xml': { status: 301, location: '/sitemap.xml' },
+  '/post-type-page-sitemap-1.xml': { status: 301, location: '/sitemap.xml' },
+  '/post-type-post-sitemap-1.xml': { status: 301, location: '/sitemap.xml' },
+  '/post-type-product-sitemap-1.xml': { status: 301, location: '/sitemap.xml' },
+  '/post-type-sureforms_form-sitemap-1.xml': { status: 301, location: '/sitemap.xml' },
+  '/taxonomy-type-category-sitemap-1.xml': { status: 301, location: '/sitemap.xml' },
+  '/taxonomy-type-product_cat-sitemap-1.xml': { status: 301, location: '/sitemap.xml' },
+
   // WordPress plumbing. No sitemap lists these and Search Console usually holds
   // several of them; they are gone and should be dropped, not retried.
   '/wp-login.php': { status: 410 },

@@ -244,3 +244,26 @@ describe('the map as a whole', () => {
     expect(decisions.filter((s) => s === 410).length).toBeGreaterThan(5);
   });
 });
+
+describe('the old sitemaps', () => {
+  it('sends the index Search Console holds, and every child it listed, to the new sitemap', () => {
+    for (const path of [
+      '/sitemap_index.xml',
+      '/wp-sitemap.xml',
+      '/archives-sitemap-1.xml',
+      '/post-type-page-sitemap-1.xml',
+      '/post-type-post-sitemap-1.xml',
+      '/post-type-product-sitemap-1.xml',
+      '/post-type-sureforms_form-sitemap-1.xml',
+      '/taxonomy-type-category-sitemap-1.xml',
+      '/taxonomy-type-product_cat-sitemap-1.xml',
+    ]) {
+      expect(decisionFor(path), path).toEqual({ status: 301, location: '/sitemap.xml' });
+    }
+  });
+
+  it('leaves the new sitemap to the application', () => {
+    expect(decisionFor('/sitemap.xml')).toBeNull();
+    expect(existsSync('app/sitemap.ts')).toBe(true);
+  });
+});
