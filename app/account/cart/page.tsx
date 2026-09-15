@@ -212,122 +212,65 @@ export default async function CartPage({ searchParams }: Props) {
                 orderable={cart.orderable}
                 addresses={savedAddresses}
                 canSaveAddress={Boolean(account && account.status !== 'guest')}
+                researchSettings={RESEARCH_SETTINGS}
               />
             ) : (
-              <form
-                method="post"
-                action="/api/orders"
-                className="mt-10 border border-border bg-secondary p-6"
-              >
-                <input
-                  type="hidden"
-                  name="token"
-                  value={crypto.randomUUID().replace(/-/g, '')}
-                />
-                <h2 className="font-display text-xl font-bold tracking-tight">
-                  Review and submit
-                </h2>
-                {org && org.verificationStatus === 'approved' ? (
-                  <div className="mt-4 text-sm leading-6">
-                    <p className="font-semibold">Ships to</p>
-                    <p className="text-muted-foreground">
-                      {org.receivingParty}, {org.legalName}
-                      <br />
-                      {[
-                        org.addressLine1,
-                        org.addressLine2,
-                        org.city,
-                        org.region,
-                        org.postalCode,
-                        org.country,
-                      ]
-                        .filter(Boolean)
-                        .join(', ')}
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground">{STOREFRONT_COPY.wholesaleAddressOnly}</p>
-                  </div>
-                ) : (
-                  <p className="mt-4 text-sm text-muted-foreground">
-                    {STOREFRONT_COPY.wholesaleApplyPrompt}{' '}
-                    <Link
-                      href="/account/organization"
-                      className="font-semibold text-primary"
-                    >
-                      {STOREFRONT_COPY.wholesaleApplyAction}
-                    </Link>
-                    .
-                  </p>
-                )}
-                <label className="mt-5 block text-sm">
-                  <span className="font-semibold">Research setting</span>
-                  <span className="mt-1 block text-xs text-muted-foreground">
-                    Where the material will be used. Descriptive only — it does not affect eligibility.
-                  </span>
-                  <select
-                    name="research_setting"
-                    id="research_setting"
-                    defaultValue=""
-                    className="mt-2 w-full border border-foreground/20 bg-background p-3 text-sm"
-                  >
-                    <option value="">Choose one (optional)</option>
-                    {RESEARCH_SETTINGS.map((setting) => (
-                      <option key={setting} value={setting}>
-                        {setting}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="mt-5 block text-sm">
-                  <span className="font-semibold">Note for this order</span>
-                  <textarea
-                    name="note"
-                    maxLength={500}
-                    className="mt-2 min-h-[4rem] w-full border border-foreground/20 bg-background p-3 text-sm"
-                  />
-                </label>
-                <p className="mt-5 border-l-2 border-primary bg-background px-4 py-3 text-sm leading-6">
-                  {RUO_ACKNOWLEDGEMENT}
-                </p>
-                <label className="mt-3 flex items-start gap-3 text-sm">
-                  <input type="checkbox" name="confirm_age" required className="mt-1" />
-                  <span>{AGE_STATEMENT}</span>
-                </label>
-                <label className="mt-3 flex items-start gap-3 text-sm">
-                  <input
-                    type="checkbox"
-                    name="confirm_ruo"
-                    required
-                    className="mt-1"
-                  />
-                  <span>
-                    I confirm the acknowledgement above and accept the{' '}
-                    <Link
-                      href="/legal/terms"
-                      className="font-semibold text-primary underline"
-                    >
-                      terms of sale
-                    </Link>{' '}
-                    for this order.
-                  </span>
-                </label>
-                <p className="mt-4 text-xs leading-5 text-muted-foreground">
-                  Payment instructions follow submission. Staging payments are
-                  simulated; no money moves. Material is picked from a released
-                  lot by a named person; the certificate of analysis for that
-                  lot ships with it.
-                </p>
-                <button
-                  type="submit"
-                  disabled={
-                    !cart.orderable ||
-                    !org ||
-                    org.verificationStatus !== 'approved'
-                  }
-                  className="mt-5 inline-flex h-12 items-center justify-center bg-primary px-6 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                >
-                  Continue to payment
-                </button>
-              </form>
+              <CheckoutExperience
+                subtotalCents={cart.subtotalCents}
+                token={crypto.randomUUID().replace(/-/g, '')}
+                acknowledgement={RUO_ACKNOWLEDGEMENT}
+                ageStatement={AGE_STATEMENT}
+                quoteRequired={checkoutQuotesRequired()}
+                orderable={cart.orderable && org?.verificationStatus === 'approved'}
+                researchSettings={RESEARCH_SETTINGS}
+                destination={
+                  org && org.verificationStatus === 'approved'
+                    ? {
+                        heading: 'Ships to your organization',
+                        intro:
+                          'Wholesale orders ship only to the approved address on record. Compare eligible carrier services for it below.',
+                        body: (
+                          <div className="rounded-xl border border-border bg-secondary p-4 text-sm leading-6">
+                            <p className="font-semibold">
+                              {org.receivingParty}, {org.legalName}
+                            </p>
+                            <p className="text-muted-foreground">
+                              {[
+                                org.addressLine1,
+                                org.addressLine2,
+                                org.city,
+                                org.region,
+                                org.postalCode,
+                                org.country,
+                              ]
+                                .filter(Boolean)
+                                .join(', ')}
+                            </p>
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              {STOREFRONT_COPY.wholesaleAddressOnly} Material is picked from a
+                              released lot by a named person, and that lot&apos;s certificate of
+                              analysis ships with it.
+                            </p>
+                          </div>
+                        ),
+                      }
+                    : {
+                        heading: 'Wholesale checkout',
+                        intro: STOREFRONT_COPY.wholesaleApplyPrompt,
+                        body: (
+                          <p className="text-sm">
+                            <Link
+                              href="/account/organization"
+                              className="font-semibold text-primary"
+                            >
+                              {STOREFRONT_COPY.wholesaleApplyAction}
+                            </Link>
+                            .
+                          </p>
+                        ),
+                      }
+                }
+              />
             )}
           </>
         )}

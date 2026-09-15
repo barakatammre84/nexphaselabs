@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   Check,
   LoaderCircle,
@@ -26,6 +26,26 @@ type Quote = {
 const money = (cents: number) =>
   `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+/**
+ * Controls that cannot change a delivery quote. A quote is bound to the delivery
+ * address and contact email, so every other control, the saved-address picker
+ * included, invalidates it. Choosing among the returned rates must not: a rate
+ * radio's change event bubbles to the form like any other.
+ */
+const QUOTE_NEUTRAL_FIELDS: ReadonlySet<string> = new Set([
+  'checkout_quote',
+  'delivery_choice',
+  'save_address',
+  'research_setting',
+  'note',
+  'confirm_age',
+  'confirm_ruo',
+]);
+
+export function invalidatesQuote(fieldName: string): boolean {
+  return !QUOTE_NEUTRAL_FIELDS.has(fieldName);
+}
+
 export function CheckoutExperience({
   subtotalCents,
   token,
@@ -37,6 +57,8 @@ export function CheckoutExperience({
   orderable,
   addresses = [],
   canSaveAddress = false,
+  researchSettings = [],
+  destination,
 }: {
   subtotalCents: number;
   token: string;
@@ -48,6 +70,13 @@ export function CheckoutExperience({
   orderable: boolean;
   addresses?: PickableAddress[];
   canSaveAddress?: boolean;
+  /** Offered as an optional, descriptive field and recorded with the order. */
+  researchSettings?: readonly string[];
+  /**
+   * A fixed destination shown instead of the address fields: wholesale orders
+   * ship only to the approved organization's address on record.
+   */
+  destination?: { heading: string; intro: string; body: ReactNode };
 }) {
   const [busy, setBusy] = useState(false);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -66,7 +95,7 @@ export function CheckoutExperience({
       )
     )
       return;
-    if (['checkout_quote', 'confirm_ruo', 'confirm_age', 'note'].includes(target.name)) return;
+    if (!invalidatesQuote(target.name)) return;
     if (quotes.length) {
       setQuotes([]);
       setSelectedId('');
@@ -113,15 +142,19 @@ export function CheckoutExperience({
             <PackageCheck className="mt-0.5 size-5 text-primary" />
             <div>
               <h2 className="font-display text-xl font-bold tracking-tight">
-                Where should the order go?
+                {destination?.heading ?? 'Where should the order go?'}
               </h2>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Enter the receiving address, then compare eligible carrier
-                services. No account or email verification is required.
+                {destination?.intro ??
+                  'Enter the receiving address, then compare eligible carrier services. No account or email verification is required.'}
               </p>
             </div>
           </div>
-          <CheckoutFields email={email} name={name} addresses={addresses} canSave={canSaveAddress} />
+          {destination ? (
+            <div className="mt-6">{destination.body}</div>
+          ) : (
+            <CheckoutFields email={email} name={name} addresses={addresses} canSave={canSaveAddress} />
+          )}
 
           <div className="mt-8 border-t border-border pt-7">
             <div className="flex items-start gap-3">
@@ -230,7 +263,34 @@ export function CheckoutExperience({
             </div>
           </div>
 
-          <label className="mt-8 block text-sm">
+          {researchSettings.length > 0 && (
+            <label className="mt-8 block text-sm" htmlFor="research_setting">
+              <span className="font-semibold">
+                Research setting{' '}
+                <span className="font-normal text-muted-foreground">
+                  (optional)
+                </span>
+              </span>
+              <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                Where the material will be used. Descriptive only; it does not
+                affect eligibility.
+              </span>
+              <select
+                id="research_setting"
+                name="research_setting"
+                defaultValue=""
+                className="mt-2 h-12 w-full rounded-xl border border-input bg-secondary px-4 text-base outline-none focus:border-primary"
+              >
+                <option value="">Choose one (optional)</option>
+                {researchSettings.map((setting) => (
+                  <option key={setting} value={setting}>
+                    {setting}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="mt-5 block text-sm">
             <span className="font-semibold">
               Note for this order{' '}
               <span className="font-normal text-muted-foreground">

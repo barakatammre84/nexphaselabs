@@ -50,6 +50,13 @@ export async function POST(request: Request) {
       .trim()
       .slice(0, 500) || null;
   const token = String(form.get('token') ?? '');
+  // What the buyer confirmed for this order. Both checkboxes are required above,
+  // so it is recorded the same way whichever checkout mode is on.
+  const evidence = {
+    from: connectingAddress(request),
+    researchSetting: normaliseResearchSetting(form.get('research_setting')),
+    ageConfirmed: true,
+  };
 
   try {
     if (!(await allow(rateLimitKey('checkout', account.id), 30, 3600)))
@@ -66,11 +73,7 @@ export async function POST(request: Request) {
         token,
         checkout.details.contactEmail,
         String(form.get('checkout_quote') ?? '') || null,
-        {
-          from: connectingAddress(request),
-          researchSetting: normaliseResearchSetting(form.get('research_setting')),
-          ageConfirmed: true,
-        },
+        evidence,
       );
       if (!result.ok) return back(result.error);
       // Both of these happen only after the order is accepted, never as a side
@@ -119,6 +122,9 @@ export async function POST(request: Request) {
       organization.id,
       note,
       token,
+      null,
+      String(form.get('checkout_quote') ?? '') || null,
+      evidence,
     );
     if (!result.ok) return back(result.error);
     return Response.redirect(
