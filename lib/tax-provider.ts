@@ -31,6 +31,14 @@ type TaxConfiguration =
       test: boolean;
       from: ShippingAddress;
     }
+  | {
+      ok: true;
+      provider: 'cdtfa';
+      from: ShippingAddress;
+      districtRate: 'destination' | 'statewide';
+      taxShipping: boolean;
+      test: boolean;
+    }
   | { ok: false; error: string };
 
 export function taxConfiguration(): TaxConfiguration {
@@ -49,6 +57,25 @@ export function taxConfiguration(): TaxConfiguration {
         error: 'Configure a simulated tax rate from 0 to 2,000 basis points.',
       };
     return { ok: true, provider: 'simulated', rateBps, test: true };
+  }
+  if (env.TAX_PROVIDER === 'cdtfa') {
+    const from = configuredBusinessOrigin();
+    if (!from)
+      return { ok: false, error: 'Configure a complete tax origin address.' };
+    if (from.state !== 'CA')
+      return {
+        ok: false,
+        error: 'The CDTFA provider requires a California tax origin.',
+      };
+    return {
+      ok: true,
+      provider: 'cdtfa',
+      from,
+      districtRate:
+        env.CDTFA_DISTRICT_RATE === 'statewide' ? 'statewide' : 'destination',
+      taxShipping: env.CDTFA_TAX_SHIPPING === 'true',
+      test: testEnvironment,
+    };
   }
   if (env.TAX_PROVIDER !== 'taxjar')
     return { ok: false, error: 'Tax calculation is not configured.' };
@@ -71,6 +98,83 @@ export function taxConfiguration(): TaxConfiguration {
       : 'https://api.taxjar.com/v2/taxes',
     from,
   };
+}
+
+/**
+ * California's own rate service. Free, public, no key. Covers California only:
+ * a destination in any other state gets no tax here, because the business has
+ * no nexus there. Registering in a second state means replacing this provider,
+ * not extending it.
+ */
+const CDTFA_RATE_URL =
+  'https://services.maps.cdtfa.ca.gov/api/taxrate/GetRateByAddress';
+/** Statewide floor. Every California address is at least this. */
+const CALIFORNIA_BASE_RATE = 0.0725;
+/** Nothing in California is near this. A higher answer means a broken response. */
+const CALIFORNIA_MAXIMUM_RATE = 0.115;
+
+type CdtfaRate =
+  | { ok: true; rate: number; jurisdiction: string; tac: string | null }
+  | { ok: false; error: string };
+
+async function cdtfaRate(to: ShippingAddress): Promise<CdtfaRate> {
+  const query = new URLSearchParams({
+    address: to.street1,
+    city: to.city,
+    zip: to.zip.slice(0, 5),
+  });
+  try {
+    const response = await fetch(`${CDTFA_RATE_URL}?${query.toString()}`, {
+      signal: AbortSignal.timeout(12_000),
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok)
+      return {
+        ok: false,
+        error: `The California tax rate service returned ${response.status}. The order was not submitted.`,
+      };
+    const payload = await boundedJson(response);
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload))
+      return {
+        ok: false,
+        error:
+          'The California tax rate service returned an unreadable response. The order was not submitted.',
+      };
+    const info = (payload as { taxRateInfo?: unknown }).taxRateInfo;
+    if (!Array.isArray(info) || info.length === 0)
+      return {
+        ok: false,
+        error:
+          'No California tax rate was found for that address. Check the address before submitting the order.',
+      };
+    const first = info[0] as Record<string, unknown>;
+    const rate = typeof first.rate === 'number' ? first.rate : Number.NaN;
+    if (
+      !Number.isFinite(rate) ||
+      rate < CALIFORNIA_BASE_RATE ||
+      rate > CALIFORNIA_MAXIMUM_RATE
+    )
+      return {
+        ok: false,
+        error:
+          'The California tax rate service returned an implausible rate. The order was not submitted.',
+      };
+    return {
+      ok: true,
+      rate,
+      jurisdiction:
+        typeof first.jurisdiction === 'string'
+          ? first.jurisdiction.slice(0, 120)
+          : 'UNKNOWN',
+      tac: typeof first.tac === 'string' ? first.tac.slice(0, 40) : null,
+    };
+  } catch {
+    return {
+      ok: false,
+      error:
+        'The California tax rate could not be confirmed. Try again before submitting the order.',
+    };
+  }
 }
 
 function dollars(cents: number): number {
@@ -120,6 +224,44 @@ export async function quoteTax(input: TaxQuoteInput) {
       ),
       provider: configuration.provider,
       test: true,
+    };
+  }
+  if (configuration.provider === 'cdtfa') {
+    // California treats separately stated actual delivery cost by common
+    // carrier as non-taxable. CDTFA_TAX_SHIPPING=true reverses that.
+    const taxableCents =
+      input.subtotalCents +
+      (configuration.taxShipping ? input.shippingCents : 0);
+    if (input.to.state !== 'CA')
+      return {
+        ok: true as const,
+        cents: 0,
+        provider: configuration.provider,
+        test: configuration.test,
+        jurisdiction: null,
+        ratePpm: 0,
+        tac: null,
+      };
+    if (configuration.districtRate === 'statewide')
+      return {
+        ok: true as const,
+        cents: Math.round(taxableCents * CALIFORNIA_BASE_RATE),
+        provider: configuration.provider,
+        test: configuration.test,
+        jurisdiction: 'CALIFORNIA STATEWIDE BASE',
+        ratePpm: Math.round(CALIFORNIA_BASE_RATE * 1_000_000),
+        tac: null,
+      };
+    const rate = await cdtfaRate(input.to);
+    if (!rate.ok) return { ok: false as const, error: rate.error };
+    return {
+      ok: true as const,
+      cents: Math.round(taxableCents * rate.rate),
+      provider: configuration.provider,
+      test: configuration.test,
+      jurisdiction: rate.jurisdiction,
+      ratePpm: Math.round(rate.rate * 1_000_000),
+      tac: rate.tac,
     };
   }
   try {

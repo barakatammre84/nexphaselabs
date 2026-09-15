@@ -40,6 +40,10 @@ declare namespace Cloudflare {
     CHECKOUT_QUOTES_REQUIRED?: string;
     LIVE_SHIPPING_ENABLED?: string;
     TAX_PROVIDER?: string;
+    /** CDTFA provider: 'destination' (default, full local rate) or 'statewide' (7.25% base only). */
+    CDTFA_DISTRICT_RATE?: string;
+    /** CDTFA provider: 'true' taxes shipping. California normally does not. */
+    CDTFA_TAX_SHIPPING?: string;
     TAXJAR_API_KEY?: string;
     TAXJAR_SANDBOX?: string;
     TAX_SIMULATED_RATE_BPS?: string;
