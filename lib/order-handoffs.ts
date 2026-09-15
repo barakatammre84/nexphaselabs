@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { orderEvents, orders, staffUsers, type Order } from '@/db/schema';
-import type { StaffPrincipal } from '@/lib/staff-auth';
+import { canFulfil, type StaffPrincipal } from '@/lib/staff-auth';
 import { randomToken } from '@/lib/staff-auth-core';
 
 export type OrderHandoffInput = {
@@ -26,6 +26,10 @@ function parseDue(value: string | null | undefined): Date | null | 'bad' {
  * Claim, reassign, reschedule or clear one order owner. An unassigned order can
  * be self-claimed; after that the current owner can hand it to another active
  * teammate. Administrators can resolve any handoff.
+ *
+ * Owning an order is fulfilment work: the order queue is the operations seat's
+ * (docs/THREE_PERSON_OPERATING_MODEL_2026-09-09.md) and QC holds no order
+ * permission, so only a role that can fulfil claims or hands one off.
  */
 export async function handoffOrder(
   current: Order,
@@ -33,6 +37,7 @@ export async function handoffOrder(
   staff: StaffPrincipal,
   now = new Date(),
 ): Promise<OrderHandoffResult> {
+  if (!canFulfil(staff)) return { ok: false, error: 'Only operations and administrators can claim or hand off an order.' };
   if (current.status === 'cancelled') return { ok: false, error: 'A cancelled order cannot be assigned.' };
   const targetId = (input.assignedTo ?? '').trim() || null;
   const note = (input.note ?? '').trim().slice(0, 1000) || null;

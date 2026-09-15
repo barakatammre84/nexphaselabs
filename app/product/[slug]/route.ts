@@ -32,8 +32,8 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
-  const normalised = decodeURIComponent(slug).trim().toLowerCase();
-  if (!/^[a-z0-9][a-z0-9-]{0,80}$/.test(normalised)) {
+  const normalised = decodedSlug(slug);
+  if (normalised === null || !/^[a-z0-9][a-z0-9-]{0,80}$/.test(normalised)) {
     return legacyResponse({ status: 410 }, request.url);
   }
   try {
@@ -54,6 +54,15 @@ export async function GET(
       error instanceof Error ? error.message : error,
     );
     return temporarily('/catalog', request.url);
+  }
+}
+
+/** Null for a malformed percent-escape, which decodeURIComponent throws on: not a slug, so not a 500. */
+function decodedSlug(raw: string): string | null {
+  try {
+    return decodeURIComponent(raw).trim().toLowerCase();
+  } catch {
+    return null;
   }
 }
 

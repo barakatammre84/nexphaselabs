@@ -2,7 +2,7 @@
 
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { getAccountDetail, reinstateAccount, revokeAccountSessions, staffResendVerification, staffSendPasswordReset, suspendAccount } from '@/lib/account-service';
+import { confirmEmailByStaff, getAccountDetail, reinstateAccount, revokeAccountSessions, staffResendVerification, staffSendPasswordReset, suspendAccount } from '@/lib/account-service';
 import { canVerifyAccounts, getStaff } from '@/lib/staff-auth';
 
 export type AccountServiceState = { values: Record<string, string>; errors: string[] };
@@ -32,16 +32,20 @@ export async function accountServiceAction(accountId: string, _prev: AccountServ
   if (!staff) redirect('/staff/sign-in?return_to=%2Fmanage%2Faccounts');
   if (!canVerifyAccounts(staff)) return fail('Only an admin can service customer accounts.');
   if (!/^acc_[a-f0-9]{8,32}$/.test(accountId)) return fail('Unknown account.');
-  const detail = await getAccountDetail(accountId);
-  if (!detail) return fail('Unknown account.');
   let outcome;
+  // The account is read inside the try, so a database error returns a form message instead of the framework's error page.
   try {
+    const detail = await getAccountDetail(accountId);
+    if (!detail) return fail('Unknown account.');
     switch (op) {
       case 'reset':
         outcome = await staffSendPasswordReset(detail.account, staff);
         break;
       case 'verify':
         outcome = await staffResendVerification(detail.account, staff);
+        break;
+      case 'confirm_email':
+        outcome = await confirmEmailByStaff(detail.account, values.reason, staff);
         break;
       case 'suspend':
         outcome = await suspendAccount(detail.account, values.reason, staff);

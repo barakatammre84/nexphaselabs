@@ -89,18 +89,20 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node scripts/deploy-guard.mjs production && npx wrangler deploy --config dist/server/wrangler.json
       - name: Smoke test
+        # Healthy is not proof the release took effect: the worker it replaced answers ok too. Pass only
+        # once /api/health names the commit this tag built (GITHUB_SHA, written in by vite.config.ts).
         env:
           PRODUCTION_SMOKE_URL: ${{ vars.PRODUCTION_SMOKE_URL }}
         run: |
           for i in 1 2 3 4 5 6; do
             health=$(curl -fsS "$PRODUCTION_SMOKE_URL/api/health" || true)
-            if printf '%s' "$health" | grep -q '"ok":true' && printf '%s' "$health" | grep -q '"env":"production"'; then
-              echo "production Worker healthy"
+            if printf '%s' "$health" | grep -q '"ok":true' && printf '%s' "$health" | grep -q '"env":"production"' && printf '%s' "$health" | grep -q "\"release\":\"$GITHUB_SHA\""; then
+              echo "production Worker healthy on $GITHUB_SHA"
               exit 0
             fi
             sleep 10
           done
-          echo "production Worker did not report healthy at $PRODUCTION_SMOKE_URL/api/health"
+          echo "production Worker did not report healthy on $GITHUB_SHA at $PRODUCTION_SMOKE_URL/api/health; last answer: ${health:-none}"
           exit 1
       - name: Rollback hint
         if: failure()

@@ -121,14 +121,17 @@ export async function addLotTestAction(lotNumber: string, _prev: LotFormState, d
 
   const normalised = lotNumberFromParam(lotNumber);
   if (!normalised) return fail('Unknown lot.');
-  const lot = await getLot(normalised);
-  if (!lot) return fail('Unknown lot.');
 
-  const result = validateLotTest(values as unknown as LotTestInput);
-  if (!result.ok) return { values, errors: result.errors, violations: result.violations };
-  if (lot.status === 'released') return fail('Put this lot on hold before recording new analytical results, then review it for release again.');
-
+  // The lot is read inside the try, so a database error returns a form message instead of the framework's error page.
+  let lot;
   try {
+    lot = await getLot(normalised);
+    if (!lot) return fail('Unknown lot.');
+
+    const result = validateLotTest(values as unknown as LotTestInput);
+    if (!result.ok) return { values, errors: result.errors, violations: result.violations };
+    if (lot.status === 'released') return fail('Put this lot on hold before recording new analytical results, then review it for release again.');
+
     await addLotTest(lot, result.value, staff);
   } catch (error) {
     console.error('[lots] test record failed', error instanceof Error ? error.message : error);
@@ -157,14 +160,16 @@ export async function setLotDispositionAction(lotNumber: string, _prev: LotFormS
 
   const normalised = lotNumberFromParam(lotNumber);
   if (!normalised) return fail('Unknown lot.');
-  const lot = await getLot(normalised);
-  if (!lot) return fail('Unknown lot.');
 
-  const result = validateDisposition({ decision: values.decision, reason: values.reason }, lot.status);
-  if (!result.ok) return { values, errors: result.errors, violations: result.violations };
-
+  let lot;
   let outcome;
   try {
+    lot = await getLot(normalised);
+    if (!lot) return fail('Unknown lot.');
+
+    const result = validateDisposition({ decision: values.decision, reason: values.reason }, lot.status);
+    if (!result.ok) return { values, errors: result.errors, violations: result.violations };
+
     outcome = await setLotDisposition(lot, result.value.decision, result.value.reason, staff);
   } catch (error) {
     console.error('[lots] disposition failed', error instanceof Error ? error.message : error);
@@ -192,16 +197,16 @@ export async function correctLotAction(lotNumber: string, _prev: LotFormState, d
   if (!canRecordResults(staff)) return fail('Only QC and admin roles can correct a lot record.');
   const number = lotNumberFromParam(lotNumber);
   if (!number) return fail('Unknown lot.');
-  const current = await getLot(number);
-  if (!current) return fail('Unknown lot.');
-  const proposed = Object.fromEntries(CORRECTABLE_FIELDS.map((f) => [f, values[f]])) as Partial<Record<(typeof CORRECTABLE_FIELDS)[number], string>>;
-  const validated = validateLotCorrection(lotToIntakeInput(current), proposed, values.reason);
-  if (!validated.ok) return { values, errors: validated.errors, violations: validated.violations };
-  if (validated.changes.some((c) => c.field === 'quantityReceived') && current.purchaseOrderLineId && !canFulfil(staff)) {
-    return fail('This lot was received against a purchase order; correcting its quantity changes that order, which only ops and admin roles may do.');
-  }
   let outcome;
   try {
+    const current = await getLot(number);
+    if (!current) return fail('Unknown lot.');
+    const proposed = Object.fromEntries(CORRECTABLE_FIELDS.map((f) => [f, values[f]])) as Partial<Record<(typeof CORRECTABLE_FIELDS)[number], string>>;
+    const validated = validateLotCorrection(lotToIntakeInput(current), proposed, values.reason);
+    if (!validated.ok) return { values, errors: validated.errors, violations: validated.violations };
+    if (validated.changes.some((c) => c.field === 'quantityReceived') && current.purchaseOrderLineId && !canFulfil(staff)) {
+      return fail('This lot was received against a purchase order; correcting its quantity changes that order, which only ops and admin roles may do.');
+    }
     outcome = await correctLot(current, validated, staff);
   } catch (error) {
     console.error('[lots] correction failed', error instanceof Error ? error.message : error);
@@ -252,16 +257,16 @@ export async function recordInventoryMovementAction(
   }
   const number = lotNumberFromParam(lotNumber);
   if (!number) return fail('Unknown lot.');
-  const lot = await getLot(number);
-  if (!lot) return fail('Unknown lot.');
-  const validated = validateInventoryMovement(
-    values as unknown as InventoryMovementInput,
-    lot,
-  );
-  if (!validated.ok) {
-    return { values, errors: validated.errors, violations: [] };
-  }
   try {
+    const lot = await getLot(number);
+    if (!lot) return fail('Unknown lot.');
+    const validated = validateInventoryMovement(
+      values as unknown as InventoryMovementInput,
+      lot,
+    );
+    if (!validated.ok) {
+      return { values, errors: validated.errors, violations: [] };
+    }
     const result = await recordInventoryMovement(lot, validated.value, staff);
     if (!result.ok) return fail(result.error);
   } catch (error) {

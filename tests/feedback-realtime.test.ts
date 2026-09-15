@@ -4,8 +4,11 @@ import { localD1 } from './helpers/local-d1';
 const { env } = vi.hoisted(() => ({ env: {} as Record<string, unknown> }));
 vi.mock('cloudflare:workers', () => ({ env }));
 
+import { getDb } from '@/db';
+import { staffSessions, staffUsers } from '@/db/schema';
 import { recordVisitorFeedback } from '@/lib/feedback';
 import { feedbackRealtime } from '@/lib/feedback-realtime';
+import { sha256Hex } from '@/lib/staff-auth-core';
 
 let local: ReturnType<typeof localD1>;
 const roomFetch = vi.fn();
@@ -94,6 +97,56 @@ describe('feedback realtime authorization', () => {
         )
       ).status,
     ).toBe(426);
+    expect(roomFetch).not.toHaveBeenCalled();
+  });
+
+  it('admits a staff session only with the permission that governs feedback everywhere else', async () => {
+    const saved = await recordVisitorFeedback({
+      token: null,
+      body: 'Realtime staff test',
+      profile: { name: null, email: null },
+      sourcePath: '/',
+    });
+    const publicId = saved.thread.conversation.publicId;
+    const runtime = {
+      DB: local.binding,
+      FEEDBACK_ROOMS: { getByName: () => ({ fetch: roomFetch }) },
+    } as unknown as Cloudflare.Env;
+    const session = async (role: 'admin' | 'qc' | 'ops', token: string) => {
+      await getDb().insert(staffUsers).values({
+        id: `stf_${role}`,
+        email: `${role}@example.invalid`,
+        name: role,
+        role,
+        passwordHash: 'unused',
+      });
+      await getDb().insert(staffSessions).values({
+        id: `ses_${role}`,
+        tokenHash: await sha256Hex(token),
+        userId: `stf_${role}`,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      });
+      return `nx_staff=${token}`;
+    };
+    for (const [role, token] of [
+      ['admin', 'a'.repeat(64)],
+      ['ops', 'b'.repeat(64)],
+    ] as const) {
+      roomFetch.mockClear();
+      expect(
+        (await feedbackRealtime(socketRequest(publicId, await session(role, token)), runtime))
+          .status,
+      ).toBe(200);
+      expect(
+        (roomFetch.mock.calls[0][0] as Request).headers.get('X-Feedback-Role'),
+      ).toBe('staff');
+    }
+    // QC holds no feedback.manage (canHandleFeedback), so its session opens no socket either.
+    roomFetch.mockClear();
+    expect(
+      (await feedbackRealtime(socketRequest(publicId, await session('qc', 'c'.repeat(64))), runtime))
+        .status,
+    ).toBe(401);
     expect(roomFetch).not.toHaveBeenCalled();
   });
 });

@@ -30,12 +30,17 @@ is running it and the evidence is linked in `/manage/controls`.
   manual mode replaces them at checkout with unmistakable synthetic values.
   The Gmail receipt-reader credentials are still absent.
 - Mail MX is working through Google Workspace. SPF, DKIM, and DMARC are absent.
+  Update, 15 September 2026: SPF, monitoring-mode DMARC and the Google DKIM
+  record now resolve publicly; confirming that Google signs is still open.
 - Neither R2 bucket has a bucket-lock rule. The default multipart-abort lifecycle
   rule is the only lifecycle rule.
 - The public nameservers are Cloudflare `addyson` / `zac`. The visible zone in
   the current account is pending, assigns `cesar` / `marlowe`, and contains
   stale imported mail records. The active authoritative account must be located
   and reconciled before any DNS change.
+  Update, 15 September 2026: the nameservers are now `cesar` / `marlowe`, so the
+  zone in the current account is authoritative, and no PrivateEmail MX record
+  answers publicly. See `docs/CUTOVER.md`.
 - Production has no released inventory. Customer checkout must remain off the
   public domain until real lots are entered, documented, and released.
 - The operating-control register has all 30 rows assigned: 14 `in_progress`, 16

@@ -46,7 +46,7 @@ describe('environment safety', () => {
       APP_ENV: 'staging',
       ZELLE_MODE: 'manual',
       ZELLE_RECIPIENT_EMAIL: 'orders@nexphaselabs.net',
-      ZELLE_RECIPIENT_NAME: '8486 llc',
+      ZELLE_RECIPIENT_NAME: '8486 Ventures LLC',
     });
     const fetcher = vi.spyOn(globalThis, 'fetch');
     const methods = availablePaymentMethods();
@@ -72,7 +72,7 @@ describe('environment safety', () => {
     });
     const rendered = JSON.stringify(instructions);
     expect(rendered).not.toContain('orders@nexphaselabs.net');
-    expect(rendered).not.toContain('8486 llc');
+    expect(rendered).not.toContain('8486 Ventures LLC');
     expect(fetcher).not.toHaveBeenCalled();
   });
   it('keeps configured production rails available', () => {

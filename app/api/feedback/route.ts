@@ -19,6 +19,27 @@ import {
 
 const headers = { 'Cache-Control': 'private, no-store' };
 
+/**
+ * The visitor's report list as components/site/feedback-chat.tsx reads it:
+ * `id` and `unread`, never the stored `publicId` / `unreadForVisitor`. Every
+ * response that carries the list goes through here, so it has one shape.
+ */
+async function publicConversations(token: string) {
+  return (await visitorFeedbackConversations(token)).map((conversation) => ({
+    id: conversation.publicId,
+    subject: conversation.subject,
+    kind: conversation.kind,
+    severity: conversation.severity,
+    status: conversation.status,
+    priority: conversation.priority,
+    unread: conversation.unreadForVisitor,
+    lastSender: conversation.lastSender,
+    lastMessageAt: conversation.lastMessageAt.toISOString(),
+    createdAt: conversation.createdAt.toISOString(),
+    updatedAt: conversation.updatedAt.toISOString(),
+  }));
+}
+
 async function publicThread(
   thread: NonNullable<Awaited<ReturnType<typeof visitorFeedbackThread>>>,
   token: string,
@@ -50,21 +71,7 @@ async function publicThread(
         : null,
     })),
     hasOlderMessages: thread.hasOlderMessages,
-    conversations: (await visitorFeedbackConversations(token)).map(
-      (conversation) => ({
-        id: conversation.publicId,
-        subject: conversation.subject,
-        kind: conversation.kind,
-        severity: conversation.severity,
-        status: conversation.status,
-        priority: conversation.priority,
-        unread: conversation.unreadForVisitor,
-        lastSender: conversation.lastSender,
-        lastMessageAt: conversation.lastMessageAt.toISOString(),
-        createdAt: conversation.createdAt.toISOString(),
-        updatedAt: conversation.updatedAt.toISOString(),
-      }),
-    ),
+    conversations: await publicConversations(token),
   };
 }
 
@@ -90,7 +97,7 @@ export async function GET(request: Request) {
       : {
           conversation: null,
           messages: [],
-          conversations: await visitorFeedbackConversations(token),
+          conversations: await publicConversations(token),
         },
     { headers },
   );

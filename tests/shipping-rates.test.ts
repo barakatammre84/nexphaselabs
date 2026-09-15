@@ -8,6 +8,7 @@ import {
   usdCents,
 } from '@/lib/shipping-rates';
 import {
+  configuredBusinessOrigin,
   quoteShipping,
   reconcileShippingLabelRefund,
   requestShippingLabelRefund,
@@ -164,6 +165,21 @@ describe('USPS/UPS/FedEx eligible rate comparison', () => {
       ]),
     );
   });
+  it('treats an empty SHIPPO_FROM_JSON as unset, as shippo:verify does', () => {
+    Object.assign(env, {
+      APP_ENV: 'staging',
+      SHIPPING_PROVIDER: 'shippo',
+      SHIPPO_API_KEY: 'shippo_test_synthetic',
+      SHIPPO_CARRIER_ACCOUNTS: 'account1',
+      SHIPPO_FROM_JSON: '',
+      SHIPPING_FROM_JSON: JSON.stringify(address),
+    });
+    // '' used to reach JSON.parse and leave checkout with no ship-from location at all
+    const configuration = shippingConfiguration();
+    expect(configuration.issues).toEqual([]);
+    expect(configuration.from).toEqual(address);
+    expect(configuredBusinessOrigin()).toEqual(address);
+  });
   it('requests rates from explicit accounts without purchasing a label, and reports partial carrier errors', async () => {
     Object.assign(env, {
       APP_ENV: 'staging',
@@ -251,6 +267,39 @@ describe('USPS/UPS/FedEx eligible rate comparison', () => {
       false,
     );
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('names no carrier when no returned rate is an approved service', async () => {
+    // Staging approves USPS services only; the buyer sees this error at checkout.
+    Object.assign(env, {
+      APP_ENV: 'staging',
+      SHIPPING_PROVIDER: 'shippo',
+      SHIPPO_API_KEY: 'shippo_test_synthetic',
+      SHIPPO_CARRIER_ACCOUNTS: 'account1',
+      SHIPPING_FROM_JSON: JSON.stringify(address),
+      SHIPPING_ALLOWED_SERVICES: 'usps_ground_advantage,usps_priority',
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        Response.json(
+          payload([
+            raw(),
+            raw({
+              object_id: 'rate2',
+              provider: 'FedEx',
+              servicelevel: { token: 'fedex_ground', name: 'Ground' },
+            }),
+          ]),
+        ),
+      ),
+    );
+    const result = await quoteShipping(address, parcel, policy);
+    expect(result).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('No eligible rate'),
+    });
+    expect(result.ok ? '' : result.error).not.toMatch(/USPS|UPS|FedEx/);
   });
 
   it('rejects duplicate named-origin IDs before contacting Shippo', async () => {

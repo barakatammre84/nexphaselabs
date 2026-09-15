@@ -32,13 +32,25 @@ export function AccountServiceForms({ action, status, liveSessions }: Props) {
           </ul>
         </div>
       )}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <form action={formAction} className="flex flex-col gap-3 border border-border p-5">
           <input type="hidden" name="op" value="verify" />
           <p className="text-sm font-semibold">Resend verification</p>
           <p className={help}>Issues a fresh 24-hour confirmation link. Only while the address is unverified.</p>
           <button type="submit" disabled={pending || !pendingEmail} className={quiet}>
             Resend verification email
+          </button>
+        </form>
+        <form action={formAction} className="flex flex-col gap-3 border border-border p-5">
+          <input type="hidden" name="op" value="confirm_email" />
+          <p className="text-sm font-semibold">Confirm email by hand</p>
+          <p className={help}>
+            For when the confirmation email cannot reach the customer. Confirm only after they have written to us
+            from this address, and say how in the note; it is recorded with your name.
+          </p>
+          <input name="reason" placeholder="How the address was confirmed (required)" maxLength={300} required className={input} />
+          <button type="submit" disabled={pending || !pendingEmail} className={quiet}>
+            Confirm email address
           </button>
         </form>
         <form action={formAction} className="flex flex-col gap-3 border border-border p-5">

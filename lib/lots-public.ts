@@ -3,7 +3,7 @@ import { getDb } from '@/db';
 import { lotFamilyIds } from '@/lib/lot-family';
 import { lotTests, lots, type Lot } from '@/db/schema';
 import type { DocumentType } from '@/lib/documents';
-import { isPublishable } from '@/lib/lot-rules';
+import { isPublishable, isPublishedTestType } from '@/lib/lot-rules';
 
 /**
  * SQL form of the publication rule (see lot-rules.ts publicationBlockers). Every
@@ -127,7 +127,8 @@ export async function getPublicLot(
       mass_spec: Boolean(lot.massSpecKey),
       sds: Boolean(lot.sdsKey),
     },
-    tests: tests.map((t) => ({
+    // Staff-only results such as endotoxin never reach the public record (lib/lot-rules.ts).
+    tests: tests.filter((t) => isPublishedTestType(t.testType)).map((t) => ({
       testType: t.testType,
       analyte: t.analyte,
       method: t.method,

@@ -38,3 +38,14 @@ export const CASE_STATUS_LABEL: Record<CaseStatus, string> = {
   effectiveness_review: 'Effectiveness review',
   closed: 'Closed',
 };
+
+/**
+ * The statuses the case form offers. Only an administrator may close a case
+ * (updateOperationalCase refuses anyone else), so Closed is offered to others
+ * only on a case that is already closed, where the form still has to show it.
+ */
+export function caseStatusOptions(role: string, currentStatus?: string): CaseStatus[] {
+  return CASE_STATUSES.filter(
+    (status) => status !== 'closed' || role === 'admin' || currentStatus === 'closed',
+  );
+}

@@ -65,9 +65,7 @@ export default async function LotLookupPage() {
             <p className="mt-3 leading-7 text-muted-foreground">
               Every released lot names the establishment that actually made the
               material and its address. A certificate that identifies only a
-              distributor tells you nothing about where the material came from,
-              and in California it cannot lawfully be relied on for sterile
-              compounding.
+              distributor tells you nothing about where the material came from.
             </p>
           </div>
           <div className="ion-panel p-7 lg:p-9">

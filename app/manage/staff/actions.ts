@@ -63,11 +63,12 @@ export async function staffAccountAction(targetId: string, _prev: StaffFormState
   const gate = await admin();
   if (!gate.ok) return { values, errors: [gate.error] };
   if (!/^stf_[a-f0-9]{8,32}$/.test(targetId)) return { values, errors: ['Unknown account.'] };
-  const detail = await getStaffDetail(targetId);
-  if (!detail) return { values, errors: ['Unknown account.'] };
-  const target = detail.user;
   let revoked: number | null = null;
+  // The account is read inside the try, so a database error returns a form message instead of the framework's error page.
   try {
+    const detail = await getStaffDetail(targetId);
+    if (!detail) return { values, errors: ['Unknown account.'] };
+    const target = detail.user;
     let outcome;
     switch (op) {
       case 'role':

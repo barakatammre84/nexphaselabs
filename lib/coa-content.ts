@@ -1,4 +1,5 @@
 import { scanText, type Violation } from '@/lib/catalog-rules';
+import { isPublishedTestType } from '@/lib/lot-rules';
 import { REGULATORY_STATEMENT } from '@/lib/catalog';
 import { documentDate } from '@/lib/pdf/layout';
 
@@ -81,6 +82,11 @@ export function testTypeLabel(type: string): string {
   return TEST_TYPE_LABEL[type] ?? type.replace(/_/g, ' ');
 }
 
+/** The results a certificate may carry. Staff-only results such as endotoxin never leave the staff system. */
+function publishedTests(subject: CoaSubject): CoaTest[] {
+  return subject.tests.filter((test) => isPublishedTestType(test.testType));
+}
+
 export function outcomeLabel(passed: boolean | null): string {
   if (passed === true) return 'Pass';
   if (passed === false) return 'Fail';
@@ -101,7 +107,8 @@ export function outcomeLabel(passed: boolean | null): string {
  * result is recorded it must be assessed, or removed.
  */
 export function coaBlockers(subject: CoaSubject): string[] {
-  const { lot, tests } = subject;
+  const { lot } = subject;
+  const tests = publishedTests(subject);
   const blockers: string[] = [];
 
   if (!lot.manufacturerName || !lot.manufacturerAddress) {
@@ -137,7 +144,8 @@ export function coaBlockers(subject: CoaSubject): string[] {
  * in disputes; it is public-facing text and is held to the catalog's rules.
  */
 export function scanCoa(subject: CoaSubject): Violation[] {
-  const { lot, tests } = subject;
+  const { lot } = subject;
+  const tests = publishedTests(subject);
   const fields: [string, string | null][] = [
     ['Product name', lot.productName],
     ['Appearance', lot.appearance],
@@ -195,7 +203,8 @@ const dash = (value: string | null | undefined): string | null =>
   value == null || String(value).trim() === '' ? null : String(value);
 
 export function buildCoaContent(subject: CoaSubject): CoaContent {
-  const { lot, product, tests } = subject;
+  const { lot, product } = subject;
+  const tests = publishedTests(subject);
 
   const identity: CoaSection = {
     heading: 'Identity',

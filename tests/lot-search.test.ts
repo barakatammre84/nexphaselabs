@@ -5,8 +5,8 @@ const { env } = vi.hoisted(() => ({ env: {} as { DB?: D1Database } }));
 vi.mock('cloudflare:workers', () => ({ env }));
 
 import { getDb } from '@/db';
-import { lots } from '@/db/schema';
-import { searchReleasedLots } from '@/lib/lots-public';
+import { lots, lotTests } from '@/db/schema';
+import { getPublicLot, searchReleasedLots } from '@/lib/lots-public';
 
 let local: ReturnType<typeof localD1>;
 
@@ -75,5 +75,16 @@ describe('public released-lot search', () => {
   it('treats SQL wildcard characters as literal search text', async () => {
     expect(await searchReleasedLots('A%')).toEqual([]);
     expect(await searchReleasedLots('A_')).toEqual([]);
+  });
+});
+
+describe('the public lot record', () => {
+  it('never publishes an endotoxin result, though staff recorded one', async () => {
+    await getDb().insert(lotTests).values([
+      { id: 'test_identity', lotId: 'released_current', testType: 'identity', method: 'ESI-MS', result: 'Conforms', passed: true },
+      { id: 'test_endotoxin', lotId: 'released_current', testType: 'endotoxin', method: 'LAL', result: 'Below 1 EU/mg', passed: true },
+    ]);
+    const lot = await getPublicLot('LIVE-001');
+    expect(lot?.tests.map((result) => result.testType)).toEqual(['identity']);
   });
 });

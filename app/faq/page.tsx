@@ -5,7 +5,7 @@ import { MINIMUM_AGE, SHIPPING_CUTOFF } from '@/lib/policy';
 import { SUPPORT } from '@/lib/support';
 import { ArrowRight } from 'lucide-react';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
-import { FaqExplorer } from '@/components/site/faq-explorer';
+import { FaqExplorer, type FaqSection } from '@/components/site/faq-explorer';
 
 export const metadata: Metadata = {
   title: 'FAQ',
@@ -13,7 +13,13 @@ export const metadata: Metadata = {
     'Common questions about ordering from NexPhase Labs, lot documentation, shipping, returns, and the research-use boundary.',
 };
 
-type Section = { heading: string; items: { q: string; a: string }[] };
+type Section = FaqSection;
+
+/**
+ * Where /access sends a visitor while the storefront is closed (app/access/page.tsx):
+ * the wholesale application, which starts at sign-up. There is no access page to name.
+ */
+const WHOLESALE_APPLICATION = '/account/sign-up?tier=institutional';
 
 const ordering: Section = {
   heading: 'Ordering',
@@ -128,11 +134,13 @@ const institutionalAccess: Section = {
   items: [
     {
       q: 'Can an individual order from NexPhase Labs?',
-      a: 'Not yet. Materials are currently supplied to organizations while the storefront is prepared; request access from the research access page.',
+      a: 'Not yet. Materials are currently supplied to organizations with a wholesale account while the storefront is prepared.',
+      link: { href: WHOLESALE_APPLICATION, label: 'Apply for a wholesale account' },
     },
     {
       q: 'How long does account review take?',
-      a: 'A complete request is usually decided within two business days. Incomplete requests are the main cause of delay, so send everything listed on the research access page in the first message.',
+      a: 'A complete application is usually decided within two business days. Incomplete applications are the main cause of delay, so fill in every organization detail the application asks for and attach any supporting documents you have.',
+      link: { href: WHOLESALE_APPLICATION, label: 'Apply for a wholesale account' },
     },
     {
       q: 'Can an account be declined or closed?',
@@ -196,7 +204,7 @@ export default function FaqPage() {
             <Link href="/contact" className="action-primary">
               Contact support
             </Link>
-            <Link href={open ? '/catalog' : '/account/sign-up?tier=institutional'} className="action-secondary gap-2">
+            <Link href={open ? '/catalog' : WHOLESALE_APPLICATION} className="action-secondary gap-2">
               {open ? 'Shop products' : 'Apply for a wholesale account'} <ArrowRight className="size-4" />
             </Link>
           </div>

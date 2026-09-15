@@ -76,7 +76,7 @@ export function buildHazcomContent(subject: HazcomSubject): HazcomContent {
   const workplace = section(
     'Scope and responsibility',
     [
-      `This programme applies to ${ENTITY.legalName}, trading as ${ENTITY.tradingName}, and covers every employee who may be exposed to a hazardous chemical in the course of their work.`,
+      `This programme applies to ${ENTITY.legalName}, doing business as ${ENTITY.dbaName}, and covers every employee who may be exposed to a hazardous chemical in the course of their work.`,
     ],
     settings['hazcom.workplace'],
     'The workplace this programme covers has not been recorded.',

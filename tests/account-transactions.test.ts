@@ -7,7 +7,9 @@ vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 import { getDb } from '@/db';
 import { accounts, emailTokens, staffUsers } from '@/db/schema';
 import { accountSignIn, verifyEmailToken } from '@/lib/account-auth';
-import { resetPasswordWithToken } from '@/lib/account-service';
+import { confirmEmailByStaff, resetPasswordWithToken } from '@/lib/account-service';
+import type { StaffPrincipal } from '@/lib/staff-auth';
+import { eq } from 'drizzle-orm';
 import { signIn } from '@/lib/staff-auth';
 import { hashPassword, sha256Hex, verifyPassword } from '@/lib/staff-auth-core';
 
@@ -73,5 +75,47 @@ describe('account transaction invariants', () => {
     local.beforeNextBatch(() => local.sqlite.exec('UPDATE email_tokens SET used_at = unixepoch()'));
     expect(await verifyEmailToken(token)).toBe('invalid');
     expect(local.sqlite.prepare('SELECT status FROM accounts').get()!.status).toBe('pending_email');
+  });
+});
+
+describe('confirming an email address by hand', () => {
+  const staff = { id: 'staff_test', name: 'Test staff', role: 'admin' } as StaffPrincipal;
+  const note = 'Customer wrote to research@ from this address on 18 September';
+  const account = async () => (await getDb().select().from(accounts).where(eq(accounts.id, 'account_test')))[0];
+  const scalar = (query: string) => Object.values(local.sqlite.prepare(query).get()!)[0];
+
+  beforeEach(async () => {
+    local.sqlite.exec("UPDATE accounts SET status = 'pending_email', email_verified_at = NULL");
+    await getDb().insert(emailTokens).values({ id: 'token_verify', accountId: 'account_test', purpose: 'verify_email', tokenHash: 'b'.repeat(64), expiresAt: new Date(Date.now() + 3600000) });
+  });
+
+  it('activates the account, retires its emailed link, and records who confirmed it and how', async () => {
+    expect(await confirmEmailByStaff(await account(), note, staff)).toMatchObject({ ok: true });
+    expect(scalar("SELECT status FROM accounts WHERE id = 'account_test'")).toBe('active');
+    expect(scalar("SELECT email_verified_at FROM accounts WHERE id = 'account_test'")).not.toBeNull();
+    expect(scalar("SELECT used_at FROM email_tokens WHERE id = 'token_verify'")).not.toBeNull();
+    const event = local.sqlite.prepare("SELECT detail, actor FROM account_events WHERE action = 'email_confirmed_by_staff'").all() as { detail: string; actor: string }[];
+    expect(event).toEqual([{ detail: note, actor: 'Test staff (staff_test)' }]);
+    expect((await accountSignIn('test@example.org', password, null)).ok).toBe(true);
+  });
+
+  it('needs a note saying how the address was confirmed', async () => {
+    expect(await confirmEmailByStaff(await account(), '   ', staff)).toMatchObject({ ok: false });
+    expect(scalar("SELECT status FROM accounts WHERE id = 'account_test'")).toBe('pending_email');
+    expect(scalar("SELECT count(*) FROM account_events")).toBe(0);
+  });
+
+  it('refuses an address that is already confirmed', async () => {
+    local.sqlite.exec("UPDATE accounts SET status = 'active'");
+    expect(await confirmEmailByStaff(await account(), note, staff)).toMatchObject({ ok: false, error: expect.stringContaining('already confirmed') });
+  });
+
+  it('does not confirm an account suspended while the confirmation was being recorded', async () => {
+    const before = await account();
+    local.beforeNextBatch(() => local.sqlite.exec("UPDATE accounts SET status = 'suspended', last_change_id = 'suspension_won'"));
+    expect(await confirmEmailByStaff(before, note, staff)).toMatchObject({ ok: false });
+    expect(scalar("SELECT status FROM accounts WHERE id = 'account_test'")).toBe('suspended');
+    expect(scalar("SELECT used_at FROM email_tokens WHERE id = 'token_verify'")).toBeNull();
+    expect(scalar("SELECT count(*) FROM account_events")).toBe(0);
   });
 });

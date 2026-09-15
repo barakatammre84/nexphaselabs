@@ -51,6 +51,8 @@ export default async function ZellePaymentsPage({
   ]);
   const configuration = zelleConfigurationStatus();
   const canDecide = canVerifyAccounts(staff);
+  // A sync refuses an inbox that is disabled or incomplete (syncZelleMailbox), so it is offered only when it can run.
+  const canSync = canDecide && configuration.inboxConfigured;
   return (
     <main className="bg-background text-foreground">
       <section className="mx-auto max-w-[1200px] px-5 py-12 sm:px-8 lg:px-12">
@@ -66,7 +68,7 @@ export default async function ZellePaymentsPage({
               Chase-originated receipts are separated from customer claims. Only a verified receipt with the exact order and amount can release an order to fulfillment.
             </p>
           </div>
-          {canDecide && (
+          {canSync && (
             <form method="post" action="/api/manage/payments/zelle/sync">
               <button type="submit" className="action-secondary inline-flex items-center gap-2">
                 <RefreshCw className="size-4" /> Sync inbox now

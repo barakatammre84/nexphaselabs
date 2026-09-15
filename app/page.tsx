@@ -21,7 +21,7 @@ import { ProductImage } from '@/components/site/product-image';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
 import { groupByClass, loadCatalog } from '@/lib/catalog-data';
 import { SHIPPING_CUTOFF } from '@/lib/policy';
-import { listStorefrontProducts } from '@/lib/storefront';
+import { listStorefrontProducts, visibleStock } from '@/lib/storefront';
 import { listActiveClasses } from '@/lib/classes';
 import { currentViewer } from '@/lib/visibility';
 import { formatCents, priceFor } from '@/lib/visibility-rules';
@@ -244,6 +244,15 @@ export default async function Home() {
           </Link>
         </div>
         {catalog.unavailable && <CatalogUnavailable compact />}
+        {!catalog.unavailable && featured.length === 0 && (
+          <p className="ion-panel p-7 text-sm leading-6 text-muted-foreground">
+            Materials are listed here once their first lot is released with its analytical record.{' '}
+            <Link href="/documentation" className="font-bold text-primary">
+              See how lots are documented
+            </Link>
+            .
+          </p>
+        )}
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {featured.map((product) => (
             <Link
@@ -259,7 +268,7 @@ export default async function Home() {
                   imageClassName="transition-transform duration-500 group-hover:scale-[1.025]"
                   sizes="(max-width: 768px) 100vw, 33vw"
                 />
-                {product.stock === 'out_of_stock' && (
+                {visibleStock(product, visibility) === 'out_of_stock' && (
                   <span className="absolute right-3 top-3 rounded-full bg-[var(--ion-navy)] px-3 py-1.5 text-[10px] font-extrabold text-white shadow-sm">
                     Out of stock
                   </span>

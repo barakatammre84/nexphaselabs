@@ -30,9 +30,11 @@
  *
  * worker.ts marks every non-production answer it renders noindex, in either mode,
  * and a production answer served anywhere but PUBLIC_ORIGIN: the production
- * Worker's workers.dev address must never compete with the real domain.
- * The hashed /_next/static bundles it hands straight back to the asset store are
- * the one exception; robots.txt disallows the whole origin regardless.
+ * Worker's workers.dev address must never compete with the real domain. Old-URL
+ * redirects, 410s and assets served after the framework's 404 are marked too.
+ * Two answers pass untouched: the hashed /_next/static bundles it hands straight
+ * back to the asset store (robots.txt disallows the whole origin regardless), and
+ * the feedback socket, whose 101 upgrade carries the WebSocket itself.
  */
 
 const EXEMPT_PREFIXES = [

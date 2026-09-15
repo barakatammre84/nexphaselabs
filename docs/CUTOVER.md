@@ -1,55 +1,63 @@
 # Cutover plan: nexphaselabs.net
 
-Written 2026-09-03 and updated 2026-09-14. Staging and the production Worker
+Written 2026-09-03 and updated 2026-09-15. Staging and the production Worker
 origin are deployed, but the public domain still serves the existing WordPress
 store. Do not attach the custom domain until every gate below is complete.
+
+## Go-live decisions, 15 September 2026
+
+Recorded from the owner on 15 September 2026:
+
+- **Friday 18 September goes live catalog-only.** The domain moves to the Worker with the catalog,
+  lot records and account sign-up, and no orders are taken yet. Production keeps checkout closed
+  (`OPEN_CHECKOUT_ENABLED` unset), and orders stay refused until shipping and tax quoting work.
+  Until then the cart tells buyers that online ordering is not open yet, and `/manage/readiness`
+  lists the settings that are still missing.
+- **Ordering waits for the ship-from PO Box**, which arrives Saturday 19 September. Live shipping,
+  its origin and the tracking webhook are configured after that. Guest checkout in production has
+  not been decided.
+- **The legal entity is 8486 Ventures LLC, doing business as Nexphaselabs.** The brand is written
+  NexPhase Labs on the site. Chase Zelle pays the legal name, not the DBA.
+- **Counsel has signed off every legal page**, so `POLICIES_COUNSEL_REVIEWED=true` is set for
+  production and staging in `wrangler.jsonc`.
 
 ## What is live today
 
 | Thing | State |
 | --- | --- |
-| nexphaselabs.net | WordPress + SureCart storefront on LiteSpeed at 162.254.39.126 |
+| nexphaselabs.net | WordPress + SureCart storefront, proxied through Cloudflare (origin recorded on 3 September as LiteSpeed at 162.254.39.126) |
 | Pages | `/shop`, `/cart`, `/checkout`, `/my-account`, `/customer-dashboard`, `/faq`, `/about`, `/disclaimer`, `/privacy-policy`, `/shipping-policy` |
 | Registrar | Namecheap, expires 2027-02-27 |
-| Authoritative DNS | Cloudflare (`addyson.ns.cloudflare.com`, `zac.ns.cloudflare.com`) |
+| Authoritative DNS | Cloudflare (`cesar.ns.cloudflare.com`, `marlowe.ns.cloudflare.com`), the zone in account `3d429c7b2020e96fe10a1588f1fb3662` |
 | Mail | Google Workspace, `MX 1 smtp.google.com`, users sam@, mel@, tima@ |
-| Cloudflare zone | The public zone uses `addyson` / `zac`. The zone visible in account `3d429c7b2020e96fe10a1588f1fb3662` is pending, assigns `cesar` / `marlowe`, and contains stale imported PrivateEmail MX records. It is a different zone; do not activate it as-is. |
+| Cloudflare zone | Active in account `3d429c7b2020e96fe10a1588f1fb3662`. Public answers on 15 September 2026: apex and `www` proxied, `MX 1 smtp.google.com` only, and SPF, DMARC and Google DKIM published. No PrivateEmail MX record answers. |
 | New application | Staging and production Workers are deployed in account `3d429c7b2020e96fe10a1588f1fb3662`; no custom domain points at the new application. |
 
 The new application and the live store are entirely separate systems. They
 share only a domain name. No data moves between them; the WordPress orders,
 customers and products are not imported anywhere.
 
-## Fix first, independent of any cutover
+## Mail authentication
 
-The domain has **no SPF, no DKIM and no DMARC record**. Only a Google
-site-verification TXT is present.
-
-Two consequences today, before anything changes:
-
-- Mail from sam@, mel@ and tima@ has no sender authentication, so receiving
-  institutions are more likely to filter it. A verification email or an order
-  confirmation that lands in spam looks to the customer like a broken site.
-- Anyone can send mail claiming to be from nexphaselabs.net.
-
-Add these only in the active authoritative Cloudflare zone after its existing
-records have been exported and reconciled. Preserve the working Google MX and
-site-verification records. Do not add them to the pending stale zone and assume
-they are live.
+Checked against public DNS on 15 September 2026. The zone publishes:
 
 ```
-TXT  @        v=spf1 include:_spf.google.com ~all
-TXT  _dmarc   v=DMARC1; p=none; rua=mailto:dmarc@nexphaselabs.net; fo=1
+TXT  @                  v=spf1 include:_spf.google.com ~all
+TXT  _dmarc             v=DMARC1; p=none; rua=mailto:dmarc@nexphaselabs.net; fo=1
+TXT  google._domainkey  v=DKIM1; k=rsa; p=<the tenant's 2048-bit Google key>
 ```
 
-DKIM must be generated inside the Google Admin console under Apps, Google
-Workspace, Gmail, Authenticate email. It produces a `google._domainkey` TXT
-value unique to the tenant, which is then added to the active authoritative
-Cloudflare zone. Turn DKIM on in the console only after the record resolves.
+Still to do:
 
-Leave DMARC at `p=none` for two weeks and read the reports before moving to
-`p=quarantine`. Moving straight to enforcement with no SPF history is how
-companies lose their own mail.
+- **Confirm Google is signing.** A published DKIM record does not prove signing
+  is on. Check Apps, Google Workspace, Gmail, Authenticate email in the Google
+  Admin console, or send a message to an outside mailbox and look for
+  `d=nexphaselabs.net` in its `DKIM-Signature` header.
+- **Make sure `dmarc@nexphaselabs.net` exists** as a mailbox, alias or group,
+  or the DMARC reports are lost.
+- **Leave DMARC at `p=none` for two weeks** and read the reports before moving
+  to `p=quarantine`. Moving straight to enforcement with no SPF history is how
+  companies lose their own mail.
 
 ## Order of operations for the cutover
 
@@ -61,27 +69,49 @@ customer-facing switch and uses the retained WordPress host for rollback.
    `docs/PROGRESS.md` that is marked verified locally gets re-verified against
    real infrastructure: sign-in, an organisation approval, an order, a
    shipment, a document download, a real email.
-2. **Locate and export the active Cloudflare zone.** The nameservers have
-   already moved to `addyson` / `zac`; the current account's pending zone is
-   assigned `cesar` / `marlowe`, so it is not authoritative. Obtain access to
-   the account that owns the active pair and compare its records with public
-   answers line by line. The Google MX and verification TXT must remain; stale
-   PrivateEmail MX records must never become authoritative.
-3. **Add and prove mail authentication.** Publish SPF and monitoring-mode DMARC
-   in the active zone. Generate the tenant-specific 2048-bit Google DKIM value,
-   publish it, enable signing, and prove delivery and replies with an external
-   mailbox.
+2. **Confirm the active Cloudflare zone.** Done: the nameservers are `cesar` /
+   `marlowe`, the zone in account `3d429c7b2020e96fe10a1588f1fb3662`. Its public
+   answers keep the Google MX and site-verification TXT and carry no
+   PrivateEmail MX.
+3. **Add and prove mail authentication.** SPF, monitoring-mode DMARC and the
+   Google DKIM record are published. Confirming that Google signs, and proving
+   delivery and replies with an external mailbox, are still open (see "Mail
+   authentication" above).
 4. **Prepare the rollback.** Export and reconcile WordPress, SureCart, media,
    and a full hosting backup. Agree the rollback thresholds and fallback
    operator. Keep the old host unchanged and set the apex TTL to 300 at least
    24 hours before cutover.
 5. **Prove production readiness.** Run a recovery rehearsal, enter and release
    real inventory with its lot documents, configure the approved live services,
-   release a reviewed `v*` tag, and smoke-test the Worker origin.
+   release a reviewed `v*` tag, and smoke-test the Worker origin. Release the tag
+   at least a day before cutover: it changes only the workers.dev origin, and the
+   release workflow has never finished a run (`v0.1.0` stopped at the migration
+   step on 14 September because `CLOUDFLARE_API_TOKEN` was empty then). Sign in
+   to each staff account on the workers.dev origin too: on 15 September none of
+   the three production admins had ever signed in, and each must choose a new
+   password first. The storefront lists a product only when it has a photograph,
+   a list price on an active pack size, and a released lot with its lab,
+   accession number and testing standard; `/manage/readiness` shows what each
+   pack is missing. On 15 September production had no list prices and no lots,
+   and NAD+ and GHK had no photograph, so the catalog would open empty and the
+   old WordPress product links would land on it.
 6. **Cut the application over** by attaching the root to the Worker instead of
-   the WordPress host, as a Workers custom domain. Keep the WordPress host
-   running and unchanged so the previous step can be reversed by editing one
-   DNS record.
+   the WordPress host, as a Workers custom domain. Before attaching it:
+   - Write down the apex DNS records exactly as they are. Cloudflare creates its
+     own record for the Custom Domain and will not add one over an existing
+     CNAME, so the WordPress records may have to be removed first. Rolling back
+     then means removing the Custom Domain and re-creating the records you wrote
+     down. Keep the WordPress host running and unchanged until the rollback
+     window closes.
+   - Turn off Email Address Obfuscation (Security, Settings), or turn it off for
+     the apex with a configuration rule. It is on for the zone today: the live
+     privacy page carries `/cdn-cgi/l/email-protection` links. On the new site it
+     would rewrite every address the server renders, so the page React hydrates
+     would no longer match what the server sent.
+   - Leave `www` off the Worker, which has no `www` redirect of its own; today
+     WordPress sends `www` to the apex with a 301. Add a Cloudflare redirect rule
+     that sends `www.nexphaselabs.net` to `https://nexphaselabs.net` with the
+     path and query kept (301), so `www` stops depending on the WordPress host.
 7. **Decide what happens to the old store.** It has customers, orders and
    payment history in SureCart. That data does not move to the new system, so
    it needs an export and a retention decision before the host is cancelled.

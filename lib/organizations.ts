@@ -183,7 +183,7 @@ export async function decideVerification(
   decision: VerificationDecision,
   note: string | null,
   staff: StaffPrincipal,
-): Promise<{ ok: true; status: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; status: string; emailed: boolean } | { ok: false; error: string }> {
   const db = getDb();
   const now = new Date();
   const from = detail.organization.verificationStatus;
@@ -272,7 +272,8 @@ export async function decideVerification(
             '',
             'If you believe this is a mistake, reply to this email.',
           ];
-  await sendEmail({
+  // Whether the applicant was actually told: staff must not read "emailed" when the site could not send it.
+  const sent = await sendEmail({
     to: detail.account.email,
     subject:
       decision === 'approve'
@@ -285,5 +286,5 @@ export async function decideVerification(
     text: [...body, '', ENTITY_FOOTER].join('\n'),
   });
 
-  return { ok: true, status: target };
+  return { ok: true, status: target, emailed: sent.ok };
 }

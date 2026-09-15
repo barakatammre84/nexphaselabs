@@ -52,10 +52,11 @@ function textFromPart(part: GmailPart): string[] {
 async function accessToken(): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   if (cachedToken && cachedToken.expiresAt > now + 60) return cachedToken.token;
+  // `||` as in zelleConfigurationStatus: an empty dedicated setting is unset and falls back to the Workspace client.
   const clientId =
-    env.ZELLE_GMAIL_OAUTH_CLIENT_ID ?? env.GOOGLE_WORKSPACE_OAUTH_CLIENT_ID;
+    env.ZELLE_GMAIL_OAUTH_CLIENT_ID || env.GOOGLE_WORKSPACE_OAUTH_CLIENT_ID;
   const clientSecret =
-    env.ZELLE_GMAIL_OAUTH_CLIENT_SECRET ??
+    env.ZELLE_GMAIL_OAUTH_CLIENT_SECRET ||
     env.GOOGLE_WORKSPACE_OAUTH_CLIENT_SECRET;
   const refreshToken = env.ZELLE_GMAIL_OAUTH_REFRESH_TOKEN;
   if (!clientId || !clientSecret || !refreshToken)

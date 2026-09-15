@@ -52,6 +52,7 @@ type Props = {
   params: Promise<{ orderNumber: string }>;
   searchParams: Promise<{
     paid?: string;
+    reconciled?: string;
     error?: string;
     shipped?: string;
     delivered?: string;
@@ -98,6 +99,7 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
   const { orderNumber } = await params;
   const {
     paid,
+    reconciled,
     error,
     shipped,
     delivered,
@@ -188,6 +190,7 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
             currentStaffId={staff.id}
             editable={
               order.status !== 'cancelled' &&
+              canFulfil(staff) &&
               (staff.role === 'admin' ||
                 !order.assignedTo ||
                 order.assignedTo === staff.id)
@@ -249,6 +252,16 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
             The customer notification was queued.
           </p>
         ) : null}
+        {reconciled && (
+          <p
+            role="status"
+            className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm"
+          >
+            <CircleCheck className="size-4 text-primary" /> Provider invoice
+            matched and attached to this order. Nothing was marked paid: payment
+            is recorded when the invoice settles.
+          </p>
+        )}
         {fulfilling && (
           <p
             role="status"

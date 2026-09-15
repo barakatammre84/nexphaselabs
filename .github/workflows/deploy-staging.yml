@@ -92,14 +92,19 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy --config dist/server/wrangler.json
       - name: Smoke test
+        # Healthy is not proof the deploy took effect: the worker it replaced answers ok too. Pass only
+        # once /api/health names the commit this job built (GITHUB_SHA, written in by vite.config.ts).
         env:
           STAGING_URL: ${{ vars.STAGING_URL }}
         run: |
           for i in 1 2 3 4 5 6; do
-            if curl -fsS "$STAGING_URL/api/health" | grep -q '"ok":true'; then echo "healthy"; exit 0; fi
+            health=$(curl -fsS "$STAGING_URL/api/health" || true)
+            if printf '%s' "$health" | grep -q '"ok":true' && printf '%s' "$health" | grep -q "\"release\":\"$GITHUB_SHA\""; then
+              echo "staging healthy on $GITHUB_SHA"; exit 0
+            fi
             sleep 10
           done
-          echo "staging did not report healthy at $STAGING_URL/api/health"; exit 1
+          echo "staging did not report healthy on $GITHUB_SHA at $STAGING_URL/api/health; last answer: ${health:-none}"; exit 1
       - name: Staging access boundary (public storefront; staff area and private APIs behind their logins)
         # 16.3, then the owner's decision of 14 September 2026. The mode comes from the configuration that was
         # just deployed, never from what the server answers. Open mode: public pages answer 200 with noindex,

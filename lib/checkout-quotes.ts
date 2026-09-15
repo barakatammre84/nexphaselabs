@@ -10,12 +10,31 @@ import {
   type ShippingAddress,
 } from '@/lib/shipping-provider';
 import { parcelError, type Parcel } from '@/lib/shipping-rates';
-import { quoteTax } from '@/lib/tax-provider';
+import { STOREFRONT_COPY } from '@/lib/storefront-copy';
+import { quoteTax, taxConfiguration } from '@/lib/tax-provider';
 
 export const CHECKOUT_QUOTE_MINUTES = 30;
 
+/**
+ * Whether an order needs a current delivery and tax quote before it is accepted. Production
+ * never takes an order without its shipping and tax, so there an unset switch means required;
+ * only an explicit "false" turns it off. Other environments keep it opt-in.
+ */
 export function checkoutQuotesRequired(): boolean {
-  return env.CHECKOUT_QUOTES_REQUIRED === 'true';
+  if (env.CHECKOUT_QUOTES_REQUIRED === 'true') return true;
+  if (env.CHECKOUT_QUOTES_REQUIRED === 'false') return false;
+  return env.APP_ENV === 'production';
+}
+
+/**
+ * Whether a buyer can check out at all. Where an order needs a quote, that takes working
+ * shipping and tax settings. Until both are set up, checkout could only answer with setting
+ * names meant for staff, so buyers are told ordering is not open and /manage/readiness lists
+ * what is missing.
+ */
+export function onlineOrderingOpen(): boolean {
+  if (!checkoutQuotesRequired()) return true;
+  return shippingConfiguration().issues.length === 0 && taxConfiguration().ok;
 }
 
 function hex(bytes: ArrayBuffer): string {
@@ -147,6 +166,15 @@ export async function createCheckoutQuotes(
   | { ok: true; quotes: CheckoutQuoteView[]; warning: string | null }
   | { ok: false; error: string }
 > {
+  if (!onlineOrderingOpen()) {
+    // The buyer is told ordering is not open; which settings are missing is for staff.
+    const tax = taxConfiguration();
+    console.warn(
+      '[checkout-quote] online ordering is not open:',
+      [...shippingConfiguration().issues, ...(tax.ok ? [] : [tax.error])].join(' '),
+    );
+    return { ok: false, error: STOREFRONT_COPY.orderingNotOpen };
+  }
   if (!cart.orderable || cart.lines.length === 0)
     return {
       ok: false,
@@ -211,7 +239,8 @@ export async function createCheckoutQuotes(
   if (!rows.length)
     return {
       ok: false,
-      error: 'No eligible USPS, UPS or FedEx delivery options were returned.',
+      // Carrier-neutral: which carriers and services are approved is configuration.
+      error: 'No eligible delivery options were returned.',
     };
   await getDb().insert(checkoutQuotes).values(rows);
   return {

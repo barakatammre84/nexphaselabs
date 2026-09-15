@@ -11,6 +11,7 @@ vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 import { getCart } from '@/lib/cart';
 import {
   acceptedCheckoutQuote,
+  checkoutQuotesRequired,
   createCheckoutQuotes,
 } from '@/lib/checkout-quotes';
 import {
@@ -211,5 +212,45 @@ describe('server-owned checkout quotes', () => {
       total_cents: 1083,
       shipping_service: 'UPS Ground',
     });
+  });
+
+  it('names no carrier when no delivery option is eligible, whichever services are configured', async () => {
+    // The simulated provider offers no Priority Mail, so no rate survives the approved-service filter.
+    env.SHIPPING_ALLOWED_SERVICES = 'usps_priority';
+    const guest = await syntheticBuyer();
+    const cart = await getCart(
+      guest.buyer.id,
+      visibilityFor(null, false, true),
+    );
+    const result = await createCheckoutQuotes(
+      guest.buyer.id,
+      cart,
+      shipTo,
+      'synthetic@example.invalid',
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringContaining('No eligible delivery options'),
+    });
+    expect(result.ok ? '' : result.error).not.toMatch(/USPS|UPS|FedEx/);
+  });
+});
+
+describe('whether an order needs a delivery and tax quote', () => {
+  it('is required in production unless the switch is explicitly off', () => {
+    env.APP_ENV = 'production';
+    delete env.CHECKOUT_QUOTES_REQUIRED;
+    expect(checkoutQuotesRequired()).toBe(true);
+    env.CHECKOUT_QUOTES_REQUIRED = 'false';
+    expect(checkoutQuotesRequired()).toBe(false);
+    delete env.CHECKOUT_QUOTES_REQUIRED;
+  });
+
+  it('stays opt-in outside production', () => {
+    delete env.CHECKOUT_QUOTES_REQUIRED;
+    expect(checkoutQuotesRequired()).toBe(false);
+    env.CHECKOUT_QUOTES_REQUIRED = 'true';
+    expect(checkoutQuotesRequired()).toBe(true);
+    delete env.CHECKOUT_QUOTES_REQUIRED;
   });
 });

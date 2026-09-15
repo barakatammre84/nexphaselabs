@@ -30,9 +30,12 @@
   "vars": {
     "APP_ENV": "production",
     "PUBLIC_ORIGIN": "https://nexphaselabs.net",
+    // Counsel signed off every legal page (confirmed by the owner, 15 September 2026). This removes the draft
+    // banner (lib/site-config.ts); take it out again if a policy's wording changes before that wording is reviewed.
+    "POLICIES_COUNSEL_REVIEWED": "true",
     "RESEARCHER_TIER_ENABLED": "false",
     "ZELLE_RECIPIENT_EMAIL": "orders@nexphaselabs.net",
-    "ZELLE_RECIPIENT_NAME": "8486 llc",
+    "ZELLE_RECIPIENT_NAME": "8486 Ventures LLC",
     "ZELLE_MODE": "manual",
     "EMAIL_FROM": "NexPhase Labs <research@nexphaselabs.net>",
   },
@@ -86,9 +89,11 @@
         // Real staging origin on the account's workers.dev subdomain. Keep the STAGING_URL repository
         // variable identical; staging email links and payment return URLs are built from this.
         "PUBLIC_ORIGIN": "https://nexphaselabs-staging.ammre.workers.dev",
+        // Counsel signed off every legal page (owner, 15 September 2026); staging shows what production shows.
+        "POLICIES_COUNSEL_REVIEWED": "true",
         "RESEARCHER_TIER_ENABLED": "true",
         "ZELLE_RECIPIENT_EMAIL": "orders@nexphaselabs.net",
-        "ZELLE_RECIPIENT_NAME": "8486 llc",
+        "ZELLE_RECIPIENT_NAME": "8486 Ventures LLC",
         // Manual mode enables a safe Zelle simulation here. The application replaces these real
         // enrollment values with unmistakable fake details and never contacts a payment provider.
         "ZELLE_MODE": "manual",

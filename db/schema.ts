@@ -747,7 +747,7 @@ export const accountEvents = sqliteTable(
   {
     id: text('id').primaryKey(),
     accountId: text('account_id').notNull(),
-    /** password_reset_requested | password_reset | suspended | reinstated | verification_resent | sessions_revoked | reset_sent */
+    /** password_reset_requested | password_reset | suspended | reinstated | verification_resent | email_confirmed_by_staff | sessions_revoked | reset_sent */
     action: text('action').notNull(),
     detail: text('detail'),
     actor: text('actor').notNull(),

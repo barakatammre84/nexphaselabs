@@ -119,7 +119,7 @@ packing checks, Shippo label purchase, tracking, delivery, returns, and refunds
 continue through the existing controlled workflow; a receipt does not buy a
 shipping label by itself.
 
-Current production identity: `8486 llc`, confirmed by the owner on 14 September
+Current production identity: `8486 Ventures LLC`, the legal business name (Chase pays the legal name, not the DBA), confirmed by the owner on 15 September
 2026. When Chase completes the future DBA change, switch Zelle off, update this
 value to the new exact Chase display, verify it with a controlled transfer, and
 then turn checkout back on. Existing orders retain their order number and payment

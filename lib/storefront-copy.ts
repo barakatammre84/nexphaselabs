@@ -28,6 +28,8 @@ export const STOREFRONT_COPY = {
   orderingUnapproved: 'Your wholesale application has not been approved yet.',
   /** lib/orders.ts, the same refusal at the transaction boundary. */
   orderingRequiresWholesale: 'Ordering requires an approved wholesale account.',
+  /** Cart page and delivery quotes, before shipping and tax quoting are set up. Staff see what is missing on /manage/readiness. */
+  orderingNotOpen: 'Online ordering is not open yet. Email research@nexphaselabs.net with any questions about an order.',
   /** Cart page, wholesale ship-to. */
   wholesaleAddressOnly: 'The address on the wholesale account is the only shipping address. Email research@nexphaselabs.net to change it.',
   wholesaleApplyPrompt: 'Ordering is open to wholesale accounts while the storefront is being prepared.',

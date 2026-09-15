@@ -227,3 +227,24 @@ describe('labels', () => {
     expect(outcomeLabel(null)).toBe('Not assessed');
   });
 });
+
+describe('results that never leave the staff system', () => {
+  const endotoxin = test({
+    testType: 'endotoxin',
+    method: 'LAL kinetic chromogenic',
+    result: 'Below 1 EU/mg',
+    specification: null,
+    passed: null,
+  });
+
+  it('keeps an endotoxin result off the certificate', () => {
+    const content = buildCoaContent(subject({}, [test({ testType: 'identity' }), test(), endotoxin]));
+    expect(content.results).toHaveLength(2);
+    expect(content.results.map((row) => row.test).join(' ')).not.toMatch(/endotoxin/i);
+  });
+
+  it('does not let an unpublished result block or pass a certificate', () => {
+    expect(coaBlockers(subject({}, [test({ testType: 'identity' }), test(), endotoxin]))).toEqual([]);
+    expect(coaBlockers(subject({}, [endotoxin]))).toContain('No test results are recorded against this lot.');
+  });
+});

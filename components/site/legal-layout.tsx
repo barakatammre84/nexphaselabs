@@ -5,8 +5,9 @@ import { policiesCounselReviewed } from '@/lib/site-config';
  *
  * The banner is intentional: these pages are structured drafts, not legal
  * advice, until counsel has signed off on the wording. It disappears only when
- * the environment sets POLICIES_COUNSEL_REVIEWED=true (lib/site-config.ts),
- * which is an owner action after the review, not a code change.
+ * the environment sets POLICIES_COUNSEL_REVIEWED=true (lib/site-config.ts) after
+ * the review. Counsel signed off every page on 15 September 2026, and wrangler.jsonc
+ * records that for production and staging.
  */
 export function LegalPage({
   title,

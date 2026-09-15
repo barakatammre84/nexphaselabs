@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import { SUPPORT } from '@/lib/support';
 import { useRouter } from 'next/navigation';
 
 export type FeedbackStaffMessage = {
@@ -54,6 +55,8 @@ export function FeedbackStaffThread({
   resolutionSummary,
   notes,
   messages,
+  visitorEmail,
+  repliesEmailed,
 }: {
   publicId: string;
   status: string;
@@ -68,6 +71,10 @@ export function FeedbackStaffThread({
     createdAt: string;
   }>;
   messages: FeedbackStaffMessage[];
+  /** The address the visitor gave, if any. */
+  visitorEmail: string | null;
+  /** Whether the site can email a reply: an email provider is configured. */
+  repliesEmailed: boolean;
 }) {
   const router = useRouter();
   const [reply, setReply] = useState('');
@@ -416,6 +423,17 @@ export function FeedbackStaffThread({
             required
           />
         </label>
+        {!visitorEmail ? (
+          <p className="text-sm text-muted-foreground">
+            This visitor left no email address. They see your reply only when they reopen this
+            conversation in the same browser.
+          </p>
+        ) : !repliesEmailed ? (
+          <p role="note" className="text-sm font-semibold text-destructive">
+            Not emailed: the site cannot send email yet. Reply to {visitorEmail} from {SUPPORT.email} as
+            well.
+          </p>
+        ) : null}
         {error && (
           <p role="alert" className="text-sm text-destructive">
             {error}
