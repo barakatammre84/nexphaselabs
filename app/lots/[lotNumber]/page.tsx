@@ -112,6 +112,9 @@ export default async function PublicLotPage({ params }: Props) {
           <div>
             <h2 className="utility-label text-primary">Analytical summary</h2>
             <dl className="mt-5 border-t border-border">
+              <Row label="Testing laboratory" value={lot.analyticalLab} />
+              <Row label="Accession number" value={lot.accessionNumber} />
+              <Row label="Testing standard" value={lot.testingStandard} />
               <Row
                 label="Purity"
                 value={lot.purityResult ? `${lot.purityResult}${lot.purityMethod ? ` (${lot.purityMethod})` : ''}` : null}
@@ -120,6 +123,8 @@ export default async function PublicLotPage({ params }: Props) {
                 label="Identity"
                 value={lot.identityConfirmed ? `Confirmed${lot.identityMethod ? ` by ${lot.identityMethod}` : ''}` : null}
               />
+              <Row label="Appearance" value={lot.appearance} />
+              <Row label="Net peptide content" value={lot.netPeptideContent} />
               <Row label="Water content" value={lot.waterContent} />
               <Row label="Heavy metals" value={lot.heavyMetalsSummary} />
             </dl>
