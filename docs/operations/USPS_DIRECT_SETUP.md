@@ -75,10 +75,11 @@ step 1, not after.
 Submit at <https://emailus.usps.com/s/web-tools-inquiry>. Paste this, filling in
 the developer-portal username:
 
-> **Subject:** Request Labels 3.0 API access — USPS Ship enrolment
+> **Subject:** Request Labels 3.0 and Payments 3.0 API access — USPS Ship enrolment
 >
-> I am requesting access to the Domestic Labels 3.0 API for our business
-> account, and enrolment in USPS Ship for outbound and return labels.
+> I am requesting access to the Domestic Labels 3.0 API **and the Payments 3.0
+> API** for our business account, and enrolment in USPS Ship for outbound and
+> return labels.
 >
 > Name: Wisam Ibrahim
 > Company: NexPhase Labs (8486 Ventures LLC)
@@ -93,10 +94,11 @@ the developer-portal username:
 > ZIP Code: 94609
 >
 > Our app is created and approved and currently carries the default API
-> product. We have confirmed via the OAuth scope list that `labels` is not
-> included. We are an e-commerce shipper sending domestic parcels by USPS
-> Ground Advantage and Priority Mail, and are setting up an Enterprise Payment
-> Account for postage.
+> product. We have confirmed via the OAuth scope list that neither `labels` nor
+> `payments` is included: a call to POST /payments/v3/payment-authorization
+> returns 401 "Insufficient OAuth scope". Our Enterprise Payment Account is
+> created and funded. We are an e-commerce shipper sending domestic parcels by
+> USPS Ground Advantage and Priority Mail.
 
 Do **not** include the consumer secret; USPS says so explicitly.
 

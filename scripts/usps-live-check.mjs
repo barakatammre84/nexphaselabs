@@ -190,4 +190,61 @@ for (const mailClass of ['USPS_GROUND_ADVANTAGE', 'PRIORITY_MAIL']) {
     );
   }
 }
-console.log('\nDone. No label was created and no payment account was contacted.');
+/**
+ * Payment authorisation is the last thing that can be proved without spending.
+ * It asks USPS to authorise this CRID/MID pair against the Enterprise Payment
+ * account and hands back a token; no postage is bought and no funds move. If
+ * this succeeds, the only remaining unknown is the label call itself.
+ */
+const eps = process.env.USPS_EPS_ACCOUNT_NUMBER || fromDevVars('USPS_EPS_ACCOUNT_NUMBER');
+if (!eps) {
+  console.log('\nEPS payment account ... not configured, so payment authorisation was not tested.');
+} else {
+  const role = {
+    CRID: fromWrangler('USPS_CRID'),
+    MID: fromWrangler('USPS_MID'),
+    manifestMID: fromWrangler('USPS_MANIFEST_MID') || fromWrangler('USPS_MID'),
+    accountType: 'EPS',
+    accountNumber: eps,
+  };
+  console.log(`\nEPS payment account ... ${eps.replace(/.(?=.{4})/g, '*')}`);
+  const payment = await fetch(`${HOST}/payments/v3/payment-authorization`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token.access_token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      roles: [
+        { roleName: 'PAYER', ...role },
+        { roleName: 'LABEL_OWNER', ...role },
+      ],
+    }),
+  });
+  const body = await payment.text();
+  if (payment.ok) {
+    let token_ok = false;
+    try { token_ok = Boolean(JSON.parse(body).paymentAuthorizationToken); } catch {}
+    console.log(
+      token_ok
+        ? 'Payment authorisation  OK — USPS will let this account pay for postage.'
+        : `Payment authorisation  returned ${payment.status} but no token: ${body.slice(0, 300)}`,
+    );
+  } else {
+    const scopeProblem = /insufficient|invalid_oauth_scope/i.test(body);
+    console.log(`Payment authorisation  FAILED (${payment.status}).`);
+    console.log(
+      scopeProblem
+        ? '  "Insufficient OAuth scope" means the Payments API product is not on this\n' +
+            '  app. That is granted by USPS, not by funding or configuration — the same\n' +
+            '  service request that adds Labels must also ask for Payments 3.0.\n' +
+            '  Nothing is wrong with the EPS account and nothing here needs changing.'
+        : '  Usually USPS Ship enrolment has not been granted against this CRID yet, or\n' +
+            '  the EPS account is not active. It does NOT mean the account is unfunded.',
+    );
+    if (!scopeProblem) console.log(`  ${body.slice(0, 400)}`);
+  }
+}
+
+console.log('\nDone. No label was created and no postage was bought.');
