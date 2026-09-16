@@ -42,6 +42,56 @@ existing USPS business account.
 | Enterprise Payment System (EPS) account | **not yet created** |
 | Developer app / consumer key | **not yet created** |
 
+## Ship-from address
+
+Confirmed by the owner on 16 September 2026:
+
+| Field | Value |
+| --- | --- |
+| Ship-from | 2715 W Kettleman Ln, Ste 203 #360, Lodi, CA 95242 |
+| Label sender email | orders@nexphaselabs.net |
+| Origin ZIP used for rating | 95242 |
+
+This is **not** the registered business address. The entity stays registered in
+Oakland (`lib/entity.ts`), and the seller's permit stays there; Lodi is only
+where a parcel starts. Invoices, the about page, the legal pages and the footer
+continue to say Oakland, and that is correct.
+
+Set it as a protected value, not a wrangler var, because it carries a contact
+phone and email:
+
+```
+echo '[{"id":"lodi-1","label":"Lodi","active":true,"address":{"name":"NexPhase Labs","street1":"2715 W Kettleman Ln Ste 203 #360","city":"Lodi","state":"CA","zip":"95242","country":"US","phone":"REPLACE","email":"orders@nexphaselabs.net","is_residential":false}}]' | npx wrangler secret put SHIPPO_ORIGINS_JSON --env staging
+```
+
+Run the same command without `--env staging` for production. The first active
+entry is both the checkout default and the tax origin
+(`configuredBusinessOrigin`), which under `TAX_PROVIDER=cdtfa` is checked only
+for being in California — the rate a customer pays comes from their own
+address, so moving the origin to Lodi changes nothing about what anyone is
+charged.
+
+Two open points on this address:
+
+1. The street line has not been through USPS address standardisation, because
+   the Addresses 3.0 API needs a self-service licence this account does not yet
+   hold. `Ste 203 #360` is the owner's wording. If `#360` is a private mailbox
+   at a commercial mail receiving agency, USPS prefers `STE 203 PMB 360`.
+2. If inventory is stored and parcels are packed at Lodi, that is a **place of
+   business** in CDTFA's sense — its retailer guidance counts "an office, place
+   of distribution, sales or sample room or place, warehouse or storage place"
+   as one, and notes that for an internet sale "a storage location is often the
+   only place of business that participates in" the transaction. Two things
+   follow: the location should be added to the seller's permit, and the local
+   Bradley-Burns 1% on those sales would allocate to Lodi rather than Oakland.
+   If the address only receives mail and stock sits elsewhere, neither follows.
+   Which of the two this is has not been established, and it is not a question
+   this document can settle. See
+   <https://cdtfa.ca.gov/industry/local-and-district-retailer-taxes/online-retailers-registration-and-local-tax.htm>.
+
+   Note this is about *allocation between California jurisdictions*, not about
+   what a customer pays. `CDTFA_DISTRICT_RATE=destination` is unaffected.
+
 Two things to notice. The registered address is the Oakland apartment, which is
 also the tax origin; the PO Box is the ship-from and they are allowed to differ
 (`senderAddress` vs `fromAddress` in the USPS model, and
