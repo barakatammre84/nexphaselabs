@@ -3,11 +3,14 @@
  * does. Pure functions — the resolver lives in scripts/dns-verify.mjs — so the
  * rules can be tested without a network (tests/dns-records.test.ts).
  *
- * Chapter 7 / chapter 11 c11-dns: nexphaselabs.net has no SPF, no DMARC and no
- * DKIM selector. Mail from every mailbox is unauthenticated and anyone can send
- * as the domain. Nothing downstream — order confirmations, email verification,
- * password resets, recall notices — can be tested until this is fixed, and it is
- * additive: adding these records cannot break anything that works today.
+ * Chapter 7 / chapter 11 c11-dns: RESOLVED 16 September 2026. nexphaselabs.net now
+ * publishes SPF, a google._domainkey selector and DMARC, and `npm run dns:verify`
+ * passes against all three resolvers. The earlier text here — "no SPF, no DMARC and
+ * no DKIM" — described the zone before the take-back and is no longer true.
+ *
+ * This module stays because the records still have to be re-checked before and
+ * after every zone change, and because DMARC is still p=none. Monitor-only is a
+ * starting point, not the finished state.
  */
 
 /** TXT records arrive as arrays of chunks; a long DKIM key is split across them. */

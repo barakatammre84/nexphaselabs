@@ -2,6 +2,34 @@
 
 Written 14 September 2026. Supersedes the record set in `DNS-ZONE-nexphaselabs.net.md`.
 
+> ## Completed — verified live 16 September 2026
+>
+> **This plan has been carried out. Do not re-run it.** The zone is authoritative on
+> `cesar`/`marlowe.ns.cloudflare.com`, and `npm run dns:verify` reports every required
+> record present:
+>
+> | | Live, 16 Sep |
+> |---|---|
+> | MX | `1 smtp.google.com` |
+> | SPF | `v=spf1 include:_spf.google.com ~all` |
+> | DKIM | `google._domainkey` published, 2048-bit |
+> | DMARC | `v=DMARC1; p=none; rua=mailto:dmarc@nexphaselabs.net; fo=1` |
+> | Brevo DKIM | `brevo1`/`brevo2._domainkey` still resolve |
+>
+> Two statements below are therefore historical, not current:
+>
+> 1. **"There is no SPF, no DKIM and no DMARC anywhere"** (§ *What is actually live
+>    today*) described the zone on 14 September. All three exist now.
+> 2. **The SPF value in Step 3 is wrong and must not be published.** It reads
+>    `include:_spf.google.com include:spf.brevo.com ~all`. The value actually in DNS —
+>    and the correct one — omits Brevo. `GO_LIVE_RUNBOOK.md:42-46` gives the reasoning:
+>    the two Brevo DKIM CNAMEs let the WordPress store's mail pass DMARC on the DKIM
+>    leg, so SPF does not need to authorise Brevo. `nexphaselabs-zone-import.txt` is
+>    the canonical record set.
+>
+> Still open from this document: Namecheap 2FA (risk R-04, § *Risks*) is still off, and
+> `dmarc@nexphaselabs.net` has not been confirmed to receive mail.
+
 ## The problem in one paragraph
 
 The domain's live nameservers are `addyson.ns.cloudflare.com` / `zac.ns.cloudflare.com`.
@@ -66,7 +94,7 @@ today. Drop them once WordPress goes dark.
 ```
 MX     @        smtp.google.com                 priority 1
 TXT    @        google-site-verification=59nUDSljV-miSpQWE0GIrBiRVRKtAIO1N0-0lhVh5So
-TXT    @        v=spf1 include:_spf.google.com include:spf.brevo.com ~all
+TXT    @        v=spf1 include:_spf.google.com ~all     <- corrected 16 Sep; do NOT add spf.brevo.com
 TXT    _dmarc   v=DMARC1; p=none; rua=mailto:dmarc@nexphaselabs.net; fo=1
 ```
 

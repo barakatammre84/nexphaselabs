@@ -248,6 +248,7 @@ export async function recordShipment(detail: OrderDetail, input: ShipmentInput, 
           toStatus: sql<string>`${'shipped'}`.as('to_status'),
           note: sql<string | null>`${`Shipped via ${carrier} ${trackingNumber}.${note ? ` ${note}` : ''}`}`.as('note'),
           actor: sql<string>`${by}`.as('actor'),
+          internal: sql<number>`0`.as('internal'),
           createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
         })
         .from(orders)
@@ -348,6 +349,7 @@ export async function recordDelivery(
           toStatus: orders.status,
           note: sql<string>`${`Delivery confirmed ${input.deliveredOn}. Evidence: ${evidence}`}`.as('note'),
           actor: sql<string>`${by}`.as('actor'),
+          internal: sql<number>`0`.as('internal'),
           createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
         })
         .from(orders)
@@ -499,6 +501,7 @@ export async function recordReturn(detail: OrderDetail, input: ReturnInput, staf
           toStatus: orders.status,
           note: sql<string>`${noteText}`.as('note'),
           actor: sql<string>`${by}`.as('actor'),
+          internal: sql<number>`0`.as('internal'),
           createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
         })
         .from(orders)

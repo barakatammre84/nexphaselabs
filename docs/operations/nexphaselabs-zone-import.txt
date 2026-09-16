@@ -15,15 +15,53 @@ nexphaselabs.net.			300	IN	MX	1 smtp.google.com.
 ; --- Google domain verification. Load-bearing: removing it can break Workspace. ---
 nexphaselabs.net.			300	IN	TXT	"google-site-verification=59nUDSljV-miSpQWE0GIrBiRVRKtAIO1N0-0lhVh5So"
 
-; --- mail authentication (none of this exists on the live zone today) ---
+; --- mail authentication ---
+; Published and verified live on 16 Sep 2026. SPF deliberately does NOT include
+; spf.brevo.com: Brevo's mail aligns on the DKIM leg via the two CNAMEs below,
+; which is all DMARC requires. See GO_LIVE_RUNBOOK.md:42-46.
 nexphaselabs.net.			300	IN	TXT	"v=spf1 include:_spf.google.com ~all"
 _dmarc.nexphaselabs.net.		300	IN	TXT	"v=DMARC1; p=none; rua=mailto:dmarc@nexphaselabs.net; fo=1"
 
-; --- Brevo DKIM: signs the WordPress store's mail until WordPress goes dark.
-;     Optional. Delete both once the old store is retired. ---
+; --- Brevo, OLD account: signs the WordPress store's mail until WordPress goes
+;     dark. Delete these two once the old store is retired.
+;
+;     Do NOT re-publish the old account's brevo-code TXT. Brevo issues that code
+;     per account, and the store is being migrated to a new Brevo account under
+;     8486 Ventures LLC (see the news. block below). The old code is dead.
 brevo1._domainkey.nexphaselabs.net.	300	IN	CNAME	b1.nexphaselabs-net.dkim.brevo.com.
 brevo2._domainkey.nexphaselabs.net.	300	IN	CNAME	b2.nexphaselabs-net.dkim.brevo.com.
 
-; --- STILL MISSING, cannot be written here ---
-; google._domainkey  TXT  <generate in Google Admin: Apps > Google Workspace > Gmail
-;                          > Authenticate email. The value is unique to your tenant.>
+; --- Brevo, NEW account: marketing sends from the news. subdomain -------------
+;     Added and authenticated 16 Sep 2026. Brevo reports Authenticated + Branded.
+;
+;     Marketing is deliberately on its own subdomain so its sending reputation is
+;     separate from the Gmail path that carries order confirmations, verification
+;     links and recall notices. A spam complaint on a campaign must never be able
+;     to degrade delivery of a recall.
+;
+;     These names do not collide with the old account's root-level records above,
+;     which is what lets the WordPress store keep signing during the migration.
+;     All seven are DNS only — never proxy a DKIM or a Brevo tracking host.
+;
+;     The DMARC record below is NOT the one Brevo generates. Brevo's version sends
+;     reports only to rua@dmarc.brevo.com; ours adds dmarc@nexphaselabs.net so the
+;     business sees its own data. Brevo verified it as matching.
+news.nexphaselabs.net.			300	IN	TXT	"brevo-code:cb8330168d3d4e1f359326e0a30f03d6"
+brevo1._domainkey.news.nexphaselabs.net.	300	IN	CNAME	b1.news-nexphaselabs-net.dkim.brevo.com.
+brevo2._domainkey.news.nexphaselabs.net.	300	IN	CNAME	b2.news-nexphaselabs-net.dkim.brevo.com.
+_dmarc.news.nexphaselabs.net.		300	IN	TXT	"v=DMARC1; p=none; rua=mailto:dmarc@nexphaselabs.net,mailto:rua@dmarc.brevo.com"
+em.news.nexphaselabs.net.		300	IN	CNAME	em-news-nexphaselabs-net.brand.brevosend.com.
+r.em.news.nexphaselabs.net.		300	IN	CNAME	em-news-nexphaselabs-net.r.brand.brevosend.com.
+img.em.news.nexphaselabs.net.		300	IN	CNAME	em-news-nexphaselabs-net.img.brand.brevosend.com.
+
+; --- PUBLISHED, but cannot be written here ---
+; google._domainkey  TXT  <2048-bit key, unique to the Workspace tenant>
+;
+; Generated and published before 16 Sep 2026; `npm run dns:verify` confirms the
+; selector resolves. The value is deliberately not committed: it is tenant-unique
+; and regenerating it in Google Admin (Apps > Google Workspace > Gmail >
+; Authenticate email) invalidates whatever is written here. Read it from the
+; admin console or from DNS, never from this file.
+;
+; An import of this file therefore does NOT restore Gmail DKIM. Re-add that
+; record by hand afterwards, and re-run `npm run dns:verify` before trusting it.

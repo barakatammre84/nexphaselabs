@@ -90,6 +90,50 @@ describe('order ownership and handoffs', () => {
     expect((await listOrderQueue('mine', '', 1, first.id)).rows).toHaveLength(1);
   });
 
+  it('records the handoff in the audit trail without emailing the customer', async () => {
+    const current = await order();
+    expect(
+      (
+        await handoffOrder(
+          current,
+          {
+            assignedTo: first.id,
+            serviceDueAt: '2026-09-09T12:00:00Z',
+            note: 'Prepare released-lot allocation.',
+          },
+          first,
+          now,
+        )
+      ).ok,
+    ).toBe(true);
+
+    // The event is still written: who held the order is part of its history.
+    const events = await getDb().select().from(orderEvents);
+    expect(events).toHaveLength(1);
+    expect(events[0].internal).toBe(true);
+    expect(events[0].note).toContain('Assigned to First owner.');
+
+    // But the customer hears nothing. A handoff changes no status, no payment
+    // and no shipment, so the notification trigger must not fire (drizzle/0060).
+    expect(
+      local.sqlite.prepare('SELECT count(*) AS n FROM notifications').get()!.n,
+    ).toBe(0);
+  });
+
+  it('still notifies the customer about a real order event', async () => {
+    await order();
+    await getDb().insert(orderEvents).values({
+      id: 'shipped',
+      orderId: 'order',
+      fromStatus: 'paid',
+      toStatus: 'fulfilling',
+      actor: 'staff',
+    });
+    expect(
+      local.sqlite.prepare('SELECT count(*) AS n FROM notifications').get()!.n,
+    ).toBe(1);
+  });
+
   it('prevents staff assigning an unowned order to somebody else', async () => {
     const current = await order();
     expect(

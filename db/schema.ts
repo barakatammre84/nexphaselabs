@@ -1178,6 +1178,17 @@ export const orderEvents = sqliteTable(
     toStatus: text('to_status').notNull(),
     note: text('note'),
     actor: text('actor').notNull(),
+    /**
+     * Internal entries stay in the audit trail but do not notify the customer.
+     * A staff-to-staff handoff changes no status, payment or shipment, so the
+     * `order_event_notification` trigger skips it (drizzle/0060).
+     *
+     * Every insert into this table goes through `insert().select()`, and Drizzle
+     * requires that select to list every column in this order — so a new call
+     * site cannot forget this field. That is deliberate: whether an event
+     * reaches the buyer is a decision each site has to make out loud.
+     */
+    internal: integer('internal', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .notNull()
       .default(sql`(unixepoch())`),
