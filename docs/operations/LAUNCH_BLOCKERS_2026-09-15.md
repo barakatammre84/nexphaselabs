@@ -1,5 +1,8 @@
 # What is actually blocking launch
 
+> **Superseded by `LAUNCH_BLOCKERS_2026-09-16.md`**, which re-verified every
+> number against live production on 16 September. Kept for the record.
+
 **Verified live 15 September 2026**, not read from notes: production D1 queried
 directly, the public domain fetched, the production worker's health checked.
 
