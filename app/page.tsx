@@ -151,11 +151,11 @@ export default async function Home() {
           </div>
 
           <div className="relative flex min-h-[430px] items-center justify-center p-7 lg:p-12">
-            <div className="absolute inset-x-[12%] bottom-[12%] h-20 rounded-full bg-blue-300/35 blur-3xl" />
+            <div className="absolute inset-x-[12%] bottom-[12%] h-20 rounded-full bg-aqua/35 blur-3xl" />
             {hero ? (
               <Link
                 href={`/catalog/${hero.slug}`}
-                className="group relative block aspect-[1.08] w-full max-w-[620px] overflow-hidden rounded-[2rem] border border-white/20 bg-white/95 shadow-[0_35px_70px_rgba(0,0,55,0.35)]"
+                className="group relative block aspect-[1.08] w-full max-w-[620px] overflow-hidden rounded-[2rem] border border-white/20 bg-white/95 shadow-[0_35px_70px_rgba(14,18,59,0.35)]"
               >
                 <ProductImage
                   code={hero.code}
@@ -167,7 +167,7 @@ export default async function Home() {
                 />
                 <span className="absolute bottom-5 left-5 right-5 flex items-center justify-between rounded-2xl bg-white/92 px-5 py-4 text-[var(--ion-navy)] shadow-lg backdrop-blur">
                   <span>
-                    <span className="block text-xs font-bold text-[var(--ion-blue)]">
+                    <span className="block text-xs font-bold text-[var(--ion-aqua-deep)]">
                       Featured product
                     </span>
                     <span className="mt-1 block font-display text-xl font-extrabold">
@@ -212,7 +212,7 @@ export default async function Home() {
         {/* `!` is required: the unlayered .ion-panel rule sets a white background that
             otherwise beats Tailwind's layered utilities, leaving white text on white. */}
         <article className="ion-panel overflow-hidden bg-[var(--ion-navy)]! p-8 text-white sm:p-11">
-          <span className="inline-flex rounded-full bg-white/10 px-3 py-2 text-xs font-bold text-blue-200">
+          <span className="inline-flex rounded-full bg-white/10 px-3 py-2 text-xs font-bold text-aqua-soft">
             Released-lot documentation
           </span>
           <h2 className="mt-6 max-w-lg font-display text-4xl font-extrabold leading-[1.02] tracking-[-0.055em] sm:text-5xl">
@@ -307,7 +307,7 @@ export default async function Home() {
       <section className="mx-auto max-w-[1280px] px-4 pb-20 sm:px-6">
         <div className="grid gap-8 rounded-[2rem] bg-[var(--ion-navy)] p-8 text-white sm:p-11 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
           <div>
-            <span className="inline-flex rounded-full bg-white/10 px-3 py-2 text-xs font-bold text-blue-200">Trusted research supply</span>
+            <span className="inline-flex rounded-full bg-white/10 px-3 py-2 text-xs font-bold text-aqua-soft">Trusted research supply</span>
             <h2 className="mt-6 max-w-xl font-display text-4xl font-extrabold leading-[1.02] tracking-[-0.055em] sm:text-5xl">NexPhase confidence is built into the record.</h2>
             <p className="mt-6 max-w-xl text-lg leading-8 text-white/68">A storefront designed around the information a research buyer needs to identify material, inspect released-lot records, and follow an order clearly.</p>
             <Link href="/about" className="mt-8 inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-6 text-sm font-extrabold text-[var(--ion-navy)]">Why NexPhase <ArrowRight className="size-4" /></Link>
@@ -315,7 +315,7 @@ export default async function Home() {
           <div className="grid gap-3 sm:grid-cols-2">
             {confidencePoints.map(([title, copy]) => (
               <article key={title} className="rounded-[1.4rem] border border-white/14 bg-white/10 p-5">
-                <CheckCircle2 className="size-5 text-blue-200" />
+                <CheckCircle2 className="size-5 text-aqua-soft" />
                 <h3 className="mt-5 font-display text-lg font-extrabold">{title}</h3>
                 <p className="mt-2 text-sm leading-6 text-white/65">{copy}</p>
               </article>
@@ -362,7 +362,7 @@ export default async function Home() {
       <section className="mx-auto max-w-[1280px] px-4 pb-20 sm:px-6">
         <div className="ion-hero grid gap-10 p-8 sm:p-12 lg:grid-cols-[1fr_0.95fr] lg:p-16">
           <div>
-            <span className="inline-flex rounded-full bg-white/10 px-3 py-2 text-xs font-bold text-blue-200">
+            <span className="inline-flex rounded-full bg-white/10 px-3 py-2 text-xs font-bold text-aqua-soft">
               NexPhase quality assurance
             </span>
             <h2 className="mt-6 max-w-xl font-display text-4xl font-extrabold leading-[1.02] tracking-[-0.055em] sm:text-5xl">

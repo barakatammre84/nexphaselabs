@@ -33,10 +33,35 @@
     // Counsel signed off every legal page (confirmed by the owner, 15 September 2026). This removes the draft
     // banner (lib/site-config.ts); take it out again if a policy's wording changes before that wording is reviewed.
     "POLICIES_COUNSEL_REVIEWED": "true",
-    "RESEARCHER_TIER_ENABLED": "false",
+    // Friday 18 September 2026, owner decision of 16 September: the site takes orders,
+    // individual researchers can sign up, and guests can check out. Only released lots
+    // are sellable, so this opens GHK-Cu and nothing else.
+    "RESEARCHER_TIER_ENABLED": "true",
+    "OPEN_CHECKOUT_ENABLED": "true",
     "ZELLE_RECIPIENT_EMAIL": "orders@nexphaselabs.net",
     "ZELLE_RECIPIENT_NAME": "8486 Ventures LLC",
     "ZELLE_MODE": "manual",
+    // California tax from CDTFA's free rate service, full destination rate.
+    // See docs/operations/SALES_TAX_POSITION_2026-09-15.md.
+    "TAX_PROVIDER": "cdtfa",
+    "CDTFA_DISTRICT_RATE": "destination",
+    // Direct USPS. Rates and tracking work with the existing app. Label purchase
+    // refuses until USPS grants Labels and Payments, so until then staff buy the
+    // label on usps.com and enter the tracking number on the order's ship form.
+    // USPS_CLIENT_SECRET and the ship-from contact are Worker secrets, never here.
+    "SHIPPING_PROVIDER": "usps",
+    "LIVE_SHIPPING_ENABLED": "true",
+    "USPS_CLIENT_ID": "MrjdcYO6qS4bZsYy0KOGw4jAg44CU4IHNJSY6tRJvAfvtm2G",
+    "USPS_CRID": "59918139",
+    "USPS_MID": "904260903",
+    "USPS_MANIFEST_MID": "904260903",
+    "USPS_MAIL_CLASSES": "USPS_GROUND_ADVANTAGE,PRIORITY_MAIL",
+    // Remove an indicator the day that packaging runs out (lib/usps-provider.ts).
+    "USPS_RATE_INDICATORS": "SP,FS,FB,PL,FE,FA,FP",
+    "SHIPPING_DEFAULT_PARCEL_JSON": "{\"length\":8,\"width\":6,\"height\":4,\"baseWeight\":0.4,\"perPackWeight\":0.1}",
+    "SHIPPING_ALLOWED_SERVICES": "usps_ground_advantage,usps_priority",
+    "CHECKOUT_QUOTES_REQUIRED": "true",
+    "INVENTORY_RESERVATION_MINUTES": "30",
     "EMAIL_FROM": "NexPhase Labs <research@nexphaselabs.net>",
   },
   "d1_databases": [
@@ -97,16 +122,50 @@
         // Manual mode enables a safe Zelle simulation here. The application replaces these real
         // enrollment values with unmistakable fake details and never contacts a payment provider.
         "ZELLE_MODE": "manual",
-        // Shippo test mode obtains real carrier test rates without buying live postage.
-        // The API key and private ship-from contact are protected Worker secrets.
+        // Shippo, by the owner's decision of 15 September 2026. Staging runs on
+        // the Shippo TEST key, which is a complete rehearsal — the live key is a
+        // launch-day value, not a build dependency, and the code refuses a test
+        // key in production by design. Every USPS_* value stays configured and
+        // SHIPPING_PROVIDER=usps is the whole switch. The USPS consumer key is a
+        // public identifier; USPS_CLIENT_SECRET is a Worker secret, never here.
+        // See docs/operations/CARRIER_DECISION_2026-09-15.md.
         "SHIPPING_PROVIDER": "shippo",
+        "USPS_CLIENT_ID": "MrjdcYO6qS4bZsYy0KOGw4jAg44CU4IHNJSY6tRJvAfvtm2G",
+        "USPS_CRID": "59918139",
+        "USPS_MID": "904260903",
+        "USPS_MANIFEST_MID": "904260903",
+        "USPS_MAIL_CLASSES": "USPS_GROUND_ADVANTAGE,PRIORITY_MAIL",
+        // Flat Rate containers the business stocks. A rate here is still only
+        // offered when the parcel physically fits that container — see
+        // FLAT_RATE_CONTAINERS in lib/usps-provider.ts. Remove an indicator the
+        // day that packaging runs out, or a label will be bought for a box that
+        // is not on the shelf.
+        "USPS_RATE_INDICATORS": "SP,FS,FB,PL,FE,FA,FP",
+        // Credentials issued in the Customer Onboarding Portal are not always
+        // enabled in the USPS test environment. Pricing calls cost nothing, so
+        // staging is pointed at the live host to prove a real quote. Labels still
+        // refuse until USPS_EPS_ACCOUNT_NUMBER is set, so nothing here can spend.
+        "USPS_API_HOST": "https://apis.usps.com",
+        // Shippo is retained and reachable by setting SHIPPING_PROVIDER back to "shippo".
         "SHIPPO_CARRIER_ACCOUNTS": "256b9f9e2b784b0fb2ee5971d31e3c5e",
         "SHIPPING_DEFAULT_PARCEL_JSON": "{\"length\":8,\"width\":6,\"height\":4,\"baseWeight\":0.4,\"perPackWeight\":0.1}",
         "SHIPPING_ALLOWED_SERVICES": "usps_ground_advantage,usps_priority",
         "CHECKOUT_QUOTES_REQUIRED": "true",
         "INVENTORY_RESERVATION_MINUTES": "30",
-        "TAX_PROVIDER": "simulated",
-        "TAX_SIMULATED_RATE_BPS": "825",
+        // The real California provider, so staging exercises what production will.
+        // CDTFA is free, needs no vendor account, and returns rooftop-accurate
+        // district rates; out-of-state destinations are correctly taxed at zero.
+        // Whether destination district rates or the 7.25% statewide base applies
+        // is a nexus question for the accountant — see CDTFA_DISTRICT_RATE.
+        "TAX_PROVIDER": "cdtfa",
+        // Full destination rate, not the 7.25% base. Deliveries into our own
+        // Oakland district are REQUIRED to carry the full 10.75%, so the base-only
+        // setting would under-collect 3.5 points on those and the business would
+        // pay the shortfall itself. Collecting district tax on out-of-district
+        // California sales is expressly permitted by CDTFA as a courtesy, and is
+        // what becomes mandatory above $500,000 of California sales anyway.
+        // Reasoning and citations: docs/operations/SALES_TAX_POSITION_2026-09-15.md
+        "CDTFA_DISTRICT_RATE": "destination",
         "EMAIL_FROM": "NexPhase Labs <research@nexphaselabs.net>",
       },
       "d1_databases": [

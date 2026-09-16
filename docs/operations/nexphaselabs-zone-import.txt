@@ -1,0 +1,29 @@
+; nexphaselabs.net — COMPLETE zone, rebuilt 14 Sep 2026
+; The pending Cloudflare zone was emptied, so this file now builds ALL of it,
+; not just the additions. Import at: DNS > Records > Import > "Import DNS records".
+;
+; After importing you MUST set the two A records to Proxied (orange cloud).
+; TTL 300 on purpose: keeps a rollback five minutes away rather than an hour.
+
+; --- the website (origin is the LiteSpeed WordPress host, unchanged) ---
+nexphaselabs.net.			300	IN	A	162.254.39.126
+www.nexphaselabs.net.			300	IN	A	162.254.39.126
+
+; --- mail: Google Workspace. Do not change this MX. ---
+nexphaselabs.net.			300	IN	MX	1 smtp.google.com.
+
+; --- Google domain verification. Load-bearing: removing it can break Workspace. ---
+nexphaselabs.net.			300	IN	TXT	"google-site-verification=59nUDSljV-miSpQWE0GIrBiRVRKtAIO1N0-0lhVh5So"
+
+; --- mail authentication (none of this exists on the live zone today) ---
+nexphaselabs.net.			300	IN	TXT	"v=spf1 include:_spf.google.com ~all"
+_dmarc.nexphaselabs.net.		300	IN	TXT	"v=DMARC1; p=none; rua=mailto:dmarc@nexphaselabs.net; fo=1"
+
+; --- Brevo DKIM: signs the WordPress store's mail until WordPress goes dark.
+;     Optional. Delete both once the old store is retired. ---
+brevo1._domainkey.nexphaselabs.net.	300	IN	CNAME	b1.nexphaselabs-net.dkim.brevo.com.
+brevo2._domainkey.nexphaselabs.net.	300	IN	CNAME	b2.nexphaselabs-net.dkim.brevo.com.
+
+; --- STILL MISSING, cannot be written here ---
+; google._domainkey  TXT  <generate in Google Admin: Apps > Google Workspace > Gmail
+;                          > Authenticate email. The value is unique to your tenant.>

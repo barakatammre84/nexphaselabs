@@ -7,6 +7,12 @@ import {
   type RatePolicy,
 } from '@/lib/shipping-rates';
 import { boundedJson } from '@/lib/provider-response';
+import {
+  uspsCancelLabel,
+  uspsConfiguration,
+  uspsPurchaseLabel,
+  uspsQuote,
+} from '@/lib/usps-provider';
 
 export type ShippingAddress = {
   name: string;
@@ -144,11 +150,14 @@ export function shippingConfiguration(requestedOriginId?: string) {
     issues.push(
       'Simulated shipping is allowed only in development or staging with explicit enablement.',
     );
-  if (!simulated && env.SHIPPING_PROVIDER !== 'shippo')
+  /** Postage bought straight from USPS, with no reseller in the record. */
+  const direct = env.SHIPPING_PROVIDER === 'usps';
+  if (!simulated && !direct && env.SHIPPING_PROVIDER !== 'shippo')
     issues.push('Shipping provider is not configured.');
   const key = env.SHIPPO_API_KEY ?? '';
   if (
     !simulated &&
+    !direct &&
     !(test ? /^shippo_test_[A-Za-z0-9]+$/ : /^shippo_live_[A-Za-z0-9]+$/).test(
       key,
     )
@@ -166,6 +175,7 @@ export function shippingConfiguration(requestedOriginId?: string) {
     .filter(Boolean);
   if (
     !simulated &&
+    !direct &&
     (!accounts.length ||
       accounts.length > 10 ||
       accounts.some((v) => !/^[a-zA-Z0-9_-]{1,120}$/.test(v)))
@@ -173,6 +183,9 @@ export function shippingConfiguration(requestedOriginId?: string) {
     issues.push(
       'Configure one or more approved USPS, UPS, or FedEx carrier account IDs.',
     );
+  // Direct USPS replaces the reseller key and carrier accounts with our own
+  // CRID, Mailer ID and Enterprise Payment System account.
+  if (direct) issues.push(...uspsConfiguration().issues);
   const allowedServices = (env.SHIPPING_ALLOWED_SERVICES ?? '')
     .split(',')
     .map((service) => service.trim())
@@ -192,6 +205,7 @@ export function shippingConfiguration(requestedOriginId?: string) {
     issues,
     test,
     simulated,
+    direct,
     accounts,
     allowedServices,
     origins,
@@ -329,9 +343,41 @@ export async function quoteShipping(
       originId: configuration.originId!,
       originLabel: configuration.originLabel!,
       test: true,
+      provider: 'simulated' as const,
       warning:
         'Synthetic staging rates. Connect approved USPS, UPS and FedEx accounts before launch.',
       comparedCarriers: [...new Set(rates.map((rate) => rate.carrier))],
+      quotedAt: new Date().toISOString(),
+    };
+  }
+  if (configuration.direct) {
+    const quoted = await uspsQuote(configuration.from!, to, parcel);
+    if (!quoted.ok) return quoted;
+    const rates = compareShippingRates(quoted.rates, {
+      ...policy,
+      services: configuration.allowedServices.length
+        ? policy.services.length
+          ? policy.services.filter((service) =>
+              configuration.allowedServices.includes(service),
+            )
+          : configuration.allowedServices
+        : policy.services,
+    });
+    if (!rates.length)
+      return {
+        ok: false as const,
+        error:
+          'USPS priced this parcel but no service met the approved service and delivery-time policy.',
+      };
+    return {
+      ok: true as const,
+      rates,
+      originId: configuration.originId!,
+      originLabel: configuration.originLabel!,
+      test: quoted.test,
+      provider: 'usps' as const,
+      warning: quoted.warning,
+      comparedCarriers: ['USPS'],
       quotedAt: new Date().toISOString(),
     };
   }
@@ -384,6 +430,7 @@ export async function quoteShipping(
       originId: configuration.originId!,
       originLabel: configuration.originLabel!,
       test: configuration.test,
+      provider: 'shippo' as const,
       warning:
         Array.isArray(payload.messages) && payload.messages.length
           ? 'Some carrier requests reported an issue. These results may not include every configured account.'
@@ -419,6 +466,14 @@ export function safeLabelUrl(value: unknown): string | null {
 export async function purchaseShippingLabel(
   rateId: string,
   orderNumber: string,
+  context?: {
+    /** Required for direct USPS: the full consignee address is restated on the label. */
+    to?: ShippingAddress;
+    /** The durable label-claim row id, reused as the USPS idempotency key. */
+    labelId?: string;
+    originId?: string;
+    institution?: string | null;
+  },
 ) {
   const configuration = shippingConfiguration();
   if (configuration.issues.length)
@@ -443,7 +498,53 @@ export async function purchaseShippingLabel(
       transactionId: `sim-label-${suffix}`,
       trackingNumber: `TEST${suffix}`,
       labelUrl: null,
+      postageCents: null,
+      warnings: [] as string[],
       test: true,
+    };
+  }
+  if (configuration.direct) {
+    const to = context?.to;
+    const labelId = context?.labelId;
+    if (!to || !labelId)
+      return {
+        ok: false as const,
+        uncertain: false,
+        error:
+          'A USPS label needs the destination address and a durable label claim. No postage was bought.',
+      };
+    const origin = shippingConfiguration(context?.originId);
+    if (origin.issues.length || !origin.from)
+      return {
+        ok: false as const,
+        uncertain: false,
+        error:
+          origin.issues.join(' ') || 'No ship-from location is configured.',
+      };
+    const bought = await uspsPurchaseLabel(
+      rateId,
+      origin.from,
+      to,
+      labelId,
+      context?.institution ?? null,
+    );
+    if (!bought.ok)
+      return {
+        ok: false as const,
+        uncertain: bought.uncertain,
+        error: bought.error,
+      };
+    return {
+      ok: true as const,
+      // USPS has no transaction object; the tracking number is the handle for
+      // reprinting, cancelling and refunding the same label.
+      transactionId: bought.trackingNumber,
+      trackingNumber: bought.trackingNumber,
+      labelUrl: bought.labelUrl,
+      // USPS reprices at label time, so this is the figure EPS is charged.
+      postageCents: bought.postageCents,
+      warnings: bought.warnings,
+      test: bought.test,
     };
   }
   try {
@@ -505,6 +606,9 @@ export async function purchaseShippingLabel(
       transactionId,
       trackingNumber,
       labelUrl,
+      // Shippo bills the rate it sold; there is no separate carrier reprice.
+      postageCents: null,
+      warnings: [] as string[],
       test: configuration.test,
     };
   } catch {
@@ -608,6 +712,21 @@ export async function requestShippingLabelRefund(
       refundId: `sim-refund-${transactionId.slice(-24)}`,
       test: true,
     };
+  if (configuration.direct) {
+    const cancelled = await uspsCancelLabel(transactionId);
+    return cancelled.ok
+      ? {
+          ok: true,
+          status: cancelled.status,
+          refundId: cancelled.reference,
+          test: configuration.test,
+        }
+      : {
+          ok: false,
+          uncertain: cancelled.uncertain,
+          error: cancelled.error,
+        };
+  }
   try {
     const response = await fetch('https://api.goshippo.com/refunds/', {
       method: 'POST',
@@ -667,6 +786,17 @@ export async function reconcileShippingLabelRefund(
       status: 'success',
       refundId: refundId ?? `sim-refund-${transactionId.slice(-24)}`,
       test: true,
+    };
+  if (configuration.direct)
+    // USPS exposes no read endpoint for a refund dispute. Reporting it as
+    // unresolved keeps a disputed label out of the shipped path instead of
+    // inventing a settlement we cannot see.
+    return {
+      ok: false,
+      uncertain: true,
+      ...(refundId ? { refundId } : {}),
+      error:
+        'USPS refund status cannot be read from here. Check the dispute in the USPS Business Customer Gateway and record the outcome by hand.',
     };
   try {
     const response = await fetch(

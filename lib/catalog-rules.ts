@@ -176,6 +176,14 @@ export const COUNSEL_HOLD: { pattern: RegExp; reason: string }[] = [
   { pattern: /\bsemaglutide\b/i, reason: 'active ingredient of FDA-approved drugs' },
   { pattern: /\bliraglutide\b/i, reason: 'active ingredient of FDA-approved drugs' },
   { pattern: /\btesamorelin\b/i, reason: 'active ingredient of an approved biologic (BLA 022505); withdrawn from this catalog' },
+  // House codes. The 2026-09 inventory sheet lists these compounds under
+  // internal codes ("Website Name": NP-2T, NP-3R), and `counselHold` only reads
+  // identity fields — so a product created under the code alone, with no formal
+  // name and no synonym, would have escaped every rule above. A hold that a
+  // naming choice can switch off is not a hold. Add the code beside the
+  // compound whenever a held compound is given one.
+  { pattern: /\bNP-?2T\b/i, reason: 'house code for tirzepatide, the active ingredient of FDA-approved drugs; named in FDA warning letters of 31 Mar 2026' },
+  { pattern: /\bNP-?3R\b/i, reason: 'house code for retatrutide, an investigational compound named in FDA warning letters of 31 Mar 2026 and in Eli Lilly consumer-protection suits of 12 Aug 2026' },
 ];
 
 /** The first counsel-hold reason that applies to a product's identity fields, or null. */

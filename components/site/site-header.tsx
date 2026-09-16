@@ -40,7 +40,7 @@ export async function SiteHeader() {
       : 'Sign in';
   return (
     <header className="site-header sticky top-0 z-40 px-4 py-3 sm:px-6">
-      <div className="mx-auto flex min-h-[4.75rem] max-w-[1280px] items-center justify-between gap-4 rounded-[2rem] border border-white/80 bg-white/95 px-5 shadow-[0_18px_44px_rgba(22,28,95,0.14)] backdrop-blur sm:px-7">
+      <div className="mx-auto flex min-h-[4.75rem] max-w-[1280px] items-center justify-between gap-4 rounded-[2rem] border border-white/80 bg-white/95 px-5 shadow-[0_18px_44px_rgba(14,18,59,0.14)] backdrop-blur sm:px-7">
         <NavLink
           href="/"
           className="shrink-0"

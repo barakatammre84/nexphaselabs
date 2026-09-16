@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { IBM_Plex_Mono, Sora, Source_Sans_3 } from 'next/font/google';
 import { SiteFooter } from '@/components/site/site-footer';
 import { SiteHeader } from '@/components/site/site-header';
@@ -7,6 +7,8 @@ import { EntryNotice } from '@/components/site/entry-notice';
 import { FeedbackChat } from '@/components/site/feedback-chat';
 import { ProductRail } from '@/components/site/product-rail';
 import { appEnv } from '@/lib/site-config';
+import { ENTITY } from '@/lib/entity';
+import { BRAND_NAVY } from '@/lib/brand-mark';
 import './globals.css';
 
 const display = Sora({ variable: '--font-display', subsets: ['latin'] });
@@ -18,12 +20,32 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(`https://${ENTITY.website}`),
   title: {
     default: 'NexPhase Labs | Research Peptides, Verified by Lot',
     template: '%s | NexPhase Labs',
   },
   description:
     'Research materials with clear specifications, released-lot documentation, and traceable fulfillment. For laboratory research use only.',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: '16x16 32x32 48x48' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
+  manifest: '/site.webmanifest',
+  openGraph: {
+    siteName: 'NexPhase Labs',
+    images: [
+      { url: '/og-image.png', width: 1200, height: 630, alt: 'NexPhase Labs' },
+    ],
+  },
+  twitter: { card: 'summary_large_image', images: ['/og-image.png'] },
+};
+
+export const viewport: Viewport = {
+  themeColor: BRAND_NAVY,
 };
 
 export default function RootLayout({
