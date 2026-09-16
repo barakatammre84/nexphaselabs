@@ -15,7 +15,7 @@ A credential that has been pasted anywhere it should not be is rotated, not "wat
 
 | What | Where it lives | Who can obtain it | Used for |
 | --- | --- | --- | --- |
-| Cloudflare account | Cloudflare dashboard, owner's login with their own 2FA | Business & Systems lead | Workers, D1, R2, DNS, logs |
+| Cloudflare account | Cloudflare dashboard, account `5438a1e4683ea3ea35ddc20ba50ac05a` "8486 Ventures LLC - NexPhase Labs"; owner login `sam@nexphaselabs.net`, each admin with their own 2FA | `sam@` (Super Administrator); second Super Administrator: the `ammre@nexphaselabs.net` login (added 16 Sep 2026) | Workers, D1, R2, DNS, logs |
 | GitHub repository | github.com, per-person account | Business & Systems lead | Source, Actions, deploy workflows |
 | Google Workspace | admin.google.com | Business & Systems lead | Mail, Drive, staff identities |
 | Domain registrar | Registrar account | Business & Systems lead | `nexphaselabs.net`, the cutover |
@@ -76,3 +76,9 @@ own Cloudflare and GitHub access, one unavailable person is one unavailable plat
 
 When a fallback is agreed, add them here with the date, and give them their own account — never a
 shared login.
+
+16 September 2026: the Cloudflare estate moved into the company account. `sam@nexphaselabs.net`
+owns it; the `ammre@nexphaselabs.net` login is the second Super Administrator (an alias on the
+`sam@` mailbox, with its own Cloudflare password and authenticator). `ammre@bistelligent.com` was
+a Super Administrator for the migration week only. GitHub and the registrar are still single-login
+and remain on `c16-fallback`.

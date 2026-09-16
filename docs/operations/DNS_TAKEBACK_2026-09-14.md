@@ -106,4 +106,7 @@ application cutover, so a rollback propagates in five minutes. Put it back a wee
 ## Still open
 
 - Registrar 2FA is OFF on the Namecheap account holding the domain (R-04).
-- We never identified who controls the `addyson` / `zac` zone. Worth knowing before renewal.
+- ~~We never identified who controls the `addyson` / `zac` zone.~~ Resolved 16 September 2026: it
+  is the pending zone in `sam@nexphaselabs.net`'s Cloudflare account
+  (`5438a1e4683ea3ea35ddc20ba50ac05a`), which is becoming the company account. Nobody could
+  sign in because it was Wisam's login, not Ammre's.

@@ -26,7 +26,7 @@ const EXPECT = {
     APP_ENV: 'staging',
     database: 'nexphase-labs-staging',
     bucket: 'nexphase-documents-staging',
-    originHost: 'nexphaselabs-staging.ammre.workers.dev',
+    originHost: 'nexphaselabs-staging.nexphase.workers.dev',
   },
   production: {
     name: 'nexphaselabs',

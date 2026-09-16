@@ -26,7 +26,7 @@ Create two separate Shippo webhook records:
 
 | Environment | Event | Test flag | URL origin |
 | --- | --- | --- | --- |
-| Staging | `track_updated` | test | `https://nexphaselabs-staging.ammre.workers.dev` |
+| Staging | `track_updated` | test | `https://nexphaselabs-staging.nexphase.workers.dev` (re-registered after the 16 Sep account move; the old `ammre` host no longer answers) |
 | Production | `track_updated` | live | `https://nexphaselabs.net` |
 
 Each environment receives a different `SHIPPO_WEBHOOK_TOKEN` secret. Do not reuse the API key as the URL token. A duplicate event is stored once. Transit is recorded, delivered status can close the delivery checkpoint, and failure/return/unmatched events appear under **Internal → Readiness → Tracking events needing review**.

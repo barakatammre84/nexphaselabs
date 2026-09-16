@@ -14,7 +14,7 @@ import {
  */
 
 const request = (path = '/', headers: Record<string, string> = {}) =>
-  new Request(`https://nexphaselabs-staging.ammre.workers.dev${path}`, { headers });
+  new Request(`https://nexphaselabs-staging.nexphase.workers.dev${path}`, { headers });
 
 const basic = (password: string) => ({
   authorization: `Basic ${btoa(`tester:${password}`)}`,
@@ -118,7 +118,7 @@ describe('production answers away from the public origin', () => {
   const html = () => new Response('<html></html>', { headers: { 'Content-Type': 'text/html' } });
 
   it("marks the production Worker's workers.dev address noindex", () => {
-    const answer = withNoindex(html(), 'production', 'https://nexphaselabs.ammre.workers.dev/catalog', 'https://nexphaselabs.net');
+    const answer = withNoindex(html(), 'production', 'https://nexphaselabs.nexphase.workers.dev/catalog', 'https://nexphaselabs.net');
     expect(answer.headers.get('X-Robots-Tag')).toBe('noindex, nofollow');
   });
 
@@ -128,7 +128,7 @@ describe('production answers away from the public origin', () => {
   });
 
   it('changes nothing when the host cannot be compared', () => {
-    expect(withNoindex(html(), 'production', 'https://nexphaselabs.ammre.workers.dev/', undefined).headers.get('X-Robots-Tag')).toBeNull();
+    expect(withNoindex(html(), 'production', 'https://nexphaselabs.nexphase.workers.dev/', undefined).headers.get('X-Robots-Tag')).toBeNull();
     expect(withNoindex(html(), 'production', undefined, 'https://nexphaselabs.net').headers.get('X-Robots-Tag')).toBeNull();
     expect(withNoindex(html(), 'production', 'not a url', 'https://nexphaselabs.net').headers.get('X-Robots-Tag')).toBeNull();
   });

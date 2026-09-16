@@ -32,7 +32,7 @@
 The private staging GPT is live at `https://chatgpt.com/g/g-6a9c507f13f08191af777b3195d75408-nexphase-feedback-analyst`. Its imported Action and bearer authentication passed a live retrieval test on 2026-09-05.
 
 1. The staging token is stored in the local macOS Keychain under service `nexphaselabs-staging-feedback-archive`, account `nexphaselabs-staging`, and in the Worker secret `CHATGPT_FEEDBACK_READ_TOKEN`. Retrieve it only when configuring the approved Action; never paste it into source control or chat.
-2. In the approved ChatGPT Action, import `https://nexphaselabs-staging.ammre.workers.dev/api/feedback/openapi`.
+2. In the approved ChatGPT Action, import `https://nexphaselabs-staging.nexphase.workers.dev/api/feedback/openapi` (host changed with the 16 Sep account move).
 3. Select bearer API-key authentication and enter the Keychain value.
 4. Test `searchCustomerFeedback` with a narrow query. The response is capped at 50 conversations and 5,000 transcript entries per request.
 5. Repeat with the production origin and a different production token only after privacy and staff-access review.
