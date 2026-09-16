@@ -33,10 +33,35 @@
     // Counsel signed off every legal page (confirmed by the owner, 15 September 2026). This removes the draft
     // banner (lib/site-config.ts); take it out again if a policy's wording changes before that wording is reviewed.
     "POLICIES_COUNSEL_REVIEWED": "true",
-    "RESEARCHER_TIER_ENABLED": "false",
+    // Friday 18 September 2026, owner decision of 16 September: the site takes orders,
+    // individual researchers can sign up, and guests can check out. Only released lots
+    // are sellable, so this opens GHK-Cu and nothing else.
+    "RESEARCHER_TIER_ENABLED": "true",
+    "OPEN_CHECKOUT_ENABLED": "true",
     "ZELLE_RECIPIENT_EMAIL": "orders@nexphaselabs.net",
     "ZELLE_RECIPIENT_NAME": "8486 Ventures LLC",
     "ZELLE_MODE": "manual",
+    // California tax from CDTFA's free rate service, full destination rate.
+    // See docs/operations/SALES_TAX_POSITION_2026-09-15.md.
+    "TAX_PROVIDER": "cdtfa",
+    "CDTFA_DISTRICT_RATE": "destination",
+    // Direct USPS. Rates and tracking work with the existing app. Label purchase
+    // refuses until USPS grants Labels and Payments, so until then staff buy the
+    // label on usps.com and enter the tracking number on the order's ship form.
+    // USPS_CLIENT_SECRET and the ship-from contact are Worker secrets, never here.
+    "SHIPPING_PROVIDER": "usps",
+    "LIVE_SHIPPING_ENABLED": "true",
+    "USPS_CLIENT_ID": "MrjdcYO6qS4bZsYy0KOGw4jAg44CU4IHNJSY6tRJvAfvtm2G",
+    "USPS_CRID": "59918139",
+    "USPS_MID": "904260903",
+    "USPS_MANIFEST_MID": "904260903",
+    "USPS_MAIL_CLASSES": "USPS_GROUND_ADVANTAGE,PRIORITY_MAIL",
+    // Remove an indicator the day that packaging runs out (lib/usps-provider.ts).
+    "USPS_RATE_INDICATORS": "SP,FS,FB,PL,FE,FA,FP",
+    "SHIPPING_DEFAULT_PARCEL_JSON": "{\"length\":8,\"width\":6,\"height\":4,\"baseWeight\":0.4,\"perPackWeight\":0.1}",
+    "SHIPPING_ALLOWED_SERVICES": "usps_ground_advantage,usps_priority",
+    "CHECKOUT_QUOTES_REQUIRED": "true",
+    "INVENTORY_RESERVATION_MINUTES": "30",
     "EMAIL_FROM": "NexPhase Labs <research@nexphaselabs.net>",
   },
   "d1_databases": [
