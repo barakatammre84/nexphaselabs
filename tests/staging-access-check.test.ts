@@ -89,7 +89,7 @@ function build(vars: Record<string, string> = {}): string {
       targetEnvironment: 'staging',
       vars: {
         APP_ENV: 'staging',
-        PUBLIC_ORIGIN: 'https://nexphaselabs-staging.ammre.workers.dev',
+        PUBLIC_ORIGIN: 'https://nexphaselabs-staging.nexphase.workers.dev',
         ...vars,
       },
     }),
@@ -254,7 +254,7 @@ describe('staging access boundary check', { timeout: 30_000 }, () => {
 
   it('will not run without a staging origin and a staging build', async () => {
     expect((await check([])).code).toBe(2);
-    expect((await check(['nexphaselabs-staging.ammre.workers.dev', openBuild()])).code).toBe(2);
+    expect((await check(['nexphaselabs-staging.nexphase.workers.dev', openBuild()])).code).toBe(2);
     expect((await check([origin, join(dir, 'does-not-exist.json')])).code).toBe(2);
     expect((await check([origin, build({ APP_ENV: 'production' })])).code).toBe(2);
   });

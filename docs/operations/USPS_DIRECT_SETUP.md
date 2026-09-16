@@ -40,7 +40,7 @@ existing USPS business account.
 | Master Mailer ID (MID) | 904260903 |
 | Label Mailer ID (MID) | 904260904 |
 | Enterprise Payment System (EPS) account | **not yet created** |
-| Developer app / consumer key | **not yet created** |
+| Developer app / consumer key | **created 15 Sep 2026** — app `Nexphase` under the `sam@nexphaselabs.net` developer-portal login (portal user 74162); consumer key is `USPS_CLIENT_ID` in `wrangler.jsonc`, consumer secret is the `USPS_CLIENT_SECRET` Worker secret |
 
 ## Ship-from address
 
@@ -133,7 +133,7 @@ carries no credentials. Credentials come from the COP portal.
 Steps 1–3 are Ammre's or Wisam's. They involve money and identity and cannot be
 done from here.
 
-**Step 1 — Add the payment account (EPS).** cop.usps.com → the onboarding page
+**Step 1 — Add the payment account (EPS).** *Done 15 Sep 2026: one active EPS account ("Nexphase eps") exists under the NexPhaseLabs CRID; its number is the `USPS_EPS_ACCOUNT_NUMBER` Worker secret. Trust balance was $0.00 on 16 Sep — fund it before any in-app label purchase.* cop.usps.com → the onboarding page
 already sitting at "Add Your Payment Account" → accept the Payment Account
 Terms → add a bank account (ACH) and fund it. Postage is drawn from this
 balance at the moment each label is bought. Write down the **EPS account

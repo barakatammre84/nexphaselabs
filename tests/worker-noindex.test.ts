@@ -19,7 +19,7 @@ import worker from '@/worker';
  * The feedback socket is the opposite case: its 101 must leave exactly as built.
  */
 
-const STAGING = 'https://nexphaselabs-staging.ammre.workers.dev';
+const STAGING = 'https://nexphaselabs-staging.nexphase.workers.dev';
 const assets = vi.fn();
 const staging = {
   APP_ENV: 'staging',

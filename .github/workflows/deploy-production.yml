@@ -46,7 +46,7 @@ jobs:
         env:
           PRODUCTION_SMOKE_URL: ${{ vars.PRODUCTION_SMOKE_URL }}
         run: |
-          if [ "$PRODUCTION_SMOKE_URL" != "https://nexphaselabs.ammre.workers.dev" ]; then
+          if [ "$PRODUCTION_SMOKE_URL" != "https://nexphaselabs.nexphase.workers.dev" ]; then
             echo "Set PRODUCTION_SMOKE_URL to the production workers.dev origin before releasing."
             echo "The public domain stays on WordPress until the separate cutover checklist is complete."
             exit 1

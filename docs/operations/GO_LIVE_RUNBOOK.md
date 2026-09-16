@@ -10,7 +10,9 @@ Owner of every step below is Ammre unless named otherwise.
 
 ## Part 1 — Take the zone back (nothing public changes)
 
-The live nameservers are `addyson` / `zac`, in a Cloudflare account we cannot sign into. Our
+The live nameservers are `addyson` / `zac`, in a Cloudflare account we cannot sign into (resolved
+16 September: that account is `sam@nexphaselabs.net`'s — now the company account, see
+`docs/DEPLOY.md`). Our
 own zone is pending on `cesar` / `marlowe`. Steps 1.1 to 1.4 all happen inside our pending
 zone, which is **not authoritative**, so they have no effect on visitors or mail. They are
 safe to do in any order, at any time.
@@ -100,7 +102,7 @@ a company asset in a personal account (R-04).
 
 ## Part 3 — Production readiness (independent of DNS; can run in parallel)
 
-Production is healthy at `https://nexphaselabs.ammre.workers.dev` — database and document
+Production is healthy at `https://nexphaselabs.nexphase.workers.dev` — database and document
 store both report OK, running the reviewed build. Its catalog correctly shows **zero
 products**, because production has no released lots. To sell GHK-Cu these must land:
 
@@ -143,7 +145,8 @@ still blank — fill it before cutover day.
 - **Workers plan.** The 11 Sep 1102 errors were never explained. Confirm whether this account
   is on Workers Paid; the free plan's CPU ceiling is the leading theory and it would hit
   production the same way.
-- **Nobody owns the `addyson`/`zac` zone** as far as we know. Worth establishing before
-  renewal in Feb 2027.
+- ~~**Nobody owns the `addyson`/`zac` zone** as far as we know.~~ Resolved 16 September: it is
+  the `sam@nexphaselabs.net` Cloudflare account, `5438a1e4683ea3ea35ddc20ba50ac05a`, now the
+  company account.
 - **No named fallback operator**, and the GitHub plan will not enforce a second reviewer on
   production releases. You are currently the only person who can deploy or roll back.

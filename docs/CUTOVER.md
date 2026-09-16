@@ -28,10 +28,10 @@ Recorded from the owner on 15 September 2026:
 | nexphaselabs.net | WordPress + SureCart storefront, proxied through Cloudflare (origin recorded on 3 September as LiteSpeed at 162.254.39.126) |
 | Pages | `/shop`, `/cart`, `/checkout`, `/my-account`, `/customer-dashboard`, `/faq`, `/about`, `/disclaimer`, `/privacy-policy`, `/shipping-policy` |
 | Registrar | Namecheap, expires 2027-02-27 |
-| Authoritative DNS | Cloudflare (`cesar.ns.cloudflare.com`, `marlowe.ns.cloudflare.com`), the zone in account `3d429c7b2020e96fe10a1588f1fb3662` |
+| Authoritative DNS | Cloudflare. Until the 17 September switch: `cesar` / `marlowe`, the zone in account `3d429c7b2020e96fe10a1588f1fb3662`. After it: `addyson` / `zac`, the identical zone in the company account `5438a1e4683ea3ea35ddc20ba50ac05a` |
 | Mail | Google Workspace, `MX 1 smtp.google.com`, users sam@, mel@, tima@ |
-| Cloudflare zone | Active in account `3d429c7b2020e96fe10a1588f1fb3662`. Public answers on 15 September 2026: apex and `www` proxied, `MX 1 smtp.google.com` only, and SPF, DMARC and Google DKIM published. No PrivateEmail MX record answers. |
-| New application | Staging and production Workers are deployed in account `3d429c7b2020e96fe10a1588f1fb3662`; no custom domain points at the new application. |
+| Cloudflare zone | Active in account `3d429c7b2020e96fe10a1588f1fb3662`. Public answers on 15 September 2026: apex and `www` proxied, `MX 1 smtp.google.com` only, and SPF, DMARC and Google DKIM published. No PrivateEmail MX record answers. On 16 September the company account's pending zone was brought to an identical 16-record set (verified record-by-record against `addyson`/`zac`), ready for the nameserver switch. |
+| New application | Staging and production Workers are deployed in the company account `5438a1e4683ea3ea35ddc20ba50ac05a` (subdomain `nexphase`); no custom domain points at the new application. |
 
 The new application and the live store are entirely separate systems. They
 share only a domain name. No data moves between them; the WordPress orders,
@@ -70,7 +70,8 @@ customer-facing switch and uses the retained WordPress host for rollback.
    real infrastructure: sign-in, an organisation approval, an order, a
    shipment, a document download, a real email.
 2. **Confirm the active Cloudflare zone.** Done: the nameservers are `cesar` /
-   `marlowe`, the zone in account `3d429c7b2020e96fe10a1588f1fb3662`. Its public
+   `marlowe`, the zone in account `3d429c7b2020e96fe10a1588f1fb3662` (the company
+   account's `addyson` / `zac` zone takes over on the 17 September switch). Its public
    answers keep the Google MX and site-verification TXT and carry no
    PrivateEmail MX.
 3. **Add and prove mail authentication.** SPF, monitoring-mode DMARC and the

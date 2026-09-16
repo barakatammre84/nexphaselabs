@@ -9,7 +9,7 @@
   // exercised freely without touching production lot records or documents.
   // Secrets are never written here; see docs/DEPLOY.md.
   "$schema": "node_modules/wrangler/config-schema.json",
-  "account_id": "3d429c7b2020e96fe10a1588f1fb3662",
+  "account_id": "5438a1e4683ea3ea35ddc20ba50ac05a",
   "name": "nexphaselabs",
   "compatibility_date": "2026-05-15",
   "compatibility_flags": ["nodejs_compat"],
@@ -68,7 +68,7 @@
     {
       "binding": "DB",
       "database_name": "nexphase-labs",
-      "database_id": "70e80fa9-cd27-4fd7-b0ee-1fea56c5778d",
+      "database_id": "f3d791f2-f457-4544-b186-3e657c3e997d",
       "migrations_dir": "drizzle",
     },
   ],
@@ -113,7 +113,7 @@
         "STAGING_ACCESS_OPEN": "true",
         // Real staging origin on the account's workers.dev subdomain. Keep the STAGING_URL repository
         // variable identical; staging email links and payment return URLs are built from this.
-        "PUBLIC_ORIGIN": "https://nexphaselabs-staging.ammre.workers.dev",
+        "PUBLIC_ORIGIN": "https://nexphaselabs-staging.nexphase.workers.dev",
         // Counsel signed off every legal page (owner, 15 September 2026); staging shows what production shows.
         "POLICIES_COUNSEL_REVIEWED": "true",
         "RESEARCHER_TIER_ENABLED": "true",
@@ -172,7 +172,7 @@
         {
           "binding": "DB",
           "database_name": "nexphase-labs-staging",
-          "database_id": "d24c1b97-1517-4ac4-a019-bed2a2a39c2b",
+          "database_id": "a9937a08-9cf3-44ab-afe9-1feae83c9149",
           "migrations_dir": "drizzle",
         },
       ],

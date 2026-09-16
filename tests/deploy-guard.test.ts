@@ -16,7 +16,7 @@ const dir = mkdtempSync(join(tmpdir(), 'deploy-guard-'));
 const STAGING_BUILD = {
   name: 'nexphaselabs-staging',
   targetEnvironment: 'staging',
-  vars: { APP_ENV: 'staging', PUBLIC_ORIGIN: 'https://nexphaselabs-staging.ammre.workers.dev' },
+  vars: { APP_ENV: 'staging', PUBLIC_ORIGIN: 'https://nexphaselabs-staging.nexphase.workers.dev' },
   d1_databases: [{ database_name: 'nexphase-labs-staging' }],
   r2_buckets: [{ bucket_name: 'nexphase-documents-staging' }],
 };

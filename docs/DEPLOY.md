@@ -5,22 +5,25 @@ The site runs as a single Cloudflare Worker built by `vinext` with
 
 ## Environments
 
-All infrastructure currently lives in the **bistelligent** Cloudflare account,
-`ammre@bistelligent.com`, id `3d429c7b2020e96fe10a1588f1fb3662`, pinned as
-`account_id` in `wrangler.jsonc` so a session authenticated to another account
-cannot deploy here by accident. The account's workers.dev subdomain is `ammre`,
-so staging is served at `https://nexphaselabs-staging.ammre.workers.dev`.
+All infrastructure lives in the company Cloudflare account **8486 Ventures LLC -
+NexPhase Labs**, owner login `sam@nexphaselabs.net`, id
+`5438a1e4683ea3ea35ddc20ba50ac05a`, pinned as `account_id` in `wrangler.jsonc` so
+a session authenticated to another account cannot deploy here by accident. The
+account's workers.dev subdomain is `nexphase`, so staging is served at
+`https://nexphaselabs-staging.nexphase.workers.dev` and the production origin is
+`https://nexphaselabs.nexphase.workers.dev`.
 
-Moving to a company-owned account later means creating two D1 databases and two
-R2 buckets there, applying the migrations, reseeding, and changing the three ids
-in `wrangler.jsonc`. Two empty databases already exist under
-`sam@nexphaselabs.net` (`5438a1e4683ea3ea35ddc20ba50ac05a`) from an earlier
-attempt; R2 was never enabled on that account, which is what blocked it.
+Until 16 September 2026 the estate ran in `ammre@bistelligent.com`'s personal
+account (`3d429c7b2020e96fe10a1588f1fb3662`, subdomain `ammre`), shared with
+another business. The move to the company account was the second attempt: the
+first stalled because R2 needs a payment method on file before its (free-tier)
+subscription can be added. That account keeps only the bistelligent estate and
+is not to be used for NexPhase.
 
 | Environment | Worker name            | D1 database             | D1 id                                  | R2 bucket                    |
 | ----------- | ---------------------- | ----------------------- | -------------------------------------- | ---------------------------- |
-| production  | `nexphaselabs`         | `nexphase-labs`         | `70e80fa9-cd27-4fd7-b0ee-1fea56c5778d` | `nexphase-documents`         |
-| staging     | `nexphaselabs-staging` | `nexphase-labs-staging` | `d24c1b97-1517-4ac4-a019-bed2a2a39c2b` | `nexphase-documents-staging` |
+| production  | `nexphaselabs`         | `nexphase-labs`         | `f3d791f2-f457-4544-b186-3e657c3e997d` | `nexphase-documents`         |
+| staging     | `nexphaselabs-staging` | `nexphase-labs-staging` | `a9937a08-9cf3-44ab-afe9-1feae83c9149` | `nexphase-documents-staging` |
 
 Staging is a full copy of the stack with its own data. Nothing in staging can
 read or write production lot records or documents.
@@ -211,8 +214,9 @@ The walkthrough also verified that the customer order page loads reliably after 
 
 ### Earlier infrastructure proof from 2026-09-04
 
-Both workers are deployed in the bistelligent account and answer `/api/health`
-with `ok`:
+Both workers were deployed in the then-current (bistelligent) account and
+answered `/api/health` with `ok`; the hosts below moved to the `nexphase`
+subdomain on 16 September 2026:
 
 - staging `https://nexphaselabs-staging.ammre.workers.dev`
 - production `https://nexphaselabs.ammre.workers.dev`, inert because no DNS
