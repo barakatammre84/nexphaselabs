@@ -51,7 +51,7 @@ Confirmed by the owner on 16 September 2026:
 | Ship-from (return address) | 2715 W KETTLEMAN LN STE 203 PMB 360, LODI CA 95242 |
 | Kind of address | Private mailbox at a commercial mail receiving agency |
 | Label sender email | orders@nexphaselabs.net |
-| Origin ZIP currently used for rating | 95242 — see point 3, this may be wrong |
+| Origin ZIP used for rating | 95242 — parcels are inducted in Lodi, so this is also the real induction ZIP |
 
 This is **not** the registered business address, and it is not a facility. It is
 a rented mailbox: mail and returns arrive there and no stock is held there. The
@@ -73,8 +73,7 @@ for being in California — the rate a customer pays comes from their own
 address, so moving the origin to Lodi changes nothing about what anyone is
 charged.
 
-Four points on this address. Two are settled; the third is open and the fourth
-is a reminder:
+Four points on this address. Three are settled; the fourth is a reminder:
 
 1. **Settled 16 Sep 2026.** The owner confirms this is a private mailbox.
    USPS Postal Addressing Standards 285 accepts either `PMB` or `#` in general,
@@ -96,20 +95,25 @@ is a reminder:
    business, and that is unchanged by renting a mailbox. See
    <https://cdtfa.ca.gov/industry/local-and-district-retailer-taxes/online-retailers-registration-and-local-tax.htm>.
 
-3. **Open, and it costs money.** A private mailbox is a return address. It is not
-   where a parcel enters the mail stream, and USPS rates Ground Advantage and
-   Priority by zone from the origin ZIP on the label. The code uses one address
-   for both: `uspsQuote` and `uspsPurchaseLabel` take `originZIPCode` from the
-   ship-from ZIP. If parcels are packed in Oakland and handed over at an Oakland
-   post office while the label claims 95242, the zone is computed from the wrong
-   point and USPS can bill the difference back — that is what the Reconciliation
-   Adjustments API exists to report. Two further consequences of a PMB: a carrier
-   pickup cannot be scheduled from one, and returned parcels land at the agency,
-   which typically charges to handle or forward them.
+3. **Settled 16 Sep 2026 — 95242 is correct.** The owner mails from Lodi, so the
+   ZIP on the label is also the ZIP the parcel is inducted at, and the zone USPS
+   rates from is the zone the parcel actually travels. Nothing to change. This
+   was worth checking because the code takes both jobs from one field —
+   `uspsQuote` and `uspsPurchaseLabel` read `originZIPCode` from the ship-from
+   ZIP — so had parcels been dropped in Oakland against a 95242 label, the zone
+   would have been computed from the wrong point and USPS would bill the
+   difference back through Reconciliation Adjustments. If drop-off ever moves,
+   this field has to learn to express a return address and a rating origin
+   separately; it cannot today.
 
-   Needed: the ZIP where parcels are physically inducted. If that is not 95242,
-   the return address and the rating origin have to be separated in
-   `lib/shipping-provider.ts`, which today cannot express the difference.
+   Two things about a PMB that remain true regardless: a carrier pickup cannot
+   be scheduled from one, and undeliverable parcels come back to the agency,
+   which typically charges to hold or forward them.
+
+   One consequence to keep in view: if stock is held and packed anywhere in
+   Lodi, that location — not the mailbox — is a place of business under the
+   guidance in point 2, and belongs on the seller's permit. The mailbox is not,
+   but a room with inventory in it is.
 
 4. The hazard communication programme's registered address
    (`entity.registered_address`, still unset) is the address of the workplace the
