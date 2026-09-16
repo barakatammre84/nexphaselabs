@@ -538,6 +538,8 @@ export async function transitionOrder(
           toStatus: sql<string>`${to}`.as('to_status'),
           note: sql<string | null>`${note}`.as('note'),
           actor: sql<string>`${actor}`.as('actor'),
+          // Customer-facing: a status change is exactly what they asked to hear about.
+          internal: sql<number>`0`.as('internal'),
           createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as(
             'created_at',
           ),
@@ -919,6 +921,7 @@ export async function recordRefund(
           toStatus: orders.status,
           note: sql<string>`${note}`.as('note'),
           actor: sql<string>`${actor}`.as('actor'),
+          internal: sql<number>`0`.as('internal'),
           createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as(
             'created_at',
           ),

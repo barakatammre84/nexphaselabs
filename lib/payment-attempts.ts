@@ -86,7 +86,8 @@ export async function attachPaymentAttempt(orderId: string): Promise<Order | nul
       fromStatus: sql<string>`CASE WHEN ${orders.status} = 'cancelled' THEN 'cancelled' ELSE 'submitted' END`.as('from_status'),
       toStatus: orders.status,
       note: sql<string>`CASE WHEN ${orders.status} = 'cancelled' THEN 'Payment reference recovered after cancellation. Do not pay; reconcile any incoming settlement.' ELSE ${paymentMethodNote} END`.as('note'),
-      actor: sql<string>`${attempt.actor}`.as('actor'), createdAt: sql<number>`unixepoch()`.as('created_at'),
+      actor: sql<string>`${attempt.actor}`.as('actor'), internal: sql<number>`0`.as('internal'),
+      createdAt: sql<number>`unixepoch()`.as('created_at'),
     }).from(orders).where(current)),
     db.update(paymentAttempts).set({ state: 'attached', updatedAt: new Date() }).where(and(
       eq(paymentAttempts.id, attempt.id), sql`EXISTS (SELECT 1 FROM ${orders} WHERE ${orders.id} = ${orderId}

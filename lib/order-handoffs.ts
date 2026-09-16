@@ -99,6 +99,9 @@ export async function handoffOrder(
           toStatus: orders.status,
           note: sql<string>`${eventNote}`.as('note'),
           actor: sql<string>`${actor(staff)}`.as('actor'),
+          // Internal: who owns the order is not the customer's business, and
+          // notifying them about it would say nothing (drizzle/0060).
+          internal: sql<number>`1`.as('internal'),
           createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
         })
         .from(orders)
