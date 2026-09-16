@@ -48,20 +48,22 @@ Confirmed by the owner on 16 September 2026:
 
 | Field | Value |
 | --- | --- |
-| Ship-from | 2715 W Kettleman Ln, Ste 203 #360, Lodi, CA 95242 |
+| Ship-from (return address) | 2715 W KETTLEMAN LN STE 203 PMB 360, LODI CA 95242 |
+| Kind of address | Private mailbox at a commercial mail receiving agency |
 | Label sender email | orders@nexphaselabs.net |
-| Origin ZIP used for rating | 95242 |
+| Origin ZIP currently used for rating | 95242 — see point 3, this may be wrong |
 
-This is **not** the registered business address. The entity stays registered in
-Oakland (`lib/entity.ts`), and the seller's permit stays there; Lodi is only
-where a parcel starts. Invoices, the about page, the legal pages and the footer
-continue to say Oakland, and that is correct.
+This is **not** the registered business address, and it is not a facility. It is
+a rented mailbox: mail and returns arrive there and no stock is held there. The
+entity stays registered in Oakland (`lib/entity.ts`) and the seller's permit
+stays there. Invoices, the about page, the legal pages and the footer continue
+to say Oakland, and that is correct.
 
 Set it as a protected value, not a wrangler var, because it carries a contact
 phone and email:
 
 ```
-echo '[{"id":"lodi-1","label":"Lodi","active":true,"address":{"name":"NexPhase Labs","street1":"2715 W Kettleman Ln Ste 203 #360","city":"Lodi","state":"CA","zip":"95242","country":"US","phone":"REPLACE","email":"orders@nexphaselabs.net","is_residential":false}}]' | npx wrangler secret put SHIPPO_ORIGINS_JSON --env staging
+echo '[{"id":"lodi-1","label":"Lodi","active":true,"address":{"name":"NexPhase Labs","street1":"2715 W KETTLEMAN LN STE 203 PMB 360","city":"Lodi","state":"CA","zip":"95242","country":"US","phone":"REPLACE","email":"orders@nexphaselabs.net","is_residential":false}}]' | npx wrangler secret put SHIPPO_ORIGINS_JSON --env staging
 ```
 
 Run the same command without `--env staging` for production. The first active
@@ -71,26 +73,47 @@ for being in California — the rate a customer pays comes from their own
 address, so moving the origin to Lodi changes nothing about what anyone is
 charged.
 
-Two open points on this address:
+Four points on this address. Two are settled; the third is open and the fourth
+is a reminder:
 
-1. The street line has not been through USPS address standardisation, because
-   the Addresses 3.0 API needs a self-service licence this account does not yet
-   hold. `Ste 203 #360` is the owner's wording. If `#360` is a private mailbox
-   at a commercial mail receiving agency, USPS prefers `STE 203 PMB 360`.
-2. If inventory is stored and parcels are packed at Lodi, that is a **place of
-   business** in CDTFA's sense — its retailer guidance counts "an office, place
-   of distribution, sales or sample room or place, warehouse or storage place"
-   as one, and notes that for an internet sale "a storage location is often the
-   only place of business that participates in" the transaction. Two things
-   follow: the location should be added to the seller's permit, and the local
-   Bradley-Burns 1% on those sales would allocate to Lodi rather than Oakland.
-   If the address only receives mail and stock sits elsewhere, neither follows.
-   Which of the two this is has not been established, and it is not a question
-   this document can settle. See
+1. **Settled 16 Sep 2026.** The owner confirms this is a private mailbox.
+   USPS Postal Addressing Standards 285 accepts either `PMB` or `#` in general,
+   but requires `PMB` specifically when the agency's own address already carries
+   a secondary element — and this one does (`STE 203`). So the delivery line is
+   `2715 W KETTLEMAN LN STE 203 PMB 360`, not `STE 203 #360`. `PO BOX` must
+   never appear on it. This still has not been through USPS address
+   standardisation, because Addresses 3.0 needs a licence this account lacks;
+   the format above is from the published standard, not from a validation call.
+   See <https://pe.usps.com/text/pub28/28c2_040.htm>.
+2. **Settled 16 Sep 2026 — no action.** A private mailbox holds no stock, so it
+   is not a place of business in CDTFA's sense. Nothing is added to the seller's
+   permit, and the Bradley-Burns 1% keeps allocating where it did before. The
+   question mattered because CDTFA counts "an office, place of distribution,
+   sales or sample room or place, warehouse or storage place" as a place of
+   business and notes that for an internet sale the storage location is often
+   the only one participating in it — but that turns on stock being there, and
+   it is not. Wherever stock is actually held and packed is the place of
+   business, and that is unchanged by renting a mailbox. See
    <https://cdtfa.ca.gov/industry/local-and-district-retailer-taxes/online-retailers-registration-and-local-tax.htm>.
 
-   Note this is about *allocation between California jurisdictions*, not about
-   what a customer pays. `CDTFA_DISTRICT_RATE=destination` is unaffected.
+3. **Open, and it costs money.** A private mailbox is a return address. It is not
+   where a parcel enters the mail stream, and USPS rates Ground Advantage and
+   Priority by zone from the origin ZIP on the label. The code uses one address
+   for both: `uspsQuote` and `uspsPurchaseLabel` take `originZIPCode` from the
+   ship-from ZIP. If parcels are packed in Oakland and handed over at an Oakland
+   post office while the label claims 95242, the zone is computed from the wrong
+   point and USPS can bill the difference back — that is what the Reconciliation
+   Adjustments API exists to report. Two further consequences of a PMB: a carrier
+   pickup cannot be scheduled from one, and returned parcels land at the agency,
+   which typically charges to handle or forward them.
+
+   Needed: the ZIP where parcels are physically inducted. If that is not 95242,
+   the return address and the rating origin have to be separated in
+   `lib/shipping-provider.ts`, which today cannot express the difference.
+
+4. The hazard communication programme's registered address
+   (`entity.registered_address`, still unset) is the address of the workplace the
+   programme covers. That is wherever material is handled — not the mailbox.
 
 Two things to notice. The registered address is the Oakland apartment, which is
 also the tax origin; the PO Box is the ship-from and they are allowed to differ
