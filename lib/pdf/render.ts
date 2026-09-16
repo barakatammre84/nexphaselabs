@@ -7,6 +7,7 @@ import {
   type RGB,
 } from 'pdf-lib';
 import { ENTITY, entityAddressLines } from '@/lib/entity';
+import { BRAND_AQUA_RGB, BRAND_NAVY_RGB, WORDMARK } from '@/lib/brand-mark';
 import {
   LETTER,
   MARGIN,
@@ -36,7 +37,11 @@ import {
 export const INK = rgb(0.09, 0.1, 0.12);
 export const MUTED = rgb(0.42, 0.45, 0.5);
 export const RULE = rgb(0.8, 0.82, 0.85);
-export const ACCENT = rgb(0.05, 0.3, 0.45);
+/** Brand Dark Navy, so titles and rules match the logo above them. */
+export const ACCENT = rgb(...BRAND_NAVY_RGB);
+const LOGO_AQUA = rgb(...BRAND_AQUA_RGB);
+/** Printed width of the letterhead logo, in points. */
+const LOGO_WIDTH = 170;
 
 export type Fonts = { regular: PDFFont; bold: PDFFont };
 
@@ -350,14 +355,12 @@ export async function beginDocument(meta: DocumentMeta): Promise<{
   const page = doc.addPage([LETTER.width, LETTER.height]);
   let y = LETTER.height - MARGIN;
 
-  // Letterhead, left.
-  page.drawText(ENTITY.tradingName, {
-    x: MARGIN,
-    y: y - 16,
-    size: 16,
-    font: fonts.bold,
-    color: INK,
-  });
+  // Letterhead, left: the logo as vector paths (no image to embed, and the
+  // same bytes every time), then the legal name and address as text. The
+  // trading name stays searchable as text in every page footer.
+  const logoScale = LOGO_WIDTH / WORDMARK.width;
+  page.drawSvgPath(WORDMARK.navy, { x: MARGIN, y: y - 2, scale: logoScale, color: ACCENT });
+  page.drawSvgPath(WORDMARK.aqua, { x: MARGIN, y: y - 2, scale: logoScale, color: LOGO_AQUA });
   let addressY = y - 30;
   for (const line of entityAddressLines()) {
     page.drawText(line, {

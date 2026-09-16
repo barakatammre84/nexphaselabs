@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { ENTITY } from '@/lib/entity';
 import type { Order } from '@/db/schema';
 import { publicOrigin, openCheckoutEnabled } from '@/lib/site-config';
 import { livePaymentsAllowed } from '@/lib/environment-safety';
@@ -66,6 +67,11 @@ const zelle: PaymentMethod = {
         `Amount: ${(order.totalCents / 100).toFixed(2)} ${order.currency}`,
         `Send to: ${config.recipientEmail}`,
         `Recipient name: ${config.recipientName}`,
+        ...(config.recipientName.toLowerCase() !== ENTITY.tradingName.toLowerCase()
+          ? [
+              `${config.recipientName} is the legal entity behind ${ENTITY.tradingName}. Your bank will show that name, not the shop name.`,
+            ]
+          : []),
         `Memo: ${order.orderNumber}`,
         'Check the recipient name in your bank before sending. Do not send a second payment while confirmation is pending.',
         'Zelle payments are generally final and do not include purchase protection.',

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { seedProducts as products, type Product } from '@/lib/catalog';
 import {
   DEFAULT_PRESENTATION,
+  counselHold,
   isLabSolvent,
   isValidCas,
   scanText,
@@ -327,5 +328,36 @@ describe('photograph and display order', () => {
         String(so),
       ).toBe(expected);
     }
+  });
+});
+
+describe('counselHold', () => {
+  it('holds a held compound named in any identity field', () => {
+    expect(counselHold({ name: 'Retatrutide' })).toMatch(/investigational compound/);
+    expect(counselHold({ name: 'NP-3R', formalName: 'Retatrutide' })).toMatch(/investigational compound/);
+    expect(counselHold({ name: 'Peptide 9', formalName: null, synonyms: ['retatrutide'] })).toMatch(/investigational compound/);
+    expect(counselHold({ name: 'Tirzepatide' })).toMatch(/warning letters/);
+  });
+
+  // The 2026-09 inventory sheet lists these compounds under house codes only.
+  // A product created as "NP-3R" with no formal name and no synonym must not
+  // walk past the hold: a hold a naming choice can switch off is not a hold.
+  it('holds the house code on its own, with no compound name anywhere', () => {
+    expect(counselHold({ name: 'NP-3R', formalName: null, synonyms: [] })).toMatch(/house code for retatrutide/);
+    expect(counselHold({ name: 'NP3R', formalName: null, synonyms: [] })).toMatch(/house code for retatrutide/);
+    expect(counselHold({ name: 'NP-2T 10 mg', formalName: null, synonyms: [] })).toMatch(/house code for tirzepatide/);
+    expect(counselHold({ name: 'np-2t', formalName: null, synonyms: [] })).toMatch(/house code for tirzepatide/);
+  });
+
+  it('does not hold the compounds this catalog actually sells', () => {
+    expect(counselHold({ name: 'GHK-Cu', formalName: 'Glycyl-L-histidyl-L-lysine copper(II)' })).toBeNull();
+    expect(counselHold({ name: 'BPC-157' })).toBeNull();
+    expect(counselHold({ name: 'beta-NAD+' })).toBeNull();
+    expect(counselHold({ name: 'Selank' })).toBeNull();
+  });
+
+  it('does not fire on unrelated codes that merely share the prefix', () => {
+    expect(counselHold({ name: 'NP-3RX-treated resin' })).toBeNull();
+    expect(counselHold({ name: 'NPL-004' })).toBeNull();
   });
 });

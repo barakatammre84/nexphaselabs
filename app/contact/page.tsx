@@ -40,10 +40,10 @@ export default function ContactPage() {
       <section className="mx-auto max-w-[1280px] px-4 pb-12 pt-3 sm:px-6">
         <div className="ion-hero grid gap-10 p-8 sm:p-12 lg:grid-cols-[1fr_0.8fr] lg:items-center lg:p-16">
           <div>
-            <span className="inline-flex rounded-full bg-white/10 px-3 py-2 text-xs font-bold text-blue-200">NexPhase support</span>
+            <span className="inline-flex rounded-full bg-white/10 px-3 py-2 text-xs font-bold text-aqua-soft">NexPhase support</span>
             <h1 className="mt-6 max-w-3xl font-display text-[clamp(3rem,6vw,5.5rem)] font-extrabold leading-[0.98] tracking-[-0.065em]">A real team is here to help.</h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-white/70">Get help locating a product record, understanding account access, or resolving an order question. We do not provide medical or experimental-use guidance.</p>
-            <p className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-white/70"><Mail className="size-4 text-blue-200" /> Prefer email? <a href={`mailto:${SUPPORT.email}`} className="text-white underline-offset-4 hover:underline">{SUPPORT.email}</a></p>
+            <p className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-white/70"><Mail className="size-4 text-aqua-soft" /> Prefer email? <a href={`mailto:${SUPPORT.email}`} className="text-white underline-offset-4 hover:underline">{SUPPORT.email}</a></p>
           </div>
           <ContactForm />
         </div>

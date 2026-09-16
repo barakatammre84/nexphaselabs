@@ -176,7 +176,7 @@ export function LotLookup() {
         <button
           type="submit"
           disabled={state === 'loading' || !query.trim()}
-          className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-bold text-primary-foreground shadow-[0_10px_24px_rgba(52,127,242,0.22)] transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-6 text-sm font-bold text-primary-foreground shadow-[0_10px_24px_rgba(4,110,149,0.22)] transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {state === 'loading' ? (
             <Loader2 className="size-4 animate-spin" />

@@ -2,6 +2,7 @@
 
 import { Check, Clock3, Copy, Landmark, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
+import { ENTITY } from '@/lib/entity';
 
 function CopyField({
   label,
@@ -89,6 +90,14 @@ export function ZellePaymentPanel({
           />
           <CopyField label="Send to" value={details.recipientEmail} />
           <CopyField label="Recipient name" value={details.recipientName} />
+          {details.recipientName.toLowerCase() !==
+          ENTITY.tradingName.toLowerCase() ? (
+            <p className="pb-3 text-xs leading-5 text-muted-foreground">
+              {details.recipientName} is the legal entity behind{' '}
+              {ENTITY.tradingName}. Your bank will show that name, not the shop
+              name.
+            </p>
+          ) : null}
           <CopyField label="Memo" value={details.memo} />
         </div>
         <aside className="border-t border-border bg-background p-6 md:border-l md:border-t-0">

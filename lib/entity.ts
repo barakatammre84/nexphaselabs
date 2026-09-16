@@ -11,6 +11,14 @@
  * per lot, but an invoice identifies the seller, and no registered street
  * address is on record for the entity. Documents render the lines that exist;
  * setting this is an owner action, not a guess this module gets to make.
+ *
+ * `city` is Oakland because that is where the entity is registered and where
+ * the seller's permit sits. The ship-from address in SHIPPO_ORIGINS_JSON is a
+ * different place and a different kind of thing: a rented private mailbox in
+ * Lodi that holds no stock and houses no part of the business. The mismatch is
+ * deliberate and confirmed by the owner on 16 Sep 2026: do not "correct" this
+ * city to match the shipping origin, and never print the shipping origin on an
+ * invoice. One identifies the seller; the other is only where mail goes back to.
  */
 
 export const ENTITY = {

@@ -46,9 +46,20 @@ EMAIL_FROM=NexPhase Labs <research@nexphaselabs.net>
 # Run `npm run shippo:verify` after adding the test key to discover and verify them.
 # SHIPPO_CARRIER_ACCOUNTS=shippo_usps_account_object_id
 # Sender phone and email are required for USPS label purchase.
-# SHIPPING_FROM_JSON={"name":"NexPhase Labs","street1":"REPLACE","city":"Oakland","state":"CA","zip":"REPLACE","country":"US","phone":"REPLACE","email":"shipping@nexphaselabs.net","is_residential":false}
+# The ship-from location is a private mailbox at a commercial mail receiving
+# agency in Lodi, San Joaquin County. It is NOT the registered business address,
+# which remains Oakland (lib/entity.ts), and no stock is held at it.
+# "PMB" is required rather than "#" because the CMRA's own address already has a
+# secondary element (STE 203) -- USPS Postal Addressing Standards 285.
+# NOTE: this address is the label RETURN address and also supplies the origin ZIP
+# used to rate the parcel. Those are only the same thing if parcels are physically
+# inducted in 95242. See docs/operations/USPS_DIRECT_SETUP.md.
+# The first active entry here is also the tax origin (configuredBusinessOrigin),
+# which under TAX_PROVIDER=cdtfa is only checked for being in California: the rate
+# charged comes from the destination address, not from this one.
+# SHIPPING_FROM_JSON={"name":"NexPhase Labs","street1":"2715 W KETTLEMAN LN STE 203 PMB 360","city":"Lodi","state":"CA","zip":"95242","country":"US","phone":"REPLACE","email":"orders@nexphaselabs.net","is_residential":false}
 # For multiple locations, replace SHIPPING_FROM_JSON with this protected array. The first active entry is the checkout default.
-# SHIPPO_ORIGINS_JSON=[{"id":"oakland-1","label":"Oakland location 1","active":true,"address":{"name":"NexPhase Labs","street1":"REPLACE","city":"Oakland","state":"CA","zip":"REPLACE","country":"US","phone":"REPLACE","email":"shipping@nexphaselabs.net","is_residential":false}}]
+# SHIPPO_ORIGINS_JSON=[{"id":"lodi-1","label":"Lodi","active":true,"address":{"name":"NexPhase Labs","street1":"2715 W KETTLEMAN LN STE 203 PMB 360","city":"Lodi","state":"CA","zip":"95242","country":"US","phone":"REPLACE","email":"orders@nexphaselabs.net","is_residential":false}}]
 # Standard packed parcel used until SKU-specific packing profiles are approved.
 # SHIPPING_DEFAULT_PARCEL_JSON={"length":8,"width":6,"height":4,"baseWeight":0.4,"perPackWeight":0.1}
 # SHIPPING_ALLOWED_SERVICES=usps_ground_advantage,usps_priority

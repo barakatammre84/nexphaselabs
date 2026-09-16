@@ -8,6 +8,7 @@ import { syncZelleMailbox } from './lib/zelle-gmail';
 import { zelleInboxEnabled } from './lib/zelle-config';
 import { shieldLargeUpload } from './lib/large-uploads';
 import { runScheduledJobs } from './lib/scheduled-jobs';
+import { pollUspsTracking } from './lib/usps-tracking';
 import { withSecurityHeaders } from './lib/security-headers';
 
 export { FeedbackRoom } from './lib/feedback-room';
@@ -86,6 +87,10 @@ export default {
         zelleInboxEnabled()
           ? syncZelleMailbox()
           : Promise.resolve({ ok: true, skipped: true }),
+      // USPS has no tracking webhook in use here, so the parcel status that marks an
+      // order delivered is polled on this tick. It no-ops unless USPS is the configured
+      // provider, and an unchanged status writes nothing.
+      tracking: () => pollUspsTracking(),
     });
   },
 };
