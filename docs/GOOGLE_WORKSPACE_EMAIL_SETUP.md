@@ -24,6 +24,31 @@ On 9 September 2026, Google blocked service-account key creation through the inh
 
 On the same date, the internal OAuth application and web client were created, `sam@nexphaselabs.net` granted only `gmail.send`, and offline authorization was stored directly as protected staging secrets. A token refresh returned HTTP 200 with exactly the Gmail send scope. This proves authorization, not inbox delivery. Production secrets were not changed.
 
+## Obtaining the refresh token — `npm run mail:consent`
+
+Added 16 September 2026. `scripts/google-mail-consent.mjs` is step 4 of the
+administrator list above, done without the token ever touching a chat, a
+document or a shell history line. It opens the consent screen for the internal
+client, receives the code on `http://127.0.0.1:8788/callback`, exchanges it, and
+**proves** the result the way the Worker will use it: a refresh must return an
+access token carrying exactly `gmail.send`.
+
+```bash
+npm run mail:consent -- --put --env production   # pipes straight into wrangler secret put
+npm run mail:consent -- --put --env staging
+npm run mail:consent                              # or: print the token once, paste it yourself
+```
+
+It prompts for the client id and (hidden) client secret, or reads
+`GOOGLE_WORKSPACE_OAUTH_CLIENT_ID` / `_CLIENT_SECRET` from the environment.
+Complete the consent as the sending mailbox (`sam@nexphaselabs.net`). Each run
+mints a new refresh token and earlier ones keep working, so production and
+staging hold different tokens by design. One-time prerequisite for the web
+client: add `http://127.0.0.1:8788/callback` under **Authorized redirect URIs**
+(a `redirect_uri_mismatch` error means it is missing). After the token, set
+`GOOGLE_WORKSPACE_OAUTH_CLIENT_ID`, `GOOGLE_WORKSPACE_OAUTH_CLIENT_SECRET` and
+`GOOGLE_WORKSPACE_SENDER` with `wrangler secret put` as listed below.
+
 ## Cloudflare secrets and settings
 
 Set these separately in staging and production. Start with staging only.

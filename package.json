@@ -30,6 +30,7 @@
     "ops:rehearsal:production": "node scripts/recovery-rehearsal.mjs production",
     "shippo:verify": "node scripts/shippo-verify.mjs",
     "dns:verify": "node scripts/dns-verify.mjs",
+    "mail:consent": "node scripts/google-mail-consent.mjs",
     "cutover:verify": "tsx scripts/cutover-verify.ts",
     "deploy:staging": "CLOUDFLARE_ENV=staging vinext build && node scripts/deploy-guard.mjs staging && wrangler deploy --config dist/server/wrangler.json",
     "deploy": "vinext build && node scripts/deploy-guard.mjs production && wrangler deploy --config dist/server/wrangler.json",
