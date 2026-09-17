@@ -11,6 +11,7 @@ import {
   type ShippingAddress,
 } from '@/lib/shipping-provider';
 import { parcelError, type Parcel } from '@/lib/shipping-rates';
+import { shippingProviderName } from '@/lib/shipping-provider';
 import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 import { quoteTax, taxConfiguration } from '@/lib/tax-provider';
 import { freeShippingProgress, freeShippingThresholdCents } from '@/lib/free-shipping';
@@ -229,7 +230,7 @@ export async function createCheckoutQuotes(
     cartFingerprint(cart),
     addressFingerprint(shipTo, contactEmail),
   ]);
-  const provider = shippingConfiguration().simulated ? 'simulated' : 'shippo';
+  const provider = shippingProviderName();
   const rows = withTax.map(({ rate, tax }) => ({
     id: `cq_${crypto.randomUUID().replace(/-/g, '')}`,
     accountId,

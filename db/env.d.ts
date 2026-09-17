@@ -88,6 +88,12 @@ declare namespace Cloudflare {
     SHIPPING_FROM_JSON?: string;
     SHIPPING_DEFAULT_PARCEL_JSON?: string;
     SHIPPING_ALLOWED_SERVICES?: string;
+    /**
+     * Published flat rates, used when SHIPPING_PROVIDER=flat (lib/flat-shipping.ts). No carrier
+     * credential is involved, so checkout cannot fail on one.
+     * [{"service":"standard","name":"Standard (2-5 business days)","cents":1200,"days":5}]
+     */
+    SHIPPING_FLAT_RATES_JSON?: string;
     SHIPPING_SIMULATION_ENABLED?: string;
     CHECKOUT_QUOTES_REQUIRED?: string;
     LIVE_SHIPPING_ENABLED?: string;
