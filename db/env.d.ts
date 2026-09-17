@@ -19,6 +19,7 @@ declare namespace Cloudflare {
     RESEARCHER_TIER_ENABLED?: string;
     CONSUMER_TIER_ENABLED?: string;
     OPEN_CHECKOUT_ENABLED?: string;
+    ACCOUNT_REQUIRED?: string;
     /** Basic-auth password for a deployed non-production storefront. Unset = the environment refuses every request with 503. */
     STAGING_ACCESS_PASSWORD?: string;
     POLICIES_COUNSEL_REVIEWED?: string;

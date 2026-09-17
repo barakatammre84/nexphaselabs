@@ -1,6 +1,6 @@
 import { getAccount, type AccountPrincipal } from '@/lib/account-auth';
 import { acknowledgementsCurrent } from '@/lib/account-rules';
-import { researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
+import { accountRequired, researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
 import { visibilityFor, type Visibility } from '@/lib/visibility-rules';
 
 export type Viewer = {
@@ -29,6 +29,7 @@ export async function currentViewer(): Promise<Viewer> {
       : null,
     researcherTierEnabled(),
     openCheckoutEnabled(),
+    accountRequired(),
   );
   return { account, visibility };
 }

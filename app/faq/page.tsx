@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { appEnv, openCheckoutEnabled } from '@/lib/site-config';
+import { accountRequired, appEnv, openCheckoutEnabled } from '@/lib/site-config';
 import { MINIMUM_AGE, SHIPPING_CUTOFF } from '@/lib/policy';
 import { SUPPORT } from '@/lib/support';
 import { ArrowRight } from 'lucide-react';
@@ -149,23 +149,45 @@ const institutionalAccess: Section = {
   ],
 };
 
+/**
+ * Owner decision of 16 September 2026: an account is required to order. Two
+ * answers say so; everything else about ordering holds.
+ */
+function orderingFor(requireAccount: boolean): Section {
+  if (!requireAccount) return ordering;
+  return {
+    ...ordering,
+    items: ordering.items.map((item) =>
+      item.q === 'Do I need an account to order?'
+        ? {
+            ...item,
+            a: 'Yes. Create a research account with your email, confirm it, and acknowledge the research-use conditions; then add a pack size to your cart. Your orders, saved addresses and the certificates that shipped with each order stay in one place. Organizations that need purchase orders or net terms apply for a wholesale account at sign-up.',
+          }
+        : item.q === 'How do I see my order again?'
+          ? { ...item, a: 'Sign in and open Your orders. Keep your order number for support.' }
+          : item,
+    ),
+  };
+}
+
 export default function FaqPage() {
   const open = openCheckoutEnabled();
+  const orderingSection = orderingFor(accountRequired());
   const testEnvironment = appEnv() !== 'production';
   const sections: Section[] = open
     ? [
         testEnvironment
           ? {
-              ...ordering,
+              ...orderingSection,
               items: [
-                ...ordering.items,
+                ...orderingSection.items,
                 {
                   q: 'Will a test-environment purchase charge me?',
                   a: 'No. This environment uses clearly labeled simulated payments. Never send money for an order placed here.',
                 },
               ],
             }
-          : ordering,
+          : orderingSection,
         documentation,
         shipping,
         researchUse,

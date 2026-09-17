@@ -23,6 +23,7 @@ export type Visibility = {
   /** Why pricing is hidden, for the page to explain. */
   reason:
     | 'anonymous'
+    | 'sign_in'
     | 'acknowledgement'
     | 'unverified'
     | 'researcher_tier_closed'
@@ -33,7 +34,19 @@ export function visibilityFor(
   viewer: ViewerInput,
   researcherTierEnabled: boolean,
   openCheckout = false,
+  accountRequired = false,
 ): Visibility {
+  // Open storefront that requires an account (owner, 16 Sep 2026): the only
+  // change from plain open checkout is that a visitor without a session sees
+  // no prices or stock and is sent to sign in; signed-in accounts keep the
+  // open-checkout rules below.
+  if (openCheckout && accountRequired && !viewer)
+    return {
+      signedIn: false,
+      pricing: 'none',
+      availability: false,
+      reason: 'sign_in',
+    };
   if (openCheckout)
     return {
       signedIn: Boolean(viewer),

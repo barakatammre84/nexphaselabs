@@ -15,7 +15,7 @@ import {
   Thermometer,
   Timer,
 } from 'lucide-react';
-import { openCheckoutEnabled } from '@/lib/site-config';
+import { accountRequired, openCheckoutEnabled } from '@/lib/site-config';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { ProductImage } from '@/components/site/product-image';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
@@ -83,7 +83,25 @@ export default async function Home() {
   const hero = featured[0] ?? null;
   const byClass = groupByClass(all);
   const { visibility } = await currentViewer();
-  const process = open
+  const process = open && accountRequired()
+    ? [
+        {
+          title: 'Create a research account',
+          copy: 'Sign up with your email, confirm it, and acknowledge the research-use conditions. It takes a minute.',
+          icon: ClipboardCheck,
+        },
+        {
+          title: 'Find the material',
+          copy: 'Search by compound, catalog number, or CAS and review the specification, pricing and lot records.',
+          icon: Search,
+        },
+        {
+          title: 'Check out clearly',
+          copy: 'Enter delivery details, choose shipping, and follow the order from payment to arrival.',
+          icon: PackageCheck,
+        },
+      ]
+    : open
     ? [
         {
           title: 'Find the material',

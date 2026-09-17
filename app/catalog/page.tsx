@@ -12,6 +12,7 @@ import { searchMaterials, searchQuery } from '@/lib/workflow-display';
 import { listActiveClasses } from '@/lib/classes';
 import { currentViewer } from '@/lib/visibility';
 import { formatCents, priceFor } from '@/lib/visibility-rules';
+import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -168,6 +169,19 @@ export default async function CatalogPage({
               </div>
             </form>
 
+            {/* Owner decision of 16 Sep 2026: an account is required for prices, stock and the cart. */}
+            {visibility.reason === 'sign_in' && (
+              <div className="ion-panel mt-6 p-7 text-sm leading-6">
+                {STOREFRONT_COPY.pricingSignIn}{' '}
+                <Link className="font-bold text-primary" href="/account/sign-up">
+                  {STOREFRONT_COPY.pricingSignInAction}
+                </Link>
+                {' · '}
+                <Link className="font-bold text-primary" href="/account/sign-in?return_to=%2Fcatalog">
+                  Sign in
+                </Link>
+              </div>
+            )}
             {/* Before the first lot is released nothing is listed; that is not a failed search. */}
             {all.length === 0 && !catalog.unavailable && (
               <div className="ion-panel mt-6 p-7 text-sm leading-6">

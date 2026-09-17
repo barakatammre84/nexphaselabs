@@ -3,7 +3,7 @@ import { allow, clientAddress, rateLimitKey } from '@/lib/rate-limit';
 import { acknowledgementsCurrent } from '@/lib/account-rules';
 import { addToCart } from '@/lib/cart';
 import { parseQuantityInput } from '@/lib/order-rules';
-import { researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
+import { accountRequired, researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
 import { redirectWithNotice } from '@/lib/notice';
 import { sameOrigin } from '@/lib/staff-auth';
 import { visibilityFor } from '@/lib/visibility-rules';
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     return Response.redirect(new URL(`${back}?cart=invalid`, request.url), 303);
   let account = await getBuyerFromRequest(request);
   let cookie: string | undefined;
-  if (!account && openCheckoutEnabled()) {
+  if (!account && openCheckoutEnabled() && !accountRequired()) {
     if (
       !(await allow(
         rateLimitKey('guest-cart', clientAddress(request)),
@@ -44,9 +44,10 @@ export async function POST(request: Request) {
     account = guest.buyer;
     cookie = guest.cookie;
   }
+  // No session and no guest path: sign in, then land back on the product page.
   if (!account)
     return Response.redirect(
-      new URL('/account/sign-in?return_to=%2Fcatalog', request.url),
+      new URL(`/account/sign-in?return_to=${encodeURIComponent(back)}`, request.url),
       303,
     );
   const go = (path: string) =>
@@ -65,6 +66,7 @@ export async function POST(request: Request) {
     },
     researcherTierEnabled(),
     openCheckoutEnabled(),
+    accountRequired(),
   );
 
   try {
