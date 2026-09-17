@@ -63,6 +63,11 @@
     // openid/email/profile, and the redirect URI https://nexphaselabs.net/api/auth/google/callback.
     // Secret via `wrangler secret put GOOGLE_SIGN_IN_CLIENT_SECRET`; the button stays hidden until both exist.
     "GOOGLE_SIGN_IN_CLIENT_ID": "",
+    // Shipping. "usps" rates live against the USPS API and needs USPS_CLIENT_SECRET; "flat" charges a
+    // published rate table and needs no carrier credential at all, which is what lets ordering open
+    // before the USPS developer-portal account is finished (lib/flat-shipping.ts). Labels are bought
+    // by hand either way until USPS grants Labels 3.0, so flat costs nothing operationally.
+    "SHIPPING_FLAT_RATES_JSON": "",
     "ZELLE_RECIPIENT_EMAIL": "orders@nexphaselabs.net",
     "ZELLE_RECIPIENT_NAME": "8486 Ventures LLC",
     "ZELLE_MODE": "manual",
@@ -137,6 +142,7 @@
         "ABANDONED_CART_REMINDERS": "false",
         "AFFILIATE_PROGRAM_ENABLED": "true",
         "GOOGLE_SIGN_IN_CLIENT_ID": "",
+        "SHIPPING_FLAT_RATES_JSON": "",
         "OPEN_CHECKOUT_ENABLED": "true",
         "ACCOUNT_REQUIRED": "true",
         // Public staging, by the owner's decision of 14 September 2026: storefront pages are open to

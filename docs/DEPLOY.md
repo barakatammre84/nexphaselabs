@@ -355,3 +355,44 @@ pbpaste | npx wrangler secret put GOOGLE_SIGN_IN_CLIENT_SECRET
 
 4. The scopes are `openid email profile` only. Nothing here needs Google verification review, since
    none of those are sensitive or restricted scopes.
+
+## Opening ordering without the USPS credential
+
+Production has been closed to orders because `shippingConfiguration()` counts a missing
+`USPS_CLIENT_SECRET` as an issue, and `onlineOrderingOpen()` refuses while any issue stands. That
+is the check working, not a fault, but it makes one unfinished portal login the gate on all revenue.
+
+Flat rates remove the dependency. Labels are bought by hand at the carrier until USPS grants
+Labels 3.0, so live rating only decides what to charge; a published table decides that too, and
+cannot fail at checkout because there is nothing to authenticate against.
+
+1. Set the table in the production `vars`, cheapest first is not required but is how it sorts:
+
+```json
+[{"service":"standard","name":"Standard (2-5 business days)","cents":1200,"days":5},{"service":"expedited","name":"Expedited (1-2 business days)","cents":3500,"days":2}]
+```
+
+2. Set `SHIPPING_PROVIDER` to `flat`, deploy, and check `/manage/readiness`: shipping should report
+   no issues and ordering should show as open.
+3. Switch back to `usps` whenever the client secret is in place. Nothing else changes; quotes
+   simply start coming from the carrier again.
+
+A rate of `0` is allowed, if you would rather carry delivery on every order.
+
+## Turning on bank transfer and ACH
+
+The rail exists and is reconciled by hand, exactly like Zelle. It is off only because it has no
+instructions to show. Put the remittance details in a **secret**, never a var:
+
+```bash
+pbpaste | npx wrangler secret put PAYMENT_BANK_INSTRUCTIONS
+```
+
+Write it as the lines the customer should see: bank name, the account name exactly as the bank
+holds it, and the routing and account numbers. The order number is added above them automatically
+as the payment reference, so do not repeat it.
+
+The customer chooses "Bank transfer (ACH or wire)" at checkout, sends from their own bank, and the
+order sits at awaiting payment until a staff member records it with **Mark paid** on the order.
+`manualPaymentRecording()` already permits that for this rail, because it has no automatic
+settlement check of its own. `/manage/readiness` shows the rail as live once the secret is set.

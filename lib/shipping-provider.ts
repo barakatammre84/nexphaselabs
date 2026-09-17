@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { flatShippingIssues, flatShippingRates } from '@/lib/flat-shipping';
 import {
   compareShippingRates,
   normalizeShippoRates,
@@ -152,12 +153,15 @@ export function shippingConfiguration(requestedOriginId?: string) {
     );
   /** Postage bought straight from USPS, with no reseller in the record. */
   const direct = env.SHIPPING_PROVIDER === 'usps';
-  if (!simulated && !direct && env.SHIPPING_PROVIDER !== 'shippo')
+  /** Published flat rates, with no carrier credential to fail at checkout (lib/flat-shipping.ts). */
+  const flat = env.SHIPPING_PROVIDER === 'flat';
+  if (!simulated && !direct && !flat && env.SHIPPING_PROVIDER !== 'shippo')
     issues.push('Shipping provider is not configured.');
   const key = env.SHIPPO_API_KEY ?? '';
   if (
     !simulated &&
     !direct &&
+    !flat &&
     !(test ? /^shippo_test_[A-Za-z0-9]+$/ : /^shippo_live_[A-Za-z0-9]+$/).test(
       key,
     )
@@ -176,6 +180,7 @@ export function shippingConfiguration(requestedOriginId?: string) {
   if (
     !simulated &&
     !direct &&
+    !flat &&
     (!accounts.length ||
       accounts.length > 10 ||
       accounts.some((v) => !/^[a-zA-Z0-9_-]{1,120}$/.test(v)))
@@ -186,6 +191,7 @@ export function shippingConfiguration(requestedOriginId?: string) {
   // Direct USPS replaces the reseller key and carrier accounts with our own
   // CRID, Mailer ID and Enterprise Payment System account.
   if (direct) issues.push(...uspsConfiguration().issues);
+  if (flat) issues.push(...flatShippingIssues());
   const allowedServices = (env.SHIPPING_ALLOWED_SERVICES ?? '')
     .split(',')
     .map((service) => service.trim())
@@ -206,6 +212,7 @@ export function shippingConfiguration(requestedOriginId?: string) {
     test,
     simulated,
     direct,
+    flat,
     accounts,
     allowedServices,
     origins,
@@ -261,6 +268,24 @@ export async function quoteShipping(
       ok: false as const,
       error: inputIssue ?? configuration.issues.join(' '),
     };
+  if (configuration.flat) {
+    // An origin is still required: it is what the parcel is sent from and what the label says.
+    if (!configuration.originId || !configuration.originLabel)
+      return { ok: false as const, error: 'Choose an active ship-from location.' };
+    const rates = compareShippingRates(flatShippingRates(parcel.weight), policy);
+    if (!rates.length) return { ok: false as const, error: 'No flat shipping rate matches this order.' };
+    return {
+      ok: true as const,
+      rates,
+      originId: configuration.originId,
+      originLabel: configuration.originLabel,
+      test: false,
+      provider: 'flat' as const,
+      warning: null,
+      comparedCarriers: [...new Set(rates.map((rate) => rate.carrier))],
+      quotedAt: new Date().toISOString(),
+    };
+  }
   if (configuration.simulated) {
     const pounds = Math.max(1, Math.ceil(parcel.weight));
     const rates = compareShippingRates(
@@ -859,4 +884,13 @@ export async function reconcileShippingLabelRefund(
       error: 'Carrier refund status could not be confirmed. Check Shippo.',
     };
   }
+}
+
+/** The name recorded on a quote or a label, so a stored row says which rail priced it. */
+export function shippingProviderName(): 'simulated' | 'usps' | 'shippo' | 'flat' {
+  const configuration = shippingConfiguration();
+  if (configuration.simulated) return 'simulated';
+  if (configuration.flat) return 'flat';
+  if (configuration.direct) return 'usps';
+  return 'shippo';
 }
