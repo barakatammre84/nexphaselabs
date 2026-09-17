@@ -1,2 +1,3 @@
 - [Runtime validation](runtime-validation.md) — this project requires Node 22.13+; Node 20 cannot run the SQLite-backed tests or current build tooling.
 - [Local runtime and preview](local-runtime-and-preview.md) — Wrangler needs Node 22; Replit webview needs vinext bound to 0.0.0.0:5000.
+- [Browser acceptance selectors](browser-acceptance-selectors.md) — scope selectors to their owning form because storefront-wide fields can share names.

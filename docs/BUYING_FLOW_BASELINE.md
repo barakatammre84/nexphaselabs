@@ -62,6 +62,26 @@ live payment/shipping provider. Because it uses the account's staging cart,
 repeat runs may leave one test pack in that cart; the check only adds one pack
 per run.
 
+For the rendered-form and browser-network boundary, run the staging browser
+rehearsal with the same synthetic account:
+
+```sh
+STAGING_BUYING_BASELINE_EMAIL='synthetic@example.invalid' \
+STAGING_BUYING_BASELINE_PASSWORD='use-the-staging-account-password' \
+npm run baseline:store:browser -- \
+  --base-url https://<staging-origin>
+```
+
+This launches Chromium, accepts the first-party research-use entry notice when
+needed, signs in through the real form, adds one available pack through the
+catalog form, fills the checkout address, selects a returned `test: true`
+quote, and stops with “Continue to payment” visible. It does not click that
+button. Browser network evidence records every non-GET request and fails if an
+order, payment, email, or shipping-label route is requested. Use `--json` to
+save the route-specific evidence. The command is staging-only and requires an
+HTTPS origin; set `BROWSER_EXECUTABLE_PATH` when Chromium is not at the standard
+Replit path.
+
 Use `--json` when saving evidence for a release or bug report. Every result
 includes `environment`, `route`, HTTP status when available, and a
 route-specific detail. The command exits non-zero if any required check fails.
@@ -88,6 +108,15 @@ The optional signed-in staging rehearsal adds these assertions:
 | Signed-in cart | `GET /api/cart` and `GET /account/cart` | HTTP 200, a non-empty synthetic cart, and the checkout form up to “Continue to payment” |
 | Shipping quote | `POST /api/checkout/quotes` | HTTP 200 with one or more `test: true` delivery/tax quotes |
 | Order/payment safety | no request to `/api/orders` or payment routes | no order or payment effect is attempted |
+
+The browser rehearsal adds these rendered and network assertions:
+
+| Flow | Browser evidence | Expected outcome |
+| --- | --- | --- |
+| Payment guard | Disabled “Continue to payment” before a quote | The handoff cannot be reached before delivery is selected |
+| Quote selection | Selected quote radio and hidden `checkout_quote` value | A returned `test: true` quote is selected in the rendered form |
+| Payment boundary | Visible Payment step, test-environment banner, and enabled “Continue to payment” | The browser reaches the payment boundary without submitting the order |
+| Network safety | All browser non-GET requests | No order, payment, email, or shipping-label route is requested |
 
 The anonymous baseline intentionally does not sign in, create an account,
 submit a cart, request a checkout quote, send an email, create an order,
