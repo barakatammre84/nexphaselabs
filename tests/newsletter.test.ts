@@ -19,7 +19,7 @@ import { signUp, verifyEmailToken } from '@/lib/account-auth';
 import { addToCart } from '@/lib/cart';
 import { brevoConfigured, brevoSendMarketing, brevoSender } from '@/lib/brevo';
 import { cartRemindersEnabled, sendCartReminders } from '@/lib/cart-reminders';
-import { confirmConsent, consentForAccount, requestConsent, revokeConsent } from '@/lib/marketing-consent';
+import { confirmConsent, consentForAccount, requestConsent, revokeConsent, sweepMarketingSync } from '@/lib/marketing-consent';
 import { visibilityFor } from '@/lib/visibility-rules';
 import { POST as newsletterPost } from '@/app/api/newsletter/route';
 import { POST as oneClick } from '@/app/api/newsletter/unsubscribe/route';
@@ -93,6 +93,57 @@ describe('product-news consent', () => {
     // Asking again for a confirmed address changes nothing and sends nothing.
     expect(await requestConsent({ email: 'ada@example.org', source: 'footer' })).toMatchObject({ status: 'confirmed', confirmToken: null });
     expect(sent).toHaveLength(1);
+  });
+
+  it('finishes a sign-up and an unsubscribe the provider was down for', async () => {
+    const brevoDown = () =>
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string, init: RequestInit) => {
+          calls.push({ url, init });
+          return new Response(JSON.stringify({ message: 'temporarily unavailable' }), { status: 503 });
+        }),
+      );
+    const brevoUp = () =>
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string, init: RequestInit) => {
+          calls.push({ url, init });
+          return new Response(JSON.stringify({ id: 1 }), { status: 201 });
+        }),
+      );
+    const syncedAt = () => row("SELECT brevo_synced_at FROM marketing_consents WHERE email = 'ada@example.org'")?.brevo_synced_at;
+
+    const { confirmToken } = await requestConsent({ email: 'ada@example.org', accountId: 'acct_ada', source: 'account' });
+    // A pending request is not the provider's business and is never swept.
+    expect(await sweepMarketingSync()).toEqual({ ok: true, attempted: 0, synced: 0, failed: 0, deferred: 0 });
+
+    brevoDown();
+    expect(await confirmConsent(confirmToken!)).toBe('confirmed');
+    expect(syncedAt()).toBeNull();
+    // The token is spent, so the subscriber has no way to retry this themselves.
+    expect(await confirmConsent(confirmToken!)).toBe('invalid');
+
+    expect(await sweepMarketingSync()).toEqual({ ok: true, attempted: 1, synced: 0, failed: 1, deferred: 0 });
+    expect(syncedAt()).toBeNull();
+
+    brevoUp();
+    expect(await sweepMarketingSync()).toEqual({ ok: true, attempted: 1, synced: 1, failed: 0, deferred: 0 });
+    expect(calls.at(-1)?.url).toBe('https://api.brevo.com/v3/contacts');
+    expect(syncedAt()).not.toBeNull();
+    // Nothing is left over, so a healthy provider is not called again on the next tick.
+    expect(await sweepMarketingSync()).toEqual({ ok: true, attempted: 0, synced: 0, failed: 0, deferred: 0 });
+
+    brevoDown();
+    expect(await revokeConsent({ email: 'ada@example.org' }, 'account page')).toBe(true);
+    expect(row("SELECT status FROM marketing_consents WHERE email = 'ada@example.org'")?.status).toBe('revoked');
+    expect(syncedAt()).toBeNull();
+
+    brevoUp();
+    expect(await sweepMarketingSync()).toEqual({ ok: true, attempted: 1, synced: 1, failed: 0, deferred: 0 });
+    expect(calls.at(-1)?.url).toBe('https://api.brevo.com/v3/contacts/lists/7/contacts/remove');
+    expect(syncedAt()).not.toBeNull();
+    expect(await sweepMarketingSync()).toEqual({ ok: true, attempted: 0, synced: 0, failed: 0, deferred: 0 });
   });
 
   it('answers an unknown or malformed address exactly like a real one', async () => {

@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowRight, CircleCheck, Lock, Plus } from 'lucide-react';
+import { ArrowRight, CircleAlert, CircleCheck, Lock, Plus } from 'lucide-react';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { STATUS_LABEL } from '@/lib/catalog';
 import { listAllProducts, loadCatalog } from '@/lib/catalog-data';
 import { canEditCatalog, requireStaff } from '@/lib/staff-auth';
+import { hiddenPublishedProducts } from '@/lib/storefront';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,8 @@ export default async function CatalogManagerPage({ searchParams }: Props) {
   const loaded = await loadCatalog(listAllProducts);
   const items = loaded.data ?? [];
   const canEdit = canEditCatalog(staff);
+  const hidden = loaded.unavailable ? [] : await hiddenPublishedProducts();
+  const hiddenByCode = new Map(hidden.map((product) => [product.code, product]));
 
   return (
     <main className="bg-background text-foreground">
@@ -62,9 +65,28 @@ export default async function CatalogManagerPage({ searchParams }: Props) {
         )}
 
         <p className="mt-6 max-w-2xl text-sm leading-6 text-muted-foreground">
-          Every save is checked against the catalog rules and recorded as a revision with your name. Only published
-          products appear on the site.
+          Every save is checked against the catalog rules and recorded as a
+          revision with your name. Published products appear only when their
+          photograph, public price and released-lot requirements are also met.
         </p>
+
+        {hidden.length > 0 && (
+          <div
+            role="alert"
+            className="mt-6 border border-destructive bg-destructive/5 p-4 text-sm"
+          >
+            <p className="flex items-center gap-2 font-semibold text-destructive">
+              <CircleAlert className="size-4" />
+              {hidden.length} published{' '}
+              {hidden.length === 1 ? 'material is' : 'materials are'} hidden
+              from shoppers.
+            </p>
+            <p className="mt-2 text-muted-foreground">
+              Review the warning in each row. A hidden material has no working
+              public catalog page.
+            </p>
+          </div>
+        )}
 
         {loaded.unavailable ? (
           <div className="mt-10">
@@ -87,45 +109,72 @@ export default async function CatalogManagerPage({ searchParams }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {items.map((product) => (
-                  <tr key={product.code} className="border-b border-border last:border-b-0">
-                    <td className="p-4 font-mono text-xs text-muted-foreground">{product.code}</td>
-                    <td className="p-4 font-semibold">{product.name}</td>
-                    <td className="p-4 text-muted-foreground">{product.casNumber}</td>
-                    <td className="p-4 text-muted-foreground">{product.chemicalClass}</td>
-                    <td className="p-4 font-mono text-xs text-muted-foreground">
-                      {product.variants
-                        .filter((v) => v.active)
-                        .map((v) => `${v.quantity}${v.institutionalPriceCents !== null ? ` ($${(v.institutionalPriceCents / 100).toFixed(2)})` : ''}`)
-                        .join(', ')}
-                    </td>
-                    <td className="p-4">
-                      <span className="spec-pill">{STATUS_LABEL[product.status]}</span>
-                    </td>
-                    <td className="p-4 text-muted-foreground">{VISIBILITY_LABEL[product.visibility]}</td>
-                    <td className="p-4 text-muted-foreground">{product.featured ? 'Yes' : '—'}</td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-4">
-                        {canEdit && (
-                          <Link
-                            href={`/manage/products/${product.code}`}
-                            className="inline-flex items-center gap-1.5 font-semibold text-primary"
-                          >
-                            Edit
-                          </Link>
+                {items.map((product) => {
+                  const hiddenProduct = hiddenByCode.get(product.code);
+                  return (
+                    <tr
+                      key={product.code}
+                      className="border-b border-border last:border-b-0"
+                    >
+                      <td className="p-4 font-mono text-xs text-muted-foreground">
+                        {product.code}
+                      </td>
+                      <td className="p-4 font-semibold">{product.name}</td>
+                      <td className="p-4 text-muted-foreground">
+                        {product.casNumber}
+                      </td>
+                      <td className="p-4 text-muted-foreground">
+                        {product.chemicalClass}
+                      </td>
+                      <td className="p-4 font-mono text-xs text-muted-foreground">
+                        {product.variants
+                          .filter((v) => v.active)
+                          .map(
+                            (v) =>
+                              `${v.quantity}${v.institutionalPriceCents !== null ? ` ($${(v.institutionalPriceCents / 100).toFixed(2)})` : ''}`,
+                          )
+                          .join(', ')}
+                      </td>
+                      <td className="p-4">
+                        <span className="spec-pill">
+                          {STATUS_LABEL[product.status]}
+                        </span>
+                      </td>
+                      <td className="p-4 text-muted-foreground">
+                        <span>{VISIBILITY_LABEL[product.visibility]}</span>
+                        {hiddenProduct && (
+                          <p className="mt-1 max-w-56 text-xs leading-5 text-destructive">
+                            Hidden: {hiddenProduct.blockers.join('; ')}
+                          </p>
                         )}
-                        {product.visibility === 'published' && (
-                          <Link
-                            href={`/catalog/${product.slug}`}
-                            className="inline-flex items-center gap-1.5 font-semibold text-muted-foreground hover:text-primary"
-                          >
-                            View <ArrowRight className="size-3.5" />
-                          </Link>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="p-4 text-muted-foreground">
+                        {product.featured ? 'Yes' : '—'}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-4">
+                          {canEdit && (
+                            <Link
+                              href={`/manage/products/${product.code}`}
+                              className="inline-flex items-center gap-1.5 font-semibold text-primary"
+                            >
+                              Edit
+                            </Link>
+                          )}
+                          {product.visibility === 'published' &&
+                            !hiddenProduct && (
+                              <Link
+                                href={`/catalog/${product.slug}`}
+                                className="inline-flex items-center gap-1.5 font-semibold text-muted-foreground hover:text-primary"
+                              >
+                                View <ArrowRight className="size-3.5" />
+                              </Link>
+                            )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

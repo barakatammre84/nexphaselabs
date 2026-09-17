@@ -7,9 +7,8 @@ import { publishableLot } from '@/lib/lots-public';
 export function purchasabilityIssues(price: number | null, packSize: string, stock: { quantityRemaining: string | null; retestDate: Date | null; containerSize?: string | null }[], now = new Date(), image?: string | null): string[] {
   const issues: string[] = [];
   if (price === null || !Number.isSafeInteger(price) || price <= 0) issues.push('Approved public price needed');
-  // Not a blocker — a product page without a photograph says so rather than
-  // borrowing another compound's vial (CLAUDE.md rule 5). It is listed because
-  // every competitor has one and the absence is invisible from the manager.
+  // Storefront listing requires the material's own photograph. Never substitute
+  // another compound's vial (CLAUDE.md rule 5).
   if (image !== undefined && !image) issues.push('No photograph uploaded');
   if (!stock.length) issues.push('No released, publishable lot (released + named lab, accession and standard)');
   else if (!stock.some(lot => (!lot.retestDate || lot.retestDate.getTime() > now.getTime()) && lotSuppliesPack(lot, packSize)))

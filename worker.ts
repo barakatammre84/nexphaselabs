@@ -11,6 +11,7 @@ import { runScheduledJobs } from './lib/scheduled-jobs';
 import { pollUspsTracking } from './lib/usps-tracking';
 import { sweepWaitlist } from './lib/waitlist';
 import { sendCartReminders } from './lib/cart-reminders';
+import { sweepMarketingSync } from './lib/marketing-consent';
 import { sweepAffiliateCommissions } from './lib/affiliates';
 import { withSecurityHeaders } from './lib/security-headers';
 
@@ -100,6 +101,10 @@ export default {
       waitlist: () => sweepWaitlist(),
       // Once-per-cart reminder to confirmed product-news subscribers; a no-op until the owner switches it on.
       cartReminders: () => sendCartReminders(),
+      // Finishes product-news sign-ups and unsubscribes the provider was down for. Consent is
+      // recorded here first and the confirmation token is spent, so without this retry a Brevo
+      // outage would silently strand a subscriber off the list, or an unsubscribe on it.
+      newsletterSync: () => sweepMarketingSync(),
       // Dates, vests and reverses partner commissions; a no-op while the programme is closed.
       affiliates: () => sweepAffiliateCommissions(),
     });

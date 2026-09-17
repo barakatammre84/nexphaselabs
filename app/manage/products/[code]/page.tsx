@@ -9,6 +9,7 @@ import { listActiveClasses } from '@/lib/classes';
 import { productDocumentHistory } from '@/lib/product-documents';
 import { ProductImage } from '@/components/site/product-image';
 import { canEditCatalog, requireStaff } from '@/lib/staff-auth';
+import { productListingBlockers } from '@/lib/storefront';
 import { saveProductAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
@@ -32,9 +33,9 @@ const SDS_MESSAGE: Record<string, string> = {
 };
 
 const IMAGE_MESSAGE: Record<string, string> = {
-  ok: 'Photograph uploaded. It is now shown on the product page and catalog.',
+  ok: 'Photograph uploaded. The photograph requirement is now met; the material is visible only when its other storefront requirements are also met.',
   removed:
-    'Photograph removed. The page now says no photograph is on file. Earlier uploads stay in the history.',
+    'Photograph removed. A published material stays hidden from shoppers until another photograph is uploaded. Earlier uploads stay in the history.',
   nofile: 'Choose a PNG, JPEG or WebP file.',
   size: 'The file is larger than 10 MB.',
   filetype: 'The photograph must be a PNG, JPEG or WebP image.',
@@ -58,10 +59,11 @@ export default async function EditProductPage({ params, searchParams }: Props) {
     kind: 'update',
     code: product.code,
   });
-  const [sheets, photos, classes] = await Promise.all([
+  const [sheets, photos, classes, blockers] = await Promise.all([
     productDocumentHistory(product.id, 'sds'),
     productDocumentHistory(product.id, 'image'),
     listActiveClasses(),
+    product.visibility === 'published' ? productListingBlockers(product) : Promise.resolve([]),
   ]);
   const sdsMessage = sds ? (Object.hasOwn(SDS_MESSAGE, sds) ? SDS_MESSAGE[sds] : SDS_MESSAGE.store) : null;
   const imageMessage = image
@@ -84,6 +86,25 @@ export default async function EditProductPage({ params, searchParams }: Props) {
         <h1 className="mt-2 font-display text-4xl font-extrabold tracking-[-0.05em]">
           {product.name}
         </h1>
+        {blockers.length > 0 && (
+          <div
+            role="alert"
+            className="mt-6 border border-destructive bg-destructive/5 p-4 text-sm"
+          >
+            <p className="font-semibold text-destructive">
+              Published, but no shopper can see this material.
+            </p>
+            <p className="mt-2 text-muted-foreground">
+              It is absent from the catalog and its public page answers 404
+              until every point below is settled.
+            </p>
+            <ul className="mt-3 list-disc space-y-1 pl-5">
+              {blockers.map((blocker) => (
+                <li key={blocker}>{blocker}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="mt-10">
           <ProductForm
             initial={productToValues(product)}
@@ -96,10 +117,10 @@ export default async function EditProductPage({ params, searchParams }: Props) {
         <section className="mt-14 border-t border-border pt-10">
           <h2 className="utility-label text-primary">Photograph</h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-            A photograph of this material only. Where none exists the page says
-            so; another compound&rsquo;s vial is never shown in its place
-            (CLAUDE.md rule 5). Uploads are kept; removing a photograph only
-            stops showing it.
+            A photograph of this material only. Without one, a published
+            material is absent from the catalog and its public page answers 404;
+            another compound&rsquo;s vial is never shown in its place
+            (CLAUDE.md rule 5). Earlier uploads remain in the history.
           </p>
           {imageMessage && (
             <p

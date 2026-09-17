@@ -1,4 +1,5 @@
 - [Runtime validation](runtime-validation.md) — this project requires Node 22.13+; Node 20 cannot run the SQLite-backed tests or current build tooling.
 - [Local runtime and preview](local-runtime-and-preview.md) — Wrangler needs Node 22; Replit webview needs vinext bound to 0.0.0.0:5000.
-- [Empty catalog diagnosis](catalog-visibility-diagnosis.md) — the live sitemap's lot URLs are the product-independent probe for why the storefront lists nothing.
+- [Empty catalog diagnosis](catalog-visibility-diagnosis.md) — a static-only sitemap is inconclusive; healthy connectivity does not prove listing queries succeeded.
 - [Browser acceptance selectors](browser-acceptance-selectors.md) — scope selectors to their owning form because storefront-wide fields can share names.
+- [Consent reconciliation](consent-reconciliation.md) — stale provider calls must invalidate acknowledgements and reconcile the current consent state, including pending re-subscriptions.

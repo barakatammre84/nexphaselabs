@@ -1,4 +1,4 @@
-import { and, eq, or } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { marketingConsents, type MarketingConsentRow } from '@/db/schema';
 import { normaliseEmail } from '@/lib/account-rules';
@@ -54,11 +54,128 @@ export function consentSourceLabel(source: string): string {
   return SOURCE_LABEL[source as ConsentSource] ?? 'from the website';
 }
 
-async function syncToBrevo(row: Pick<MarketingConsentRow, 'id' | 'email' | 'source'>, now: Date): Promise<void> {
-  if (!brevoConfigured()) return;
-  const result = await brevoUpsertContact(row.email, { NX_SOURCE: row.source, NX_CONSENT: now.toISOString() });
-  if (result.ok) await getDb().update(marketingConsents).set({ brevoSyncedAt: now }).where(eq(marketingConsents.id, row.id));
-  else console.error('[newsletter] brevo sync failed', result.error);
+/**
+ * `brevoSyncedAt` is the moment the Brevo copy was last made to agree with this row: a
+ * confirmed row present on the list, or a revoked row removed from it.
+ *
+ * It is read against the moment the status itself changed (`consentedAt`, `revokedAt`)
+ * rather than as a null check, because a marker older than the change it is supposed to
+ * cover means the provider is still holding the previous state. That also covers rows
+ * written before this sweep existed, where an unsubscribe failed at Brevo and left the
+ * confirmation-era marker in place.
+ *
+ * The web request never depends on Brevo answering. A subscriber whose confirmation
+ * landed while Brevo was down is still confirmed here, and an unsubscribe is honoured
+ * here whatever the provider does; the sweep is what stops either from being silently
+ * stranded, because the confirmation token is spent and the person cannot retry it.
+ */
+const consentSnapshot = (row: MarketingConsentRow) => and(
+  eq(marketingConsents.id, row.id),
+  eq(marketingConsents.status, row.status),
+  eq(marketingConsents.requestedAt, row.requestedAt),
+  eq(marketingConsents.source, row.source),
+  row.consentedAt ? eq(marketingConsents.consentedAt, row.consentedAt) : isNull(marketingConsents.consentedAt),
+  row.revokedAt ? eq(marketingConsents.revokedAt, row.revokedAt) : isNull(marketingConsents.revokedAt),
+  row.confirmTokenHash ? eq(marketingConsents.confirmTokenHash, row.confirmTokenHash) : isNull(marketingConsents.confirmTokenHash),
+);
+
+/**
+ * Only acknowledge the exact consent state sent to Brevo. If it changed in flight,
+ * invalidate even a newer marker (our stale provider call may have finished last),
+ * then reconcile the current state once. Further contention stays queued for cron.
+ * Pending re-subscriptions must remain OFF the list until confirmed again.
+ */
+async function syncToBrevo(
+  row: MarketingConsentRow,
+  now: Date,
+  reconcile = true,
+): Promise<'synced' | 'failed' | 'deferred'> {
+  if (!brevoConfigured()) return 'deferred';
+  const db = getDb();
+  const result = row.status === 'confirmed'
+    ? await brevoUpsertContact(row.email, { NX_SOURCE: row.source, NX_CONSENT: (row.consentedAt ?? now).toISOString() })
+    : await brevoRemoveContact(row.email);
+  // D1 timestamps have second precision. Strictly newer also repairs legacy
+  // revocations whose confirmation and revocation happened in the same second.
+  const transition = row.status === 'confirmed' ? row.consentedAt : row.status === 'revoked' ? row.revokedAt : row.requestedAt;
+  const syncedAt = new Date(Math.max(now.getTime(), (transition?.getTime() ?? 0) + 1000));
+  const changed = await db.update(marketingConsents)
+    .set(result.ok ? { brevoSyncedAt: syncedAt } : { brevoSyncedAt: null, updatedAt: now })
+    .where(consentSnapshot(row)).returning({ id: marketingConsents.id });
+  if (!changed.length) {
+    const [current] = await db.update(marketingConsents)
+      .set({ brevoSyncedAt: null }).where(eq(marketingConsents.id, row.id)).returning();
+    if (current && reconcile) await syncToBrevo(current, now, false);
+    return 'deferred';
+  }
+  if (!result.ok) {
+    // Provider bodies can echo an email address; never put those bodies in cron logs.
+    console.error('[newsletter] provider sync failed; queued for retry');
+    return 'failed';
+  }
+  return 'synced';
+}
+
+/** Retries per tick. Small: this only ever catches a provider outage, not normal traffic. */
+const SYNC_RETRIES_PER_SWEEP = 10;
+
+export type MarketingSyncSweep = { ok: true; attempted: number; synced: number; failed: number; deferred: number };
+
+/** Pending re-subscriptions also need removal if an older upsert raced them. */
+const awaitingProvider = () =>
+  or(
+    and(
+      eq(marketingConsents.status, 'confirmed'),
+      or(isNull(marketingConsents.brevoSyncedAt), lte(marketingConsents.brevoSyncedAt, marketingConsents.consentedAt)),
+    ),
+    and(
+      eq(marketingConsents.status, 'revoked'),
+      or(isNull(marketingConsents.brevoSyncedAt), lte(marketingConsents.brevoSyncedAt, marketingConsents.revokedAt)),
+    ),
+    and(
+      eq(marketingConsents.status, 'pending'),
+      isNotNull(marketingConsents.consentedAt),
+      isNull(marketingConsents.brevoSyncedAt),
+    ),
+  );
+
+/**
+ * The cron pass that finishes what a Brevo outage interrupted: confirmed subscribers who
+ * never reached the list, and unsubscribes that never reached it either. Bounded per tick,
+ * oldest first; a row that fails again is touched so it rotates behind the others instead
+ * of holding the front of the queue forever.
+ *
+ * Re-read each row just before sending; completion is guarded against consent changes
+ * during the call. No contact data is included in the returned cron summary.
+ */
+export async function sweepMarketingSync(now = new Date()): Promise<MarketingSyncSweep> {
+  if (!brevoConfigured()) return { ok: true, attempted: 0, synced: 0, failed: 0, deferred: 0 };
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(marketingConsents)
+    .where(awaitingProvider())
+    .orderBy(asc(marketingConsents.updatedAt))
+    .limit(SYNC_RETRIES_PER_SWEEP);
+  let synced = 0;
+  let failed = 0;
+  let deferred = 0;
+  for (const row of rows) {
+    const [current] = await db
+      .select()
+      .from(marketingConsents)
+      .where(and(eq(marketingConsents.id, row.id), awaitingProvider()))
+      .limit(1);
+    if (!current) {
+      deferred += 1;
+      continue;
+    }
+    const result = await syncToBrevo(current, now);
+    if (result === 'synced') synced++;
+    else if (result === 'failed') failed++;
+    else deferred++;
+  }
+  return { ok: true, attempted: rows.length, synced, failed, deferred };
 }
 
 export type ConsentRequest = {
@@ -107,16 +224,25 @@ export async function requestConsent(
     userAgent: input.userAgent ? input.userAgent.slice(0, 300) : null,
     revokedAt: null,
     revokeReason: null,
+    brevoSyncedAt: null,
     updatedAt: now,
   };
-  if (existing) await db.update(marketingConsents).set(fields).where(eq(marketingConsents.id, existing.id));
-  else
+  if (existing) {
+    const changed = await db.update(marketingConsents).set(fields)
+      .where(consentSnapshot(existing)).returning({ id: marketingConsents.id });
+    if (!changed.length) {
+      // Do not undo an unsubscribe that arrived while the token was being hashed,
+      // or send a confirmation token that was never stored.
+      const [current] = await db.select({ status: marketingConsents.status })
+        .from(marketingConsents).where(eq(marketingConsents.id, existing.id)).limit(1);
+      return { ok: true, status: (current?.status ?? 'pending') as ConsentStatus, confirmToken: null };
+    }
+  } else
     await db.insert(marketingConsents).values({
       id: newId('mc'),
       email,
       unsubscribeToken: randomToken(),
       consentedAt: null,
-      brevoSyncedAt: null,
       createdAt: now,
       ...fields,
     });
@@ -156,11 +282,12 @@ export async function confirmConsent(rawToken: string, now = new Date()): Promis
   if (!row) return 'invalid';
   if (row.status === 'confirmed') return 'already';
   if (row.requestedAt.getTime() + CONFIRM_WINDOW_MS < now.getTime()) return 'invalid';
-  await db
+  const [confirmed] = await db
     .update(marketingConsents)
-    .set({ status: 'confirmed', consentedAt: now, confirmTokenHash: null, revokedAt: null, revokeReason: null, updatedAt: now })
-    .where(and(eq(marketingConsents.id, row.id), eq(marketingConsents.status, 'pending')));
-  await syncToBrevo(row, now);
+    .set({ status: 'confirmed', consentedAt: now, confirmTokenHash: null, revokedAt: null, revokeReason: null, brevoSyncedAt: null, updatedAt: now })
+    .where(and(consentSnapshot(row), eq(marketingConsents.status, 'pending'))).returning();
+  if (!confirmed) return 'invalid';
+  await syncToBrevo(confirmed, now);
   return 'confirmed';
 }
 
@@ -176,11 +303,12 @@ export async function confirmConsentForAccount(accountId: string, now = new Date
     .where(and(eq(marketingConsents.accountId, accountId), eq(marketingConsents.status, 'pending'), eq(marketingConsents.source, 'sign_up')))
     .limit(1);
   if (!row) return false;
-  await db
+  const [confirmed] = await db
     .update(marketingConsents)
-    .set({ status: 'confirmed', consentedAt: now, confirmTokenHash: null, updatedAt: now })
-    .where(eq(marketingConsents.id, row.id));
-  await syncToBrevo(row, now);
+    .set({ status: 'confirmed', consentedAt: now, confirmTokenHash: null, brevoSyncedAt: null, updatedAt: now })
+    .where(consentSnapshot(row)).returning();
+  if (!confirmed) return false;
+  await syncToBrevo(confirmed, now);
   return true;
 }
 
@@ -198,14 +326,14 @@ export async function revokeConsent(selector: ConsentSelector, reason: string, n
   if (rows.length === 0) return false;
   for (const row of rows) {
     if (row.status === 'revoked') continue;
-    await db
+    // brevoSyncedAt is cleared here because the provider copy no longer agrees with this
+    // row: the address is off the list locally and still on it at Brevo. The sweep retries
+    // the removal until it lands, so a provider outage cannot strand an unsubscribe.
+    const [revoked] = await db
       .update(marketingConsents)
-      .set({ status: 'revoked', revokedAt: now, revokeReason: reason.slice(0, 80), confirmTokenHash: null, updatedAt: now })
-      .where(eq(marketingConsents.id, row.id));
-    if (brevoConfigured()) {
-      const result = await brevoRemoveContact(row.email);
-      if (!result.ok) console.error('[newsletter] brevo remove failed', result.error);
-    }
+      .set({ status: 'revoked', revokedAt: now, revokeReason: reason.slice(0, 80), confirmTokenHash: null, brevoSyncedAt: null, updatedAt: now })
+      .where(eq(marketingConsents.id, row.id)).returning();
+    if (revoked) await syncToBrevo(revoked, now);
   }
   return true;
 }

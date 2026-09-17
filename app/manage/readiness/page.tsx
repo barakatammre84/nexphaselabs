@@ -11,6 +11,7 @@ import {
 import { orders } from '@/db/schema';
 import { canManageStaff, requireStaff } from '@/lib/staff-auth';
 import { catalogReadiness } from '@/lib/catalog-readiness';
+import { publishedProductVisibility } from '@/lib/storefront';
 import { shippingConfiguration } from '@/lib/shipping-provider';
 import { ShippingQuoteForm } from '@/components/manage/shipping-quote-form';
 import { formatCents } from '@/lib/visibility-rules';
@@ -30,6 +31,8 @@ export default async function ReadinessPage() {
   const staff = await requireStaff('/manage/readiness');
   if (!canManageStaff(staff)) redirect('/manage?denied=readiness');
   const catalog = await catalogReadiness();
+  const visibility = await publishedProductVisibility();
+  const hidden = visibility.hidden;
   const shipping = shippingConfiguration();
   const tax = taxConfiguration();
   const parcel = checkoutParcelForPacks(1);
@@ -64,14 +67,57 @@ export default async function ReadinessPage() {
         reads configuration and catalog data; it does not approve stock, set
         prices, or authorize launch.
       </p>
+      <section className="mt-10" aria-labelledby="storefront-visibility">
+        <h2 id="storefront-visibility" className="text-2xl font-bold">
+          Visible to shoppers
+        </h2>
+        {visibility.publishedCount === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            No materials are published, so none are visible on the storefront.
+          </p>
+        ) : hidden.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Every published material is on the storefront.
+          </p>
+        ) : (
+          <>
+            <p role="alert" className="mt-3 text-sm text-destructive">
+              {hidden.length} published{' '}
+              {hidden.length === 1 ? 'material is' : 'materials are'} hidden
+              from the catalog. Publishing alone does not list a material: it
+              also needs a photograph, an active pack with an approved public
+              price, and a released lot whose testing laboratory, accession
+              number and testing standard are recorded.
+            </p>
+            <ul className="mt-5 divide-y divide-border border-y border-border">
+              {hidden.map((product) => (
+                <li
+                  key={product.code}
+                  className="flex flex-wrap justify-between gap-3 py-4 text-sm"
+                >
+                  <Link
+                    href={`/manage/products/${encodeURIComponent(product.code)}`}
+                    className="font-semibold text-primary underline"
+                  >
+                    {product.name}
+                  </Link>
+                  <p className="text-destructive">
+                    {product.blockers.join('; ')}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
       <section className="mt-10" aria-labelledby="catalog-ready">
         <h2 id="catalog-ready" className="text-2xl font-bold">
           Purchasable catalog
         </h2>
         <p className="mt-3 text-sm">
           {catalog.rows.filter((r) => r.issues.length === 0).length} of{' '}
-          {catalog.rows.length} pack sizes have a public price and a released
-          lot with quantity for at least one pack. Reservations, packaging and
+          {catalog.rows.length} active pack sizes pass the photograph, public
+          price and released-lot quantity checks. Reservations, packaging and
           document readiness still need separate checks.
         </p>
         {catalog.truncated && (

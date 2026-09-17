@@ -47,7 +47,7 @@ function lotUsable(lot: PublishableStock, now: Date): boolean {
 }
 
 /** Why a published product is off the storefront. Empty means it is listed. */
-export function listingBlockers(product: CatalogProduct, stock: PublishableStock[]): string[] {
+export function listingBlockers(product: Pick<CatalogProduct, 'image' | 'variants'>, stock: PublishableStock[]): string[] {
   const blockers: string[] = [];
   if (!product.image) blockers.push('No photograph');
   if (!product.variants.some((v) => v.active && approvedPrice(v.listPriceCents))) blockers.push('No approved public price');
@@ -144,6 +144,60 @@ export async function getStorefrontProduct(slug: string, now = new Date()): Prom
   const product = await getPublishedProduct(slug);
   if (!product) return null;
   return toListed(product, await publishableStock([product.code]), now);
+}
+
+export type HiddenProduct = { code: string; name: string; slug: string; blockers: string[] };
+
+export type PublishedProductVisibility = {
+  publishedCount: number;
+  hidden: HiddenProduct[];
+};
+
+function staffListingBlockers(
+  product: Pick<CatalogProduct, 'image' | 'variants'>,
+  stock: PublishableStock[],
+): string[] {
+  return listingBlockers(product, stock).map((blocker) =>
+    blocker === 'No approved public price'
+      ? 'No active pack with an approved public price'
+      : blocker,
+  );
+}
+
+/**
+ * Published materials that no shopper can see, with the reason for each.
+ *
+ * Staff-facing, and the answer to the question the manager could not previously
+ * answer: a product can be published, saved and apparently finished while the
+ * catalog shows nothing, because listing also needs a photograph, an active
+ * pack with an approved price and a publishable lot. Every requirement is
+ * enforced somewhere else, so the symptom is the same whichever one is
+ * missing; this names it.
+ */
+export async function publishedProductVisibility(): Promise<PublishedProductVisibility> {
+  const published = await listPublishedProducts();
+  const stock = await publishableStock([...new Set(published.map((p) => p.code))]);
+  const hidden = published
+    .map((product) => ({
+      code: product.code,
+      name: product.name,
+      slug: product.slug,
+      blockers: staffListingBlockers(
+        product,
+        stock.filter((lot) => lot.productCode === product.code),
+      ),
+    }))
+    .filter((product) => product.blockers.length > 0);
+  return { publishedCount: published.length, hidden };
+}
+
+export async function hiddenPublishedProducts(): Promise<HiddenProduct[]> {
+  return (await publishedProductVisibility()).hidden;
+}
+
+/** Why this one published product is off the storefront; empty when shoppers can see it. */
+export async function productListingBlockers(product: CatalogProduct): Promise<string[]> {
+  return staffListingBlockers(product, await publishableStock([product.code]));
 }
 
 /** Slug / name / code index of listed products, for the finder rail and the sitemap. */
