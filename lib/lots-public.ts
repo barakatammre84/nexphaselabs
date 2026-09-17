@@ -225,6 +225,8 @@ export type LotSearchHit = {
   analyticalLab: string | null;
   purityResult: string | null;
   releasedOn: string | null;
+  /** A certificate file is on record for the lot (library rows only; the search omits it). */
+  hasCoa?: boolean;
 };
 
 export const LOT_SEARCH_LIMIT = 25;
@@ -260,6 +262,7 @@ export async function releasedLotsByProduct(): Promise<LotCatalogueEntry[]> {
       analyticalLab: lots.analyticalLab,
       purityResult: lots.purityResult,
       releasedAt: lots.releasedAt,
+      coaKey: lots.coaKey,
     })
     .from(lots)
     .where(publishableLot())
@@ -282,6 +285,7 @@ export async function releasedLotsByProduct(): Promise<LotCatalogueEntry[]> {
       analyticalLab: row.analyticalLab,
       purityResult: row.purityResult,
       releasedOn: row.releasedAt ? row.releasedAt.toISOString().slice(0, 10) : null,
+      hasCoa: Boolean(row.coaKey),
     });
     byProduct.set(row.productCode, entry);
   }

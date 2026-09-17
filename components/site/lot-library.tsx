@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { FileCheck2 } from 'lucide-react';
 import {
   LOT_LIBRARY_PER_PRODUCT,
+  publicDocumentPath,
   type LotCatalogueEntry,
 } from '@/lib/lots-public';
 
@@ -63,6 +64,14 @@ export function LotLibrary({ products }: { products: LotCatalogueEntry[] }) {
                           <FileCheck2 className="size-3.5" />
                           {lot.lotNumber}
                         </Link>
+                        {lot.hasCoa && (
+                          <a
+                            href={publicDocumentPath(lot.lotNumber, 'coa')}
+                            className="ml-3 text-xs font-semibold text-primary underline"
+                          >
+                            Certificate
+                          </a>
+                        )}
                       </td>
                       <td className="py-2 pr-4 font-mono text-xs text-muted-foreground">
                         {lot.releasedOn ?? '—'}
@@ -80,9 +89,21 @@ export function LotLibrary({ products }: { products: LotCatalogueEntry[] }) {
               </table>
             </div>
             {more > 0 && (
-              <p className="mt-3 text-xs text-muted-foreground">
-                {more} earlier lot{more === 1 ? '' : 's'} — search the lot number above to open one.
-              </p>
+              <details className="mt-3">
+                <summary className="cursor-pointer text-xs font-semibold text-primary">
+                  {more} earlier lot{more === 1 ? '' : 's'}
+                </summary>
+                <ul className="mt-2 grid gap-1 sm:grid-cols-2">
+                  {product.lots.slice(LOT_LIBRARY_PER_PRODUCT).map((lot) => (
+                    <li key={lot.lotNumber} className="font-mono text-xs">
+                      <Link href={`/lots/${encodeURIComponent(lot.lotNumber)}`} className="text-primary underline">
+                        {lot.lotNumber}
+                      </Link>
+                      <span className="text-muted-foreground"> · released {lot.releasedOn ?? '—'}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             )}
           </article>
         );

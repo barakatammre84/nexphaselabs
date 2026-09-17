@@ -45,7 +45,7 @@ describe('account dashboard pages (owner, 16 Sep 2026)', () => {
   it('the dashboard is a hub with a card for every managed thing', async () => {
     const html = await render(AccountPage({ searchParams: Promise.resolve({}) }));
     expect(html).toContain('Manage your account');
-    for (const href of ['/account/orders', '/account/addresses', '/account/details', '/account/payment', '/account/waitlist', '/contact']) expect(html).toContain(`href="${href}"`);
+    for (const href of ['/account/orders', '/account/addresses', '/account/details', '/account/payment', '/account/waitlist', '/account/documents', '/contact']) expect(html).toContain(`href="${href}"`);
     expect(html).toContain('NX-00001');
     // The address book itself lives on its own page now; the hub only links to it.
     expect(html).not.toContain('Add your first address');
