@@ -265,6 +265,7 @@ describe('the certificate library', () => {
       'accessionNumber',
       'analyticalLab',
       'casNumber',
+      'hasCoa',
       'lotNumber',
       'productCode',
       'productName',

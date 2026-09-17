@@ -1,6 +1,6 @@
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { lotDocuments, orderItems } from '@/db/schema';
+import { lotDocuments, orderItems, orders } from '@/db/schema';
 import { getLotDocument, sha256Hex } from '@/lib/documents';
 
 /**
@@ -74,4 +74,54 @@ export async function pinnedDocument(orderId: string, itemId: string, type: 'coa
     .where(eq(lotDocuments.id, documentId))
     .limit(1);
   return doc ? { ...doc, lotNumber: item.lotNumber } : null;
+}
+
+export type PinnedDocumentLine = {
+  orderId: string;
+  orderNumber: string;
+  orderedAt: Date | null;
+  itemId: string;
+  productCode: string;
+  productName: string;
+  packSize: string;
+  presentation: string;
+  quantity: number;
+  lotNumber: string | null;
+  coaDocumentId: string | null;
+  sdsDocumentId: string | null;
+};
+
+/**
+ * Every order line of the account that shipped with a pinned certificate or safety data
+ * sheet, newest order first — the customer's own document library (owner, 16 Sep 2026;
+ * ionpeptide's "Downloads" tab as the reference). Lines that have not dispatched carry no
+ * pin yet and are left out; the order page explains that.
+ */
+export async function pinnedDocumentsForAccount(accountId: string, limit = 500): Promise<PinnedDocumentLine[]> {
+  const rows = await getDb()
+    .select({
+      orderId: orders.id,
+      orderNumber: orders.orderNumber,
+      orderedAt: orders.createdAt,
+      itemId: orderItems.id,
+      productCode: orderItems.productCode,
+      productName: orderItems.productName,
+      packSize: orderItems.packSize,
+      presentation: orderItems.presentation,
+      quantity: orderItems.quantity,
+      lotNumber: orderItems.lotNumber,
+      coaDocumentId: orderItems.coaDocumentId,
+      sdsDocumentId: orderItems.sdsDocumentId,
+    })
+    .from(orderItems)
+    .innerJoin(orders, eq(orders.id, orderItems.orderId))
+    .where(
+      and(
+        eq(orders.accountId, accountId),
+        or(isNotNull(orderItems.coaDocumentId), isNotNull(orderItems.sdsDocumentId)),
+      ),
+    )
+    .orderBy(desc(orders.createdAt), asc(orderItems.productName))
+    .limit(limit);
+  return rows.map((row) => ({ ...row, orderedAt: row.orderedAt ?? null }));
 }
