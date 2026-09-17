@@ -17,8 +17,40 @@ export default function CompliancePage() {
     <LegalPage
       title="Compliance & disclosures"
       updated={`Terms ${TERMS_VERSION} · Acknowledgement ${RUO_VERSION} · Research-use policy ${RESEARCH_USE_POLICY_VERSION}`}
-      intro="This page is the plain account of how the business is run: who is selling, what is being sold, how it is tested, and where a buyer is told — and asked to confirm — that it is for laboratory research only."
+      intro="The plain account of how this business is run: who is selling, what is being sold, how it is tested, and where a buyer is told and asked to confirm that it is for laboratory research only. It is written to be read straight through by a customer, a regulator, an insurer, a bank underwriting the account, or counsel on either side."
     >
+      <LegalSection heading="At a glance">
+        <ul>
+          <li>
+            <span className="font-semibold text-foreground">Entity:</span> {ENTITY.legalName}, a{' '}
+            {ENTITY.jurisdiction} limited liability company trading as {ENTITY.dbaName}.
+          </li>
+          <li>
+            <span className="font-semibold text-foreground">Classification:</span> research chemicals for in vitro
+            laboratory use. Not drugs, biologics, supplements, cosmetics, food or devices.
+          </li>
+          <li>
+            <span className="font-semibold text-foreground">Testing:</span> identity by mass spectrometry and purity
+            by HPLC, reported per lot, with the testing laboratory and its own accession number named on the face of
+            every certificate.
+          </li>
+          <li>
+            <span className="font-semibold text-foreground">Release:</span> no lot is sellable until a named person
+            releases it, and the manufacturer&rsquo;s name and address are on record before that can happen.
+          </li>
+          <li>
+            <span className="font-semibold text-foreground">Ancillaries:</span> none. We do not sell bacteriostatic
+            water, syringes, needles, vials, or any dosage form. We sell no cosmetic and no consumer product.
+          </li>
+          <li>
+            <span className="font-semibold text-foreground">Misuse:</span> published{' '}
+            <Link href="/legal/community-guidelines" className="font-semibold text-primary">community guidelines</Link>{' '}
+            govern what may be said about the material anywhere our name appears, including by paid partners, and are
+            enforced by removal, account closure and reporting.
+          </li>
+        </ul>
+      </LegalSection>
+
       <LegalSection id="entity" heading="1. Who is selling">
         <p>
           {ENTITY.legalName}, doing business as {ENTITY.dbaName}, is a {ENTITY.jurisdiction} limited liability
@@ -35,6 +67,13 @@ export default function CompliancePage() {
           approved by the Food and Drug Administration or any other regulator for any use. We make no claim that any
           material diagnoses, treats, cures or prevents any condition, and we do not describe effects in people or
           animals anywhere on this site.
+        </p>
+        <p>
+          The catalog is deliberately narrow, and what is absent from it is part of the position. We do not stock
+          bacteriostatic water, syringes, needles, injection kits, vials or cases; we do not sell oral, sublingual,
+          nasal or topical dosage forms; we do not sell cosmetics; and we do not classify materials by indication,
+          research area or physiological process. A supplier&rsquo;s product list is a clearer statement of intended
+          use than any disclaimer it prints, and ours is meant to be read that way.
         </p>
         <p className="border-l-2 border-primary bg-secondary px-4 py-3 font-semibold text-foreground">
           {REGULATORY_STATEMENT}

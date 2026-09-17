@@ -67,8 +67,40 @@ const documentation: Section = {
       a: 'Yes. Released lots can be looked up by lot number on the lot lookup page, and the certificate opens from there. If the product page does not show which lot is currently shipping, ask support for the lot number.',
     },
     {
+      q: 'How do I know the certificate is real?',
+      a: 'Because you can check it without us. Every certificate names the laboratory that did the testing and that laboratory\u2019s own reference for the sample, so you can contact them directly and ask whether the report is theirs. A certificate that names no laboratory cannot be verified by anybody except the seller who printed it.',
+      link: { href: '/documentation/guides/reading-a-certificate-of-analysis', label: 'How to read a certificate of analysis' },
+    },
+    {
       q: 'What happens if the paperwork and the vial do not agree?',
       a: 'Stop and contact us before using the material. A mismatch between the label and the certificate puts that lot on hold while it is checked, and the line is replaced or refunded.',
+    },
+  ],
+};
+
+const materialAndHandling: Section = {
+  heading: 'The material itself',
+  items: [
+    {
+      q: 'What does the material look like?',
+      a: 'A lyophilized solid, in a sealed glass vial under a crimped or flip-off seal. Depending on the run it can be a compact cake, a loose fluffy mass, or a thin film on the glass. At small fill weights a few milligrams spread across the bottom of a vial can be genuinely hard to see, which is normal.',
+      link: { href: '/documentation/guides/storage-stability-and-retest-dates', label: 'Storage, stability and retest dates' },
+    },
+    {
+      q: 'The cake looks different from my last order. Is something wrong?',
+      a: 'Almost certainly not. Cake appearance depends on fill volume, freezing rate and the shelf position in the dryer, and it varies between runs of the same material. Appearance is recorded on the certificate as an observation, not as a specification. What should match exactly is the lot number on the vial, the certificate and the packing slip.',
+    },
+    {
+      q: 'What is printed on the vial?',
+      a: 'The material name and catalog code, the lot number, the nominal fill weight, the storage condition, and the research-use statement. The lot number is the one to quote in any question about what you received.',
+    },
+    {
+      q: 'The parcel arrived warm, or the ice packs had thawed. What now?',
+      a: 'Photograph the parcel and its contents before unpacking further and contact us the same day with the order number. Coolant is expected to be partly thawed on arrival; a shipment that is warm to the touch is not. We will tell you whether the lot can still be used or replace it.',
+    },
+    {
+      q: 'Can I open the vial and use part of it?',
+      a: 'What you do with material in your own laboratory is yours to decide, within the research-use conditions you accepted. We would only note that a vial opened and resealed is no longer covered by the storage assumptions on the certificate, and that we cannot accept a return of anything unsealed.',
     },
   ],
 };
@@ -91,6 +123,22 @@ const shipping: Section = {
     {
       q: 'What is your returns policy?',
       a: 'Unopened, sealed material can be returned within 30 days of delivery with a return authorization from us; you pay the return shipping unless the return is our error. Damaged, missing or wrong items should be reported within 48 hours with photographs and are replaced or refunded. Returned material is never restocked.',
+    },
+    {
+      q: 'Tracking has not updated for a few days.',
+      a: 'Carrier scans can go quiet in transit, and a parcel with no movement for two business days is worth raising rather than waiting on. Send us the order number and we will open it with the carrier. We do not consider a domestic parcel lost until it has been stationary for seven days.',
+    },
+    {
+      q: 'The parcel arrived damaged, or something is missing.',
+      a: 'Report it within 48 hours with photographs of the outer box, the packing and the vials as they arrived. We replace or refund; we do not ask you to return damaged material, and we do not restock anything that has been out of our control.',
+    },
+    {
+      q: 'The carrier says delivered and I do not have it.',
+      a: 'Check with anyone else at the address and look for a safe-place photograph on the tracking page first, because most of these turn up. If it does not, tell us within 48 hours of the delivery scan. We open a carrier trace, and where the trace fails we replace the order once to the same address.',
+    },
+    {
+      q: 'Can I change or cancel an order after placing it?',
+      a: 'Until it is picked, yes; after it is picked, no, because the lot has been allocated and the documents generated. Contact support immediately with the order number. An address change after dispatch has to go through the carrier and we cannot guarantee it.',
     },
     {
       q: 'How long does a refund take?',
@@ -121,6 +169,11 @@ const researchUse: Section = {
     {
       q: 'Why do you ask my age?',
       a: `Research materials are sold to adults. You confirm that you are at least ${MINIMUM_AGE} when you enter the site, when you create an account and at every checkout, and the confirmation is recorded against the order.`,
+    },
+    {
+      q: 'Do you have a misuse policy?',
+      a: 'Yes, and it is published rather than implied. Our community guidelines set out what may and may not be said about these materials anywhere our name appears, including in reviews, on social platforms and by our partners. Content describing human or animal use, a dose, or a medical benefit is removed, the account is closed, and where it suggests harm we report it.',
+      link: { href: '/legal/community-guidelines', label: 'Read the community guidelines' },
     },
     {
       q: 'Who is responsible for compliance?',
@@ -189,10 +242,11 @@ export default function FaqPage() {
             }
           : orderingSection,
         documentation,
+        materialAndHandling,
         shipping,
         researchUse,
       ]
-    : [institutionalAccess, documentation, shipping, researchUse];
+    : [institutionalAccess, documentation, materialAndHandling, shipping, researchUse];
   return (
     <main className="bg-background text-foreground">
       <section className="mx-auto max-w-[1280px] px-4 pb-8 pt-3 sm:px-6">
@@ -204,7 +258,7 @@ export default function FaqPage() {
             How can we help?
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-white/72">
-            Quick answers about ordering, lot documentation, shipping, returns and the research-use boundary.
+            Ordering, lot documentation, what the material physically is, shipping, returns and the research-use boundary.
           </p>
         </div>
       </section>
