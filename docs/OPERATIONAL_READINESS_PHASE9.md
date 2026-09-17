@@ -54,6 +54,16 @@ Live shipping/payment activation, paid labels, real customer communications, and
 cutover require configuration and explicit operational approval. Staging simulations do not
 establish real rates, tax correctness, settlement, delivery, or inventory availability.
 
+## Pre-fix customer-flow baseline
+
+Before changing live-store behavior, run the read-only baseline in
+`docs/BUYING_FLOW_BASELINE.md` against the exact production or staging origin.
+It records expected outcomes for browsing, pricing visibility, account access,
+cart protection, and the checkout eligibility boundary. It never submits a
+form, creates an order, sends a message, buys a label, or triggers payment.
+Store the JSON result with the release identifier so a post-fix run can be
+compared route by route.
+
 ## Customer and fulfillment interface pass
 
 Implemented locally after the first operational pass:

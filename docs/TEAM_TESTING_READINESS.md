@@ -26,6 +26,7 @@ This assessment distinguishes implemented code from remote configuration and ope
 ## Checks performed in this assessment
 
 - `npm run check` passed: TypeScript, lint, **110 tests in 15 files**, and the production build.
+- `docs/BUYING_FLOW_BASELINE.md` now defines the repeatable customer buying-flow baseline. `npm run baseline:store` uses only explicit GET requests and covers health, browsing, anonymous pricing visibility, account access, cart protection, and the checkout eligibility boundary.
 - All **21 migrations (0000–0020)** applied successfully to a fresh, isolated local D1 database. Class and catalog seeds then applied successfully.
 - Seeded database contained 27 business tables, three chemical classes, and five published products. Seed products are BPC-157, beta-NAD+, GHK, GHK-Cu, and Selank; this is not a claim about the current production catalog.
 - The built Worker served the homepage, catalog, SDS library, customer sign-in, and staff sign-in with HTTP 200 against that fresh database.
