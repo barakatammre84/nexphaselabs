@@ -5,6 +5,7 @@ import { paymentAttempts } from '@/db/commerce-schema';
 import { conditionalInsert } from '@/lib/conditional-insert';
 import { getPaymentMethod, type PaymentInstructions, type PaymentMethod } from '@/lib/payments';
 import { reservationEligibility } from '@/lib/inventory-reservations';
+import { assertNonNegativeSafeInteger } from '@/lib/safe-integer';
 
 const attention = 'Payment setup is being checked. Do not send another payment or start another invoice. Contact support with your order number.';
 
@@ -15,6 +16,12 @@ export async function beginClaimedPayment(order: Order, method: PaymentMethod, a
   { ok: true; instructions: PaymentInstructions } | { ok: false; error: string }
 > {
   const db = getDb();
+  try {
+    assertNonNegativeSafeInteger(order.totalCents, 'Payment amount');
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    return { ok: false, error: attention };
+  }
   const attemptId = `pat_${crypto.randomUUID().replace(/-/g, '')}`;
   const allocation = await reservationEligibility(order.id);
   const [claimed] = await db.batch([

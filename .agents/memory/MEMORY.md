@@ -3,3 +3,4 @@
 - [Empty catalog diagnosis](catalog-visibility-diagnosis.md) — a static-only sitemap is inconclusive; healthy connectivity does not prove listing queries succeeded.
 - [Browser acceptance selectors](browser-acceptance-selectors.md) — scope selectors to their owning form because storefront-wide fields can share names.
 - [Consent reconciliation](consent-reconciliation.md) — stale provider calls must invalidate acknowledgements and reconcile the current consent state, including pending re-subscriptions.
+- [Order quantity policy](order-quantity-policy.md) — no arbitrary per-line cap; future-stock checkout still requires an owner decision on restock payment.

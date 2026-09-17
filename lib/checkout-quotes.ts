@@ -15,6 +15,11 @@ import { shippingProviderName } from '@/lib/shipping-provider';
 import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 import { quoteTax, taxConfiguration } from '@/lib/tax-provider';
 import { freeShippingProgress, freeShippingThresholdCents } from '@/lib/free-shipping';
+import {
+  assertNonNegativeSafeInteger,
+  safeAdd,
+  safeMultiply,
+} from '@/lib/safe-integer';
 
 export const CHECKOUT_QUOTE_MINUTES = 30;
 
@@ -91,6 +96,12 @@ type DefaultParcel = Parcel & { baseWeight: number; perPackWeight: number };
 export function checkoutParcelForPacks(
   packs: number,
 ): { ok: true; parcel: Parcel } | { ok: false; error: string } {
+  assertNonNegativeSafeInteger(packs, 'Checkout pack quantity');
+  if (packs === 0)
+    return {
+      ok: false,
+      error: 'Add at least one pack before comparing delivery.',
+    };
   let value: Partial<DefaultParcel> | null = null;
   try {
     value = JSON.parse(
@@ -130,8 +141,37 @@ export function checkoutParcel(
   cart: Cart,
 ): { ok: true; parcel: Parcel } | { ok: false; error: string } {
   return checkoutParcelForPacks(
-    cart.lines.reduce((total, line) => total + line.quantity, 0),
+    cart.lines.reduce((total, line) => {
+      assertNonNegativeSafeInteger(line.quantity, 'Checkout line quantity');
+      if (line.quantity === 0)
+        throw new RangeError('Checkout line quantity must be positive.');
+      return safeAdd(total, line.quantity, 'Checkout pack quantity');
+    }, 0),
   );
+}
+
+function validateCartAmounts(cart: Cart): void {
+  assertNonNegativeSafeInteger(cart.subtotalCents, 'Checkout subtotal');
+  const subtotal = cart.lines.reduce((total, line) => {
+    assertNonNegativeSafeInteger(line.quantity, 'Checkout line quantity');
+    if (line.quantity === 0)
+      throw new RangeError('Checkout line quantity must be positive.');
+    const unitPriceCents = assertNonNegativeSafeInteger(
+      line.unitPriceCents ?? Number.NaN,
+      'Checkout line unit price',
+    );
+    return safeAdd(
+      total,
+      safeMultiply(
+        line.quantity,
+        unitPriceCents,
+        'Checkout line total',
+      ),
+      'Checkout subtotal',
+    );
+  }, 0);
+  if (subtotal !== cart.subtotalCents)
+    throw new RangeError('Checkout subtotal does not match its lines.');
 }
 
 export function shippingAddress(shipTo: ShipTo): ShippingAddress {
@@ -187,21 +227,30 @@ export async function createCheckoutQuotes(
       ok: false,
       error: 'Add available, priced materials before comparing delivery.',
     };
+  validateCartAmounts(cart);
   const packed = checkoutParcel(cart);
   if (!packed.ok) return packed;
   // A promo code is priced in here so shipping tax and the total already reflect it.
   const coupon = couponCode ? await evaluateCoupon(couponCode, accountId, cart.subtotalCents) : null;
   if (coupon && !coupon.ok) return coupon;
-  const discountCents = coupon?.ok ? coupon.discountCents : 0;
+  const discountCents = assertNonNegativeSafeInteger(
+    coupon?.ok ? coupon.discountCents : 0,
+    'Checkout discount',
+  );
+  if (discountCents > cart.subtotalCents)
+    throw new RangeError('Checkout discount exceeds subtotal.');
+  const discountedSubtotal = cart.subtotalCents - discountCents;
   // Free delivery (lib/free-shipping.ts): the cheapest eligible rate is offered at no charge
   // once the materials subtotal, after any promo code, reaches the staff-set threshold.
-  const freeShipping = freeShippingProgress(cart.subtotalCents - discountCents, await freeShippingThresholdCents())?.qualifies ?? false;
+  const freeShipping = freeShippingProgress(discountedSubtotal, await freeShippingThresholdCents())?.qualifies ?? false;
   const to = shippingAddress(shipTo);
   const shipping = await quoteShipping(to, packed.parcel, {
     services: [],
     maxEstimatedDays: 10,
   });
   if (!shipping.ok) return shipping;
+  for (const rate of shipping.rates)
+    assertNonNegativeSafeInteger(rate.cents, 'Checkout shipping');
   const candidates = shipping.rates
     .slice(0, 4)
     .map((rate, index) => (freeShipping && index === 0 ? { ...rate, cents: 0 } : rate));
@@ -210,7 +259,7 @@ export async function createCheckoutQuotes(
       rate,
       tax: await quoteTax({
         to,
-        subtotalCents: cart.subtotalCents - discountCents,
+        subtotalCents: discountedSubtotal,
         shippingCents: rate.cents,
         lines: cart.lines.map((line) => ({
           id: line.itemId,
@@ -224,6 +273,11 @@ export async function createCheckoutQuotes(
   );
   const taxFailure = withTax.find((item) => !item.tax.ok);
   if (taxFailure && !taxFailure.tax.ok) return taxFailure.tax;
+  for (const item of withTax) {
+    assertNonNegativeSafeInteger(item.rate.cents, 'Checkout shipping');
+    if (item.tax.ok)
+      assertNonNegativeSafeInteger(item.tax.cents, 'Checkout tax');
+  }
   const now = new Date();
   const expiresAt = new Date(now.getTime() + CHECKOUT_QUOTE_MINUTES * 60_000);
   const [cartHash, addressHash] = await Promise.all([
@@ -260,10 +314,17 @@ export async function createCheckoutQuotes(
       // Carrier-neutral: which carriers and services are approved is configuration.
       error: 'No eligible delivery options were returned.',
     };
-  await getDb().insert(checkoutQuotes).values(rows);
-  return {
-    ok: true,
-    quotes: rows.map((row) => ({
+  const views = rows.map((row) => {
+    const totalCents = safeAdd(
+      safeAdd(
+        cart.subtotalCents - row.discountCents,
+        row.shippingCents,
+        'Checkout subtotal and shipping',
+      ),
+      row.taxCents,
+      'Checkout grand total',
+    );
+    return {
       id: row.id,
       carrier: row.carrier,
       serviceName: row.serviceName,
@@ -271,11 +332,16 @@ export async function createCheckoutQuotes(
       taxCents: row.taxCents,
       couponCode: row.couponCode,
       discountCents: row.discountCents,
-      totalCents: cart.subtotalCents - row.discountCents + row.shippingCents + row.taxCents,
+      totalCents,
       estimatedDays: row.estimatedDays,
       expiresAt: row.expiresAt.toISOString(),
       test: row.test,
-    })),
+    };
+  });
+  await getDb().insert(checkoutQuotes).values(rows);
+  return {
+    ok: true,
+    quotes: views,
     warning: shipping.warning,
   };
 }
@@ -301,6 +367,26 @@ export async function acceptedCheckoutQuote(
     )
     .limit(1);
   if (!row || row.currency !== 'USD') return null;
+  try {
+    validateCartAmounts(cart);
+    assertNonNegativeSafeInteger(row.shippingCents, 'Accepted quote shipping');
+    assertNonNegativeSafeInteger(row.taxCents, 'Accepted quote tax');
+    assertNonNegativeSafeInteger(row.discountCents, 'Accepted quote discount');
+    if (row.discountCents > cart.subtotalCents)
+      throw new RangeError('Accepted quote discount exceeds subtotal.');
+    safeAdd(
+      safeAdd(
+        cart.subtotalCents - row.discountCents,
+        row.shippingCents,
+        'Accepted quote subtotal and shipping',
+      ),
+      row.taxCents,
+      'Accepted quote grand total',
+    );
+  } catch (error) {
+    if (error instanceof RangeError) return null;
+    throw error;
+  }
   const [cartHash, addressHash] = await Promise.all([
     cartFingerprint(cart),
     addressFingerprint(shipTo, contactEmail),

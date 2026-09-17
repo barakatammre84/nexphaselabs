@@ -88,6 +88,89 @@ describe('tax calculation boundary', () => {
     expect(await quoteTax(input)).toMatchObject({ ok: false });
   });
 
+  it('refuses unsafe provider request and response amounts without rounding them', async () => {
+    Object.assign(env, {
+      APP_ENV: 'staging',
+      TAX_PROVIDER: 'taxjar',
+      TAXJAR_API_KEY: 'synthetic_taxjar_key_123456',
+      TAXJAR_SANDBOX: 'true',
+      SHIPPING_FROM_JSON: JSON.stringify(address),
+    });
+    const provider = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          tax: { amount_to_collect: '90071992547409.91' },
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal('fetch', provider);
+    const nearLimit = {
+      ...input,
+      subtotalCents: Number.MAX_SAFE_INTEGER,
+      shippingCents: 0,
+      lines: [
+        {
+          ...input.lines[0],
+          unitPriceCents: Number.MAX_SAFE_INTEGER,
+        },
+      ],
+    };
+    // This cent amount changes if converted through a JSON dollar number.
+    expect(await quoteTax(nearLimit)).toMatchObject({ ok: false });
+    expect(provider).not.toHaveBeenCalled();
+
+    provider.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          tax: { amount_to_collect: '90071992547409.92' },
+        }),
+        { status: 200 },
+      ),
+    );
+    expect(await quoteTax(input)).toMatchObject({ ok: false });
+  });
+
+  it.each([
+    { quantity: 0, unitPriceCents: 10_000 },
+    { quantity: Number.MAX_SAFE_INTEGER + 1, unitPriceCents: 10_000 },
+    { quantity: 2, unitPriceCents: Number.MAX_SAFE_INTEGER },
+    { quantity: 1, unitPriceCents: -1 },
+  ])('rejects an invalid or overflowing tax line: %o', async (line) => {
+    Object.assign(env, {
+      APP_ENV: 'staging',
+      TAX_PROVIDER: 'simulated',
+      TAX_SIMULATED_RATE_BPS: '825',
+    });
+    expect(
+      await quoteTax({
+        ...input,
+        lines: [{ ...input.lines[0], ...line }],
+      }),
+    ).toMatchObject({ ok: false });
+  });
+
+  it('rejects an unsafe subtotal plus shipping sum', async () => {
+    Object.assign(env, {
+      APP_ENV: 'staging',
+      TAX_PROVIDER: 'simulated',
+      TAX_SIMULATED_RATE_BPS: '825',
+    });
+    expect(
+      await quoteTax({
+        ...input,
+        subtotalCents: Number.MAX_SAFE_INTEGER,
+        shippingCents: 1,
+        lines: [
+          {
+            ...input.lines[0],
+            unitPriceCents: Number.MAX_SAFE_INTEGER,
+          },
+        ],
+      }),
+    ).toMatchObject({ ok: false });
+  });
+
   it('never permits simulated tax or the sandbox in production', () => {
     Object.assign(env, {
       APP_ENV: 'production',
@@ -179,6 +262,36 @@ describe('CDTFA California tax provider', () => {
       cents: 725,
       jurisdiction: 'CALIFORNIA STATEWIDE BASE',
     });
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
+  it('calculates a large safe subtotal with exact integer rate arithmetic', async () => {
+    Object.assign(env, {
+      APP_ENV: 'production',
+      TAX_PROVIDER: 'cdtfa',
+      CDTFA_DISTRICT_RATE: 'statewide',
+      SHIPPING_FROM_JSON: JSON.stringify(address),
+    });
+    vi.stubGlobal('fetch', vi.fn());
+    const subtotalCents = Number.MAX_SAFE_INTEGER;
+    const expected = Number(
+      (BigInt(subtotalCents) * BigInt(72_500) * BigInt(2) +
+        BigInt(1_000_000)) /
+        BigInt(2_000_000),
+    );
+    expect(
+      await quoteTax({
+        ...input,
+        subtotalCents,
+        shippingCents: 0,
+        lines: [
+          {
+            ...input.lines[0],
+            unitPriceCents: subtotalCents,
+          },
+        ],
+      }),
+    ).toMatchObject({ ok: true, cents: expected });
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });
 

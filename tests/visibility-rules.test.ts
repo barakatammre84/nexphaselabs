@@ -27,6 +27,8 @@ describe('visibilityFor', () => {
     expect(priceFor(v, 'none')).toBeNull();
     expect(formatCents(4500)).toBe('$45.00');
     expect(formatCents(123456)).toBe('$1,234.56');
+    expect(formatCents(Number.MAX_SAFE_INTEGER)).toBe('$90,071,992,547,409.91');
+    expect(formatCents(Number.MAX_SAFE_INTEGER + 1)).toBe('Amount unavailable');
   });
 });
 

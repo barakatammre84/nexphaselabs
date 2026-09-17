@@ -3,7 +3,13 @@ import { emailRecipientAllowed, livePaymentsAllowed } from '@/lib/environment-sa
 
 const { env } = vi.hoisted(() => ({ env: {} as Record<string, string> }));
 vi.mock('cloudflare:workers', () => ({ env }));
-import { availablePaymentMethods, btcpayCheckoutUrl, invalidateBtcpayInvoice, paymentRailStatus } from '@/lib/payments';
+import {
+  availablePaymentMethods,
+  btcpayCheckoutUrl,
+  invalidateBtcpayInvoice,
+  lookupBtcpayInvoice,
+  paymentRailStatus,
+} from '@/lib/payments';
 import { sendEmail } from '@/lib/email';
 import robots from '@/app/robots';
 import type { Order } from '@/db/schema';
@@ -78,6 +84,73 @@ describe('environment safety', () => {
   it('keeps configured production rails available', () => {
     Object.assign(env, { APP_ENV: 'production', PAYMENT_BANK_INSTRUCTIONS: 'configured' });
     expect(availablePaymentMethods().map((method) => method.id)).toEqual(['bank_transfer']);
+  });
+  it('sends and verifies BTCPay dollar strings without altering large safe cent amounts', async () => {
+    Object.assign(env, {
+      APP_ENV: 'production',
+      BTCPAY_HOST: 'https://payments.example.org',
+      BTCPAY_STORE_ID: 'store',
+      BTCPAY_API_KEY: 'key',
+      BTCPAY_WEBHOOK_SECRET: 'secret',
+    });
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json({
+        id: 'invoice123',
+        checkoutLink: 'https://payments.example.org/i/invoice123',
+      }),
+    );
+    const order = {
+      orderNumber: 'NX-260903-0001',
+      totalCents: Number.MAX_SAFE_INTEGER,
+      currency: 'USD',
+    } as Order;
+    const method = availablePaymentMethods().find(
+      (candidate) => candidate.id === 'btcpay',
+    )!;
+    await method.begin(order, 'attempt123');
+    expect(
+      JSON.parse(String(fetcher.mock.calls[0][1]?.body)).amount,
+    ).toBe('90071992547409.91');
+
+    fetcher.mockResolvedValueOnce(
+      Response.json({
+        id: 'invoice123',
+        amount: '90071992547409.91',
+        currency: 'USD',
+        metadata: {
+          orderId: order.orderNumber,
+          paymentAttemptId: 'attempt123',
+        },
+      }),
+    );
+    expect(
+      await lookupBtcpayInvoice('invoice123', order, 'attempt123'),
+    ).toBe(true);
+  });
+
+  it('refuses an unsafe payment amount before contacting BTCPay', async () => {
+    Object.assign(env, {
+      APP_ENV: 'production',
+      BTCPAY_HOST: 'https://payments.example.org',
+      BTCPAY_STORE_ID: 'store',
+      BTCPAY_API_KEY: 'key',
+      BTCPAY_WEBHOOK_SECRET: 'secret',
+    });
+    const fetcher = vi.spyOn(globalThis, 'fetch');
+    const method = availablePaymentMethods().find(
+      (candidate) => candidate.id === 'btcpay',
+    )!;
+    await expect(
+      method.begin(
+        {
+          orderNumber: 'NX-260903-0001',
+          totalCents: Number.MAX_SAFE_INTEGER + 1,
+          currency: 'USD',
+        } as Order,
+        'attempt123',
+      ),
+    ).rejects.toThrow(RangeError);
+    expect(fetcher).not.toHaveBeenCalled();
   });
   it('refuses staging email without a mailbox allowlist, then sends labelled test email', async () => {
     Object.assign(env, { APP_ENV: 'staging', RESEND_API_KEY: 'test-key' });

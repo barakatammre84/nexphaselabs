@@ -5,6 +5,7 @@ import { inventoryReservations } from '@/db/commerce-schema';
 import { lots, orderItems, orders } from '@/db/schema';
 import { publishableLot } from '@/lib/lots-public';
 import { parseQuantity } from '@/lib/lot-rules';
+import { safeAdd, safeMultiply } from '@/lib/safe-integer';
 
 const MASS: Record<string, number> = { ug: 1, mg: 1_000, g: 1_000_000, kg: 1_000_000_000 };
 export function stockUnits(value: string | null): { units: number; unit: string } | null {
@@ -70,14 +71,24 @@ async function allocateLines(lines: { itemId: string; code: string; packSize: st
     .from(inventoryReservations).innerJoin(orders, eq(orders.id, inventoryReservations.orderId))
     .where(and(activeReservation(now), sql`${inventoryReservations.lotId} IN (SELECT value FROM json_each(${JSON.stringify(rows.map(l => l.id))}))`))
     .groupBy(inventoryReservations.lotId) : [];
+  if (held.some(row => !Number.isSafeInteger(row.units) || row.units < 0))
+    return { ok: false, error: 'Existing inventory reservations cannot be represented safely.' };
   const reserved = new Map(held.map(r => [r.lotId, r.units]));
   const planned = new Map<string, number>();
   const result: ReservedLine[] = [];
   const reviewed = new Map<string, ReviewedLot>();
   for (const line of lines) {
     const pack = stockUnits(line.packSize);
-    if (!pack || pack.unit !== 'ug' || !Number.isInteger(line.packs) || line.packs < 1 || !Number.isSafeInteger(pack.units * line.packs))
+    if (!pack || pack.unit !== 'ug' || !Number.isSafeInteger(line.packs) || line.packs < 1)
       return { ok: false, error: `Pack quantity for ${line.code} cannot be allocated safely.` };
+    let massNeeded: number;
+    try {
+      massNeeded = safeMultiply(pack.units, line.packs, `Allocation for ${line.code}`);
+    } catch (error) {
+      if (error instanceof RangeError)
+        return { ok: false, error: `Pack quantity for ${line.code} cannot be allocated safely.` };
+      throw error;
+    }
     // A lot is either mass-tracked (picked by weight, any pack size) or count-tracked (sealed
     // containers; it supplies only packs of exactly its labeled container size, one container per pack).
     // Never assume a 50 mg vial can fill a 10 mg pack, or two 5 mg vials a 10 mg one.
@@ -86,13 +97,19 @@ async function allocateLines(lines: { itemId: string; code: string; packSize: st
       if (l.productCode !== line.code || (l.retestDate && l.retestDate <= now)) continue;
       const have = stockUnits(l.quantityRemaining);
       if (!have) continue;
-      const needed = have.unit === 'ug' ? pack.units * line.packs : containerMatches(l.containerSize, pack.units) ? line.packs : 0;
+      const needed = have.unit === 'ug' ? massNeeded : containerMatches(l.containerSize, pack.units) ? line.packs : 0;
       if (needed <= 0) continue;
       if (have.units - (reserved.get(l.id) ?? 0) - (planned.get(l.id) ?? 0) >= needed) { chosen = { lot: l, needed, unit: have.unit }; break; }
     }
     if (!chosen) return { ok: false, error: `Not enough allocatable released stock for ${line.code} in this pack size. Reduce the quantity or contact support.` };
     const { lot, needed, unit } = chosen;
-    planned.set(lot.id, (planned.get(lot.id) ?? 0) + needed);
+    try {
+      planned.set(lot.id, safeAdd(planned.get(lot.id) ?? 0, needed, `Planned allocation for ${line.code}`));
+    } catch (error) {
+      if (error instanceof RangeError)
+        return { ok: false, error: `Pack quantity for ${line.code} cannot be allocated safely.` };
+      throw error;
+    }
     reviewed.set(lot.id, { id: lot.id, remaining: lot.quantityRemaining!, held: reserved.get(lot.id) ?? 0, retest: lot.retestDate ? Math.floor(lot.retestDate.getTime() / 1000) : null });
     result.push({ itemId: line.itemId, lotId: lot.id, units: needed, unit });
   }

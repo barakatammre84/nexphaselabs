@@ -211,6 +211,15 @@ describe('wholesale checkout', () => {
     expect(count('checkout_quotes')).toBe(0);
   });
 
+  it('returns an actionable refusal for unsafe stored quantities without creating quotes', async () => {
+    local.sqlite.exec('UPDATE cart_items SET quantity = -1');
+    const response = await quote(post('/api/checkout/quotes', {}));
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ ok: false, error: expect.stringContaining('cannot be calculated safely') });
+    expect(count('checkout_quotes')).toBe(0);
+    expect(count('orders')).toBe(0);
+  });
+
   it('tells the buyer ordering is not open, not which settings are missing, until shipping and tax are set up', async () => {
     // Production before live shipping and tax: nothing is set up, and every order still needs a quote.
     env.APP_ENV = 'production';

@@ -3,7 +3,8 @@
  * No database, no framework.
  */
 
-export const MAX_LINE_QUANTITY = 50;
+import { assertNonNegativeSafeInteger, roundedRatio, safeAdd, safeMultiply } from '@/lib/safe-integer';
+
 export const MAX_CART_LINES = 20;
 
 export const ORDER_STATUSES = [
@@ -66,15 +67,20 @@ export function canTransition(
 export function parseQuantityInput(
   value: string | null | undefined,
 ): number | null {
-  const n = Number((value ?? '').trim());
-  if (!Number.isInteger(n) || n < 0 || n > MAX_LINE_QUANTITY) return null;
+  const text = (value ?? '').trim();
+  if (!/^\d+$/.test(text)) return null;
+  const n = Number(text);
+  if (!Number.isSafeInteger(n) || n < 0) return null;
   return n;
 }
 
 export type PricedLine = { unitPriceCents: number; quantity: number };
 
 export function lineTotal(line: PricedLine): number {
-  return line.unitPriceCents * line.quantity;
+  if (!Number.isSafeInteger(line.quantity) || line.quantity < 1) {
+    throw new RangeError('Quantity must be a positive safe integer.');
+  }
+  return safeMultiply(line.unitPriceCents, line.quantity);
 }
 
 export function orderTotals(
@@ -89,15 +95,20 @@ export function orderTotals(
   taxCents: number;
   totalCents: number;
 } {
-  const subtotalCents = lines.reduce((sum, l) => sum + lineTotal(l), 0);
+  const subtotalCents = lines.reduce((sum, l) => safeAdd(sum, lineTotal(l), 'Subtotal'), 0);
+  assertNonNegativeSafeInteger(shippingCents, 'Shipping');
+  assertNonNegativeSafeInteger(taxCents, 'Tax');
+  assertNonNegativeSafeInteger(discountCents, 'Discount');
   // A promo code comes off the materials subtotal before shipping and tax are added.
-  const discount = Math.min(Math.max(0, discountCents), subtotalCents);
+  // Coupon evaluation applies fixed discounts up to the subtotal; inconsistent
+  // quote/order amounts must be rejected here, not silently repaired.
+  if (discountCents > subtotalCents) throw new RangeError('Discount exceeds the subtotal.');
   return {
     subtotalCents,
-    discountCents: discount,
+    discountCents,
     shippingCents,
     taxCents,
-    totalCents: subtotalCents - discount + shippingCents + taxCents,
+    totalCents: safeAdd(safeAdd(subtotalCents - discountCents, shippingCents), taxCents),
   };
 }
 
@@ -183,7 +194,10 @@ export function validateRefund(
       ok: false,
       error: 'Enter the refunded amount in dollars, e.g. 90.00.',
     };
-  const amountCents = Math.round(Number(text) * 100);
+  const [whole, fraction = ''] = text.split('.');
+  const amountCents = Number(BigInt(whole) * BigInt(100) + BigInt(fraction.padEnd(2, '0')));
+  if (!Number.isSafeInteger(amountCents) || !Number.isSafeInteger(totalCents) || totalCents < 0)
+    return { ok: false, error: 'The refunded amount cannot be represented safely in cents.' };
   if (amountCents <= 0)
     return { ok: false, error: 'The refunded amount must be more than zero.' };
   if (amountCents > totalCents)
@@ -256,7 +270,7 @@ export function validateReturn(
   for (const it of items) {
     const packs = Number(raw.packs[it.id] ?? 0);
     if (packs === 0) continue;
-    if (!Number.isInteger(packs) || packs < 0)
+    if (!Number.isSafeInteger(packs) || packs < 0)
       return {
         ok: false,
         error: `${it.sku}: packs returned must be a whole number.`,
@@ -272,7 +286,11 @@ export function validateReturn(
         error: `${it.sku} has no lot recorded; the shipment record is incomplete.`,
       };
     lines.push({ itemId: it.id, packs });
-    refundDueCents += packs * it.unitPriceCents;
+    try {
+      refundDueCents = safeAdd(refundDueCents, lineTotal({ quantity: packs, unitPriceCents: it.unitPriceCents }));
+    } catch {
+      return { ok: false, error: 'The return amount cannot be represented safely in cents.' };
+    }
   }
   if (lines.length === 0)
     return {
@@ -283,11 +301,19 @@ export function validateReturn(
   // this figure is the only ceiling on what staff can refund, so leaving it undiscounted lets a
   // $96 order be refunded $100 — and a fully discounted one refunded $100 having paid nothing.
   // Scale it by what was actually charged for materials, then clamp to the order total.
-  if (charged && charged.subtotalCents > 0 && charged.discountCents > 0)
-    refundDueCents = Math.round(
-      (refundDueCents * Math.max(0, charged.subtotalCents - charged.discountCents)) / charged.subtotalCents,
-    );
-  if (charged) refundDueCents = Math.min(refundDueCents, Math.max(0, charged.totalCents));
+  if (charged) {
+    try {
+      assertNonNegativeSafeInteger(charged.subtotalCents, 'Subtotal');
+      assertNonNegativeSafeInteger(charged.discountCents, 'Discount');
+      assertNonNegativeSafeInteger(charged.totalCents, 'Total');
+      if (charged.discountCents > charged.subtotalCents) throw new RangeError('Invalid discount.');
+      if (charged.subtotalCents > 0 && charged.discountCents > 0)
+        refundDueCents = roundedRatio(refundDueCents, charged.subtotalCents - charged.discountCents, charged.subtotalCents);
+      refundDueCents = Math.min(refundDueCents, charged.totalCents);
+    } catch {
+      return { ok: false, error: 'The charged amount cannot be represented safely in cents.' };
+    }
+  }
 
   return {
     ok: true,

@@ -87,7 +87,18 @@ describe('promo codes (owner, 16 Sep 2026)', () => {
     expect(await evaluateCoupon('DEAD', 'acct', 1000)).toEqual({ ok: false, error: COUPON_COPY.inactive });
     expect(discountFor({ kind: 'percent', value: 33 }, 1000)).toBe(330);
     expect(orderTotals([{ unitPriceCents: 100, quantity: 10 }], 900, 149, 100)).toMatchObject({ discountCents: 100, totalCents: 1949 });
-    expect(orderTotals([{ unitPriceCents: 100, quantity: 1 }], 0, 0, 5000).totalCents).toBe(0);
+    expect(() => orderTotals([{ unitPriceCents: 100, quantity: 1 }], 0, 0, 5000)).toThrow(RangeError);
+  });
+  it('calculates large percentage discounts exactly and rejects unsafe amounts', async () => {
+    const max = Number.MAX_SAFE_INTEGER;
+    expect(discountFor({ kind: 'percent', value: 99 }, max)).toBe(Number((BigInt(max) * BigInt(99) + BigInt(50)) / BigInt(100)));
+    expect(discountFor({ kind: 'percent', value: 100 }, max)).toBe(max);
+    expect(discountFor({ kind: 'percent', value: 50 }, 101)).toBe(51);
+    for (const bad of [max + 1, NaN, Infinity, -1, 0.5]) {
+      expect(() => discountFor({ kind: 'fixed', value: bad }, 100)).toThrow(RangeError);
+      expect(() => discountFor({ kind: 'percent', value: 10 }, bad)).toThrow(RangeError);
+    }
+    expect(await createCoupon({ ...base, code: 'UNSAFE', kind: 'fixed', value: max + 1 }, 'test')).toMatchObject({ ok: false });
   });
 
   it('prices the code into the delivery quote, with tax on the reduced subtotal', async () => {

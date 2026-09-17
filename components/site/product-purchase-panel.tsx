@@ -17,8 +17,31 @@ type PurchaseVariant = {
   priceBreaks: PriceBreak[];
 };
 
+const QUANTITY_ERROR = 'Enter a positive safe whole-number quantity.';
+
+export function parsePurchaseQuantity(value: string): number | null {
+  const text = value.trim();
+  if (!/^\d+$/.test(text)) return null;
+  const quantity = Number(text);
+  return Number.isSafeInteger(quantity) && quantity >= 1 ? quantity : null;
+}
+
+export function nextPurchaseQuantity(
+  quantity: number,
+  change: -1 | 1,
+): { ok: true; quantity: number } | { ok: false; error: string } {
+  if (!Number.isSafeInteger(quantity) || quantity < 1)
+    return { ok: false, error: QUANTITY_ERROR };
+  const next = quantity + change;
+  if (!Number.isSafeInteger(next) || next < 1)
+    return { ok: false, error: QUANTITY_ERROR };
+  return { ok: true, quantity: next };
+}
+
 function money(cents: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+  if (!Number.isSafeInteger(cents) || cents < 0) return 'Amount unavailable';
+  const amount = BigInt(cents);
+  return `$${(amount / BigInt(100)).toLocaleString('en-US')}.${String(amount % BigInt(100)).padStart(2, '0')}`;
 }
 
 export function ProductPurchasePanel({
@@ -30,6 +53,7 @@ export function ProductPurchasePanel({
   canOrder,
   orderingNote,
   waitlisted = [],
+  initialQuantity = 1,
 }: {
   productName: string;
   productSlug: string;
@@ -42,11 +66,17 @@ export function ProductPurchasePanel({
   orderingNote?: string;
   /** Pack sizes this account already asked to hear about (lib/waitlist.ts). */
   waitlisted?: string[];
+  /** Initial whole-pack count; primarily useful when restoring a customer's selection. */
+  initialQuantity?: number;
 }) {
+  if (!Number.isSafeInteger(initialQuantity) || initialQuantity < 1)
+    throw new RangeError(QUANTITY_ERROR);
   const [selectedSku, setSelectedSku] = useState(
     (variants.find((variant) => variant.sellable) ?? variants[0])?.sku ?? '',
   );
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(initialQuantity);
+  const [quantityText, setQuantityText] = useState(String(initialQuantity));
+  const [quantityError, setQuantityError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [joined, setJoined] = useState<string[]>(waitlisted);
@@ -138,6 +168,33 @@ export function ProductPurchasePanel({
   const ladder = priceLadder(asVariant, selected.priceBreaks, pricing, quantity);
   const next = nextBreak(asVariant, selected.priceBreaks, quantity, pricing);
   const listPrice = selected.priceCents;
+  const lineTotal =
+    unitPrice !== null && Number.isSafeInteger(unitPrice) && unitPrice >= 0 &&
+    Number.isSafeInteger(unitPrice * quantity)
+      ? unitPrice * quantity
+      : null;
+
+  function changeQuantity(change: -1 | 1) {
+    const result = nextPurchaseQuantity(quantity, change);
+    if (!result.ok) {
+      setQuantityError(result.error);
+      return;
+    }
+    setQuantity(result.quantity);
+    setQuantityText(String(result.quantity));
+    setQuantityError(null);
+  }
+
+  function typeQuantity(value: string) {
+    setQuantityText(value);
+    const parsed = parsePurchaseQuantity(value);
+    if (parsed === null) {
+      setQuantityError(QUANTITY_ERROR);
+      return;
+    }
+    setQuantity(parsed);
+    setQuantityError(null);
+  }
 
   return (
     <div className="mt-7 rounded-[1.5rem] border border-border bg-white p-5 shadow-[0_16px_38px_rgba(14,18,59,0.08)]">
@@ -191,14 +248,31 @@ export function ProductPurchasePanel({
         <div>
           <p className="mb-2 text-xs font-bold text-muted-foreground">Quantity</p>
           <div className="flex items-center rounded-full border border-border bg-white p-1">
-            <button type="button" className="grid size-9 place-items-center rounded-full hover:bg-secondary" aria-label="Decrease quantity" onClick={() => setQuantity((value) => Math.max(1, value - 1))}>
+            <button type="button" disabled={quantity === 1} className="grid size-9 place-items-center rounded-full hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40" aria-label="Decrease quantity" onClick={() => changeQuantity(-1)}>
               <Minus className="size-4" />
             </button>
-            <output className="w-10 text-center font-mono text-sm font-bold" aria-label="Product quantity">{quantity}</output>
-            <button type="button" className="grid size-9 place-items-center rounded-full hover:bg-secondary" aria-label="Increase quantity" onClick={() => setQuantity((value) => Math.min(50, value + 1))}>
+            <input
+              name="quantity"
+              form={`purchase-cart-${productSlug}`}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={quantityText}
+              onChange={(event) => typeQuantity(event.currentTarget.value)}
+              aria-label="Product quantity"
+              aria-invalid={quantityError !== null}
+              aria-describedby={quantityError ? 'purchase-quantity-error' : undefined}
+              className="w-16 bg-transparent text-center font-mono text-sm font-bold outline-none"
+            />
+            <button type="button" className="grid size-9 place-items-center rounded-full hover:bg-secondary" aria-label="Increase quantity" onClick={() => changeQuantity(1)}>
               <Plus className="size-4" />
             </button>
           </div>
+          {quantityError && (
+            <p id="purchase-quantity-error" role="alert" className="mt-2 max-w-48 text-xs font-semibold text-destructive">
+              {quantityError}
+            </p>
+          )}
         </div>
       </div>
       {ladder.length > 0 && (
@@ -257,16 +331,17 @@ export function ProductPurchasePanel({
           </form>
         )
       ) : (
-        <form method="post" action="/api/cart" className="mt-4" onSubmit={addViaFetch}>
+        <form id={`purchase-cart-${productSlug}`} method="post" action="/api/cart" className="mt-4" onSubmit={addViaFetch}>
           <input type="hidden" name="sku" value={selected.sku} />
-          <input type="hidden" name="quantity" value={quantity} />
           <input type="hidden" name="return_to" value={`/catalog/${productSlug}`} />
-          <button type="submit" disabled={!available || adding} className="action-primary w-full justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="submit" disabled={!available || adding || quantityError !== null || lineTotal === null} className="action-primary w-full justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50">
               <ShoppingCart className="size-4" />
               {adding
                 ? 'Adding…'
+                : available && lineTotal !== null
+                ? `Add to cart · ${money(lineTotal)}`
                 : available && unitPrice !== null
-                ? `Add to cart · ${money(unitPrice * quantity)}`
+                  ? 'Order amount is too large'
               : !canOrder
                 ? 'Not available to order'
                 : 'Not currently available'}

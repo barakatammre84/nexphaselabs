@@ -101,6 +101,13 @@ describe('the cart while online ordering is not open', () => {
     expect(html).toContain('Continue to payment');
     expect(html).not.toContain(STOREFRONT_COPY.orderingNotOpen);
   });
+
+  it('does not put an arbitrary maximum on the quantity control', async () => {
+    Object.assign(env, { APP_ENV: 'production' });
+    const html = await renderCart();
+    expect(html).toContain('name="quantity"');
+    expect(html).not.toMatch(/name="quantity"[^>]*max=/);
+  });
 });
 
 describe('whether online ordering is open', () => {

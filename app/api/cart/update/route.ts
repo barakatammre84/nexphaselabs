@@ -3,7 +3,6 @@ import { getBuyerFromRequest } from '@/lib/buyer-session';
 import { getCart, setCartQuantity } from '@/lib/cart';
 import { cartSummary, wantsJson } from '@/lib/cart-summary';
 import { freeShippingThresholdCents } from '@/lib/free-shipping';
-import { parseQuantityInput } from '@/lib/order-rules';
 import { accountRequired, openCheckoutEnabled, researcherTierEnabled } from '@/lib/site-config';
 import { sameOrigin } from '@/lib/staff-auth';
 import { visibilityFor } from '@/lib/visibility-rules';
@@ -27,28 +26,39 @@ export async function POST(request: Request) {
     return new Response('Bad request', { status: 400 });
   }
   const itemId = String(form.get('item') ?? '');
+  const quantityText = String(form.get('quantity') ?? '').trim();
   const quantity =
     form.get('remove') === '1'
       ? 0
-      : parseQuantityInput(String(form.get('quantity') ?? ''));
-  if (!/^cit_[a-z0-9]{8,32}$/.test(itemId) || quantity === null) {
+      : /^\d+$/.test(quantityText)
+        ? Number(quantityText)
+        : Number.NaN;
+  if (
+    !/^cit_[a-z0-9]{8,32}$/.test(itemId) ||
+    !Number.isSafeInteger(quantity) ||
+    quantity < 0
+  ) {
     return json
       ? Response.json({ ok: false, error: 'That change was not valid.' }, { status: 400, headers: NO_STORE })
       : Response.redirect(new URL('/account/cart?error=invalid', request.url), 303);
   }
   try {
-    await setCartQuantity(account.id, itemId, quantity);
+    const visibility = visibilityFor(
+      {
+        tier: account.tier,
+        verificationStatus: account.verificationStatus,
+        acknowledgementsCurrent: acknowledgementsCurrent(account),
+      },
+      researcherTierEnabled(),
+      openCheckoutEnabled(),
+      accountRequired(),
+    );
+    const result = await setCartQuantity(account.id, itemId, quantity, visibility);
+    if (!result.ok)
+      return json
+        ? Response.json({ ok: false, error: result.error }, { status: 400, headers: NO_STORE })
+        : Response.redirect(new URL('/account/cart?error=invalid', request.url), 303);
     if (json) {
-      const visibility = visibilityFor(
-        {
-          tier: account.tier,
-          verificationStatus: account.verificationStatus,
-          acknowledgementsCurrent: acknowledgementsCurrent(account),
-        },
-        researcherTierEnabled(),
-        openCheckoutEnabled(),
-        accountRequired(),
-      );
       const summary = cartSummary(await getCart(account.id, visibility), await freeShippingThresholdCents());
       return Response.json({ ok: true, ...summary }, { headers: NO_STORE });
     }
@@ -58,7 +68,13 @@ export async function POST(request: Request) {
       error instanceof Error ? error.message : error,
     );
     return json
-      ? Response.json({ ok: false, error: 'The cart is temporarily unavailable.' }, { status: 503, headers: NO_STORE })
+      ? Response.json(
+          {
+            ok: false,
+            error: error instanceof RangeError ? error.message : 'The cart is temporarily unavailable.',
+          },
+          { status: error instanceof RangeError ? 409 : 503, headers: NO_STORE },
+        )
       : Response.redirect(new URL('/account/cart?error=unavailable', request.url), 303);
   }
   return Response.redirect(new URL('/account/cart', request.url), 303);

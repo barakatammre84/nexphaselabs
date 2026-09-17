@@ -2,7 +2,11 @@ import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 vi.stubGlobal('React', React);
-import { ProductPurchasePanel } from '@/components/site/product-purchase-panel';
+import {
+  nextPurchaseQuantity,
+  parsePurchaseQuantity,
+  ProductPurchasePanel,
+} from '@/components/site/product-purchase-panel';
 
 type Props = Parameters<typeof ProductPurchasePanel>[0];
 
@@ -30,6 +34,27 @@ const render = (props: Partial<Props> = {}) =>
   );
 
 describe('product purchase panel', () => {
+  it('renders a directly editable quantity without an arbitrary maximum', () => {
+    const html = render({ initialQuantity: 60 });
+    expect(html).toContain('aria-label="Product quantity"');
+    expect(html).toContain('name="quantity"');
+    expect(html).toContain('value="60"');
+    expect(html).toContain('Add to cart · $6,000.00');
+    expect(html).not.toMatch(/name="quantity"[^>]*max=/);
+  });
+
+  it('accepts quantities above 50 and rejects unsafe typed or stepped quantities', () => {
+    expect(parsePurchaseQuantity('60')).toBe(60);
+    expect(nextPurchaseQuantity(50, 1)).toEqual({ ok: true, quantity: 51 });
+    expect(parsePurchaseQuantity(String(Number.MAX_SAFE_INTEGER))).toBe(Number.MAX_SAFE_INTEGER);
+    expect(parsePurchaseQuantity('9007199254740992')).toBeNull();
+    expect(parsePurchaseQuantity('1e2')).toBeNull();
+    expect(nextPurchaseQuantity(Number.MAX_SAFE_INTEGER, 1)).toMatchObject({
+      ok: false,
+      error: 'Enter a positive safe whole-number quantity.',
+    });
+  });
+
   it("prices volume breaks at the viewer's own tier", () => {
     const html = render({
       pricing: 'institutional',

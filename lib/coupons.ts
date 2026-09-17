@@ -1,6 +1,7 @@
 import { and, count, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { couponRedemptions, coupons, type Coupon } from '@/db/schema';
+import { assertNonNegativeSafeInteger, roundedRatio } from '@/lib/safe-integer';
 
 /**
  * Promo codes (owner, 16 September 2026).
@@ -34,8 +35,12 @@ export function normaliseCouponCode(raw: unknown): string | null {
 }
 
 export function discountFor(coupon: Pick<Coupon, 'kind' | 'value'>, subtotalCents: number): number {
+  assertNonNegativeSafeInteger(subtotalCents, 'Subtotal');
+  assertNonNegativeSafeInteger(coupon.value, 'Discount');
+  if (coupon.kind !== 'fixed' && coupon.kind !== 'percent') throw new RangeError('Invalid discount kind.');
+  if (coupon.kind === 'percent' && coupon.value > 100) throw new RangeError('Invalid discount percentage.');
   if (subtotalCents <= 0) return 0;
-  if (coupon.kind === 'percent') return Math.min(subtotalCents, Math.round((subtotalCents * coupon.value) / 100));
+  if (coupon.kind === 'percent') return roundedRatio(subtotalCents, coupon.value, 100);
   return Math.min(subtotalCents, coupon.value);
 }
 
@@ -64,7 +69,12 @@ export async function evaluateCoupon(
       .where(and(eq(couponRedemptions.couponId, coupon.id), eq(couponRedemptions.accountId, accountId)));
     if ((used?.n ?? 0) >= coupon.perAccountLimit) return { ok: false, error: COUPON_COPY.used };
   }
-  const discountCents = discountFor(coupon, subtotalCents);
+  let discountCents: number;
+  try {
+    discountCents = discountFor(coupon, subtotalCents);
+  } catch {
+    return { ok: false, error: 'The promo discount cannot be calculated safely for this cart.' };
+  }
   if (discountCents <= 0) return { ok: false, error: COUPON_COPY.unknown };
   return { ok: true, coupon, discountCents };
 }
@@ -87,9 +97,9 @@ export function couponIssues(input: CouponInput): string[] {
   const issues: string[] = [];
   if (!COUPON_CODE_PATTERN.test(input.code)) issues.push('A code is 3–32 letters, digits or dashes.');
   if (input.kind !== 'percent' && input.kind !== 'fixed') issues.push('Choose percent or fixed amount.');
-  if (!Number.isInteger(input.value) || input.value <= 0) issues.push('Enter the discount.');
+  if (!Number.isSafeInteger(input.value) || input.value <= 0) issues.push('Enter a discount that can be represented safely.');
   if (input.kind === 'percent' && input.value > 100) issues.push('A percent discount cannot exceed 100.');
-  if (input.minSubtotalCents !== null && (!Number.isInteger(input.minSubtotalCents) || input.minSubtotalCents < 0))
+  if (input.minSubtotalCents !== null && (!Number.isSafeInteger(input.minSubtotalCents) || input.minSubtotalCents < 0))
     issues.push('The minimum subtotal must be a whole number of cents, or empty.');
   if (input.startsAt && input.endsAt && input.endsAt < input.startsAt) issues.push('The end date is before the start date.');
   if (input.maxRedemptions !== null && (!Number.isInteger(input.maxRedemptions) || input.maxRedemptions < 1))

@@ -11,6 +11,7 @@ vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 import { getCart } from '@/lib/cart';
 import {
   acceptedCheckoutQuote,
+  checkoutParcelForPacks,
   checkoutQuotesRequired,
   createCheckoutQuotes,
 } from '@/lib/checkout-quotes';
@@ -73,6 +74,46 @@ afterEach(() => {
 });
 
 describe('server-owned checkout quotes', () => {
+  it('rejects zero and unsafe aggregate pack quantities', () => {
+    expect(checkoutParcelForPacks(0)).toMatchObject({ ok: false });
+    expect(() =>
+      checkoutParcelForPacks(Number.MAX_SAFE_INTEGER + 1),
+    ).toThrow(RangeError);
+  });
+
+  it('rejects unsafe line products before asking a provider or writing quotes', async () => {
+    const guest = await syntheticBuyer();
+    const cart = await getCart(
+      guest.buyer.id,
+      visibilityFor(null, false, true),
+    );
+    const unsafe = {
+      ...cart,
+      subtotalCents: Number.MAX_SAFE_INTEGER,
+      lines: cart.lines.map((line, index) =>
+        index === 0
+          ? {
+              ...line,
+              quantity: 2,
+              unitPriceCents: Number.MAX_SAFE_INTEGER,
+            }
+          : line,
+      ),
+    };
+    await expect(
+      createCheckoutQuotes(
+        guest.buyer.id,
+        unsafe,
+        shipTo,
+        'synthetic@example.invalid',
+      ),
+    ).rejects.toThrow(RangeError);
+    expect(
+      local.sqlite.prepare('SELECT count(*) AS n FROM checkout_quotes').get()!
+        .n,
+    ).toBe(0);
+  });
+
   it('compares USPS, UPS and FedEx, includes tax, and accepts the matching lowest option', async () => {
     const guest = await syntheticBuyer();
     const cart = await getCart(

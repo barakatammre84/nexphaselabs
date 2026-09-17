@@ -25,6 +25,16 @@ describe('inventory allocation transactions', () => {
     expect(local.sqlite.prepare('SELECT count(*) n FROM inventory_reservations').get()!.n).toBe(1);
     expect(local.sqlite.prepare('SELECT quantity_remaining FROM lots').get()!.quantity_remaining).toBe('10 mg');
   });
+  it('allows only one competing reservation above the former 50-pack limit', async () => {
+    local.sqlite.exec("UPDATE lots SET quantity_remaining = '200 mg'");
+    const a = await syntheticBuyer(60); const b = await syntheticBuyer(60);
+    const results = await Promise.all([a.submit(), b.submit()]);
+    expect(results.filter(result => result.ok)).toHaveLength(1);
+    expect(local.sqlite.prepare('SELECT units FROM inventory_reservations').get()!.units)
+      .toBe(120_000);
+    expect(local.sqlite.prepare('SELECT quantity FROM order_items').get()!.quantity)
+      .toBe(60);
+  });
   it('releases unpaid expired holds without a cron dependency; payment setup is then refused', async () => {
     const first = await syntheticOrder(4);
     local.sqlite.exec('UPDATE inventory_reservations SET expires_at = 0');

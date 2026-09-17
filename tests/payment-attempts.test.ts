@@ -5,7 +5,11 @@ vi.mock('cloudflare:workers', () => ({ env }));
 import { getDb } from '@/db';
 import { accounts, orders } from '@/db/schema';
 import { beginClaimedPayment, attachPaymentAttempt, reconcilePaymentAttempt } from '@/lib/payment-attempts';
-import { getOrderByNumber, cancelOrderByCustomer } from '@/lib/orders';
+import {
+  getOrderByNumber,
+  cancelOrderByCustomer,
+  paymentInstructionsFor,
+} from '@/lib/orders';
 import type { PaymentMethod } from '@/lib/payments';
 
 let local: ReturnType<typeof localD1>;
@@ -84,6 +88,58 @@ describe('durable payment setup', () => {
     local.sqlite.exec("UPDATE orders SET status = 'cancelled'");
     expect((await beginClaimedPayment(await order(), method, 'Test')).ok).toBe(false);
     expect(method.begin).not.toHaveBeenCalled();
+  });
+  it('rejects an unsafe total before writing a requesting attempt', async () => {
+    const unsafe = {
+      ...(await order()),
+      totalCents: Number.MAX_SAFE_INTEGER + 1,
+    };
+    expect(
+      await beginClaimedPayment(unsafe, method, 'Test'),
+    ).toMatchObject({ ok: false });
+    expect(method.begin).not.toHaveBeenCalled();
+    expect(
+      local.sqlite.prepare('SELECT count(*) n FROM payment_attempts').get()!.n,
+    ).toBe(0);
+  });
+  it('shows do-not-pay support instructions for an unsafe stored total', async () => {
+    const instructions = await paymentInstructionsFor({
+      ...(await order()),
+      paymentMethod: 'invoice',
+      paymentRef: 'StoredReference',
+      totalCents: Number.MAX_SAFE_INTEGER + 1,
+    });
+    expect(instructions).toMatchObject({
+      title: expect.stringContaining('Contact us'),
+      url: null,
+      reference: 'StoredReference',
+    });
+    expect(instructions?.lines.join(' ')).toContain('Do not pay');
+    expect(instructions?.lines.join(' ')).toContain('Contact support');
+  });
+  it('rebuilds stored BTCPay instructions with exact large dollar text', async () => {
+    Object.assign(env, {
+      APP_ENV: 'production',
+      BTCPAY_HOST: 'https://payments.example.org',
+      BTCPAY_STORE_ID: 'store',
+      BTCPAY_API_KEY: 'key',
+      BTCPAY_WEBHOOK_SECRET: 'secret',
+    });
+    const instructions = await paymentInstructionsFor({
+      ...(await order()),
+      paymentMethod: 'btcpay',
+      paymentRef: 'Invoice123',
+      totalCents: Number.MAX_SAFE_INTEGER,
+      currency: 'USD',
+    });
+    expect(instructions).toMatchObject({
+      method: 'btcpay',
+      url: 'https://payments.example.org/i/Invoice123',
+    });
+    expect(instructions?.lines).toContain(
+      'Amount: 90071992547409.91 USD',
+    );
+    expect(fetch).not.toHaveBeenCalled();
   });
   it('never permits live reconciliation in staging', async () => {
     vi.mocked(method.begin).mockRejectedValue(new Error('uncertain'));

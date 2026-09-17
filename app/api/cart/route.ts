@@ -4,7 +4,6 @@ import { acknowledgementsCurrent } from '@/lib/account-rules';
 import { addToCart, getCart } from '@/lib/cart';
 import { cartSummary, wantsJson } from '@/lib/cart-summary';
 import { freeShippingThresholdCents } from '@/lib/free-shipping';
-import { parseQuantityInput } from '@/lib/order-rules';
 import { accountRequired, researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
 import { redirectWithNotice } from '@/lib/notice';
 import { sameOrigin } from '@/lib/staff-auth';
@@ -39,7 +38,13 @@ export async function GET(request: Request) {
     return Response.json({ ok: true, ...cartSummary(cart, await freeShippingThresholdCents()) }, { headers: NO_STORE });
   } catch (error) {
     console.error('[cart] read failed', error instanceof Error ? error.message : error);
-    return Response.json({ ok: false, error: 'The cart is temporarily unavailable.' }, { status: 503, headers: NO_STORE });
+    return Response.json(
+      {
+        ok: false,
+        error: error instanceof RangeError ? error.message : 'The cart is temporarily unavailable.',
+      },
+      { status: error instanceof RangeError ? 409 : 503, headers: NO_STORE },
+    );
   }
 }
 
@@ -61,11 +66,16 @@ export async function POST(request: Request) {
   const sku = String(form.get('sku') ?? '')
     .trim()
     .toUpperCase();
-  const quantity = parseQuantityInput(String(form.get('quantity') ?? '1')) ?? 0;
+  const quantityText = String(form.get('quantity') ?? '1').trim();
+  const quantity = /^\d+$/.test(quantityText) ? Number(quantityText) : Number.NaN;
   const returnTo = String(form.get('return_to') ?? '');
   const back = /^\/catalog\/[a-z0-9-]+$/.test(returnTo) ? returnTo : '/catalog';
 
-  if (!/^NPL-\d{3,4}-[A-Z0-9.]{1,12}$/.test(sku) || !quantity)
+  if (
+    !/^NPL-\d{3,4}-[A-Z0-9.]{1,12}$/.test(sku) ||
+    !Number.isSafeInteger(quantity) ||
+    quantity < 1
+  )
     return json
       ? Response.json({ ok: false, error: 'That pack size or quantity is not valid.' }, { status: 400, headers: NO_STORE })
       : Response.redirect(new URL(`${back}?cart=invalid`, request.url), 303);
@@ -122,7 +132,13 @@ export async function POST(request: Request) {
       error instanceof Error ? error.message : error,
     );
     return json
-      ? Response.json({ ok: false, error: 'The cart is temporarily unavailable.' }, { status: 503, headers: NO_STORE })
+      ? Response.json(
+          {
+            ok: false,
+            error: error instanceof RangeError ? error.message : 'The cart is temporarily unavailable.',
+          },
+          { status: error instanceof RangeError ? 409 : 503, headers: NO_STORE },
+        )
       : go(`${back}?cart=unavailable`);
   }
   return go('/account/cart?added=1');

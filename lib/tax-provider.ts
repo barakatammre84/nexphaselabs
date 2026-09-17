@@ -1,6 +1,12 @@
 import { env } from 'cloudflare:workers';
 import { boundedJson } from '@/lib/provider-response';
 import {
+  assertNonNegativeSafeInteger,
+  roundedRatio,
+  safeAdd,
+  safeMultiply,
+} from '@/lib/safe-integer';
+import {
   addressError,
   configuredBusinessOrigin,
   type ShippingAddress,
@@ -109,12 +115,12 @@ export function taxConfiguration(): TaxConfiguration {
 const CDTFA_RATE_URL =
   'https://services.maps.cdtfa.ca.gov/api/taxrate/GetRateByAddress';
 /** Statewide floor. Every California address is at least this. */
-const CALIFORNIA_BASE_RATE = 0.0725;
+const CALIFORNIA_BASE_RATE_PPM = 72_500;
 /** Nothing in California is near this. A higher answer means a broken response. */
-const CALIFORNIA_MAXIMUM_RATE = 0.115;
+const CALIFORNIA_MAXIMUM_RATE_PPM = 115_000;
 
 type CdtfaRate =
-  | { ok: true; rate: number; jurisdiction: string; tac: string | null }
+  | { ok: true; ratePpm: number; jurisdiction: string; tac: string | null }
   /**
    * CDTFA could not place the address on the map. Distinct from a service
    * failure because it is not transient and will never succeed on retry —
@@ -140,7 +146,7 @@ async function cdtfaRate(to: ShippingAddress): Promise<CdtfaRate> {
       // A 400 carries a field-level complaint. An address or city CDTFA cannot
       // parse is a permanent condition for this address, not an outage.
       const body = await response.text().catch(() => '');
-      if (/\"field\"\s*:\s*\"(Address|City)\"/i.test(body))
+      if (/"field"\s*:\s*"(Address|City)"/i.test(body))
         return { ok: false, geocodeFailed: true };
       return {
         ok: false,
@@ -175,10 +181,12 @@ async function cdtfaRate(to: ShippingAddress): Promise<CdtfaRate> {
       };
     const first = info[0] as Record<string, unknown>;
     const rate = typeof first.rate === 'number' ? first.rate : Number.NaN;
+    const ratePpm = Math.round(rate * 1_000_000);
     if (
       !Number.isFinite(rate) ||
-      rate < CALIFORNIA_BASE_RATE ||
-      rate > CALIFORNIA_MAXIMUM_RATE
+      !Number.isSafeInteger(ratePpm) ||
+      ratePpm < CALIFORNIA_BASE_RATE_PPM ||
+      ratePpm > CALIFORNIA_MAXIMUM_RATE_PPM
     )
       return {
         ok: false,
@@ -187,7 +195,7 @@ async function cdtfaRate(to: ShippingAddress): Promise<CdtfaRate> {
       };
     return {
       ok: true,
-      rate,
+      ratePpm,
       jurisdiction:
         typeof first.jurisdiction === 'string'
           ? first.jurisdiction.slice(0, 120)
@@ -203,8 +211,30 @@ async function cdtfaRate(to: ShippingAddress): Promise<CdtfaRate> {
   }
 }
 
+function decimalCents(value: unknown): number | null {
+  const text =
+    typeof value === 'number' && Number.isFinite(value)
+      ? String(value)
+      : typeof value === 'string'
+        ? value
+        : '';
+  if (!/^\d+(?:\.\d{1,2})?$/.test(text)) return null;
+  const [whole, fraction = ''] = text.split('.');
+  const cents =
+    BigInt(whole) * BigInt(100) +
+    BigInt(fraction.padEnd(2, '0') || '0');
+  return cents <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(cents) : null;
+}
+
+/** TaxJar requires JSON numbers. Refuse values that cannot round-trip to cents. */
 function dollars(cents: number): number {
-  return Number((cents / 100).toFixed(2));
+  assertNonNegativeSafeInteger(cents, 'Tax provider amount');
+  const amount = Number(
+    `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`,
+  );
+  if (decimalCents(amount) !== cents)
+    throw new RangeError('Tax provider amount cannot be represented safely.');
+  return amount;
 }
 
 function taxCents(payload: unknown, maximumCents: number): number | null {
@@ -213,41 +243,64 @@ function taxCents(payload: unknown, maximumCents: number): number | null {
   const tax = (payload as { tax?: unknown }).tax;
   if (!tax || typeof tax !== 'object' || Array.isArray(tax)) return null;
   const raw = (tax as { amount_to_collect?: unknown }).amount_to_collect;
-  const value =
-    typeof raw === 'number'
-      ? raw
-      : typeof raw === 'string' && /^\d+(?:\.\d{1,2})?$/.test(raw)
-        ? Number(raw)
-        : NaN;
-  const cents = Math.round(value * 100);
-  return Number.isSafeInteger(cents) && cents >= 0 && cents <= maximumCents
+  const cents = decimalCents(raw);
+  return cents !== null && cents <= maximumCents
     ? cents
     : null;
+}
+
+function maximumTaxCents(orderCents: number): number {
+  // Ceiling of 30%, without first multiplying a potentially large Number.
+  return Number(
+    (BigInt(orderCents) * BigInt(3) + BigInt(9)) / BigInt(10),
+  );
 }
 
 /** Calculate only. Recording the final transaction happens after real payment settlement. */
 export async function quoteTax(input: TaxQuoteInput) {
   const configuration = taxConfiguration();
   if (!configuration.ok) return configuration;
-  if (
-    addressError(input.to) ||
-    !Number.isInteger(input.subtotalCents) ||
-    input.subtotalCents < 0 ||
-    !Number.isInteger(input.shippingCents) ||
-    input.shippingCents < 0 ||
-    input.lines.length === 0
-  )
+  let orderCents: number;
+  try {
+    if (addressError(input.to) || input.lines.length === 0)
+      throw new RangeError('Invalid tax quote input.');
+    assertNonNegativeSafeInteger(input.subtotalCents, 'Tax subtotal');
+    assertNonNegativeSafeInteger(input.shippingCents, 'Tax shipping');
+    orderCents = safeAdd(
+      input.subtotalCents,
+      input.shippingCents,
+      'Tax quote total',
+    );
+    let lineSum = 0;
+    for (const line of input.lines) {
+      assertNonNegativeSafeInteger(line.quantity, 'Tax line quantity');
+      if (line.quantity === 0)
+        throw new RangeError('Tax line quantity must be positive.');
+      assertNonNegativeSafeInteger(line.unitPriceCents, 'Tax line unit price');
+      lineSum = safeAdd(
+        lineSum,
+        safeMultiply(
+          line.quantity,
+          line.unitPriceCents,
+          'Tax line total',
+        ),
+        'Tax line sum',
+      );
+    }
+    // A discounted subtotal may be below the undiscounted line sum, never above it.
+    if (input.subtotalCents > lineSum)
+      throw new RangeError('Tax subtotal exceeds its line amounts.');
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
     return {
       ok: false as const,
       error: 'Tax could not be calculated for this order.',
     };
+  }
   if (configuration.provider === 'simulated') {
     return {
       ok: true as const,
-      cents: Math.round(
-        ((input.subtotalCents + input.shippingCents) * configuration.rateBps) /
-          10_000,
-      ),
+      cents: roundedRatio(orderCents, configuration.rateBps, 10_000),
       provider: configuration.provider,
       test: true,
     };
@@ -255,9 +308,9 @@ export async function quoteTax(input: TaxQuoteInput) {
   if (configuration.provider === 'cdtfa') {
     // California treats separately stated actual delivery cost by common
     // carrier as non-taxable. CDTFA_TAX_SHIPPING=true reverses that.
-    const taxableCents =
-      input.subtotalCents +
-      (configuration.taxShipping ? input.shippingCents : 0);
+    const taxableCents = configuration.taxShipping
+      ? orderCents
+      : input.subtotalCents;
     if (input.to.state !== 'CA')
       return {
         ok: true as const,
@@ -271,11 +324,15 @@ export async function quoteTax(input: TaxQuoteInput) {
     if (configuration.districtRate === 'statewide')
       return {
         ok: true as const,
-        cents: Math.round(taxableCents * CALIFORNIA_BASE_RATE),
+        cents: roundedRatio(
+          taxableCents,
+          CALIFORNIA_BASE_RATE_PPM,
+          1_000_000,
+        ),
         provider: configuration.provider,
         test: configuration.test,
         jurisdiction: 'CALIFORNIA STATEWIDE BASE',
-        ratePpm: Math.round(CALIFORNIA_BASE_RATE * 1_000_000),
+        ratePpm: CALIFORNIA_BASE_RATE_PPM,
         tac: null,
       };
     const rate = await cdtfaRate(input.to);
@@ -289,21 +346,25 @@ export async function quoteTax(input: TaxQuoteInput) {
     if (!rate.ok && rate.geocodeFailed)
       return {
         ok: true as const,
-        cents: Math.round(taxableCents * CALIFORNIA_BASE_RATE),
+        cents: roundedRatio(
+          taxableCents,
+          CALIFORNIA_BASE_RATE_PPM,
+          1_000_000,
+        ),
         provider: configuration.provider,
         test: configuration.test,
         jurisdiction: 'CALIFORNIA STATEWIDE BASE (ADDRESS NOT GEOCODED)',
-        ratePpm: Math.round(CALIFORNIA_BASE_RATE * 1_000_000),
+        ratePpm: CALIFORNIA_BASE_RATE_PPM,
         tac: null,
       };
     if (!rate.ok) return { ok: false as const, error: rate.error };
     return {
       ok: true as const,
-      cents: Math.round(taxableCents * rate.rate),
+      cents: roundedRatio(taxableCents, rate.ratePpm, 1_000_000),
       provider: configuration.provider,
       test: configuration.test,
       jurisdiction: rate.jurisdiction,
-      ratePpm: Math.round(rate.rate * 1_000_000),
+      ratePpm: rate.ratePpm,
       tac: rate.tac,
     };
   }
@@ -345,7 +406,7 @@ export async function quoteTax(input: TaxQuoteInput) {
     const payload = await boundedJson(response);
     const cents = taxCents(
       payload,
-      Math.ceil((input.subtotalCents + input.shippingCents) * 0.3),
+      maximumTaxCents(orderCents),
     );
     if (cents === null)
       return {

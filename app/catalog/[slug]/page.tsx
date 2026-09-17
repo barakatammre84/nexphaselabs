@@ -494,7 +494,6 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
                             name="quantity"
                             type="number"
                             min={1}
-                            max={50}
                             defaultValue={1}
                             aria-label={`Quantity for ${variant.sku}`}
                             className="h-11 w-16 rounded-full border border-input bg-background px-3 font-mono text-xs"

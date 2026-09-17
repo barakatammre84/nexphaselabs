@@ -12,7 +12,6 @@ import { requireAccount } from '@/lib/account-auth';
 import { getCart } from '@/lib/cart';
 import { listAddresses } from '@/lib/account-addresses';
 import { loadCatalog } from '@/lib/catalog-data';
-import { MAX_LINE_QUANTITY } from '@/lib/order-rules';
 import { getOrganizationForAccount } from '@/lib/organizations';
 import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 import { AGE_STATEMENT, RUO_ACKNOWLEDGEMENT } from '@/lib/policy';
@@ -168,7 +167,6 @@ export default async function CartPage({ searchParams }: Props) {
                       name="quantity"
                       type="number"
                       min={1}
-                      max={MAX_LINE_QUANTITY}
                       defaultValue={line.quantity}
                       className="h-10 w-20 border border-foreground/20 bg-background px-3 font-mono text-sm"
                     />

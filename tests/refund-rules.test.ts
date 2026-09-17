@@ -18,6 +18,11 @@ describe('refund and return gates', () => {
 });
 
 describe('validateRefund', () => {
+  it('preserves exact cents for large orders and rejects unsafe refunds', () => {
+    expect(validateRefund({ amount: '90071992547409.91', reference: 'RF-1' }, Number.MAX_SAFE_INTEGER))
+      .toEqual({ ok: true, amountCents: Number.MAX_SAFE_INTEGER, reference: 'RF-1' });
+    expect(validateRefund({ amount: '90071992547409.92', reference: 'RF-1' }, Number.MAX_SAFE_INTEGER).ok).toBe(false);
+  });
   it('parses dollars, requires a reference, caps at the total', () => {
     expect(validateRefund({ amount: '90.00', reference: 'RF-1' }, 9000)).toEqual({ ok: true, amountCents: 9000, reference: 'RF-1' });
     expect(validateRefund({ amount: '$45.5', reference: 'RF-1' }, 9000)).toEqual({ ok: true, amountCents: 4550, reference: 'RF-1' });
@@ -37,6 +42,15 @@ describe('validateReturn', () => {
   ];
   const shipped = new Date('2026-09-01T00:00:00Z');
   const now = new Date('2026-09-03T12:00:00Z');
+  it('rejects unsafe return products and scales large discounted returns exactly', () => {
+    const max = Number.MAX_SAFE_INTEGER;
+    const raw = { packs: { a: 1 }, receivedOn: '2026-09-03', condition: 'Sealed', note: '' };
+    const large = [{ ...items[0], unitPriceCents: max }];
+    expect(validateReturn(large, { ...raw, packs: { a: 2 } }, shipped, now).ok).toBe(false);
+    expect(validateReturn(large, raw, shipped, now, { subtotalCents: max, discountCents: 1, totalCents: max - 1 }))
+      .toMatchObject({ ok: true, refundDueCents: max - 1 });
+    expect(validateReturn(large, raw, shipped, now, { subtotalCents: max, discountCents: Infinity, totalCents: max }).ok).toBe(false);
+  });
   it('accepts a partial return and prices what is owed', () => {
     const r = validateReturn(items, { packs: { a: 1 }, receivedOn: '2026-09-03', condition: 'Sealed', note: '' }, shipped, now);
     expect(r.ok).toBe(true);

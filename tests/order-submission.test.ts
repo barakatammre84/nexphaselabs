@@ -91,4 +91,45 @@ describe('checkout acceptance is guarded at commit', () => {
     expect(count('orders')).toBe(0);
     expect(count('cart_items')).toBe(1);
   });
+  it('accepts more than 50 packs when released stock can supply them and preserves volume pricing', async () => {
+    local.sqlite.exec(`
+      UPDATE lots SET quantity_remaining = '200 mg';
+      UPDATE product_variants
+        SET price_breaks = '[{"minQuantity":50,"institutionalPriceCents":75}]';
+      UPDATE cart_items SET quantity = 60
+    `);
+    expect(await submit()).toMatchObject({ ok: true });
+    expect(local.sqlite.prepare(
+      'SELECT quantity, unit_price_cents, line_total_cents FROM order_items',
+    ).get()).toMatchObject({
+      quantity: 60,
+      unit_price_cents: 75,
+      line_total_cents: 4_500,
+    });
+    expect(local.sqlite.prepare('SELECT subtotal_cents, total_cents FROM orders').get())
+      .toMatchObject({ subtotal_cents: 4_500, total_cents: 4_500 });
+  });
+  it('refuses an unsafe line total before writing an order', async () => {
+    local.sqlite.exec(`
+      UPDATE product_variants SET institutional_price_cents = 9007199254740991;
+      UPDATE cart_items SET quantity = 2
+    `);
+    const result = await submit();
+    expect(result).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('too large to calculate safely'),
+    });
+    expect(count('orders')).toBe(0);
+    expect(count('order_items')).toBe(0);
+    expect(count('cart_items')).toBe(1);
+  });
+  it.each([0, -1])('refuses a corrupted non-positive quantity (%s)', async (quantity) => {
+    local.sqlite.exec(`UPDATE cart_items SET quantity = ${quantity}`);
+    const result = await submit();
+    expect(result).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('invalid quantity'),
+    });
+    expect(count('orders')).toBe(0);
+  });
 });

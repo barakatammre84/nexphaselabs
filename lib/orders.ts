@@ -14,6 +14,7 @@ import { buildOrderAttestation } from '@/lib/attestation';
 import { claimCouponRedemption, COUPON_COPY, evaluateCoupon, releaseCouponRedemption } from '@/lib/coupons';
 import {
   btcpayCheckoutUrl,
+  dollarAmount,
   getPaymentMethod,
   invalidateBtcpayInvoice,
   type PaymentInstructions,
@@ -21,11 +22,13 @@ import {
 import {
   canTransition,
   formatOrderNumber,
+  lineTotal,
   orderTotals,
   refundAllowed,
   refundDue,
   type OrderStatus,
 } from '@/lib/order-rules';
+import { safeAdd } from '@/lib/safe-integer';
 import type { Visibility } from '@/lib/visibility-rules';
 import { conditionalInsert } from '@/lib/conditional-insert';
 import { openCheckoutEnabled } from '@/lib/site-config';
@@ -190,13 +193,71 @@ export async function createOrderFromCart(
     .limit(1);
   if (already)
     return { ok: true, orderNumber: already.orderNumber, orderId: already.id, duplicate: true };
-  const cart: Cart = await getCart(account.id, visibility);
+  let cart: Cart;
+  try {
+    cart = await getCart(account.id, visibility);
+  } catch (error) {
+    if (error instanceof RangeError)
+      return {
+        ok: false,
+        error: error.message || 'The cart quantity or total cannot be represented safely.',
+      };
+    throw error;
+  }
   if (cart.lines.length === 0)
     return { ok: false, error: 'Your cart is empty.' };
+
+  // Cart quantities are persisted server-side, but still treat every database
+  // value as untrusted. In particular, do not let a manually corrupted row turn
+  // into an imprecise order amount or reservation.
+  let reviewedSubtotalCents = 0;
+  const reviewedLineTotals = new Map<string, number>();
+  try {
+    for (const line of cart.lines) {
+      if (!Number.isSafeInteger(line.quantity) || line.quantity <= 0)
+        return {
+          ok: false,
+          error: `${line.variant.sku}: quantity must be a positive safe whole number.`,
+        };
+      if (
+        line.unitPriceCents !== null &&
+        (!Number.isSafeInteger(line.unitPriceCents) ||
+          line.unitPriceCents < 0)
+      )
+        return {
+          ok: false,
+          error: `${line.variant.sku}: the current unit price cannot be represented safely.`,
+        };
+      // A null price has a specific cart problem (priced on request, retired,
+      // or otherwise unavailable). Preserve that normal refusal below rather
+      // than misreporting it as arithmetic corruption.
+      if (line.unitPriceCents === null) continue;
+      const total = lineTotal({
+        unitPriceCents: line.unitPriceCents,
+        quantity: line.quantity,
+      });
+      reviewedLineTotals.set(line.itemId, total);
+      reviewedSubtotalCents = safeAdd(
+        reviewedSubtotalCents,
+        total,
+        'Order subtotal',
+      );
+    }
+  } catch (error) {
+    if (error instanceof RangeError)
+      return {
+        ok: false,
+        error:
+          'The cart amount is too large to calculate safely. Reduce the quantity and try again.',
+      };
+    throw error;
+  }
   if (!cart.orderable)
     return {
       ok: false,
-      error: 'Fix the lines marked in your cart before submitting.',
+      error:
+        cart.lines.find((line) => line.problem)?.problem ??
+        'Fix the lines marked in your cart before submitting.',
     };
 
   const released = await releasedProductCodes([
@@ -238,7 +299,7 @@ export async function createOrderFromCart(
   // moment it is spent; a code that stopped applying in between refuses the order.
   let coupon: Awaited<ReturnType<typeof evaluateCoupon>> | null = null;
   if (quote?.couponCode) {
-    coupon = await evaluateCoupon(quote.couponCode, account.id, cart.subtotalCents, now);
+    coupon = await evaluateCoupon(quote.couponCode, account.id, reviewedSubtotalCents, now);
     if (!coupon.ok)
       return { ok: false, error: `${coupon.error} Compare delivery options again.` };
     if (coupon.discountCents !== quote.discountCents)
@@ -247,6 +308,34 @@ export async function createOrderFromCart(
         error: 'The promo code no longer gives the discount on the delivery quote. Compare delivery options again.',
       };
   }
+  let totals: ReturnType<typeof orderTotals>;
+  try {
+    totals = orderTotals(
+      cart.lines.map((line) => ({
+        unitPriceCents: line.unitPriceCents!,
+        quantity: line.quantity,
+      })),
+      quote?.shippingCents ?? 0,
+      quote?.taxCents ?? 0,
+      quote?.discountCents ?? 0,
+    );
+  } catch (error) {
+    if (error instanceof RangeError)
+      return {
+        ok: false,
+        error:
+          'The order total or delivery quote cannot be calculated safely. Review the cart and delivery option.',
+      };
+    throw error;
+  }
+  // A cart implementation change must not be able to make coupon evaluation
+  // and the immutable order snapshot disagree.
+  if (totals.subtotalCents !== reviewedSubtotalCents)
+    return {
+      ok: false,
+      error: 'The cart total changed while it was being reviewed. Reload and try again.',
+    };
+
   // Take the redemption now, not after the order is written. evaluateCoupon only READ the count,
   // and two checkouts can both pass that read before either increments; the claim re-asserts the
   // cap in its own WHERE, so exactly one of them gets the last use of a limited code. If the order
@@ -259,16 +348,6 @@ export async function createOrderFromCart(
     claimedCouponId = coupon.coupon.id;
   }
   try {
-  const lines = cart.lines.map((l) => ({
-    unitPriceCents: l.unitPriceCents!,
-    quantity: l.quantity,
-  }));
-  const totals = orderTotals(
-    lines,
-    quote?.shippingCents ?? 0,
-    quote?.taxCents ?? 0,
-    quote?.discountCents ?? 0,
-  );
   const orderId = id('ord');
   const accepted = eq(orders.id, orderId);
   const itemIds = new Map(cart.lines.map((line) => [line.itemId, id('oli')]));
@@ -372,7 +451,7 @@ export async function createOrderFromCart(
               presentation: l.variant.presentation,
               quantity: l.quantity,
               unitPriceCents: l.unitPriceCents!,
-              lineTotalCents: l.unitPriceCents! * l.quantity,
+              lineTotalCents: reviewedLineTotals.get(l.itemId)!,
               createdAt: now,
             },
             orders,
@@ -672,6 +751,25 @@ export async function paymentInstructionsFor(
   order: Order,
 ): Promise<PaymentInstructions | null> {
   if (!order.paymentMethod) return null;
+  const unavailable = (): PaymentInstructions => ({
+    method: order.paymentMethod as PaymentInstructions['method'],
+    title: 'Contact us before sending payment',
+    lines: [
+      'Do not pay this order until staff confirm the total and payment instructions.',
+      `Reference: ${order.paymentRef ?? order.orderNumber}`,
+      'Contact support with the reference above.',
+    ],
+    url: null,
+    reference: order.paymentRef,
+  });
+  try {
+    // Stored rows are still a trust boundary. Never display or send a rounded,
+    // unsafe amount even if an old or damaged row reaches this read path.
+    dollarAmount(order.totalCents);
+  } catch (error) {
+    if (error instanceof RangeError) return unavailable();
+    throw error;
+  }
   const method = getPaymentMethod(order.paymentMethod);
   if (!method) {
     return {
@@ -691,7 +789,7 @@ export async function paymentInstructionsFor(
       method: 'btcpay',
       title: 'Bitcoin invoice',
       lines: [
-        `Amount: ${(order.totalCents / 100).toFixed(2)} ${order.currency}`,
+        `Amount: ${dollarAmount(order.totalCents)} ${order.currency}`,
         `Invoice: ${order.paymentRef ?? '—'}`,
         'Open the payment page to pay. The order is marked paid automatically once the payment settles.',
       ],
@@ -699,7 +797,12 @@ export async function paymentInstructionsFor(
       reference: order.paymentRef,
     };
   }
-  return method.begin(order);
+  try {
+    return await method.begin(order);
+  } catch (error) {
+    if (error instanceof RangeError) return unavailable();
+    throw error;
+  }
 }
 
 /** A staff member records that payment arrived (bank transfer, or any manual rail). Admin only, enforced by the caller. */

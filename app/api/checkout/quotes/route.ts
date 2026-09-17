@@ -75,6 +75,8 @@ export async function POST(request: Request) {
     );
     return reply(result, result.ok ? 200 : 422);
   } catch (error) {
+    if (error instanceof RangeError)
+      return reply({ ok: false, error: 'The cart quantity or total cannot be calculated safely. Reduce the quantity or contact support.' }, 422);
     console.error(
       '[checkout-quote] failed',
       error instanceof Error ? error.message : error,

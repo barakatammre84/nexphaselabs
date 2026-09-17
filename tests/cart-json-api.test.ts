@@ -11,7 +11,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 import { getDb } from '@/db';
-import { accounts, accountSessions, lots, products, productVariants } from '@/db/schema';
+import { accounts, accountSessions, cartItems, lots, products, productVariants } from '@/db/schema';
 import { GET as read, POST as add } from '@/app/api/cart/route';
 import { POST as update } from '@/app/api/cart/update/route';
 import { cartSummary } from '@/lib/cart-summary';
@@ -112,6 +112,94 @@ describe('cart JSON API for the side drawer (owner, 16 Sep 2026)', () => {
     expect(await more.json()).toMatchObject({ ok: true, count: 3, subtotalCents: 375 });
     const gone = await update(post('/api/cart/update', { item: itemId, quantity: '0', remove: '1' }));
     expect(await gone.json()).toMatchObject({ ok: true, count: 0, lines: [] });
+  });
+
+  it('adds and updates quantities above 50 without clamping them', async () => {
+    const added = await add(post('/api/cart', {
+      sku: 'NPL-9999-2MG',
+      quantity: '60',
+      return_to: '/catalog/synthetic-test',
+    }));
+    const addedBody = (await added.json()) as { count: number; lines: Array<{ itemId: string; quantity: number }> };
+    expect(addedBody).toMatchObject({ count: 60 });
+    expect(addedBody.lines[0]).toMatchObject({ quantity: 60 });
+
+    const changed = await update(post('/api/cart/update', {
+      item: addedBody.lines[0].itemId,
+      quantity: '75',
+    }));
+    expect(changed.status).toBe(200);
+    expect(await changed.json()).toMatchObject({
+      ok: true,
+      count: 75,
+      subtotalCents: 9375,
+      lines: [{ quantity: 75 }],
+    });
+  });
+
+  it('rejects unsafe and malformed API quantities explicitly', async () => {
+    for (const quantity of ['9007199254740992', '1.5', '1e2', '']) {
+      const response = await add(post('/api/cart', {
+        sku: 'NPL-9999-2MG',
+        quantity,
+        return_to: '/catalog/synthetic-test',
+      }));
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({
+        ok: false,
+        error: 'That pack size or quantity is not valid.',
+      });
+    }
+
+    const added = await add(post('/api/cart', {
+      sku: 'NPL-9999-2MG',
+      quantity: '1',
+      return_to: '/catalog/synthetic-test',
+    }));
+    const itemId = ((await added.json()) as { lines: Array<{ itemId: string }> }).lines[0].itemId;
+    const response = await update(post('/api/cart/update', {
+      item: itemId,
+      quantity: '9007199254740992',
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'That change was not valid.' });
+  });
+
+  it('rejects combined quantity overflow instead of silently replacing the quantity', async () => {
+    await getDb().insert(cartItems).values({
+      id: 'cit_overflow1',
+      accountId: 'acct_cart',
+      variantId: 'v1',
+      quantity: Number.MAX_SAFE_INTEGER,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const response = await add(post('/api/cart', {
+      sku: 'NPL-9999-2MG',
+      quantity: '1',
+      return_to: '/catalog/synthetic-test',
+    }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      ok: false,
+      error: 'The combined quantity is too large.',
+    });
+    expect(local.sqlite.prepare('SELECT quantity FROM cart_items WHERE id = ?').get('cit_overflow1')!.quantity)
+      .toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it('rejects a safe integer whose priced line total would be unsafe', async () => {
+    const response = await add(post('/api/cart', {
+      sku: 'NPL-9999-2MG',
+      quantity: String(Number.MAX_SAFE_INTEGER),
+      return_to: '/catalog/synthetic-test',
+    }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      ok: false,
+      error: 'This cart total is too large to calculate safely. Remove an item or reduce a quantity.',
+    });
+    expect(local.sqlite.prepare('SELECT count(*) AS n FROM cart_items').get()!.n).toBe(0);
   });
 
   it('keeps the plain-form answer for a browser without JavaScript', async () => {

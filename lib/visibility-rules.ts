@@ -117,5 +117,9 @@ export function priceFor(
 }
 
 export function formatCents(cents: number): string {
-  return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (!Number.isSafeInteger(cents)) return 'Amount unavailable';
+  const amount = BigInt(Math.abs(cents));
+  const whole = (amount / BigInt(100)).toLocaleString('en-US');
+  const fraction = String(amount % BigInt(100)).padStart(2, '0');
+  return `$${cents < 0 ? '-' : ''}${whole}.${fraction}`;
 }

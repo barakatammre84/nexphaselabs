@@ -4,6 +4,7 @@ import type { Order } from '@/db/schema';
 import { publicOrigin, openCheckoutEnabled } from '@/lib/site-config';
 import { livePaymentsAllowed } from '@/lib/environment-safety';
 import { boundedJson } from '@/lib/provider-response';
+import { assertNonNegativeSafeInteger } from '@/lib/safe-integer';
 import {
   zelleCheckoutEnabled,
   zelleConfig,
@@ -28,6 +29,22 @@ import {
  */
 
 export type PaymentMethodId = 'zelle' | 'bank_transfer' | 'btcpay' | 'invoice';
+
+export function dollarAmount(cents: number): string {
+  assertNonNegativeSafeInteger(cents, 'Payment amount');
+  const amount = BigInt(cents);
+  return `${amount / BigInt(100)}.${String(amount % BigInt(100)).padStart(2, '0')}`;
+}
+
+function dollarAmountCents(value: unknown): number | null {
+  if (typeof value !== 'string' || !/^\d+(?:\.\d{1,2})?$/.test(value))
+    return null;
+  const [whole, fraction = ''] = value.split('.');
+  const cents =
+    BigInt(whole) * BigInt(100) +
+    BigInt(fraction.padEnd(2, '0') || '0');
+  return cents <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(cents) : null;
+}
 
 export type PaymentInstructions = {
   method: PaymentMethodId;
@@ -64,7 +81,7 @@ const zelle: PaymentMethod = {
       method: 'zelle',
       title: 'Pay with Zelle',
       lines: [
-        `Amount: ${(order.totalCents / 100).toFixed(2)} ${order.currency}`,
+        `Amount: ${dollarAmount(order.totalCents)} ${order.currency}`,
         `Send to: ${config.recipientEmail}`,
         `Recipient name: ${config.recipientName}`,
         ...(config.recipientName.toLowerCase() !== ENTITY.tradingName.toLowerCase()
@@ -112,7 +129,7 @@ const bankTransfer: PaymentMethod = {
       method: 'bank_transfer',
       title: 'Bank transfer',
       lines: [
-        `Amount: ${(order.totalCents / 100).toFixed(2)} ${order.currency}`,
+        `Amount: ${dollarAmount(order.totalCents)} ${order.currency}`,
         `Reference: ${order.orderNumber}`,
         ...String(env.PAYMENT_BANK_INSTRUCTIONS ?? '')
           .split(/\r?\n/)
@@ -153,7 +170,7 @@ const btcpay: PaymentMethod = {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          amount: (order.totalCents / 100).toFixed(2),
+          amount: dollarAmount(order.totalCents),
           currency: order.currency,
           metadata: {
             orderId: order.orderNumber,
@@ -178,7 +195,7 @@ const btcpay: PaymentMethod = {
       method: 'btcpay',
       title: 'Bitcoin invoice',
       lines: [
-        `Amount: ${(order.totalCents / 100).toFixed(2)} ${order.currency}`,
+        `Amount: ${dollarAmount(order.totalCents)} ${order.currency}`,
         `Invoice: ${invoice.id}`,
         'Open the invoice link to pay. The order is marked paid automatically once the payment settles.',
       ],
@@ -200,7 +217,7 @@ const invoice: PaymentMethod = {
       method: 'invoice',
       title: 'Invoice to follow',
       lines: [
-        `Amount: ${(order.totalCents / 100).toFixed(2)} ${order.currency}`,
+        `Amount: ${dollarAmount(order.totalCents)} ${order.currency}`,
         `Reference: ${order.orderNumber}`,
         'Payment instructions will be emailed to you. Material ships once payment is recorded.',
       ],
@@ -384,7 +401,7 @@ export async function lookupBtcpayInvoice(reference: string, order: Order, attem
   if (!response.ok) return false;
   const data = await boundedJson(response) as { id?: string; amount?: string; currency?: string; metadata?: { orderId?: string; paymentAttemptId?: string } };
   return data.id === reference && data.currency === order.currency && typeof data.amount === 'string'
-    && /^\d+(?:\.\d{1,2})?$/.test(data.amount) && Math.round(Number(data.amount) * 100) === order.totalCents
+    && dollarAmountCents(data.amount) === assertNonNegativeSafeInteger(order.totalCents, 'Payment amount')
     && data.metadata?.orderId === order.orderNumber && data.metadata?.paymentAttemptId === attemptId;
 }
 
