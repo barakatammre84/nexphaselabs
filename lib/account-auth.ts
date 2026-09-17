@@ -1,4 +1,5 @@
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
+import { confirmConsentForAccount } from '@/lib/marketing-consent';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getDb } from '@/db';
@@ -227,7 +228,14 @@ export async function verifyEmailToken(token: string): Promise<VerifyResult> {
     console.error('[account] verify failed', error instanceof Error ? error.message : error);
     return 'invalid';
   }
-  return claimed.length ? 'verified' : 'invalid';
+  if (!claimed.length) return 'invalid';
+  // The verified address settles a sign-up-time product-news request (lib/marketing-consent.ts).
+  try {
+    await confirmConsentForAccount(row.accountId, now);
+  } catch (error) {
+    console.error('[account] product-news confirmation failed', error instanceof Error ? error.message : error);
+  }
+  return 'verified';
 }
 
 /* ------------------------------------------------------------------------ */

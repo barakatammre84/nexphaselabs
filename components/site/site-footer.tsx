@@ -3,6 +3,7 @@ import { openCheckoutEnabled } from '@/lib/site-config';
 import { loadCatalog } from '@/lib/catalog-data';
 import { listActiveClasses } from '@/lib/classes';
 import { BrandLogo } from '@/components/site/brand-logo';
+import { NewsletterForm } from '@/components/site/newsletter-form';
 import { ENTITY } from '@/lib/entity';
 
 const staticColumns = [
@@ -66,6 +67,7 @@ export async function SiteFooter() {
                 : 'A family-run supplier of research peptides in Oakland, California, opening to wholesale accounts first.'}{' '}
               Every lot is independently tested and ships with its certificate.
             </p>
+            <NewsletterForm />
           </div>
 
           {columns.map((column) => (

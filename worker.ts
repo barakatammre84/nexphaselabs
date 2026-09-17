@@ -10,6 +10,7 @@ import { shieldLargeUpload } from './lib/large-uploads';
 import { runScheduledJobs } from './lib/scheduled-jobs';
 import { pollUspsTracking } from './lib/usps-tracking';
 import { sweepWaitlist } from './lib/waitlist';
+import { sendCartReminders } from './lib/cart-reminders';
 import { withSecurityHeaders } from './lib/security-headers';
 
 export { FeedbackRoom } from './lib/feedback-room';
@@ -96,6 +97,8 @@ export default {
       // release whose notify step failed and material that came back some other way (a hold
       // lifted, a correction). One notice per request, ever (lib/waitlist.ts).
       waitlist: () => sweepWaitlist(),
+      // Once-per-cart reminder to confirmed product-news subscribers; a no-op until the owner switches it on.
+      cartReminders: () => sendCartReminders(),
     });
   },
 };

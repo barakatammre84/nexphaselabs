@@ -8,6 +8,7 @@ import { AccessProgress } from '@/components/site/access-progress';
 import { AGE_STATEMENT, MINIMUM_AGE, RUO_ACKNOWLEDGEMENT } from '@/lib/policy';
 import { latestBirthDate } from '@/lib/account-rules';
 import { turnstileEnabled, turnstileSiteKey } from '@/lib/turnstile';
+import { NEWSLETTER_COPY } from '@/lib/marketing-consent';
 import { researcherTierEnabled } from '@/lib/site-config';
 
 export const dynamic = 'force-dynamic';
@@ -212,6 +213,15 @@ export default async function SignUpPage({ searchParams }: Props) {
               restrict where we ship.
             </p>
           </div>
+
+          <label className="flex items-start gap-3 text-sm">
+            <input type="checkbox" name="product_news" className="mt-1" />
+            <span>
+              <span className="font-semibold">Product news (optional)</span>
+              <span className="block text-muted-foreground">{NEWSLETTER_COPY.scope} Confirmed by the same
+              email that verifies your account; unsubscribe any time.</span>
+            </span>
+          </label>
 
           <div className="rounded-[1.4rem] border border-border bg-secondary p-5">
             <p className="utility-label text-primary">

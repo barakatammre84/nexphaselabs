@@ -4,6 +4,7 @@ import { researcherTierEnabled } from '@/lib/site-config';
 import { allow, clientAddress, rateLimitKey } from '@/lib/rate-limit';
 import { sameOrigin } from '@/lib/staff-auth';
 import { verifyTurnstile } from '@/lib/turnstile';
+import { requestConsent } from '@/lib/marketing-consent';
 
 /**
  * Account sign-up. Plain form POST. On success the person is sent to a
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
     acceptAge: form.get('accept_age') === 'on',
     dateOfBirth: field('date_of_birth'),
   };
+  const productNews = form.get('product_news') === 'on';
 
   const back = (params: Record<string, string>) => {
     const url = new URL('/account/sign-up', request.url);
@@ -74,6 +76,21 @@ export async function POST(request: Request) {
     }
     const result = await signUp(validated.value, request.headers.get('user-agent'));
     if (!result.ok && result.reason === 'email') return back({ error: 'email' });
+    if (result.ok && productNews) {
+      // Unchecked by default; recorded as pending and confirmed by the account's own verification link.
+      try {
+        await requestConsent({
+          email: validated.value.email,
+          accountId: result.accountId,
+          source: 'sign_up',
+          clientAddress: clientAddress(request),
+          userAgent: request.headers.get('user-agent'),
+          sendConfirmation: false,
+        });
+      } catch (error) {
+        console.error('[account] product-news opt-in failed', error instanceof Error ? error.message : error);
+      }
+    }
     // 'exists' falls through to the same success page deliberately.
     const done = new URL('/account/check-email', request.url);
     done.searchParams.set('email', validated.value.email);

@@ -280,3 +280,27 @@ pbpaste | npx wrangler secret put TURNSTILE_SECRET_KEY
 
 Staging uses Cloudflare's published always-passing test pair (site key in `wrangler.jsonc`, secret
 `1x0000000000000000000000000000000AA` via `--env staging`), so the widget can be exercised there.
+
+## Product news through Brevo
+
+`lib/brevo.ts` is the only path marketing email takes; `lib/email.ts` stays transactional. The
+consent table (`marketing_consents`) is the truth, Brevo the synced list.
+
+1. Brevo (sam@ account) → Contacts → create the list "Product news"; note its numeric id →
+   `BREVO_LIST_ID` in `vars`. Sender `news@news.nexphaselabs.net` is already authenticated there.
+2. API key (SMTP & API → API keys):
+
+```bash
+pbpaste | npx wrangler secret put BREVO_API_KEY
+```
+
+3. Webhook: make up a long random token, store it —
+
+```bash
+pbpaste | npx wrangler secret put BREVO_WEBHOOK_TOKEN
+```
+
+   — and add a Brevo webhook (Transactional → Settings → Webhooks, events: unsubscribed, hard bounce,
+   spam/complaint, blocked) pointing at `https://nexphaselabs.net/api/webhooks/brevo?token=<the same token>`.
+4. `ABANDONED_CART_REMINDERS` stays `"false"` until the owner decides to send the once-per-cart reminder
+   to confirmed subscribers (lib/cart-reminders.ts).

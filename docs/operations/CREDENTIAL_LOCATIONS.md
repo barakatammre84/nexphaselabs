@@ -17,6 +17,7 @@ A credential that has been pasted anywhere it should not be is rotated, not "wat
 | --- | --- | --- | --- |
 | Cloudflare account | Cloudflare dashboard, account `5438a1e4683ea3ea35ddc20ba50ac05a` "8486 Ventures LLC - NexPhase Labs"; owner login `sam@nexphaselabs.net`, each admin with their own 2FA | `sam@` (Super Administrator); second Super Administrator: the `ammre@nexphaselabs.net` login (added 16 Sep 2026) | Workers, D1, R2, DNS, logs |
 | Cloudflare Turnstile keys | Cloudflare dashboard → Turnstile → widget for `nexphaselabs.net`. Site key is public (`TURNSTILE_SITE_KEY` in `wrangler.jsonc`); the secret goes in with `npx wrangler secret put TURNSTILE_SECRET_KEY` and is never pasted anywhere else | Cloudflare Super Administrators | Sign-up bot check (lib/turnstile.ts) |
+| Brevo (product news) | app.brevo.com, the `sam@nexphaselabs.net` account. API key → `npx wrangler secret put BREVO_API_KEY`; webhook token (a random string of your own) → `BREVO_WEBHOOK_TOKEN` and the same value in the Brevo webhook URL `?token=`; list id and sender are vars in `wrangler.jsonc` | Business & Systems lead | Product-news list and sender (lib/brevo.ts); never transactional mail |
 | GitHub repository | github.com, per-person account | Business & Systems lead | Source, Actions, deploy workflows |
 | Google Workspace | admin.google.com | Business & Systems lead | Mail, Drive, staff identities |
 | Domain registrar | Registrar account | Business & Systems lead | `nexphaselabs.net`, the cutover |

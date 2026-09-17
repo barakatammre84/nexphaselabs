@@ -84,7 +84,20 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="6. How long we keep it">
+      <LegalSection heading="6. Product news (optional)">
+        <p>
+          You can ask for product news — new materials and released lots, a few times a year — from the website
+          footer, your account page or the sign-up form. Nothing is sent until you confirm by email (the account
+          verification link counts for the sign-up box). We record the address, when and where you asked, when you
+          confirmed, and the connecting address at the time, so we can show that consent was given. Every such
+          email carries an unsubscribe link and a one-click unsubscribe header; opting out is immediate and is
+          recorded with its reason. These messages are sent through Brevo, a European email service that holds the
+          address and the send history as our processor. Order and account emails are separate and are sent only
+          about things you asked us to do.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="7. How long we keep it">
         <p>
           Order, shipment, lot-traceability and payment records are kept for seven years from the order, which is
           what tax and product-traceability obligations require. Account records are kept while the account is open
@@ -94,7 +107,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="7. The feedback panel">
+      <LegalSection heading="8. The feedback panel">
         <p>
           The site feedback panel records the report type, impact, title, message, expected behavior, page, browser
           user-agent, language, timezone, viewport size, time, and any name or email you choose to give. It does not
@@ -107,7 +120,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="8. Security">
+      <LegalSection heading="9. Security">
         <p>
           Records are held in an access-controlled database; staff access is limited to the people who need it and
           is logged. Passwords are stored as salted hashes. No system is perfectly secure, and we do not claim
@@ -115,7 +128,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="9. Your choices and rights">
+      <LegalSection heading="10. Your choices and rights">
         <p>
           You can see and change your account details on the account page. You can ask us what information we hold
           about you, ask for it to be corrected or deleted, or ask us to stop writing to you, by emailing{' '}
@@ -130,7 +143,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="10. Age">
+      <LegalSection heading="11. Age">
         <p>
           This site is for researchers aged {MINIMUM_AGE} and over. We do not knowingly collect information from
           anyone under {MINIMUM_AGE}, and we close any account and delete any order found to have been placed by
@@ -138,7 +151,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="11. Changes">
+      <LegalSection heading="12. Changes">
         <p>
           When this policy changes, the version at the top of the page changes with it. A change that affects how we
           use information we already hold is announced to account holders by email before it takes effect.
