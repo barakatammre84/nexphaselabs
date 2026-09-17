@@ -46,9 +46,10 @@ describe('product purchase panel', () => {
     const mixed = render({ variants: [variant({ sku: 'NPL-9999-50MG', quantity: '50 mg', sellable: false }), variant()] });
     // The in-stock size is the one selected to begin with.
     expect(mixed).toContain('Add to cart · $100.00');
+    // A buyer who can order is offered the one-time notice instead of a dead button (16 Sep 2026).
     const outOnly = render({ variants: [variant({ sellable: false })] });
-    expect(outOnly).toContain('This pack size is out of stock');
-    expect(outOnly).toContain('disabled=""');
+    expect(outOnly).not.toContain('Add to cart');
+    expect(outOnly).toContain('action="/api/waitlist"');
   });
 
   it('shows prices without an order button to a viewer who cannot order yet', () => {
@@ -57,5 +58,29 @@ describe('product purchase panel', () => {
     expect(html).toContain('Not available to order');
     expect(html).toContain('Ordering is open to approved wholesale accounts.');
     expect(html).not.toContain('Add to cart ·');
+  });
+});
+
+describe('back-in-stock request', () => {
+  it('offers the one-time notice when a buyer who can order finds the pack size out of stock', () => {
+    const html = render({ hasReleasedLot: false, canOrder: true });
+    expect(html).toContain('Tell me when it'); // the apostrophe is HTML-escaped in static markup
+    expect(html).toContain('action="/api/waitlist"');
+    expect(html).toContain('name="sku" value="NPL-9999-2MG"');
+    expect(html).not.toContain('Add to cart');
+  });
+
+  it('shows the on-the-list state for a pack size already requested', () => {
+    const html = render({ hasReleasedLot: false, canOrder: true, waitlisted: ['NPL-9999-2MG'] });
+    expect(html).toContain('on the list');
+    expect(html).toContain('href="/account/waitlist"');
+    expect(html).not.toContain('action="/api/waitlist"');
+  });
+
+  it('keeps the cart form when the pack size is in stock, and no notice for someone who cannot order', () => {
+    expect(render()).toContain('action="/api/cart"');
+    const html = render({ hasReleasedLot: false, canOrder: false });
+    expect(html).not.toContain('/api/waitlist');
+    expect(html).toContain('Not available to order');
   });
 });

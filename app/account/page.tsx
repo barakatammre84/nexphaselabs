@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Building2, CircleCheck, Clock, CreditCard, LifeBuoy, Lock, MapPin, PackageSearch, UserRound } from 'lucide-react';
+import { Building2, CircleCheck, Clock, BellRing, CreditCard, LifeBuoy, Lock, MapPin, PackageSearch, UserRound } from 'lucide-react';
 import { AccessProgress } from '@/components/site/access-progress';
 import { getOrganizationForAccount } from '@/lib/organizations';
 import { AcknowledgementForm } from '@/components/site/acknowledgement-form';
@@ -55,6 +55,7 @@ const HUB = [
   { href: '/account/addresses', title: 'Addresses', copy: 'Delivery addresses saved for next time.', icon: MapPin },
   { href: '/account/details', title: 'Account details', copy: 'Your name, email address and password.', icon: UserRound },
   { href: '/account/payment', title: 'Payment', copy: 'How payment works and any order still waiting for it.', icon: CreditCard },
+  { href: '/account/waitlist', title: 'Waitlist', copy: 'Pack sizes you asked to hear about when a lot is released.', icon: BellRing },
   { href: '/contact', title: 'Support', copy: 'A person answers within one business day. Include your order number.', icon: LifeBuoy },
 ] as const;
 

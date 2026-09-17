@@ -1,6 +1,7 @@
 'use server';
 
 import { headers } from 'next/headers';
+import { notifyWaitlist } from '@/lib/waitlist';
 import { redirect } from 'next/navigation';
 import {
   CORRECTABLE_FIELDS,
@@ -176,6 +177,15 @@ export async function setLotDispositionAction(lotNumber: string, _prev: LotFormS
     return fail('The decision could not be recorded. Try again shortly.');
   }
   if (!outcome.ok) return fail(outcome.error);
+  if (outcome.status === 'released') {
+    // Customers who asked to hear about this material get their one notice now rather
+    // than on the next cron tick; a failure here never undoes the release (lib/waitlist.ts).
+    try {
+      await notifyWaitlist(lot.productCode);
+    } catch (error) {
+      console.error('[waitlist] notify after release failed', error instanceof Error ? error.message : error);
+    }
+  }
   redirect(`/manage/lots/${encodeURIComponent(lot.lotNumber)}?decided=${outcome.status}`);
 }
 

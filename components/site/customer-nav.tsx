@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import {
-  CreditCard,
+  BellRing, CreditCard,
   FileCheck2,
   LayoutDashboard,
   LifeBuoy,
@@ -22,6 +22,7 @@ const items = [
   { href: '/account/addresses', label: 'Addresses', icon: MapPin, membersOnly: true },
   { href: '/account/details', label: 'Account details', icon: UserRound, membersOnly: true },
   { href: '/account/payment', label: 'Payment', icon: CreditCard, membersOnly: true },
+  { href: '/account/waitlist', label: 'Waitlist', icon: BellRing, membersOnly: true },
   { href: '/account/cart', label: 'Cart', icon: ShoppingCart },
   { href: '/catalog', label: 'Shop', icon: ShoppingBag },
   { href: '/documentation/lot-lookup', label: 'COAs', icon: FileCheck2 },

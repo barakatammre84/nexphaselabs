@@ -6,6 +6,7 @@ import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { ProductImage } from '@/components/site/product-image';
 import { SupportStrip } from '@/components/site/support-strip';
 import { ProductPurchasePanel } from '@/components/site/product-purchase-panel';
+import { WAITLIST_COPY, waitlistedSkus } from '@/lib/waitlist';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
 import { REGULATORY_STATEMENT, STANDARD_DOCUMENTATION } from '@/lib/catalog';
 import { loadCatalog } from '@/lib/catalog-data';
@@ -41,7 +42,7 @@ export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ cart?: string }>;
+  searchParams: Promise<{ cart?: string; waitlist?: string }>;
 };
 
 export async function generateMetadata({
@@ -72,10 +73,12 @@ function SpecRow({ label, value }: { label: string; value: string }) {
 
 export default async function ProductPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
-  const { cart: cartFlag } = await searchParams;
+  const { cart: cartFlag, waitlist: waitlistFlag } = await searchParams;
   // A refusal's words come from the cookie the cart route set, never from the link (lib/notice.ts).
   const cartNotice =
     cartFlag === 'error' ? readNotice((await cookies()).get(NOTICE_COOKIE)?.value) : null;
+  const waitlistNotice =
+    waitlistFlag === 'error' ? readNotice((await cookies()).get(NOTICE_COOKIE)?.value) : null;
   const loaded = await loadCatalog(() => getStorefrontProduct(slug));
 
   if (loaded.unavailable) {
@@ -105,6 +108,8 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
   // Tier-aware visibility: one rule, evaluated here, decides whether prices
   // and released lots render. Anonymous and unverified visitors see neither.
   const { account, visibility } = await currentViewer();
+  // Pack sizes this account already asked to hear about; a read failure only hides that state.
+  const waitlisted = account ? await waitlistedSkus(account.id).catch(() => [] as string[]) : [];
   // Prices can show to a tier that cannot order yet (researchers while ordering is
   // wholesale-only); only a buyer who can order gets an order button.
   const canOrder =
@@ -159,6 +164,7 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
                 hasReleasedLot={hasReleasedLot && product.stock === 'in_stock'}
                 pricing={visibility.pricing}
                 canOrder={canOrder}
+                waitlisted={waitlisted}
                 orderingNote={STOREFRONT_COPY.orderingWholesaleOnly}
                 variants={activeVariants.map((variant) => ({
                   sku: variant.sku,
@@ -434,6 +440,16 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
                 : cartFlag === 'invalid'
                   ? 'That pack size is not valid.'
                   : 'The cart is temporarily unavailable.'}
+            </p>
+          )}
+          {waitlistFlag && (
+            <p
+              role={waitlistFlag === 'joined' ? 'status' : 'alert'}
+              className="border-b border-border bg-secondary px-6 py-3 text-sm"
+            >
+              {waitlistFlag === 'joined'
+                ? WAITLIST_COPY.joined
+                : (waitlistNotice ?? 'That request could not be saved. Try again shortly.')}
             </p>
           )}
           {activeVariants.map((variant) => {
