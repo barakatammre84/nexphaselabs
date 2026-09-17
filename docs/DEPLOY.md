@@ -324,3 +324,34 @@ person approves each application against the agreement.
 5. In January, export `/api/manage/reports/affiliates.csv?year=YYYY` for the calendar-year total
    paid to each partner. Confirm the current reporting threshold with the accountant, then file
    the contractor returns. Zelle is a bank transfer network and reports nothing on our behalf.
+
+## Continue with Google
+
+`lib/google-signin.ts` adds Google as a way into a customer account. It is off until both halves
+exist, and it never replaces the acknowledgements: Google proves an email address, so a visitor it
+has not introduced before goes to `/account/complete` for a date of birth and the three
+confirmations, and no account row is written until that form comes back.
+
+**This is a second OAuth client, not the one that sends mail.** The mail client is a Workspace
+mailbox credential holding `gmail.send` for research@; putting a customer consent screen on it
+would be wrong and its redirect URIs do not match.
+
+1. Google Cloud console, project `nexphaselabs` → APIs & Services → OAuth consent screen. Publish
+   an **External** screen with the app name, the support email, the logo, and links to
+   `/legal/privacy` and `/legal/terms`. Authorized domain `nexphaselabs.net`.
+2. Credentials → Create credentials → OAuth client ID → Web application. Authorized redirect URI:
+
+   ```
+   https://nexphaselabs.net/api/auth/google/callback
+   ```
+
+   For staging add `https://nexphaselabs-staging.nexphase.workers.dev/api/auth/google/callback`.
+3. Client id into `GOOGLE_SIGN_IN_CLIENT_ID` in the relevant `vars`. Secret without it touching a
+   terminal history or chat:
+
+```bash
+pbpaste | npx wrangler secret put GOOGLE_SIGN_IN_CLIENT_SECRET
+```
+
+4. The scopes are `openid email profile` only. Nothing here needs Google verification review, since
+   none of those are sensitive or restricted scopes.

@@ -1,4 +1,5 @@
 import { accountRequired, openCheckoutEnabled } from '@/lib/site-config';
+import { GoogleButton } from '@/components/site/google-button';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -33,6 +34,12 @@ const ERROR_TEXT: Record<string, string> = {
   unavailable: 'Sign-in is temporarily unavailable. Try again shortly.',
   throttled:
     'Too many failed sign-in attempts from this network. Try again in 15 minutes.',
+  google: 'Signing in with Google is not available right now. Use your email address and password.',
+  google_cancelled: 'Google sign-in was cancelled. Nothing has changed.',
+  google_state: 'That Google sign-in could not be verified. Start again from this page.',
+  google_unverified:
+    'Google has not verified that email address, so we cannot use it to identify you. Sign in with a password instead.',
+  google_expired: 'That took too long and the Google sign-in expired. Start again.',
 };
 
 const VERIFY_TEXT: Record<string, string> = {
@@ -120,6 +127,8 @@ export default async function AccountSignInPage({ searchParams }: Props) {
             </button>
           </form>
         )}
+
+        <GoogleButton returnTo={returnTo} label="Continue with Google" />
 
         <form
           method="post"

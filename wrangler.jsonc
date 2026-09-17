@@ -58,6 +58,11 @@
     // Partner (affiliate) programme. Off until the owner opens it: an approved partner is a third party
     // speaking about this material, so the agreement and the approval step are the control, not the code.
     "AFFILIATE_PROGRAM_ENABLED": "false",
+    // "Continue with Google" for customer accounts (lib/google-signin.ts). This is NOT the Gmail
+    // sending client above: create a second OAuth client with an External consent screen, scopes
+    // openid/email/profile, and the redirect URI https://nexphaselabs.net/api/auth/google/callback.
+    // Secret via `wrangler secret put GOOGLE_SIGN_IN_CLIENT_SECRET`; the button stays hidden until both exist.
+    "GOOGLE_SIGN_IN_CLIENT_ID": "",
     "ZELLE_RECIPIENT_EMAIL": "orders@nexphaselabs.net",
     "ZELLE_RECIPIENT_NAME": "8486 Ventures LLC",
     "ZELLE_MODE": "manual",
@@ -131,6 +136,7 @@
         "BREVO_SENDER": "NexPhase Labs <news@news.nexphaselabs.net>",
         "ABANDONED_CART_REMINDERS": "false",
         "AFFILIATE_PROGRAM_ENABLED": "true",
+        "GOOGLE_SIGN_IN_CLIENT_ID": "",
         "OPEN_CHECKOUT_ENABLED": "true",
         "ACCOUNT_REQUIRED": "true",
         // Public staging, by the owner's decision of 14 September 2026: storefront pages are open to

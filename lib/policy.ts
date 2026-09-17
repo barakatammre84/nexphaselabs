@@ -57,7 +57,7 @@ export const ENTRY_NOTICE = {
 export const DISCLOSURE_WORKFLOW = [
   { step: 'Entering the site', disclosure: 'Age and research-use interstitial (ENTRY_NOTICE)', recorded: 'Browser cookie only; nothing about a person is stored' },
   { step: 'Every product page and the catalog', disclosure: 'The regulatory statement above the fold, in the body of the page', recorded: 'Not applicable' },
-  { step: 'Creating an account', disclosure: 'Date of birth checked against the minimum age, plus the age affirmation, research-use acknowledgement and terms — one field and three required boxes', recorded: 'Account: date of birth, age confirmed at, acknowledgement version and time, terms version and time' },
+  { step: 'Creating an account', disclosure: 'Date of birth checked against the minimum age, plus the age affirmation, research-use acknowledgement and terms — one field and three required boxes. Signing up with Google does not skip any of them; it proves the email address only', recorded: 'Account: date of birth, age confirmed at, acknowledgement version and time, terms version and time' },
   { step: 'Checkout, every order', disclosure: 'Age affirmation and research-use acknowledgement with the terms — two required boxes', recorded: 'Order: acknowledgement version, wording hash, time, connecting address, age confirmed, research setting' },
   { step: 'Order confirmation email', disclosure: 'The acknowledgement and terms versions accepted, restated', recorded: 'Order record: acknowledgement version and wording hash' },
   { step: 'The parcel', disclosure: 'Regulatory statement on the packing slip; certificate of analysis for the lot in the parcel', recorded: 'Packing slip and the certificate pinned to the order, with its checksum' },
