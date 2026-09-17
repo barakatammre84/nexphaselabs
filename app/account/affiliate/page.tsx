@@ -55,7 +55,13 @@ export default async function AccountAffiliatePage({ searchParams }: Props) {
           <div className="flex items-center gap-3">
             <Handshake className="size-5 text-primary" />
             <h2 className="font-display text-xl font-bold tracking-tight">
-              {affiliate?.status === 'approved' ? 'Your link' : 'Apply to the programme'}
+              {affiliate?.status === 'approved'
+                ? 'Your link'
+                : affiliate?.status === 'applied'
+                  ? 'Your application'
+                  : affiliate?.status === 'suspended'
+                    ? 'Your partner account'
+                    : 'Apply to the programme'}
             </h2>
           </div>
 

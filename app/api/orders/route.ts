@@ -5,7 +5,7 @@ import { acknowledgementsCurrent } from '@/lib/account-rules';
 import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 import { createOrderFromCart, shipToFromOrganization } from '@/lib/orders';
 import { getOrganizationForAccount } from '@/lib/organizations';
-import { researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
+import { accountRequired, openCheckoutEnabled, researcherTierEnabled } from '@/lib/site-config';
 import { validateCheckout } from '@/lib/checkout-input';
 import { connectingAddress, normaliseResearchSetting } from '@/lib/attestation';
 import { allow, rateLimitKey } from '@/lib/rate-limit';
@@ -36,6 +36,7 @@ export async function POST(request: Request) {
     },
     researcherTierEnabled(),
     openCheckoutEnabled(),
+    accountRequired(),
   );
   if (visibility.pricing === 'none')
     return back('Ordering is not available to your account yet.');

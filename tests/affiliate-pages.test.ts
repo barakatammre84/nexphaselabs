@@ -84,6 +84,22 @@ describe('partner page', () => {
     expect(html).toContain('name="payout_email"');
   });
 
+  it('heads the panel with the state the partner is actually in', async () => {
+    env.AFFILIATE_PROGRAM_ENABLED = 'true';
+    const states: [string | null, string][] = [
+      [null, 'Apply to the programme'],
+      ['applied', 'Your application'],
+      ['approved', 'Your link'],
+      ['suspended', 'Your partner account'],
+    ];
+    for (const [status, heading] of states) {
+      affiliate.current = status
+        ? { id: 'aff_1', status, code: 'ADA-1234', commissionBps: 1000, appliedAt: new Date(), taxFormStatus: 'none' }
+        : null;
+      expect(renderToStaticMarkup(await AccountAffiliatePage({ searchParams: Promise.resolve({}) }))).toContain(heading);
+    }
+  });
+
   it('shows a pending application rather than a link', async () => {
     affiliate.current = { id: 'aff_1', status: 'applied', code: 'ADA-1234', commissionBps: 1000, appliedAt: new Date('2026-09-16T00:00:00Z'), taxFormStatus: 'none' };
     env.AFFILIATE_PROGRAM_ENABLED = 'true';

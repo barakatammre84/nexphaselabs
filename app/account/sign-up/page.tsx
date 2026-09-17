@@ -10,7 +10,7 @@ import { AGE_STATEMENT, MINIMUM_AGE, RUO_ACKNOWLEDGEMENT } from '@/lib/policy';
 import { latestBirthDate } from '@/lib/account-rules';
 import { turnstileEnabled, turnstileSiteKey } from '@/lib/turnstile';
 import { NEWSLETTER_COPY } from '@/lib/marketing-consent';
-import { researcherTierEnabled } from '@/lib/site-config';
+import { accountRequired, researcherTierEnabled } from '@/lib/site-config';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -57,9 +57,11 @@ export default async function SignUpPage({ searchParams }: Props) {
           Create your account
         </h1>
         <p className="mt-4 leading-7 text-muted-foreground">
-          {consumer
-            ? 'An account keeps your orders, saved addresses and the certificates that shipped with each order in one place. You can also check out as a guest without one.'
-            : 'An account is the first step of a wholesale application. Prices, lot availability and ordering open once a person has approved it.'}
+          {!consumer
+            ? 'An account is the first step of a wholesale application. Prices, lot availability and ordering open once a person has approved it.'
+            : accountRequired()
+              ? 'An account is how prices, lot availability and the cart are shown, and it keeps your orders, saved addresses and the certificates that shipped with each order in one place.'
+              : 'An account keeps your orders, saved addresses and the certificates that shipped with each order in one place. You can also check out as a guest without one.'}
         </p>
 
         {!consumer && <AccessProgress current={0} />}
