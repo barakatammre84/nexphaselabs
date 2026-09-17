@@ -1,9 +1,15 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { readPriceBreaks, type PriceBreak } from '@/lib/price-breaks';
-import { productVariants, products, type ProductRow, type ProductVariantRow } from '@/db/schema';
+import {
+  productVariants,
+  products,
+  type ProductRow,
+  type ProductVariantRow,
+} from '@/db/schema';
 import type { ChemicalClass, Product, ProductStatus } from '@/lib/catalog';
 import type { Visibility } from '@/lib/catalog-rules';
+import { reportServerFailure } from '@/lib/server-failure';
 
 /**
  * Catalog reads. D1 is the source of truth once seeded; lib/catalog.ts is the
@@ -52,8 +58,13 @@ function toVariant(v: ProductVariantRow): CatalogVariant {
   };
 }
 
-export function rowToProduct(row: ProductRow, variants: ProductVariantRow[]): CatalogProduct {
-  const sorted = [...variants].sort((a, b) => a.sortOrder - b.sortOrder).map(toVariant);
+export function rowToProduct(
+  row: ProductRow,
+  variants: ProductVariantRow[],
+): CatalogProduct {
+  const sorted = [...variants]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map(toVariant);
   return {
     id: row.id,
     code: row.code,
@@ -80,7 +91,9 @@ export function rowToProduct(row: ProductRow, variants: ProductVariantRow[]): Ca
     storageStock: row.storageStock,
     stability: row.stability,
     shipping: row.shipping,
-    packSizes: sorted.filter((v) => v.active).map((v) => ({ quantity: v.quantity })),
+    packSizes: sorted
+      .filter((v) => v.active)
+      .map((v) => ({ quantity: v.quantity })),
     status: row.status as ProductStatus,
     description: row.description,
     sourceNotes: row.sourceNotes,
@@ -131,12 +144,19 @@ export async function listPublishedProducts(): Promise<CatalogProduct[]> {
 }
 
 /** Published products in one chemical class, in catalog order — the related-materials query. */
-export async function listPublishedProductsInClass(chemicalClass: string): Promise<CatalogProduct[]> {
+export async function listPublishedProductsInClass(
+  chemicalClass: string,
+): Promise<CatalogProduct[]> {
   const db = getDb();
   const rows = await db
     .select()
     .from(products)
-    .where(and(eq(products.visibility, 'published'), eq(products.chemicalClass, chemicalClass)))
+    .where(
+      and(
+        eq(products.visibility, 'published'),
+        eq(products.chemicalClass, chemicalClass),
+      ),
+    )
     .orderBy(asc(products.sortOrder), asc(products.code));
   return attachVariants(rows);
 }
@@ -163,24 +183,30 @@ export async function listPublishedProductsForSitemap(): Promise<
     .orderBy(asc(products.sortOrder), asc(products.code));
 }
 
-export type CatalogLoad<T> = { data: T; unavailable: false } | { data: null; unavailable: true };
+export type CatalogLoad<T> =
+  | { data: T; unavailable: false }
+  | { data: null; unavailable: true };
 
 /**
  * Public pages must render even when D1 is unreachable — with an explicit
  * "unavailable" state, never with stale or partial data. The error is logged
  * server-side and never shown to the visitor.
  */
-export async function loadCatalog<T>(read: () => Promise<T>): Promise<CatalogLoad<T>> {
+export async function loadCatalog<T>(
+  read: () => Promise<T>,
+): Promise<CatalogLoad<T>> {
   try {
     return { data: await read(), unavailable: false };
-  } catch (error) {
-    console.error('[catalog] read failed', error instanceof Error ? error.message : error);
+  } catch {
+    reportServerFailure('catalog-read');
     return { data: null, unavailable: true };
   }
 }
 
 /** One published product by slug, or null. Drafts and withdrawn items do not resolve here. */
-export async function getPublishedProduct(slug: string): Promise<CatalogProduct | null> {
+export async function getPublishedProduct(
+  slug: string,
+): Promise<CatalogProduct | null> {
   const db = getDb();
   const [row] = await db
     .select()
@@ -195,17 +221,27 @@ export async function getPublishedProduct(slug: string): Promise<CatalogProduct 
 /** All products regardless of visibility. Catalog manager only. */
 export async function listAllProducts(): Promise<CatalogProduct[]> {
   const db = getDb();
-  const rows = await db.select().from(products).orderBy(asc(products.sortOrder), asc(products.code));
+  const rows = await db
+    .select()
+    .from(products)
+    .orderBy(asc(products.sortOrder), asc(products.code));
   return attachVariants(rows);
 }
 
 /** One PUBLISHED product by code, for public routes keyed by code. */
-export async function getPublishedProductByCode(code: string): Promise<CatalogProduct | null> {
+export async function getPublishedProductByCode(
+  code: string,
+): Promise<CatalogProduct | null> {
   const db = getDb();
   const [row] = await db
     .select()
     .from(products)
-    .where(and(eq(products.code, code.toUpperCase()), eq(products.visibility, 'published')))
+    .where(
+      and(
+        eq(products.code, code.toUpperCase()),
+        eq(products.visibility, 'published'),
+      ),
+    )
     .limit(1);
   if (!row) return null;
   const [product] = await attachVariants([row]);
@@ -213,15 +249,23 @@ export async function getPublishedProductByCode(code: string): Promise<CatalogPr
 }
 
 /** One product by code regardless of visibility. Catalog manager only. */
-export async function getProductByCode(code: string): Promise<CatalogProduct | null> {
+export async function getProductByCode(
+  code: string,
+): Promise<CatalogProduct | null> {
   const db = getDb();
-  const [row] = await db.select().from(products).where(eq(products.code, code.toUpperCase())).limit(1);
+  const [row] = await db
+    .select()
+    .from(products)
+    .where(eq(products.code, code.toUpperCase()))
+    .limit(1);
   if (!row) return null;
   const [product] = await attachVariants([row]);
   return product ?? null;
 }
 
-export function groupByClass(list: CatalogProduct[]): Map<ChemicalClass, CatalogProduct[]> {
+export function groupByClass(
+  list: CatalogProduct[],
+): Map<ChemicalClass, CatalogProduct[]> {
   const map = new Map<ChemicalClass, CatalogProduct[]>();
   for (const p of list) {
     const group = map.get(p.chemicalClass) ?? [];

@@ -1,7 +1,12 @@
 import { getAccount, type AccountPrincipal } from '@/lib/account-auth';
 import { acknowledgementsCurrent } from '@/lib/account-rules';
-import { accountRequired, researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
+import {
+  accountRequired,
+  researcherTierEnabled,
+  openCheckoutEnabled,
+} from '@/lib/site-config';
 import { visibilityFor, type Visibility } from '@/lib/visibility-rules';
+import { reportServerFailure } from '@/lib/server-failure';
 
 export type Viewer = {
   account: AccountPrincipal | null;
@@ -13,11 +18,8 @@ export async function currentViewer(): Promise<Viewer> {
   let account: AccountPrincipal | null = null;
   try {
     account = await getAccount();
-  } catch (error) {
-    console.error(
-      '[viewer] account lookup failed',
-      error instanceof Error ? error.message : error,
-    );
+  } catch {
+    reportServerFailure('viewer-account-lookup');
   }
   const visibility = visibilityFor(
     account

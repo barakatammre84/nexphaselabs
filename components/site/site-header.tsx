@@ -7,6 +7,7 @@ import { BrandLogo } from '@/components/site/brand-logo';
 import { FileCheck2, ShoppingCart, UserRound } from 'lucide-react';
 import { getAccount } from '@/lib/account-auth';
 import { HeaderSearch } from '@/components/site/header-search';
+import { reportServerFailure } from '@/lib/server-failure';
 
 const navigation = [
   { href: '/catalog', label: 'Shop' },
@@ -26,11 +27,8 @@ export async function SiteHeader() {
     const account = await getAccount();
     signedIn = Boolean(account);
     if (account) count = await cartCount(account.id);
-  } catch (error) {
-    console.error(
-      '[header] account lookup failed',
-      error instanceof Error ? error.message : error,
-    );
+  } catch {
+    reportServerFailure('header-account-lookup');
   }
   // Where the cart link goes for a visitor without an account (owner, 16 Sep 2026: sign in first).
   const cartHref = open
@@ -52,11 +50,7 @@ export async function SiteHeader() {
   return (
     <header className="site-header sticky top-0 z-40 px-4 py-3 sm:px-6">
       <div className="mx-auto flex min-h-[4.75rem] max-w-[1280px] items-center justify-between gap-4 rounded-[2rem] border border-white/80 bg-white/95 px-5 shadow-[0_18px_44px_rgba(14,18,59,0.14)] backdrop-blur sm:px-7">
-        <NavLink
-          href="/"
-          className="shrink-0"
-          aria-label="NexPhase Labs home"
-        >
+        <NavLink href="/" className="shrink-0" aria-label="NexPhase Labs home">
           <BrandLogo />
         </NavLink>
         <nav
