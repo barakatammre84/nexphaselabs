@@ -225,4 +225,24 @@ describe('store buying-flow baseline', () => {
     });
     expect(failure?.detail).toContain('[staging] /api/checkout/quotes');
   });
+
+  it('requires a linked product route for the local fixture baseline', async () => {
+    const report = await runStoreBuyingBaseline({
+      origin: 'http://127.0.0.1:5000',
+      environment: 'local',
+      requireProductRoute: true,
+      fetcher: fakeFetch(
+        healthyRoutes('<main>Catalog Prices and lot availability are shown to research accounts.</main>'),
+      ),
+    });
+
+    const failure = report.checks.find((check) => check.name === 'browse-product');
+    expect(report.ok).toBe(false);
+    expect(failure).toMatchObject({
+      environment: 'local',
+      route: '/catalog',
+      ok: false,
+    });
+    expect(failure?.detail).toContain('seed the local baseline fixture');
+  });
 });

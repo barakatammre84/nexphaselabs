@@ -49,6 +49,11 @@ export type StoreBaselineOptions = {
    */
   accountRequired?: boolean;
   /**
+   * Require the local fixture to expose a linked product route. Production and
+   * staging may still be checked before their first released lot exists.
+   */
+  requireProductRoute?: boolean;
+  /**
    * Run the authenticated cart and quote rehearsal. This is deliberately
    * accepted only for staging: the production baseline must remain anonymous.
    */
@@ -136,6 +141,8 @@ export async function runStoreBuyingBaseline(
   const origin = originOf(options.origin);
   const environment = options.environment;
   const accountRequired = options.accountRequired ?? true;
+  const requireProductRoute =
+    options.requireProductRoute ?? environment === 'local';
   const fetcher = options.fetcher ?? fetch;
   const timeoutMs = options.timeoutMs ?? 15_000;
   const authenticated = Boolean(options.authenticatedAccount);
@@ -281,12 +288,15 @@ export async function runStoreBuyingBaseline(
   const productRoute = firstProductRoute(catalog.body);
   if (productRoute) {
     const product = await get(productRoute);
+    const productPricingOk = accountRequired
+      ? product.body.includes(pricingText) &&
+        !/\$\s?\d/.test(visibleText(product.body))
+      : !product.body.includes(pricingText) &&
+        /\$\s?\d/.test(visibleText(product.body));
     const productOk =
       product.response?.status === 200 &&
       /<main\b/i.test(product.body) &&
-      (!accountRequired ||
-        (product.body.includes(pricingText) &&
-          !/\$\s?\d/.test(visibleText(product.body))));
+      productPricingOk;
     record(
       'browse-product',
       productRoute,
@@ -300,12 +310,15 @@ export async function runStoreBuyingBaseline(
       product.response,
     );
   } else {
+    const productRequiredDetail = requireProductRoute
+      ? 'expected a linked released product route; seed the local baseline fixture before running this check'
+      : 'skipped: catalog returned no product link (an empty released catalog is allowed)';
     record(
       'browse-product',
       '/catalog',
-      catalogOk,
+      catalogOk && !requireProductRoute,
       catalogOk
-        ? 'skipped: catalog returned no product link (an empty released catalog is allowed)'
+        ? productRequiredDetail
         : 'not run: catalog did not render, so no product route could be selected',
       catalog.response,
     );

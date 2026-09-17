@@ -91,13 +91,15 @@ function listed(name: string, listPriceCents: number, institutionalPriceCents: n
 
 function viewAs(kind: 'anonymous' | 'wholesale' | 'guest') {
   if (kind === 'guest') env.OPEN_CHECKOUT_ENABLED = 'true';
+  const accountRequired = env.ACCOUNT_REQUIRED === 'true';
+  const openCheckout = kind === 'guest' || env.OPEN_CHECKOUT_ENABLED === 'true';
   viewer.current =
     kind === 'wholesale'
       ? {
           account: { tier: 'institutional', verificationStatus: 'approved' },
           visibility: visibilityFor({ tier: 'institutional', verificationStatus: 'approved', acknowledgementsCurrent: true }, false, false),
         }
-      : { account: null, visibility: visibilityFor(null, false, kind === 'guest') };
+      : { account: null, visibility: visibilityFor(null, false, openCheckout, accountRequired) };
 }
 
 const catalogPage = async (sort?: string) =>
@@ -165,6 +167,16 @@ describe('stock state', () => {
 });
 
 describe('product page purchase banner', () => {
+  it('keeps anonymous product pricing behind the configured account boundary', async () => {
+    env.OPEN_CHECKOUT_ENABLED = 'true';
+    env.ACCOUNT_REQUIRED = 'true';
+    viewAs('anonymous');
+    const html = await productPage('beta');
+    expect(html).toContain('Prices and lot availability are shown to research accounts.');
+    expect(html).toContain('/account/sign-up');
+    expect(html).not.toMatch(/\$\s?\d/);
+  });
+
   it('tells a guest that no account is needed while the storefront is open', async () => {
     viewAs('guest');
     expect(await productPage('beta')).toContain('No account or email verification is required.');

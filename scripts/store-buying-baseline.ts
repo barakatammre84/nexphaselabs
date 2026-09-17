@@ -49,6 +49,7 @@ const report = await runStoreBuyingBaseline({
   origin: parsedOrigin.origin,
   environment,
   accountRequired,
+  requireProductRoute: environment === 'local',
   ...(signedIn
     ? {
         authenticatedAccount: {

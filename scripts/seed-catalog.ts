@@ -166,6 +166,89 @@ console.log(
   `Wrote drizzle/seed/catalog.sql (${seedProducts.length} products, ${statements.length - 1} statements).`,
 );
 
+/**
+ * This fixture is deliberately separate from catalog.sql. The shared catalog
+ * seed is also used by staging and production; this row exists only to make a
+ * fresh local buying-flow baseline exercise a real product route.
+ */
+const localBaselineSeed = [
+  '-- Local-only buying-flow baseline fixture. Do not apply to staging or production.',
+  `INSERT OR IGNORE INTO products (id, code, slug, name, formal_name, synonyms, chemical_class, cas_number, related_cas, sequence_one_letter, sequence_three_letter, molecular_formula, molecular_weight, exact_mass, smiles, inchi_key, pubchem_cid, purity, form, salt_form, solubility, storage_solid, storage_stock, stability, shipping, status, description, source_notes, has_sds, image, featured, visibility, withdrawn_reason, sort_order, updated_by) VALUES (${[
+    q('prd_local_baseline'),
+    q('NPL-999'),
+    q('synthetic-baseline-material'),
+    q('Synthetic Baseline Material'),
+    q('Synthetic baseline reference compound'),
+    json(['Local buying-flow fixture']),
+    q('Peptides'),
+    q('50-00-0'),
+    json([]),
+    'NULL',
+    'NULL',
+    q('C1H2'),
+    q('14.03 g/mol'),
+    'NULL',
+    'NULL',
+    'NULL',
+    'NULL',
+    q('≥98% by HPLC'),
+    q('Solid'),
+    q('Free form'),
+    json([]),
+    q('-20 °C'),
+    q('Prepare fresh; store at -20 °C'),
+    q('Local fixture'),
+    q('Ambient'),
+    q('available'),
+    q('Synthetic reference material used only to exercise the local buying-flow baseline.'),
+    json(['Local-only automated fixture; not a saleable catalog record.']),
+    0,
+    q('/products/synthetic-baseline-material.svg'),
+    0,
+    q('published'),
+    'NULL',
+    9990,
+    q('local-baseline-fixture'),
+  ].join(', ')});`,
+  `INSERT OR IGNORE INTO product_variants (id, product_id, sku, quantity, presentation, list_price_cents, institutional_price_cents, price_breaks, active, sort_order) VALUES (${[
+    q('var_local_baseline_5mg'),
+    q('prd_local_baseline'),
+    q('NPL-999-5MG'),
+    q('5 mg'),
+    q(DEFAULT_PRESENTATION),
+    1250,
+    1000,
+    'NULL',
+    1,
+    0,
+  ].join(', ')});`,
+  `INSERT OR IGNORE INTO lots (id, lot_number, product_code, product_name, cas_number, manufacturer_name, manufacturer_address, received_at, purity_result, purity_method, identity_confirmed, identity_method, accession_number, analytical_lab, testing_standard, status, released_by, released_at, quantity_received, quantity_remaining, storage_condition) VALUES (${[
+    q('lot_local_baseline'),
+    q('LOCAL-BASELINE-2609'),
+    q('NPL-999'),
+    q('Synthetic Baseline Material'),
+    q('50-00-0'),
+    q('Synthetic Fixture Manufacturer'),
+    q('1 Fixture Way, Test City'),
+    "unixepoch('2026-09-01T00:00:00Z')",
+    q('98.4%'),
+    q('RP-HPLC'),
+    1,
+    q('LC-MS'),
+    q('LOCAL-BASELINE-ACC-2609'),
+    q('Synthetic Fixture Laboratory'),
+    q('Local baseline panel v1'),
+    q('released'),
+    q('local-baseline-fixture'),
+    "unixepoch('2026-09-01T00:00:00Z')",
+    q('25 mg'),
+    q('25 mg'),
+    q('-20 °C'),
+  ].join(', ')});`,
+].join('\n');
+writeFileSync('drizzle/seed/local-baseline.sql', `${localBaselineSeed}\n`);
+console.log('Wrote drizzle/seed/local-baseline.sql (1 product, 1 variant, 1 released lot).');
+
 // Chemical classes seed — INSERT OR IGNORE so edits made in the manager are never overwritten.
 {
   const rows = SEED_CLASSES.map(

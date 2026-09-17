@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-labelledby="title desc">
+  <title id="title">Synthetic local baseline material</title>
+  <desc id="desc">A labeled illustration used only by the local storefront baseline fixture.</desc>
+  <rect width="800" height="800" fill="#eef7f7"/>
+  <rect x="245" y="180" width="310" height="410" rx="28" fill="#ffffff" stroke="#122044" stroke-width="10"/>
+  <rect x="300" y="95" width="200" height="130" rx="24" fill="#dce8ec" stroke="#122044" stroke-width="10"/>
+  <rect x="285" y="315" width="230" height="125" rx="12" fill="#122044"/>
+  <text x="400" y="355" fill="#ffffff" font-family="monospace" font-size="25" text-anchor="middle">LOCAL</text>
+  <text x="400" y="390" fill="#ffffff" font-family="monospace" font-size="25" text-anchor="middle">FIXTURE</text>
+  <text x="400" y="680" fill="#122044" font-family="monospace" font-size="26" text-anchor="middle">NPL-999</text>
+</svg>

@@ -22,6 +22,8 @@ npm run baseline:store -- \
   --environment staging
 
 # Local server
+npm run db:migrate:local
+npm run db:seed:local
 npm run baseline:store -- \
   --base-url http://127.0.0.1:5000 \
   --environment local
@@ -66,17 +68,17 @@ route-specific detail. The command exits non-zero if any required check fails.
 
 ## Read-only contract
 
-| Flow                          | Read-only request                                     | Expected outcome                                                                                      |
-| ----------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Browse home                   | `GET /`                                               | HTTP 200 with the storefront shell                                                                    |
-| Browse catalog                | `GET /catalog`                                        | HTTP 200 with catalog content                                                                         |
-| Pricing visibility            | `GET /catalog` and one linked product, when available | With account-required pricing, the sign-in boundary is visible and anonymous dollar prices are absent |
-| Account access                | `GET /account/sign-in`                                | HTTP 200 with the email/password sign-in form                                                         |
-| Private account boundary      | `GET /account`                                        | Redirect to `/account/sign-in` without a session                                                      |
-| Cart page                     | `GET /account/cart`                                   | Redirect to `/account/sign-in` without a session                                                      |
-| Cart API                      | `GET /api/cart`                                       | HTTP 401 JSON response with a sign-in target; no cart mutation                                        |
-| Checkout eligibility boundary | `GET /api/checkout/quotes`                            | HTTP 405; the quote POST flow is not attempted                                                        |
-| Worker health                 | `GET /api/health`                                     | HTTP 200 with `ok: true`                                                                              |
+| Flow                          | Read-only request                            | Expected outcome                                                                                      |
+| ----------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Browse home                   | `GET /`                                      | HTTP 200 with the storefront shell                                                                    |
+| Browse catalog                | `GET /catalog`                               | HTTP 200 with catalog content                                                                         |
+| Pricing visibility            | `GET /catalog` and one linked product        | With account-required pricing, the sign-in boundary is visible and anonymous dollar prices are absent |
+| Account access                | `GET /account/sign-in`                       | HTTP 200 with the email/password sign-in form                                                         |
+| Private account boundary      | `GET /account`                               | Redirect to `/account/sign-in` without a session                                                      |
+| Cart page                     | `GET /account/cart`                          | Redirect to `/account/sign-in` without a session                                                      |
+| Cart API                      | `GET /api/cart`                              | HTTP 401 JSON response with a sign-in target; no cart mutation                                        |
+| Checkout eligibility boundary | `GET /api/checkout/quotes`                   | HTTP 405; the quote POST flow is not attempted                                                        |
+| Worker health                 | `GET /api/health`                            | HTTP 200 with `ok: true`                                                                              |
 
 The optional signed-in staging rehearsal adds these assertions:
 
@@ -92,6 +94,13 @@ submit a cart, request a checkout quote, send an email, create an order,
 purchase a label, confirm payment, or call a provider. The signed-in rehearsal
 is available only in isolated staging and uses a synthetic identity plus
 explicit test quote controls; it still stops before order creation and payment.
+
+The local seed command also applies `drizzle/seed/local-baseline.sql`. That
+generated file contains one clearly synthetic, published product with a priced
+5 mg variant and a publishable released lot, so the local baseline exercises
+`/catalog/synthetic-baseline-material` instead of silently accepting an empty
+catalog. The fixture uses the local D1 database only; the staging and production
+seed commands apply `catalog.sql` but never apply `local-baseline.sql`.
 
 ## Failure handling
 
