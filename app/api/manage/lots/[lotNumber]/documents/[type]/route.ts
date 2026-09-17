@@ -1,7 +1,7 @@
 import { documentResponse, getLotDocument, isDocumentType } from '@/lib/documents';
 import { lotNumberFromParam } from '@/lib/lot-rules';
 import { currentDocumentKey, getLot } from '@/lib/lots-admin';
-import { getStaffFromRequest } from '@/lib/staff-auth';
+import { canRecordResults, getStaffFromRequest } from '@/lib/staff-auth';
 
 /**
  * Staff download of the document currently in force for a lot, in any lot
@@ -10,6 +10,7 @@ import { getStaffFromRequest } from '@/lib/staff-auth';
 export async function GET(request: Request, { params }: { params: Promise<{ lotNumber: string; type: string }> }) {
   const staff = await getStaffFromRequest(request);
   if (!staff) return new Response('Unauthorized', { status: 401 });
+  if (!canRecordResults(staff)) return new Response('Forbidden', { status: 403 });
 
   const { lotNumber, type } = await params;
   const normalised = lotNumberFromParam(lotNumber);

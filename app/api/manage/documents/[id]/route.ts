@@ -5,7 +5,28 @@ import {
   getIssuedObject,
   type IssuedDocumentKind,
 } from '@/lib/issued-documents';
-import { getStaffFromRequest } from '@/lib/staff-auth';
+import {
+  canFulfil,
+  canManageStaff,
+  canRecordResults,
+  getStaffFromRequest,
+  type StaffPrincipal,
+} from '@/lib/staff-auth';
+
+function canDownloadIssuedDocument(
+  staff: StaffPrincipal,
+  kind: IssuedDocumentKind,
+): boolean {
+  switch (kind) {
+    case 'coa':
+      return canRecordResults(staff);
+    case 'invoice':
+    case 'packing_slip':
+      return canFulfil(staff);
+    case 'hazcom':
+      return canManageStaff(staff);
+  }
+}
 
 /**
  * Staff download of an issued document, live or superseded.
@@ -38,6 +59,11 @@ export async function GET(
     return new Response('Temporarily unavailable', { status: 503 });
   }
   if (!record) return new Response('Not found', { status: 404 });
+  if (
+    !canDownloadIssuedDocument(staff, record.kind as IssuedDocumentKind)
+  ) {
+    return new Response('Forbidden', { status: 403 });
+  }
 
   const object = await getIssuedObject(record.objectKey);
   if (!object) return new Response('Not found', { status: 404 });
