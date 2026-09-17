@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm';
 export { notifications, notificationEvents } from './notifications-schema';
 export { stockWaitlist } from './waitlist-schema';
+export { cartReminders, marketingConsents } from './marketing-schema';
+export type { MarketingConsentRow } from './marketing-schema';
 export type { StockWaitlistRow } from './waitlist-schema';
 export {
   feedbackConversations,

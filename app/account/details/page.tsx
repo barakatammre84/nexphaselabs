@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
-import { AlertCircle, ArrowLeft, CircleCheck, KeyRound, Mail, UserRound } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CircleCheck, KeyRound, Mail, Newspaper, UserRound } from 'lucide-react';
 import { CustomerNav } from '@/components/site/customer-nav';
 import { requireAccount } from '@/lib/account-auth';
 import { pendingEmailFor } from '@/lib/account-details';
+import { consentForAccount, NEWSLETTER_COPY } from '@/lib/marketing-consent';
 import { NOTICE_COOKIE, readNotice } from '@/lib/notice';
 
 export const dynamic = 'force-dynamic';
@@ -18,10 +19,15 @@ type Props = { searchParams: Promise<{ saved?: string; error?: string }> };
 const input =
   'mt-2 h-12 w-full rounded-xl border border-input bg-secondary px-4 text-base outline-none focus:border-primary';
 
+const consentedOn = (date: Date) =>
+  new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'America/Los_Angeles' }).format(date);
+
 const SAVED: Record<string, string> = {
   name: 'Your name has been updated.',
   password: 'Your password has been changed. Other devices have been signed out.',
   email: 'Check the new mailbox for a confirmation link. Your address changes when you open it.',
+  newsletter_on: 'Check your inbox for a confirmation link. Product news starts only when you open it.',
+  newsletter_off: 'Product news switched off. Order and account emails are not affected.',
 };
 
 export default async function AccountDetailsPage({ searchParams }: Props) {
@@ -30,6 +36,7 @@ export default async function AccountDetailsPage({ searchParams }: Props) {
   const notice =
     error === 'notice' ? (readNotice((await cookies()).get(NOTICE_COOKIE)?.value) ?? 'That could not be saved.') : null;
   const pending = await pendingEmailFor(account.id);
+  const consent = await consentForAccount(account.id, account.email).catch(() => null);
 
   return (
     <main className="text-foreground">
@@ -121,6 +128,40 @@ export default async function AccountDetailsPage({ searchParams }: Props) {
             </p>
             <div><button type="submit" className="action-primary">Change password</button></div>
           </form>
+
+          <section className="mt-10 grid gap-4 border-t border-border pt-8">
+            <div className="flex items-center gap-3">
+              <Newspaper className="size-5 text-primary" />
+              <h2 className="font-display text-xl font-bold tracking-tight">Product news (optional)</h2>
+            </div>
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{NEWSLETTER_COPY.scope}</p>
+            {consent?.status === 'confirmed' ? (
+              <form method="post" action="/api/newsletter" className="flex flex-wrap items-center gap-4">
+                <input type="hidden" name="intent" value="unsubscribe" />
+                <input type="hidden" name="return_to" value="/account/details" />
+                <p className="text-sm">
+                  On for <span className="font-semibold">{account.email}</span>
+                  {consent.consentedAt ? ` since ${consentedOn(consent.consentedAt)}` : ''}.
+                </p>
+                <button type="submit" className="inline-flex min-h-11 items-center text-sm font-semibold text-primary">
+                  Switch off
+                </button>
+              </form>
+            ) : (
+              <form method="post" action="/api/newsletter" className="flex flex-wrap items-center gap-4">
+                <input type="hidden" name="intent" value="subscribe" />
+                <input type="hidden" name="return_to" value="/account/details" />
+                <p className="text-sm">
+                  {consent?.status === 'pending'
+                    ? 'A confirmation link was sent and has not been opened yet.'
+                    : 'Off. Nothing is sent unless you ask and confirm by email.'}
+                </p>
+                <button type="submit" className="action-primary">
+                  {consent?.status === 'pending' ? 'Send the link again' : 'Send me product news'}
+                </button>
+              </form>
+            )}
+          </section>
         </div>
       </section>
     </main>

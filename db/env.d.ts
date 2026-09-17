@@ -26,6 +26,13 @@ declare namespace Cloudflare {
     TURNSTILE_SITE_KEY?: string;
     /** Secret — `wrangler secret put TURNSTILE_SECRET_KEY`. */
     TURNSTILE_SECRET_KEY?: string;
+    /** Brevo product-news list (lib/brevo.ts): API key and webhook token are secrets; list id and sender are vars. */
+    BREVO_API_KEY?: string;
+    BREVO_WEBHOOK_TOKEN?: string;
+    BREVO_LIST_ID?: string;
+    BREVO_SENDER?: string;
+    /** "true" switches on the once-per-cart reminder (lib/cart-reminders.ts); needs Brevo and a confirmed consent. */
+    ABANDONED_CART_REMINDERS?: string;
     /** Basic-auth password for a deployed non-production storefront. Unset = the environment refuses every request with 503. */
     STAGING_ACCESS_PASSWORD?: string;
     POLICIES_COUNSEL_REVIEWED?: string;
