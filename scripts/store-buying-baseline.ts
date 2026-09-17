@@ -10,6 +10,7 @@ const environment = valueOf('--environment') as
   | StoreBaselineEnvironment
   | undefined;
 const accountRequired = !args.includes('--anonymous-pricing');
+const signedIn = args.includes('--signed-in');
 const timeoutValue = Number(valueOf('--timeout-ms') ?? '15000');
 
 const environments: StoreBaselineEnvironment[] = [
@@ -32,11 +33,30 @@ const parsedOrigin = new URL(origin);
 if (environment === 'production' && parsedOrigin.protocol !== 'https:') {
   fail('Production baselines require an https URL.');
 }
+if (signedIn && environment !== 'staging') {
+  fail('The --signed-in rehearsal is restricted to the staging environment.');
+}
+
+const stagingEmail = process.env.STAGING_BUYING_BASELINE_EMAIL?.trim();
+const stagingPassword = process.env.STAGING_BUYING_BASELINE_PASSWORD;
+if (signedIn && (!stagingEmail || !stagingPassword)) {
+  fail(
+    'The --signed-in rehearsal requires STAGING_BUYING_BASELINE_EMAIL and STAGING_BUYING_BASELINE_PASSWORD.',
+  );
+}
 
 const report = await runStoreBuyingBaseline({
   origin: parsedOrigin.origin,
   environment,
   accountRequired,
+  ...(signedIn
+    ? {
+        authenticatedAccount: {
+          email: stagingEmail!,
+          password: stagingPassword!,
+        },
+      }
+    : {}),
   timeoutMs: timeoutValue,
 });
 
@@ -45,8 +65,13 @@ if (json) {
 } else {
   console.log(`\nStore buying-flow baseline — ${report.origin}`);
   console.log(
-    `Environment: ${report.environment} · Read-only: yes · ${report.checkedAt}`,
+    `Environment: ${report.environment} · Read-only: ${report.readOnly ? 'yes' : 'no'} · ${report.checkedAt}`,
   );
+  if (signedIn) {
+    console.log(
+      'Signed-in staging rehearsal: enabled · synthetic cart and test quote only',
+    );
+  }
   console.log(
     accountRequired
       ? 'Anonymous pricing posture: account required'
@@ -59,7 +84,9 @@ if (json) {
   }
   console.log(
     report.ok
-      ? '\nBaseline passed. No forms, orders, messages, labels, or payments were submitted.'
+      ? report.readOnly
+        ? '\nBaseline passed. No forms, orders, messages, labels, or payments were submitted.'
+        : '\nStaging rehearsal passed. No order, payment, message, or shipping-label request was submitted.'
       : '\nBaseline failed. Fix or record the route-specific failures before comparing a bug fix.',
   );
 }

@@ -38,6 +38,28 @@ npm run baseline:store -- \
   --anonymous-pricing
 ```
 
+The production baseline never signs in. To verify the customer path in an
+isolated staging environment, opt into the signed-in rehearsal and provide a
+synthetic, already-verified account through the process environment. Do not
+put the password in shell history or a command argument:
+
+```sh
+STAGING_BUYING_BASELINE_EMAIL='synthetic@example.invalid' \
+STAGING_BUYING_BASELINE_PASSWORD='use-the-staging-account-password' \
+npm run baseline:store -- \
+  --base-url https://<staging-origin> \
+  --environment staging \
+  --signed-in
+```
+
+The signed-in rehearsal signs in, adds one available catalog pack to that
+account's cart, opens the signed-in cart checkout, and requests delivery/tax
+quotes. It accepts only test quotes and stops before `POST /api/orders`, so it
+does not create an order, start payment, send email, buy a label, or contact a
+live payment/shipping provider. Because it uses the account's staging cart,
+repeat runs may leave one test pack in that cart; the check only adds one pack
+per run.
+
 Use `--json` when saving evidence for a release or bug report. Every result
 includes `environment`, `route`, HTTP status when available, and a
 route-specific detail. The command exits non-zero if any required check fails.
@@ -56,11 +78,20 @@ route-specific detail. The command exits non-zero if any required check fails.
 | Checkout eligibility boundary | `GET /api/checkout/quotes`                            | HTTP 405; the quote POST flow is not attempted                                                        |
 | Worker health                 | `GET /api/health`                                     | HTTP 200 with `ok: true`                                                                              |
 
-The baseline intentionally does not sign in, create an account, submit a cart,
-request a checkout quote, send an email, create an order, purchase a label,
-confirm payment, or call a provider. Authenticated checkout and payment
-rehearsal belong in isolated staging with synthetic identities and explicit
-test-payment controls.
+The optional signed-in staging rehearsal adds these assertions:
+
+| Flow | Request | Expected outcome |
+| --- | --- | --- |
+| Sign in | `POST /api/account/sign-in` | HTTP 303 to `/account/cart` with an account session |
+| Signed-in cart | `GET /api/cart` and `GET /account/cart` | HTTP 200, a non-empty synthetic cart, and the checkout form up to “Continue to payment” |
+| Shipping quote | `POST /api/checkout/quotes` | HTTP 200 with one or more `test: true` delivery/tax quotes |
+| Order/payment safety | no request to `/api/orders` or payment routes | no order or payment effect is attempted |
+
+The anonymous baseline intentionally does not sign in, create an account,
+submit a cart, request a checkout quote, send an email, create an order,
+purchase a label, confirm payment, or call a provider. The signed-in rehearsal
+is available only in isolated staging and uses a synthetic identity plus
+explicit test quote controls; it still stops before order creation and payment.
 
 ## Failure handling
 

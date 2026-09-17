@@ -18,7 +18,7 @@ export type StoreBaselineReport = {
   environment: StoreBaselineEnvironment;
   origin: string;
   checkedAt: string;
-  readOnly: true;
+  readOnly: boolean;
   checks: StoreBaselineCheck[];
 };
 
@@ -30,6 +30,15 @@ type ReadResult = {
   error?: string;
 };
 
+type QuoteResponse = {
+  ok?: unknown;
+  quotes?: Array<{
+    shippingCents?: unknown;
+    taxCents?: unknown;
+    test?: unknown;
+  }>;
+};
+
 export type StoreBaselineOptions = {
   origin: string;
   environment: StoreBaselineEnvironment;
@@ -39,6 +48,14 @@ export type StoreBaselineOptions = {
    * that has deliberately enabled anonymous pricing.
    */
   accountRequired?: boolean;
+  /**
+   * Run the authenticated cart and quote rehearsal. This is deliberately
+   * accepted only for staging: the production baseline must remain anonymous.
+   */
+  authenticatedAccount?: {
+    email: string;
+    password: string;
+  };
   fetcher?: Fetcher;
   timeoutMs?: number;
 };
@@ -86,6 +103,33 @@ function firstProductRoute(body: string): string | null {
   return match?.[1] ?? null;
 }
 
+function firstSku(body: string): string | null {
+  const match = body.match(/\b(NPL-\d{3,4}-[A-Z0-9.]{1,12})\b/i);
+  return match?.[1]?.toUpperCase() ?? null;
+}
+
+function sessionCookie(response: Response): string | null {
+  const headers = response.headers as Headers & {
+    getSetCookie?: () => string[];
+  };
+  const values = headers.getSetCookie?.() ?? [];
+  const combined = values.length
+    ? values.join(',')
+    : response.headers.get('set-cookie') ?? '';
+  const match = combined.match(/(?:^|,)\s*(nx_account=[^;,]+)/i);
+  return match?.[1] ?? null;
+}
+
+function locationPath(response: Response | null): string | null {
+  const location = response?.headers.get('location');
+  if (!location) return null;
+  try {
+    return new URL(location, 'https://baseline.invalid').pathname;
+  } catch {
+    return location;
+  }
+}
+
 export async function runStoreBuyingBaseline(
   options: StoreBaselineOptions,
 ): Promise<StoreBaselineReport> {
@@ -94,23 +138,39 @@ export async function runStoreBuyingBaseline(
   const accountRequired = options.accountRequired ?? true;
   const fetcher = options.fetcher ?? fetch;
   const timeoutMs = options.timeoutMs ?? 15_000;
+  const authenticated = Boolean(options.authenticatedAccount);
   const checks: StoreBaselineCheck[] = [];
   const responses = new Map<string, ReadResult>();
+  const requestLog: Array<{ route: string; method: string }> = [];
 
-  const get = async (route: string): Promise<ReadResult> => {
-    const existing = responses.get(route);
+  const request = async (
+    route: string,
+    init: RequestInit = {},
+    cacheKey?: string,
+  ): Promise<ReadResult> => {
+    const existing = cacheKey ? responses.get(cacheKey) : undefined;
     if (existing) return existing;
+
+    requestLog.push({
+      route,
+      method: String(init.method ?? 'GET').toUpperCase(),
+    });
+
+    const headers = new Headers(init.headers);
+    headers.set('accept', 'text/html,application/json');
+    headers.set('cache-control', 'no-cache');
+    headers.set('user-agent', 'nexphase-store-buying-baseline/1.0');
+    if (init.method && init.method !== 'GET') {
+      headers.set('origin', origin);
+      headers.set('host', new URL(origin).host);
+    }
 
     let result: ReadResult;
     try {
       const response = await fetcher(`${origin}${route}`, {
-        method: 'GET',
+        ...init,
         redirect: 'manual',
-        headers: {
-          accept: 'text/html,application/json',
-          'cache-control': 'no-cache',
-          'user-agent': 'nexphase-store-buying-baseline/1.0',
-        },
+        headers,
         signal: AbortSignal.timeout(timeoutMs),
       });
       result = { response, body: await response.text() };
@@ -121,9 +181,11 @@ export async function runStoreBuyingBaseline(
         error: error instanceof Error ? error.message : String(error),
       };
     }
-    responses.set(route, result);
+    if (cacheKey) responses.set(cacheKey, result);
     return result;
   };
+
+  const get = (route: string) => request(route, { method: 'GET' }, route);
 
   const record = (
     name: string,
@@ -319,12 +381,263 @@ export async function runStoreBuyingBaseline(
     checkoutQuotes.response,
   );
 
+  if (authenticated) {
+    const account = options.authenticatedAccount;
+    if (environment !== 'staging') {
+      record(
+        'signed-in-environment',
+        '/api/account/sign-in',
+        false,
+        'signed-in rehearsal credentials are accepted only for staging',
+      );
+    } else if (!account) {
+      record(
+        'signed-in-account',
+        '/api/account/sign-in',
+        false,
+        'a synthetic staging account is required for the signed-in rehearsal',
+      );
+    } else {
+      const signInForm = new FormData();
+      signInForm.set('email', account.email);
+      signInForm.set('password', account.password);
+      signInForm.set('return_to', '/account/cart');
+      const signedIn = await request('/api/account/sign-in', {
+        method: 'POST',
+        body: signInForm,
+      });
+      const cookie = signedIn.response
+        ? sessionCookie(signedIn.response)
+        : null;
+      const signInOk =
+        signedIn.response?.status === 303 &&
+        locationPath(signedIn.response) === '/account/cart' &&
+        Boolean(cookie && /^nx_account=[a-f0-9]{64}$/i.test(cookie));
+      record(
+        'signed-in-access',
+        '/api/account/sign-in',
+        signInOk,
+        signedIn.error ??
+          (signInOk
+            ? 'synthetic account signed in and received a session'
+            : `expected a redirect to /account/cart with an account session; received HTTP ${signedIn.response?.status ?? 'no response'}`),
+        signedIn.response,
+      );
+
+      if (cookie) {
+        const authHeaders = { Cookie: cookie };
+        const accountPage = await request('/account', {
+          method: 'GET',
+          headers: authHeaders,
+        });
+        const accountPageOk =
+          accountPage.response?.status === 200 &&
+          /<main\b/i.test(accountPage.body);
+        record(
+          'signed-in-account-page',
+          '/account',
+          accountPageOk,
+          accountPage.error ??
+            (accountPageOk
+              ? 'signed-in account page rendered'
+              : `expected the signed-in account page; received HTTP ${accountPage.response?.status ?? 'no response'}`),
+          accountPage.response,
+        );
+
+        const authProduct = productRoute
+          ? await request(productRoute, {
+              method: 'GET',
+              headers: authHeaders,
+            })
+          : null;
+        const sku = authProduct ? firstSku(authProduct.body) : null;
+        const skuOk = Boolean(
+          authProduct?.response?.status === 200 && sku,
+        );
+        record(
+          'signed-in-product',
+          productRoute ?? '/catalog',
+          skuOk,
+          authProduct?.error ??
+            (skuOk
+              ? `signed-in product rendered with pack ${sku}`
+              : `expected a signed-in product with an available pack SKU; received HTTP ${authProduct?.response?.status ?? 'no product route'}`),
+          authProduct?.response,
+        );
+
+        const addForm = new FormData();
+        if (sku) addForm.set('sku', sku);
+        addForm.set('quantity', '1');
+        addForm.set('return_to', productRoute ?? '/catalog');
+        const addToCart = sku
+          ? await request('/api/cart', {
+              method: 'POST',
+              headers: { ...authHeaders, accept: 'application/json' },
+              body: addForm,
+            })
+          : null;
+        let addBody: { ok?: unknown; lines?: unknown[] } | null = null;
+        try {
+          addBody = addToCart
+            ? (JSON.parse(addToCart.body) as { ok?: unknown; lines?: unknown[] })
+            : null;
+        } catch {
+          addBody = null;
+        }
+        const addOk =
+          addToCart?.response?.status === 200 && addBody?.ok === true;
+        record(
+          'signed-in-cart-add',
+          '/api/cart',
+          addOk,
+          addToCart?.error ??
+            (addOk
+              ? 'one synthetic pack was added to the staging cart'
+              : `expected the synthetic pack to be added without creating an order; received HTTP ${addToCart?.response?.status ?? 'not attempted'}`),
+          addToCart?.response,
+        );
+
+        const cartApi = await request('/api/cart', {
+          method: 'GET',
+          headers: authHeaders,
+        });
+        let cartBody: { ok?: unknown; lines?: unknown[] } | null = null;
+        try {
+          cartBody = JSON.parse(cartApi.body) as {
+            ok?: unknown;
+            lines?: unknown[];
+          };
+        } catch {
+          cartBody = null;
+        }
+        const cartApiOk =
+          cartApi.response?.status === 200 &&
+          cartBody?.ok === true &&
+          Array.isArray(cartBody.lines) &&
+          cartBody.lines.length > 0;
+        record(
+          'signed-in-cart-api',
+          '/api/cart',
+          cartApiOk,
+          cartApi.error ??
+            (cartApiOk
+              ? 'signed-in cart contains the synthetic pack'
+              : `expected HTTP 200 JSON with a non-empty signed-in cart; received HTTP ${cartApi.response?.status ?? 'no response'}`),
+          cartApi.response,
+        );
+
+        const cartPage = await request('/account/cart', {
+          method: 'GET',
+          headers: authHeaders,
+        });
+        const checkoutPageOk =
+          cartPage.response?.status === 200 &&
+          /<form\b[^>]*action="\/api\/orders"/i.test(cartPage.body) &&
+          /Continue to payment/i.test(visibleText(cartPage.body));
+        record(
+          'signed-in-checkout-page',
+          '/account/cart',
+          checkoutPageOk,
+          cartPage.error ??
+            (checkoutPageOk
+              ? 'signed-in cart rendered the checkout form up to the payment boundary'
+              : `expected the signed-in cart checkout form and payment boundary; received HTTP ${cartPage.response?.status ?? 'no response'}`),
+          cartPage.response,
+        );
+
+        const quoteForm = new FormData();
+        quoteForm.set('email', account.email);
+        quoteForm.set('name', 'Synthetic staging buyer');
+        quoteForm.set('company', 'Synthetic staging account');
+        quoteForm.set('line1', '1 Test Street');
+        quoteForm.set('city', 'Test City');
+        quoteForm.set('region', 'CA');
+        quoteForm.set('postalCode', '00000');
+        quoteForm.set('country', 'US');
+        const quote = await request('/api/checkout/quotes', {
+          method: 'POST',
+          headers: authHeaders,
+          body: quoteForm,
+        });
+        let quoteBody: QuoteResponse | null = null;
+        try {
+          quoteBody = JSON.parse(quote.body) as QuoteResponse;
+        } catch {
+          quoteBody = null;
+        }
+        const quotes = quoteBody?.quotes ?? [];
+        const quoteOk =
+          quote.response?.status === 200 &&
+          quoteBody?.ok === true &&
+          quotes.length > 0 &&
+          quotes.every(
+            (item) =>
+              typeof item.shippingCents === 'number' &&
+              typeof item.taxCents === 'number' &&
+              item.test === true,
+          );
+        record(
+          'signed-in-shipping-quote',
+          '/api/checkout/quotes',
+          quoteOk,
+          quote.error ??
+            (quoteOk
+              ? `staging returned ${quotes.length} synthetic delivery quote(s); no order was submitted`
+              : `expected HTTP 200 with test delivery and tax quotes; received HTTP ${quote.response?.status ?? 'no response'}`),
+          quote.response,
+        );
+      } else {
+        for (const [name, route, text] of [
+          [
+            'signed-in-account-page',
+            '/account',
+            'not run: sign-in did not provide a usable session',
+          ],
+          [
+            'signed-in-cart-api',
+            '/api/cart',
+            'not run: sign-in did not provide a usable session',
+          ],
+          [
+            'signed-in-checkout-page',
+            '/account/cart',
+            'not run: sign-in did not provide a usable session',
+          ],
+          [
+            'signed-in-shipping-quote',
+            '/api/checkout/quotes',
+            'not run: sign-in did not provide a usable session',
+          ],
+        ] as const) {
+          record(name, route, false, text);
+        }
+      }
+    }
+  }
+
+  const unsafeRequest = requestLog.find(
+    (entry) =>
+      entry.method !== 'GET' &&
+      /^\/api\/orders(?:\/|$)|^\/api\/payment(?:\/|$)/i.test(entry.route),
+  );
+  const safetyOk = !unsafeRequest;
+  if (authenticated) {
+    record(
+      'order-payment-safety',
+      unsafeRequest?.route ?? '/api/orders',
+      safetyOk,
+      safetyOk
+        ? 'no order or payment request was submitted'
+        : `unexpected ${unsafeRequest.method} request reached ${unsafeRequest.route}`,
+    );
+  }
+
   return {
     ok: checks.every((check) => check.ok),
     environment,
     origin,
     checkedAt: new Date().toISOString(),
-    readOnly: true,
+    readOnly: !authenticated,
     checks,
   };
 }
