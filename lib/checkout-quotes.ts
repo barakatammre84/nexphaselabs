@@ -13,6 +13,7 @@ import {
 import { parcelError, type Parcel } from '@/lib/shipping-rates';
 import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 import { quoteTax, taxConfiguration } from '@/lib/tax-provider';
+import { freeShippingProgress, freeShippingThresholdCents } from '@/lib/free-shipping';
 
 export const CHECKOUT_QUOTE_MINUTES = 30;
 
@@ -191,13 +192,18 @@ export async function createCheckoutQuotes(
   const coupon = couponCode ? await evaluateCoupon(couponCode, accountId, cart.subtotalCents) : null;
   if (coupon && !coupon.ok) return coupon;
   const discountCents = coupon?.ok ? coupon.discountCents : 0;
+  // Free delivery (lib/free-shipping.ts): the cheapest eligible rate is offered at no charge
+  // once the materials subtotal, after any promo code, reaches the staff-set threshold.
+  const freeShipping = freeShippingProgress(cart.subtotalCents - discountCents, await freeShippingThresholdCents())?.qualifies ?? false;
   const to = shippingAddress(shipTo);
   const shipping = await quoteShipping(to, packed.parcel, {
     services: [],
     maxEstimatedDays: 10,
   });
   if (!shipping.ok) return shipping;
-  const candidates = shipping.rates.slice(0, 4);
+  const candidates = shipping.rates
+    .slice(0, 4)
+    .map((rate, index) => (freeShipping && index === 0 ? { ...rate, cents: 0 } : rate));
   const withTax = await Promise.all(
     candidates.map(async (rate) => ({
       rate,

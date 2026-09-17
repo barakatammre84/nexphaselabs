@@ -1,5 +1,11 @@
 # Cutover plan: nexphaselabs.net
 
+> **Retired 16 September 2026.** `nexphaselabs.net` has served the new application from the
+> company Cloudflare account since 16 Sep 2026, 17:01 PT. WordPress is no longer a rollback
+> target — the owner is deleting the old host — and this document is kept for the record only.
+> Rollback of a bad release is `npx wrangler rollback` (docs/DEPLOY.md).
+
+
 Written 2026-09-03 and updated 2026-09-15. Staging and the production Worker
 origin are deployed, but the public domain still serves the existing WordPress
 store. Do not attach the custom domain until every gate below is complete.

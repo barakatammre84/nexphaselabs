@@ -9,6 +9,7 @@ import { isSettingKey, type SettingKey, type SettingsMap } from '@/lib/settings-
 
 export {
   SETTING_KEYS,
+  SHIPPING_SETTING_KEYS,
   SETTING_LABEL,
   isSettingKey,
   type SettingKey,

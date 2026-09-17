@@ -3,7 +3,7 @@ import { getDb } from '@/db';
 import { lots } from '@/db/schema';
 import {
   getPublishedProduct,
-  listPublishedProducts,
+  listPublishedProducts, listPublishedProductsInClass,
   type CatalogProduct,
 } from '@/lib/catalog-data';
 import { lotSuppliesPack } from '@/lib/lot-quantities';
@@ -99,6 +99,24 @@ async function publishableStock(codes: string[]): Promise<PublishableStock[]> {
 export async function packAvailable(productCode: string, packSize: string, now = new Date()): Promise<boolean> {
   const stock = await publishableStock([productCode]);
   return stock.some((lot) => lotUsable(lot, now) && lotSuppliesPack(lot, packSize));
+}
+
+/**
+ * Other listed materials of the same chemical class, for the product page. Classification
+ * by chemical class is the only axis (CLAUDE.md), so "related" can only ever mean that.
+ */
+export async function listRelatedProducts(
+  product: Pick<CatalogProduct, 'code' | 'chemicalClass'>,
+  limit = 3,
+  now = new Date(),
+): Promise<ListedProduct[]> {
+  const siblings = (await listPublishedProductsInClass(product.chemicalClass)).filter((p) => p.code !== product.code);
+  if (siblings.length === 0) return [];
+  const stock = await publishableStock([...new Set(siblings.map((p) => p.code))]);
+  return siblings
+    .map((p) => toListed(p, stock.filter((lot) => lot.productCode === p.code), now))
+    .filter((p): p is ListedProduct => p !== null)
+    .slice(0, limit);
 }
 
 /** Every product on the storefront, in catalog order, with its stock state. */

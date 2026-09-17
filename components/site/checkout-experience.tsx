@@ -271,7 +271,7 @@ export function CheckoutExperience({
                         </span>
                       </span>
                       <span className="font-mono font-semibold">
-                        {money(quote.shippingCents)}
+                        {quote.shippingCents === 0 ? 'Free' : money(quote.shippingCents)}
                       </span>
                     </label>
                   ))}
@@ -363,7 +363,7 @@ export function CheckoutExperience({
             <div className="flex justify-between gap-4">
               <dt>Shipping</dt>
               <dd className="font-mono">
-                {selected ? money(selected.shippingCents) : 'Select delivery'}
+                {selected ? (selected.shippingCents === 0 ? 'Free' : money(selected.shippingCents)) : 'Select delivery'}
               </dd>
             </div>
             <div className="flex justify-between gap-4">

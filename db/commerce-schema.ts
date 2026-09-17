@@ -264,9 +264,10 @@ export const checkoutQuotes = sqliteTable(
       'checkout_quotes_carrier_check',
       sql`${t.carrier} IN ('USPS','UPS','FedEx')`,
     ),
+    // Free delivery above the staff-set threshold stores a zero shipping line (migration 0064).
     check(
       'checkout_quotes_amount_check',
-      sql`${t.shippingCents} > 0 AND ${t.taxCents} >= 0`,
+      sql`${t.shippingCents} >= 0 AND ${t.taxCents} >= 0`,
     ),
   ],
 );

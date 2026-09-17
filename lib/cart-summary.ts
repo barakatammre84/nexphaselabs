@@ -1,4 +1,5 @@
 import type { Cart } from '@/lib/cart';
+import { freeShippingProgress, type FreeShippingProgress } from '@/lib/free-shipping-rules';
 
 /**
  * The cart as the side drawer sees it (owner, 16 Sep 2026: a cart that opens
@@ -24,9 +25,11 @@ export type CartSummary = {
   subtotalCents: number;
   orderable: boolean;
   lines: CartSummaryLine[];
+  /** Distance to free delivery, when staff have switched it on (lib/free-shipping-rules.ts). */
+  freeShipping: FreeShippingProgress | null;
 };
 
-export function cartSummary(cart: Cart): CartSummary {
+export function cartSummary(cart: Cart, freeShippingThresholdCents: number | null = null): CartSummary {
   const lines = cart.lines.map((line) => ({
     itemId: line.itemId,
     sku: line.variant.sku,
@@ -43,6 +46,7 @@ export function cartSummary(cart: Cart): CartSummary {
     subtotalCents: cart.subtotalCents,
     orderable: cart.orderable,
     lines,
+    freeShipping: freeShippingProgress(cart.subtotalCents, freeShippingThresholdCents),
   };
 }
 

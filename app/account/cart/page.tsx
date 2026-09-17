@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { freeShippingLine, freeShippingProgress, freeShippingThresholdCents } from '@/lib/free-shipping';
 import { RESEARCH_SETTINGS } from '@/lib/account-rules';
 import Link from 'next/link';
 import { AlertCircle, ArrowLeft, CircleCheck, Trash2 } from 'lucide-react';
@@ -65,6 +66,8 @@ export default async function CartPage({ searchParams }: Props) {
       ? await loadCatalog(() => getOrganizationForAccount(account.id))
       : null;
   const org = organization?.data ?? null;
+
+  const freeShipping = freeShippingProgress(cart?.subtotalCents ?? 0, await freeShippingThresholdCents());
 
   return (
     <main className="text-foreground">
@@ -208,6 +211,9 @@ export default async function CartPage({ searchParams }: Props) {
                 {formatCents(cart.subtotalCents)}
               </span>
             </p>
+            {freeShipping && (
+              <p className="mt-1 text-right text-xs font-semibold text-primary">{freeShippingLine(freeShipping)}</p>
+            )}
 
             <SupportStrip className="mt-8" />
 

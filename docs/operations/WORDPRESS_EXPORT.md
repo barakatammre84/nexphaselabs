@@ -1,5 +1,11 @@
 # WordPress export — before anything else
 
+> **Retired 16 September 2026.** `nexphaselabs.net` has served the new application from the
+> company Cloudflare account since 16 Sep 2026, 17:01 PT. WordPress is no longer a rollback
+> target — the owner is deleting the old host — and this document is kept for the record only.
+> Rollback of a bad release is `npx wrangler rollback` (docs/DEPLOY.md).
+
+
 Status: procedure, ready to run. Chapter 11 `c11-export` and `c11-exportrec`. **Step 0 of the
 cutover, and the only step that cannot be undone by skipping it.**
 

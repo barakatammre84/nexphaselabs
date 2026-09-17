@@ -3,6 +3,7 @@ import { LegalPage, LegalSection } from '@/components/site/legal-layout';
 import { ENTITY } from '@/lib/entity';
 import { MINIMUM_AGE, PRIVACY_VERSION } from '@/lib/policy';
 import { SUPPORT } from '@/lib/support';
+import { webAnalyticsToken } from '@/lib/site-config';
 
 export const metadata: Metadata = {
   title: 'Privacy policy',
@@ -72,7 +73,9 @@ export default function PrivacyPage() {
           The site sets only cookies it needs to work: one that remembers you accepted the entry notice (180 days,
           holds no personal information), one that keeps you signed in to your account, one that links a guest cart
           and its orders to your browser for 30 days, and one that reconnects the feedback panel to its history.
-          None of them is an advertising tracker, and we do not run third-party analytics or advertising scripts.
+          {webAnalyticsToken()
+            ? 'None of them is an advertising tracker. The only measurement script is Cloudflare Web Analytics, from the provider that hosts the site: it counts page views without cookies, fingerprinting or cross-site tracking. We run no advertising scripts.'
+            : 'None of them is an advertising tracker, and we do not run third-party analytics or advertising scripts.'}
         </p>
       </LegalSection>
 

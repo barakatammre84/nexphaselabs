@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { AlertCircle, Minus, Plus, ShoppingCart, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CartSummary } from '@/lib/cart-summary';
+import { freeShippingLine } from '@/lib/free-shipping-rules';
 
 /** Dispatched by the product page after a successful add; the drawer opens and reloads. */
 export const CART_OPEN_EVENT = 'nx:cart-open';
@@ -235,6 +236,9 @@ export function CartDrawer({ initialCount }: { initialCount: number }) {
                   <span className="font-semibold">Subtotal</span>
                   <span className="font-mono font-bold">{money(cart.subtotalCents)}</span>
                 </div>
+              )}
+              {cart?.freeShipping && (
+                <p className="mt-2 text-xs font-semibold text-primary">{freeShippingLine(cart.freeShipping)}</p>
               )}
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
                 Shipping and tax appear before payment. For laboratory research use only.

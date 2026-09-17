@@ -55,3 +55,13 @@ export function policiesCounselReviewed(): boolean {
 export function appEnv(): string {
   return env.APP_ENV || 'development';
 }
+
+/**
+ * Cloudflare Web Analytics site token (CF_WEB_ANALYTICS_TOKEN). Unset means no beacon is
+ * rendered and the privacy policy keeps saying no analytics script runs; setting it for
+ * the first time changes §5 of that policy, so bump PRIVACY_VERSION in the same change.
+ */
+export function webAnalyticsToken(): string | null {
+  const token = (env.CF_WEB_ANALYTICS_TOKEN ?? '').trim();
+  return token ? token : null;
+}

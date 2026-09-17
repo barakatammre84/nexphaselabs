@@ -1,5 +1,7 @@
 import { createCoupon, setCouponActive, type CouponInput } from '@/lib/coupons';
 import { redirectWithNotice } from '@/lib/notice';
+import { SHIPPING_SETTING_KEYS, writeSettings } from '@/lib/settings';
+import { formatCents } from '@/lib/visibility-rules';
 import { canManageStaff, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
 
 /**
@@ -41,6 +43,14 @@ export async function POST(request: Request) {
       const active = value('active', 5) === 'on';
       const ok = await setCouponActive(id, active);
       return ok ? done(active ? 'Promo code switched on.' : 'Promo code switched off.') : failed('That promo code was not found.');
+    }
+    if (intent === 'free_shipping') {
+      const dollars = value('threshold_dollars', 12);
+      const cents = dollars ? Math.round(Number(dollars) * 100) : 0;
+      if (dollars && (!Number.isFinite(cents) || cents <= 0))
+        return failed('Enter a dollar amount for the free-shipping threshold, or leave it blank to switch it off.');
+      await writeSettings({ [SHIPPING_SETTING_KEYS.freeShippingThresholdCents]: cents > 0 ? String(cents) : '' }, staff);
+      return done(cents > 0 ? `Free delivery from ${formatCents(cents)} in materials.` : 'Free delivery switched off.');
     }
     if (intent !== 'create') return failed('Unknown request.');
     const kind = value('kind', 10) === 'fixed' ? 'fixed' : 'percent';

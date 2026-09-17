@@ -2,6 +2,7 @@ import { acknowledgementsCurrent } from '@/lib/account-rules';
 import { getBuyerFromRequest } from '@/lib/buyer-session';
 import { getCart, setCartQuantity } from '@/lib/cart';
 import { cartSummary, wantsJson } from '@/lib/cart-summary';
+import { freeShippingThresholdCents } from '@/lib/free-shipping';
 import { parseQuantityInput } from '@/lib/order-rules';
 import { accountRequired, openCheckoutEnabled, researcherTierEnabled } from '@/lib/site-config';
 import { sameOrigin } from '@/lib/staff-auth';
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
         openCheckoutEnabled(),
         accountRequired(),
       );
-      const summary = cartSummary(await getCart(account.id, visibility));
+      const summary = cartSummary(await getCart(account.id, visibility), await freeShippingThresholdCents());
       return Response.json({ ok: true, ...summary }, { headers: NO_STORE });
     }
   } catch (error) {

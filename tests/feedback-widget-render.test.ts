@@ -8,6 +8,6 @@ describe('public feedback widget', () => {
     const html = renderToStaticMarkup(createElement(FeedbackChat));
 
     expect(html).toContain('feedback-launcher');
-    expect(html).toContain('Report a bug / feedback');
+    expect(html).toContain('Questions? Chat with us');
   });
 });
