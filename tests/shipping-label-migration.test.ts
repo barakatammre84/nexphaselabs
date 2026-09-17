@@ -57,8 +57,12 @@ describe('shipping label history migration', () => {
   });
 
   it('preserves an existing label and permits replacement only after confirmed voiding', async () => {
+    // Everything except the label-history migration itself and the rebuilds that came after it
+    // (0064 rebuilds checkout_quotes with the origin columns 0047 adds), so the fixture can be
+    // seeded with today's schema and 0047 then runs against rows that already exist.
+    const replayedAfter = migrationFiles.filter((name) => name > '0063');
     for (const file of migrationFiles.filter(
-      (name) => name !== '0047_clean_namorita.sql',
+      (name) => name !== '0047_clean_namorita.sql' && !replayedAfter.includes(name),
     ))
       local.sqlite.exec(readFileSync(`${migrationDirectory}/${file}`, 'utf8'));
     await seedCommerceFixture();
@@ -90,6 +94,8 @@ describe('shipping label history migration', () => {
         'utf8',
       ),
     );
+    for (const file of replayedAfter)
+      local.sqlite.exec(readFileSync(`${migrationDirectory}/${file}`, 'utf8'));
 
     expect(
       local.sqlite

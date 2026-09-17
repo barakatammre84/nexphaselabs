@@ -10,7 +10,7 @@ import { WAITLIST_COPY, waitlistedSkus } from '@/lib/waitlist';
 import { ResearchNoticeBlock } from '@/components/site/research-notice';
 import { REGULATORY_STATEMENT, STANDARD_DOCUMENTATION } from '@/lib/catalog';
 import { loadCatalog } from '@/lib/catalog-data';
-import { getStorefrontProduct, listStorefrontProducts, visibleStock } from '@/lib/storefront';
+import { getStorefrontProduct, listRelatedProducts, visibleStock } from '@/lib/storefront';
 import { listReleasedLotsForProduct } from '@/lib/lots-public';
 import { currentSds } from '@/lib/product-documents';
 import { STOREFRONT_COPY } from '@/lib/storefront-copy';
@@ -96,14 +96,7 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
   // no approved price, no publishable lot) 404 here exactly like an unknown slug.
   if (!product) notFound();
 
-  const siblings = await loadCatalog(listStorefrontProducts);
-  const related = (siblings.data ?? [])
-    .filter(
-      (item) =>
-        item.chemicalClass === product.chemicalClass &&
-        item.slug !== product.slug,
-    )
-    .slice(0, 3);
+  const related = (await loadCatalog(() => listRelatedProducts(product, 3))).data ?? [];
 
   // Tier-aware visibility: one rule, evaluated here, decides whether prices
   // and released lots render. Anonymous and unverified visitors see neither.

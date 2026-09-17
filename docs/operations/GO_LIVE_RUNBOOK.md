@@ -1,5 +1,11 @@
 # Go live on nexphaselabs.net — the whole sequence
 
+> **Retired 16 September 2026.** `nexphaselabs.net` has served the new application from the
+> company Cloudflare account since 16 Sep 2026, 17:01 PT. WordPress is no longer a rollback
+> target — the owner is deleting the old host — and this document is kept for the record only.
+> Rollback of a bad release is `npx wrangler rollback` (docs/DEPLOY.md).
+
+
 Written 14 September 2026. This replaces the scattered DNS and email notes. Work it top to
 bottom. Nothing here is reversible-by-accident: every step that changes what the public sees
 is called out, and the rollback is one DNS record until the WordPress host is cancelled.

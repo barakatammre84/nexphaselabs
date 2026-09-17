@@ -3,6 +3,7 @@ import { allow, clientAddress, rateLimitKey } from '@/lib/rate-limit';
 import { acknowledgementsCurrent } from '@/lib/account-rules';
 import { addToCart, getCart } from '@/lib/cart';
 import { cartSummary, wantsJson } from '@/lib/cart-summary';
+import { freeShippingThresholdCents } from '@/lib/free-shipping';
 import { parseQuantityInput } from '@/lib/order-rules';
 import { accountRequired, researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
 import { redirectWithNotice } from '@/lib/notice';
@@ -35,7 +36,7 @@ export async function GET(request: Request) {
     );
   try {
     const cart = await getCart(account.id, visibilityOf(account));
-    return Response.json({ ok: true, ...cartSummary(cart) }, { headers: NO_STORE });
+    return Response.json({ ok: true, ...cartSummary(cart, await freeShippingThresholdCents()) }, { headers: NO_STORE });
   } catch (error) {
     console.error('[cart] read failed', error instanceof Error ? error.message : error);
     return Response.json({ ok: false, error: 'The cart is temporarily unavailable.' }, { status: 503, headers: NO_STORE });
@@ -109,7 +110,7 @@ export async function POST(request: Request) {
         ? Response.json({ ok: false, error: result.error }, { status: 409, headers: NO_STORE })
         : redirectWithNotice(request, `${back}?cart=error`, result.error, cookie ? [cookie] : []);
     if (json) {
-      const summary = cartSummary(await getCart(account.id, visibility));
+      const summary = cartSummary(await getCart(account.id, visibility), await freeShippingThresholdCents());
       return Response.json(
         { ok: true, ...summary },
         { headers: { ...NO_STORE, ...(cookie ? { 'Set-Cookie': cookie } : {}) } },

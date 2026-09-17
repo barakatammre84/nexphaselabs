@@ -133,7 +133,7 @@ describe('cart JSON API for the side drawer (owner, 16 Sep 2026)', () => {
       ],
     });
     expect(summary).toEqual({
-      count: 2, subtotalCents: 250, orderable: true,
+      count: 2, subtotalCents: 250, orderable: true, freeShipping: null,
       lines: [{ itemId: 'cit_x', sku: 'NPL-9999-2MG', productName: 'Synthetic', productSlug: 'synthetic-test', pack: '2 mg', quantity: 2, unitPriceCents: 125, lineTotalCents: 250, problem: null }],
     });
   });

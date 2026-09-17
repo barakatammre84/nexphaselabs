@@ -78,7 +78,7 @@ export default async function FeedbackQueuePage({
             <option value="">All</option>
             <option value="bug">Bug</option>
             <option value="improvement">Improvement</option>
-            <option value="comment">Comment</option>
+            <option value="comment">Question / comment</option>
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">

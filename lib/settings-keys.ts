@@ -17,7 +17,19 @@ export const SETTING_KEYS = {
   hazcomNonRoutine: 'hazcom.non_routine',
 } as const;
 
-export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
+/**
+ * Storefront settings staff change on /manage/coupons. Kept out of SETTING_KEYS on
+ * purpose: the hazard communication form iterates that object, and a shipping rule
+ * must never print on an OSHA document.
+ */
+export const SHIPPING_SETTING_KEYS = {
+  /** Materials subtotal (after any promo code), in cents, from which the cheapest delivery is free. Unset = off. */
+  freeShippingThresholdCents: 'shipping.free_threshold_cents',
+} as const;
+
+export type SettingKey =
+  | (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
+  | (typeof SHIPPING_SETTING_KEYS)[keyof typeof SHIPPING_SETTING_KEYS];
 
 export const SETTING_LABEL: Record<SettingKey, string> = {
   'entity.registered_address':
@@ -30,9 +42,10 @@ export const SETTING_LABEL: Record<SettingKey, string> = {
   'hazcom.sds_access': 'How staff reach a safety data sheet',
   'hazcom.training': 'Training arrangements',
   'hazcom.non_routine': 'Non-routine tasks and how they are handled',
+  'shipping.free_threshold_cents': 'Free shipping from this materials subtotal (cents; blank = off)',
 };
 
-const KEY_ORDER: SettingKey[] = Object.values(SETTING_KEYS);
+const KEY_ORDER: SettingKey[] = [...Object.values(SETTING_KEYS), ...Object.values(SHIPPING_SETTING_KEYS)];
 
 export function isSettingKey(value: string): value is SettingKey {
   return (KEY_ORDER as string[]).includes(value);

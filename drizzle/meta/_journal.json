@@ -449,6 +449,13 @@
       "when": 1789612887038,
       "tag": "0063_stock_waitlist",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "6",
+      "when": 1789614227910,
+      "tag": "0064_checkout_quotes_free_shipping",
+      "breakpoints": true
     }
   ]
 }

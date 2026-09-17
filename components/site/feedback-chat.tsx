@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { MessageSquareText, Send, X } from 'lucide-react';
+import { SUPPORT } from '@/lib/support';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 
 type Message = {
@@ -109,7 +110,7 @@ export function FeedbackChat() {
   const [open, setOpen] = useState(false);
   const [thread, setThread] = useState<Thread>(empty);
   const [message, setMessage] = useState('');
-  const [kind, setKind] = useState<'bug' | 'improvement' | 'comment'>('bug');
+  const [kind, setKind] = useState<'bug' | 'improvement' | 'comment'>('comment');
   const [severity, setSeverity] = useState<'blocking' | 'major' | 'minor'>(
     'minor',
   );
@@ -384,7 +385,7 @@ export function FeedbackChat() {
     setMessage('');
     setTitle('');
     setExpectedBehavior('');
-    setKind('bug');
+    setKind('comment');
     setSeverity('minor');
     clearAnnotations();
     setScreenshot(null);
@@ -481,7 +482,7 @@ export function FeedbackChat() {
   return (
     <aside
       className={`feedback-chat ${open ? 'feedback-chat-open' : ''}`}
-      aria-label="Website feedback and live support"
+      aria-label="Questions and feedback"
     >
       {pickerMode && (
         <div className="feedback-picker-guide" role="status">
@@ -504,13 +505,14 @@ export function FeedbackChat() {
         >
           <header className="feedback-panel-header">
             <div>
-              <p className="feedback-kicker">Developer feedback</p>
-              <h2 id="feedback-title">Report a bug or idea</h2>
+              <p className="feedback-kicker">Questions and feedback</p>
+              <h2 id="feedback-title">Ask a question or report a problem</h2>
+              <p className="feedback-scope">{SUPPORT.outOfScope}</p>
             </div>
             <button
               type="button"
               onClick={() => setOpen(false)}
-              aria-label="Close feedback"
+              aria-label="Close chat"
               className="feedback-close"
             >
               <X aria-hidden="true" />
@@ -668,8 +670,8 @@ export function FeedbackChat() {
               {composingNew && (
                 <>
                   <fieldset className="feedback-kind-picker">
-                    <legend>Report type</legend>
-                    {(['bug', 'improvement', 'comment'] as const).map(
+                    <legend>What is this about?</legend>
+                    {(['comment', 'bug', 'improvement'] as const).map(
                       (value) => (
                         <label key={value}>
                           <input
@@ -681,10 +683,10 @@ export function FeedbackChat() {
                           />
                           <span>
                             {value === 'bug'
-                              ? 'Bug'
+                              ? 'A problem with the site'
                               : value === 'improvement'
-                                ? 'Improvement'
-                                : 'Comment'}
+                                ? 'A suggestion'
+                                : 'A question'}
                           </span>
                         </label>
                       ),
@@ -697,7 +699,7 @@ export function FeedbackChat() {
                       onChange={(event) => setTitle(event.target.value)}
                       maxLength={100}
                       required
-                      placeholder="What needs attention?"
+                      placeholder="A few words about it"
                     />
                   </label>
                   {kind === 'bug' && (
@@ -882,15 +884,15 @@ export function FeedbackChat() {
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-controls="feedback-panel"
-        aria-label={open ? 'Close website feedback' : 'Website feedback'}
+        aria-label={open ? 'Close chat' : 'Questions? Chat with us'}
       >
         <MessageSquareText aria-hidden="true" />
         <span>
           {open
             ? 'Close'
             : thread.conversations.length
-              ? `Feedback (${thread.conversations.length})`
-              : 'Report a bug / feedback'}
+              ? `Chat (${thread.conversations.length})`
+              : 'Questions? Chat with us'}
         </span>
         {thread.conversations.length > 0 && !open && totalUnread === 0 && (
           <i aria-label="Saved conversation" />

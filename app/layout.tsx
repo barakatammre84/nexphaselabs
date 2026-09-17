@@ -6,7 +6,8 @@ import { ResearchNoticeBar } from '@/components/site/research-notice';
 import { EntryNotice } from '@/components/site/entry-notice';
 import { FeedbackChat } from '@/components/site/feedback-chat';
 import { ProductRail } from '@/components/site/product-rail';
-import { appEnv } from '@/lib/site-config';
+import { appEnv, webAnalyticsToken } from '@/lib/site-config';
+import { jsonLdScript, organizationJsonLd } from '@/lib/structured-data';
 import { ENTITY } from '@/lib/entity';
 import { BRAND_NAVY } from '@/lib/brand-mark';
 import './globals.css';
@@ -51,11 +52,21 @@ export const viewport: Viewport = {
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const analyticsToken = webAnalyticsToken();
   return (
     <html lang="en">
       <body
         className={`${display.variable} ${body.variable} ${mono.variable} antialiased`}
       >
+        {/* Organization + WebSite only (lib/structured-data.ts): no offers, ratings or search action. */}
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(organizationJsonLd()) }} />
+        {analyticsToken && (
+          <script
+            defer
+            src="https://static.cloudflareinsights.com/beacon.min.js"
+            data-cf-beacon={JSON.stringify({ token: analyticsToken })}
+          />
+        )}
         <EntryNotice />
         <ResearchNoticeBar />
         {appEnv() !== 'production' && (

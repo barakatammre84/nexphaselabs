@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { AlertCircle, CircleCheck, Ticket } from 'lucide-react';
 import { listCoupons } from '@/lib/coupons';
+import { freeShippingThresholdCents } from '@/lib/free-shipping';
 import { NOTICE_COOKIE, readNotice } from '@/lib/notice';
 import { canManageStaff, requireStaff } from '@/lib/staff-auth';
 import { formatCents } from '@/lib/visibility-rules';
@@ -23,6 +24,7 @@ export default async function CouponsPage({ searchParams }: Props) {
   const { saved, error } = await searchParams;
   const notice = saved || error ? readNotice((await cookies()).get(NOTICE_COOKIE)?.value) : null;
   const rows = admin ? await listCoupons() : [];
+  const freeShippingCents = admin ? await freeShippingThresholdCents() : null;
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-10">
@@ -51,6 +53,30 @@ export default async function CouponsPage({ searchParams }: Props) {
 
       {admin && (
         <>
+          <section className="mt-8 rounded-2xl border border-border bg-white p-6">
+            <h2 className="font-display text-xl font-bold">Free delivery</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Above this materials subtotal (after any promo code) the cheapest delivery is offered at no charge and the
+              cart shows how far a customer is from it.{' '}
+              {freeShippingCents === null ? 'Currently off.' : `Currently from ${formatCents(freeShippingCents)}.`}
+            </p>
+            <form method="post" action="/api/manage/coupons" className="mt-4 flex flex-wrap items-end gap-4">
+              <input type="hidden" name="intent" value="free_shipping" />
+              <label className="block text-sm">
+                <span className="font-semibold">Threshold (USD, blank = off)</span>
+                <input
+                  name="threshold_dollars"
+                  type="number"
+                  min="1"
+                  step="1"
+                  defaultValue={freeShippingCents === null ? '' : String(Math.round(freeShippingCents / 100))}
+                  className={input}
+                />
+              </label>
+              <button type="submit" className="action-primary">Save</button>
+            </form>
+          </section>
+
           <section className="mt-8 rounded-2xl border border-border bg-white p-6">
             <h2 className="font-display text-xl font-bold">Create a code</h2>
             <form method="post" action="/api/manage/coupons" className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

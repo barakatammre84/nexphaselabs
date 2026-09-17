@@ -21,7 +21,7 @@ const staticColumns = [
     heading: 'Company',
     links: [
       { href: '/about', label: 'About NexPhase Labs' },
-      { href: '/account/sign-up?tier=institutional', label: 'Wholesale accounts' },
+      { href: '/wholesale', label: 'Wholesale accounts' },
       { href: '/contact', label: 'Contact' },
     ],
   },

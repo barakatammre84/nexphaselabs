@@ -130,6 +130,17 @@ export async function listPublishedProducts(): Promise<CatalogProduct[]> {
   return attachVariants(rows);
 }
 
+/** Published products in one chemical class, in catalog order — the related-materials query. */
+export async function listPublishedProductsInClass(chemicalClass: string): Promise<CatalogProduct[]> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(products)
+    .where(and(eq(products.visibility, 'published'), eq(products.chemicalClass, chemicalClass)))
+    .orderBy(asc(products.sortOrder), asc(products.code));
+  return attachVariants(rows);
+}
+
 /** Minimal catalog index for the global finder; avoids loading chemical data and variants on every page. */
 export async function listPublishedProductLinks(): Promise<
   { code: string; name: string; slug: string }[]

@@ -20,6 +20,8 @@ declare namespace Cloudflare {
     CONSUMER_TIER_ENABLED?: string;
     OPEN_CHECKOUT_ENABLED?: string;
     ACCOUNT_REQUIRED?: string;
+    /** Cloudflare Web Analytics site token; unset = no beacon (lib/site-config.ts). */
+    CF_WEB_ANALYTICS_TOKEN?: string;
     /** Basic-auth password for a deployed non-production storefront. Unset = the environment refuses every request with 503. */
     STAGING_ACCESS_PASSWORD?: string;
     POLICIES_COUNSEL_REVIEWED?: string;

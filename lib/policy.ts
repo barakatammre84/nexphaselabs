@@ -16,6 +16,7 @@ export const TERMS_VERSION = '2026-09-14';
 export const RUO_VERSION = '2026-09-14';
 export const RETURNS_VERSION = '2026-09-14';
 export const SHIPPING_VERSION = '2026-09-14';
+// Bump when the privacy text changes for visitors — including the first time CF_WEB_ANALYTICS_TOKEN is set (§5).
 export const PRIVACY_VERSION = '2026-09-14';
 export const RESEARCH_USE_POLICY_VERSION = '2026-09-14';
 

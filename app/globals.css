@@ -1562,3 +1562,12 @@ body.feedback-picking-element
   font-weight: 800;
   line-height: 1;
 }
+
+/* The support boundary, stated in the chat header before anyone types (lib/support.ts). */
+.feedback-panel-header .feedback-scope {
+  margin-top: 0.35rem;
+  max-width: 34ch;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--muted-foreground);
+}
