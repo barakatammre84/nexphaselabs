@@ -22,6 +22,7 @@ export type StoreBuyingBrowserReport = {
   environment: 'staging';
   origin: string;
   checkedAt: string;
+  preflight: StagingBuyerPreflight;
   checks: StoreBuyingBrowserCheck[];
   network: {
     observedMutations: BrowserNetworkRequest[];
@@ -29,13 +30,38 @@ export type StoreBuyingBrowserReport = {
   };
 };
 
+export type StagingBuyerCredentialState =
+  | 'ready'
+  | 'missing'
+  | 'unverified'
+  | 'expired'
+  | 'invalid'
+  | 'locked'
+  | 'suspended'
+  | 'throttled'
+  | 'unavailable';
+
+export type StagingBuyerPreflight = {
+  ok: boolean;
+  state: StagingBuyerCredentialState;
+  route: '/api/account/sign-in';
+  detail: string;
+  status?: number;
+};
+
+export type StoreBuyingBrowserFetcher = (
+  input: string,
+  init?: RequestInit,
+) => Promise<Response>;
+
 export type StoreBuyingBrowserOptions = {
   origin: string;
-  email: string;
-  password: string;
+  email?: string;
+  password?: string;
   timeoutMs?: number;
   headed?: boolean;
   executablePath?: string;
+  fetcher?: StoreBuyingBrowserFetcher;
 };
 
 const FORBIDDEN_ROUTE_PATTERNS: Array<{
@@ -99,6 +125,159 @@ function stagingRouteDetail(route: string, text: string): string {
   return `[staging] ${route}: ${text}`;
 }
 
+function sessionCookie(response: Response): string | null {
+  const headers = response.headers as Headers & {
+    getSetCookie?: () => string[];
+  };
+  const values = headers.getSetCookie?.() ?? [];
+  const combined = values.length
+    ? values.join(',')
+    : (response.headers.get('set-cookie') ?? '');
+  const match = combined.match(/(?:^|,)\s*(nx_account=[^;,]+)/i);
+  return match?.[1] ?? null;
+}
+
+function redirectUrl(response: Response, origin: string): URL | null {
+  const location = response.headers.get('location');
+  if (!location) return null;
+  try {
+    return new URL(location, origin);
+  } catch {
+    return null;
+  }
+}
+
+function credentialStateForRedirect(
+  response: Response,
+  origin: string,
+): Exclude<StagingBuyerCredentialState, 'ready' | 'missing' | 'unavailable'> {
+  const location = redirectUrl(response, origin);
+  const reason =
+    location?.searchParams.get('error') ?? location?.searchParams.get('verify');
+  switch (reason) {
+    case 'unverified':
+      return 'unverified';
+    case 'expired':
+    case 'password_expired':
+    case 'session_expired':
+      return 'expired';
+    case 'locked':
+      return 'locked';
+    case 'suspended':
+      return 'suspended';
+    case 'throttled':
+      return 'throttled';
+    default:
+      return 'invalid';
+  }
+}
+
+function credentialFailureDetail(
+  state: Exclude<
+    StagingBuyerCredentialState,
+    'ready' | 'missing' | 'unavailable'
+  >,
+): string {
+  switch (state) {
+    case 'unverified':
+      return 'the synthetic staging account is unverified; complete its email verification before running checkout rehearsal';
+    case 'expired':
+      return 'the synthetic staging credential or verification state is expired; issue a fresh staging credential and verify the account';
+    case 'locked':
+      return 'the synthetic staging account is locked after failed sign-ins; wait for the lockout to clear before running checkout rehearsal';
+    case 'suspended':
+      return 'the synthetic staging account is suspended; reactivate it before running checkout rehearsal';
+    case 'throttled':
+      return 'staging sign-in is temporarily throttled; wait for the sign-in limit to clear before running checkout rehearsal';
+    case 'invalid':
+      return 'the synthetic staging email or password was rejected; repair STAGING_BUYING_BASELINE_EMAIL/PASSWORD or the staging account';
+  }
+}
+
+export async function runStagingBuyerPreflight(options: {
+  origin: string;
+  email?: string;
+  password?: string;
+  timeoutMs?: number;
+  fetcher?: StoreBuyingBrowserFetcher;
+}): Promise<StagingBuyerPreflight> {
+  const origin = originOf(options.origin);
+  const route = '/api/account/sign-in' as const;
+  const email = options.email?.trim();
+  if (!email || !options.password) {
+    return {
+      ok: false,
+      state: 'missing',
+      route,
+      detail: stagingRouteDetail(
+        route,
+        'missing STAGING_BUYING_BASELINE_EMAIL or STAGING_BUYING_BASELINE_PASSWORD; the synthetic staging buyer cannot be checked',
+      ),
+    };
+  }
+
+  const timeoutMs = options.timeoutMs ?? 15_000;
+  const form = new FormData();
+  form.set('email', email);
+  form.set('password', options.password);
+  form.set('return_to', '/account/cart');
+  const headers = new Headers({
+    accept: 'text/html,application/json',
+    'cache-control': 'no-cache',
+    origin,
+    host: new URL(origin).host,
+    'user-agent': 'nexphase-store-buying-browser-preflight/1.0',
+  });
+
+  let response: Response;
+  try {
+    response = await (options.fetcher ?? fetch)(`${origin}${route}`, {
+      method: 'POST',
+      body: form,
+      headers,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      state: 'unavailable',
+      route,
+      detail: stagingRouteDetail(
+        route,
+        `staging customer route was unavailable before the browser rehearsal: ${errorText(error)}`,
+      ),
+    };
+  }
+
+  const location = redirectUrl(response, origin);
+  const signedIn =
+    response.status === 303 &&
+    location?.pathname === '/account/cart' &&
+    Boolean(sessionCookie(response)?.match(/^nx_account=[a-f0-9]{64}$/i));
+  if (signedIn) {
+    return {
+      ok: true,
+      state: 'ready',
+      route,
+      status: response.status,
+      detail: stagingRouteDetail(
+        route,
+        'synthetic staging buyer authenticated; browser checkout rehearsal may proceed',
+      ),
+    };
+  }
+
+  const state = credentialStateForRedirect(response, origin);
+  return {
+    ok: false,
+    state,
+    route,
+    status: response.status,
+    detail: stagingRouteDetail(route, credentialFailureDetail(state)),
+  };
+}
+
 function addNotRunChecks(
   checks: StoreBuyingBrowserCheck[],
   entries: Array<[string, string]>,
@@ -144,6 +323,40 @@ export async function runStoreBuyingBrowserBaseline(
       ...(status === undefined ? {} : { status }),
     });
   };
+
+  const preflight = await runStagingBuyerPreflight({
+    origin,
+    email: options.email,
+    password: options.password,
+    timeoutMs,
+    fetcher: options.fetcher,
+  });
+  record(
+    'staging-buyer-preflight',
+    preflight.route,
+    preflight.ok,
+    preflight.detail.replace('[staging] /api/account/sign-in: ', ''),
+    preflight.status,
+  );
+  if (!preflight.ok) {
+    addNotRunChecks(checks, [
+      ['browser-sign-in-page', '/account/sign-in'],
+      ['signed-in-access', '/api/account/sign-in'],
+      ['signed-in-cart-add', '/api/cart'],
+      ['signed-in-checkout-page', '/account/cart'],
+      ['signed-in-shipping-quote', '/api/checkout/quotes'],
+      ['signed-in-payment-boundary', '/account/cart'],
+    ]);
+    return finishReport();
+  }
+
+  const email = options.email?.trim();
+  const password = options.password;
+  if (!email || !password) {
+    throw new Error(
+      'staging buyer preflight returned ready without credentials',
+    );
+  }
 
   try {
     browser = await chromium.launch({
@@ -213,8 +426,8 @@ export async function runStoreBuyingBrowserBaseline(
         await entryNotice.waitFor({ state: 'hidden' });
       }
       const signInForm = page.locator('form[action="/api/account/sign-in"]');
-      await signInForm.locator('input[name="email"]').fill(options.email);
-      await signInForm.locator('input[name="password"]').fill(options.password);
+      await signInForm.locator('input[name="email"]').fill(email);
+      await signInForm.locator('input[name="password"]').fill(password);
       await page
         .locator('form[action="/api/account/sign-in"] button[type="submit"]')
         .click();
@@ -381,7 +594,7 @@ export async function runStoreBuyingBrowserBaseline(
     );
 
     for (const [name, value] of [
-      ['email', options.email],
+      ['email', email],
       ['name', 'Synthetic staging buyer'],
       ['company', 'Synthetic staging account'],
       ['line1', '1 Test Street'],
@@ -513,6 +726,7 @@ export async function runStoreBuyingBrowserBaseline(
       environment: 'staging',
       origin,
       checkedAt: new Date().toISOString(),
+      preflight,
       checks,
       network: {
         observedMutations: observedRequests,

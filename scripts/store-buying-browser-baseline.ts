@@ -13,11 +13,6 @@ const email = process.env.STAGING_BUYING_BASELINE_EMAIL?.trim();
 const password = process.env.STAGING_BUYING_BASELINE_PASSWORD;
 
 if (!origin) fail('Pass --base-url with the exact staging origin to check.');
-if (!email || !password) {
-  fail(
-    'The browser rehearsal requires STAGING_BUYING_BASELINE_EMAIL and STAGING_BUYING_BASELINE_PASSWORD.',
-  );
-}
 if (!Number.isInteger(timeoutValue) || timeoutValue < 1000) {
   fail('--timeout-ms must be an integer of at least 1000.');
 }
@@ -29,11 +24,6 @@ if (parsedOrigin.protocol !== 'https:') {
 
 const executablePath =
   process.env.BROWSER_EXECUTABLE_PATH?.trim() ?? findChromium();
-if (!executablePath) {
-  fail(
-    'Chromium was not found. Set BROWSER_EXECUTABLE_PATH to a Chromium executable.',
-  );
-}
 
 const report = await runStoreBuyingBrowserBaseline({
   origin: parsedOrigin.origin,

@@ -82,6 +82,25 @@ save the route-specific evidence. The command is staging-only and requires an
 HTTPS origin; set `BROWSER_EXECUTABLE_PATH` when Chromium is not at the standard
 Replit path.
 
+Before launching Chromium, the browser command performs a staging buyer
+preflight against `POST /api/account/sign-in`. It checks the redirect target and
+session cookie without printing the email or password. A successful preflight
+must report `ready`; a failed preflight blocks the browser rehearsal and marks
+the checkout and payment checks as not run. The route-specific failure state
+identifies the repair path:
+
+| State | Meaning |
+| --- | --- |
+| `missing` | One or both staging credential secrets are not configured |
+| `unverified` | The synthetic account needs its email confirmed |
+| `expired` | The staging credential or verification state needs renewal |
+| `invalid` | The staging email/password or account record was rejected |
+| `locked`, `suspended`, `throttled` | The staging account or sign-in service must be made usable before rehearsal |
+
+The preflight never treats an unsuccessful sign-in as partial checkout evidence,
+and it does not expose the configured account values in human-readable or JSON
+output.
+
 Use `--json` when saving evidence for a release or bug report. Every result
 includes `environment`, `route`, HTTP status when available, and a
 route-specific detail. The command exits non-zero if any required check fails.
