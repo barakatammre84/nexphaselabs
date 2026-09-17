@@ -3,6 +3,7 @@ import { and, eq, gt } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { checkoutQuotes } from '@/db/commerce-schema';
 import type { Cart } from '@/lib/cart';
+import { evaluateCoupon } from '@/lib/coupons';
 import type { ShipTo } from '@/lib/orders';
 import {
   quoteShipping,
@@ -151,6 +152,9 @@ export type CheckoutQuoteView = {
   serviceName: string;
   shippingCents: number;
   taxCents: number;
+  /** Promo code priced into this quote, if any; tax is on the reduced subtotal. */
+  couponCode: string | null;
+  discountCents: number;
   totalCents: number;
   estimatedDays: number | null;
   expiresAt: string;
@@ -162,6 +166,7 @@ export async function createCheckoutQuotes(
   cart: Cart,
   shipTo: ShipTo,
   contactEmail: string | null,
+  couponCode: string | null = null,
 ): Promise<
   | { ok: true; quotes: CheckoutQuoteView[]; warning: string | null }
   | { ok: false; error: string }
@@ -182,6 +187,10 @@ export async function createCheckoutQuotes(
     };
   const packed = checkoutParcel(cart);
   if (!packed.ok) return packed;
+  // A promo code is priced in here so shipping tax and the total already reflect it.
+  const coupon = couponCode ? await evaluateCoupon(couponCode, accountId, cart.subtotalCents) : null;
+  if (coupon && !coupon.ok) return coupon;
+  const discountCents = coupon?.ok ? coupon.discountCents : 0;
   const to = shippingAddress(shipTo);
   const shipping = await quoteShipping(to, packed.parcel, {
     services: [],
@@ -194,7 +203,7 @@ export async function createCheckoutQuotes(
       rate,
       tax: await quoteTax({
         to,
-        subtotalCents: cart.subtotalCents,
+        subtotalCents: cart.subtotalCents - discountCents,
         shippingCents: rate.cents,
         lines: cart.lines.map((line) => ({
           id: line.itemId,
@@ -230,6 +239,8 @@ export async function createCheckoutQuotes(
     serviceName: rate.serviceName,
     shippingCents: rate.cents,
     taxCents: tax.ok ? tax.cents : 0,
+    couponCode: coupon?.ok ? coupon.coupon.code : null,
+    discountCents,
     currency: 'USD',
     estimatedDays: rate.estimatedDays,
     test: shipping.test || (tax.ok && tax.test),
@@ -251,7 +262,9 @@ export async function createCheckoutQuotes(
       serviceName: row.serviceName,
       shippingCents: row.shippingCents,
       taxCents: row.taxCents,
-      totalCents: cart.subtotalCents + row.shippingCents + row.taxCents,
+      couponCode: row.couponCode,
+      discountCents: row.discountCents,
+      totalCents: cart.subtotalCents - row.discountCents + row.shippingCents + row.taxCents,
       estimatedDays: row.estimatedDays,
       expiresAt: row.expiresAt.toISOString(),
       test: row.test,

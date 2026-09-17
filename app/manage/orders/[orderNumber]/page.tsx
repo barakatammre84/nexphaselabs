@@ -371,6 +371,12 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                   {formatCents(order.subtotalCents)}
                 </dd>
               </div>
+              {order.discountCents > 0 && (
+                <div className="flex justify-between gap-4">
+                  <dt>Promo code{order.couponCode ? ` · ${order.couponCode}` : ''}</dt>
+                  <dd className="font-mono">−{formatCents(order.discountCents)}</dd>
+                </div>
+              )}
               <div className="flex justify-between gap-4">
                 <dt>
                   Shipping

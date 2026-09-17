@@ -1047,6 +1047,9 @@ export const orders = sqliteTable(
     subtotalCents: integer('subtotal_cents').notNull(),
     shippingCents: integer('shipping_cents').notNull().default(0),
     taxCents: integer('tax_cents').notNull().default(0),
+    /** Promo code applied at checkout and the cents it took off the subtotal (migration 0062). */
+    couponCode: text('coupon_code'),
+    discountCents: integer('discount_cents').notNull().default(0),
     totalCents: integer('total_cents').notNull(),
     /** Checkout rate accepted by the customer; copied from a server-owned quote. */
     shippingQuoteId: text('shipping_quote_id'),
@@ -1601,3 +1604,63 @@ export const operationalCaseEvents = sqliteTable(
 
 export type OperationalCase = typeof operationalCases.$inferSelect;
 export type OperationalCaseEvent = typeof operationalCaseEvents.$inferSelect;
+
+/* -------------------------------------------------------------------------- */
+/* Promo codes                                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A promo code staff created (owner, 16 September 2026). `value` is a whole
+ * percent for `kind = 'percent'` and cents for `kind = 'fixed'`. Nothing is
+ * ever deleted: a code that should stop working is deactivated, and its
+ * redemptions stay attached to their orders.
+ */
+export const coupons = sqliteTable(
+  'coupons',
+  {
+    id: text('id').primaryKey(),
+    code: text('code').notNull(),
+    kind: text('kind').notNull(),
+    value: integer('value').notNull(),
+    minSubtotalCents: integer('min_subtotal_cents'),
+    startsAt: integer('starts_at', { mode: 'timestamp' }),
+    endsAt: integer('ends_at', { mode: 'timestamp' }),
+    maxRedemptions: integer('max_redemptions'),
+    redemptionCount: integer('redemption_count').notNull().default(0),
+    perAccountLimit: integer('per_account_limit'),
+    active: integer('active', { mode: 'boolean' }).notNull().default(true),
+    note: text('note'),
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    codeIdx: uniqueIndex('coupons_code_idx').on(table.code),
+  }),
+);
+
+export const couponRedemptions = sqliteTable(
+  'coupon_redemptions',
+  {
+    id: text('id').primaryKey(),
+    couponId: text('coupon_id').notNull(),
+    orderId: text('order_id').notNull(),
+    accountId: text('account_id').notNull(),
+    code: text('code').notNull(),
+    discountCents: integer('discount_cents').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    orderIdx: uniqueIndex('coupon_redemptions_order_idx').on(table.orderId),
+    couponAccountIdx: index('coupon_redemptions_coupon_account_idx').on(table.couponId, table.accountId),
+  }),
+);
+
+export type Coupon = typeof coupons.$inferSelect;
+export type CouponRedemption = typeof couponRedemptions.$inferSelect;

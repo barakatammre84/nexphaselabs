@@ -21,6 +21,9 @@ export type InvoiceOrder = {
   status: string;
   currency: string;
   subtotalCents: number;
+  /** Promo-code discount taken off the subtotal (0 when none). */
+  discountCents?: number;
+  couponCode?: string | null;
   shippingCents: number;
   taxCents: number;
   totalCents: number;
@@ -111,12 +114,13 @@ export function invoiceBlockers(subject: InvoiceSubject): string[] {
       `The lines total ${amount(lineSum)} but the order subtotal recorded is ${amount(order.subtotalCents)}.`,
     );
   }
+  const discount = order.discountCents ?? 0;
   if (
-    order.subtotalCents + order.shippingCents + order.taxCents !==
+    order.subtotalCents - discount + order.shippingCents + order.taxCents !==
     order.totalCents
   ) {
     blockers.push(
-      `The subtotal, shipping and tax come to ${amount(order.subtotalCents + order.shippingCents + order.taxCents)} but the order total recorded is ${amount(order.totalCents)}.`,
+      `The subtotal${discount ? ' less the promo code' : ''}, shipping and tax come to ${amount(order.subtotalCents - discount + order.shippingCents + order.taxCents)} but the order total recorded is ${amount(order.totalCents)}.`,
     );
   }
   return blockers;

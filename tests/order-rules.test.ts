@@ -28,7 +28,7 @@ describe('order rules', () => {
       ),
     ).toEqual({
       subtotalCents: 17000,
-      shippingCents: 500,
+      discountCents: 0, shippingCents: 500,
       taxCents: 100,
       totalCents: 17600,
     });

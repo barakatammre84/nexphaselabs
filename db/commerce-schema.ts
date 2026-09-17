@@ -246,6 +246,9 @@ export const checkoutQuotes = sqliteTable(
     serviceName: text('service_name').notNull(),
     shippingCents: integer('shipping_cents').notNull(),
     taxCents: integer('tax_cents').notNull(),
+    /** The promo code the quote was priced with; tax and total already reflect it (migration 0062). */
+    couponCode: text('coupon_code'),
+    discountCents: integer('discount_cents').notNull().default(0),
     currency: text('currency').notNull().default('USD'),
     estimatedDays: integer('estimated_days'),
     test: integer('test', { mode: 'boolean' }).notNull().default(false),

@@ -2,6 +2,7 @@ import { acknowledgementsCurrent } from '@/lib/account-rules';
 import { getBuyerFromRequest } from '@/lib/buyer-session';
 import { getCart } from '@/lib/cart';
 import { createCheckoutQuotes } from '@/lib/checkout-quotes';
+import { normaliseCouponCode } from '@/lib/coupons';
 import { validateCheckout } from '@/lib/checkout-input';
 import { shipToFromOrganization } from '@/lib/orders';
 import { getOrganizationForAccount } from '@/lib/organizations';
@@ -64,7 +65,13 @@ export async function POST(request: Request) {
       contactEmail = null;
     }
     const cart = await getCart(account.id, visibility);
-    const result = await createCheckoutQuotes(account.id, cart, shipTo, contactEmail);
+    const result = await createCheckoutQuotes(
+      account.id,
+      cart,
+      shipTo,
+      contactEmail,
+      normaliseCouponCode(form.get('coupon')),
+    );
     return reply(result, result.ok ? 200 : 422);
   } catch (error) {
     console.error(

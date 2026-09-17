@@ -17,6 +17,8 @@ type Quote = {
   serviceName: string;
   shippingCents: number;
   taxCents: number;
+  couponCode?: string | null;
+  discountCents?: number;
   totalCents: number;
   estimatedDays: number | null;
   expiresAt: string;
@@ -155,6 +157,21 @@ export function CheckoutExperience({
           ) : (
             <CheckoutFields email={email} name={name} addresses={addresses} canSave={canSaveAddress} />
           )}
+
+          <div className="mt-8 border-t border-border pt-7">
+            {/* A promo code is priced into the delivery quote, so changing it asks for a fresh comparison. */}
+            <label className="block max-w-xs text-sm">
+              <span className="font-semibold">Promo code (optional)</span>
+              <input
+                name="coupon"
+                autoComplete="off"
+                autoCapitalize="characters"
+                maxLength={32}
+                placeholder="Enter a code"
+                className="mt-2 h-12 w-full rounded-xl border border-input bg-secondary px-4 font-mono text-base uppercase outline-none focus:border-primary"
+              />
+            </label>
+          </div>
 
           <div className="mt-8 border-t border-border pt-7">
             <div className="flex items-start gap-3">
@@ -337,6 +354,12 @@ export function CheckoutExperience({
               <dt>Materials</dt>
               <dd className="font-mono">{money(subtotalCents)}</dd>
             </div>
+            {selected && (selected.discountCents ?? 0) > 0 && (
+              <div className="flex justify-between gap-4">
+                <dt>Promo code{selected.couponCode ? ` · ${selected.couponCode}` : ''}</dt>
+                <dd className="font-mono">−{money(selected.discountCents ?? 0)}</dd>
+              </div>
+            )}
             <div className="flex justify-between gap-4">
               <dt>Shipping</dt>
               <dd className="font-mono">
