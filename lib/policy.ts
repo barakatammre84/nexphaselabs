@@ -19,6 +19,8 @@ export const SHIPPING_VERSION = '2026-09-14';
 // Bump when the privacy text changes for visitors — including the first time CF_WEB_ANALYTICS_TOKEN is set (§5).
 export const PRIVACY_VERSION = '2026-09-16';
 export const RESEARCH_USE_POLICY_VERSION = '2026-09-14';
+/** What may be said about the material anywhere our name appears (app/legal/community-guidelines). */
+export const COMMUNITY_GUIDELINES_VERSION = '2026-09-16';
 /** Partner (affiliate) agreement. A new version has to be accepted again before links stay live. */
 export const AFFILIATE_AGREEMENT_VERSION = '2026-09-16';
 
@@ -60,4 +62,5 @@ export const DISCLOSURE_WORKFLOW = [
   { step: 'Order confirmation email', disclosure: 'The acknowledgement and terms versions accepted, restated', recorded: 'Order record: acknowledgement version and wording hash' },
   { step: 'The parcel', disclosure: 'Regulatory statement on the packing slip; certificate of analysis for the lot in the parcel', recorded: 'Packing slip and the certificate pinned to the order, with its checksum' },
   { step: 'Support conversations', disclosure: 'Dosing, reconstitution and administration questions are declined; misuse ends service', recorded: 'Feedback queue record' },
+  { step: 'Anywhere our name appears', disclosure: 'Community guidelines: research-only discussion, no dosing or human-use accounts, partners must disclose that they earn a commission', recorded: 'Moderation action, account record, and the partner agreement version accepted' },
 ] as const;

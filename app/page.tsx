@@ -33,39 +33,39 @@ export const dynamic = 'force-dynamic';
 // the same constant the shipping policy prints.
 const promises = [
   { label: `Same-day dispatch before ${SHIPPING_CUTOFF}`, icon: Timer },
-  { label: 'Third-party tested, lab named on every certificate', icon: Microscope },
-  { label: 'Purity stated on every certificate', icon: FileCheck2 },
-  { label: 'Documents pinned to your order', icon: ScanSearch },
+  { label: 'The testing laboratory is named on every certificate', icon: Microscope },
+  { label: 'Purity by HPLC, with the method printed beside the result', icon: FileCheck2 },
+  { label: 'The certificate that shipped stays on your order', icon: ScanSearch },
 ];
 
 const documentationHighlights = [
   {
     icon: FileText,
     label: 'Certificate of analysis',
-    detail: 'Issued per released lot, not as a generic product-line document.',
+    detail: 'One per released lot. We do not issue a generic product-line document.',
   },
   {
     icon: FlaskConical,
     label: 'Analytical trace',
-    detail: 'HPLC and mass data stay connected to the material they describe.',
+    detail: 'HPLC and mass spectrometry results stay attached to the lot they describe.',
   },
   {
     icon: Thermometer,
     label: 'Handling record',
-    detail: 'Storage and laboratory handling information presented clearly.',
+    detail: 'Storage, stability and shipping condition, stated for each material.',
   },
   {
     icon: ScanSearch,
-    label: 'Quality release review',
-    detail: 'Documentation is reviewed before a lot is shown as released.',
+    label: 'Named release',
+    detail: 'A person releases each lot, and the record keeps who did it and when.',
   },
 ];
 
 const confidencePoints = [
-  ['Lot-level traceability', 'The catalog, analytical record, and order history point to the released lot.'],
-  ['Clear material identity', 'Catalog number, CAS, form, and pack presentation stay easy to compare.'],
-  ['Documentation first', 'Available COAs and safety records are part of the buying journey, not an afterthought.'],
-  ['Human order support', 'Questions about catalog records or an order go to a real support channel.'],
+  ['One lot number, everywhere', 'The catalog entry, the certificate and your order all name the same lot.'],
+  ['Identity you can check', 'CAS, formula, mass and sequence are published, and each value says where it came from.'],
+  ['Documents before you buy', 'Read a released lot\u2019s certificate before you order it, not after it arrives.'],
+  ['A person answers', 'Support replies within one business day, and says plainly when a question is outside what we answer.'],
 ] as const;
 
 export default async function Home() {
@@ -87,7 +87,7 @@ export default async function Home() {
     ? [
         {
           title: 'Create a research account',
-          copy: 'Sign up with your email, confirm it, and acknowledge the research-use conditions. It takes a minute.',
+          copy: 'Your email, one confirmation click, and the research-use acknowledgement. It takes a minute.',
           icon: ClipboardCheck,
         },
         {
@@ -149,8 +149,9 @@ export default async function Home() {
               Research peptides. Verified by lot.
             </h1>
             <p className="mt-7 max-w-xl text-lg leading-8 text-white/76">
-              A focused catalog of research materials with clear specifications,
-              released-lot records, and a straightforward path from product to order.
+              Every vial ships with the certificate for its own lot, naming the
+              laboratory that tested it and that laboratory&rsquo;s own reference for the
+              sample. Check the result with them, not with us.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <Link
@@ -234,11 +235,12 @@ export default async function Home() {
             Released-lot documentation
           </span>
           <h2 className="mt-6 max-w-lg font-display text-4xl font-extrabold leading-[1.02] tracking-[-0.055em] sm:text-5xl">
-            Confidence should come with the vial.
+            The certificate comes with the vial.
           </h2>
           <p className="mt-6 max-w-xl text-lg leading-8 text-white/68">
-            Every released lot keeps its analytical results, storage details,
-            manufacturer record, and order documents connected from catalog to delivery.
+            Analytical results, storage detail, the manufacturer&rsquo;s name and address, and
+            the documents that shipped all stay attached to one released lot, from the
+            catalog entry to the parcel.
           </p>
           <Link
             href="/documentation"
@@ -326,8 +328,8 @@ export default async function Home() {
         <div className="grid gap-8 rounded-[2rem] bg-[var(--ion-navy)] p-8 text-white sm:p-11 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
           <div>
             <span className="inline-flex rounded-full bg-white/10 px-3 py-2 text-xs font-bold text-aqua-soft">Trusted research supply</span>
-            <h2 className="mt-6 max-w-xl font-display text-4xl font-extrabold leading-[1.02] tracking-[-0.055em] sm:text-5xl">NexPhase confidence is built into the record.</h2>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-white/68">A storefront designed around the information a research buyer needs to identify material, inspect released-lot records, and follow an order clearly.</p>
+            <h2 className="mt-6 max-w-xl font-display text-4xl font-extrabold leading-[1.02] tracking-[-0.055em] sm:text-5xl">Everything we claim is on a document you can check.</h2>
+            <p className="mt-6 max-w-xl text-lg leading-8 text-white/68">We publish the testing laboratory, its own reference for the sample, and the manufacturer&rsquo;s name and address. None of it asks you to take our word for it.</p>
             <Link href="/about" className="mt-8 inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-6 text-sm font-extrabold text-[var(--ion-navy)]">Why NexPhase <ArrowRight className="size-4" /></Link>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -384,11 +386,11 @@ export default async function Home() {
               NexPhase quality assurance
             </span>
             <h2 className="mt-6 max-w-xl font-display text-4xl font-extrabold leading-[1.02] tracking-[-0.055em] sm:text-5xl">
-              Verified batch documentation.
+              Every released lot, searchable by number.
             </h2>
             <p className="mt-6 max-w-xl text-lg leading-8 text-white/68">
-              Search a lot, inspect the available analytical files, and keep the
-              exact record connected to the material your laboratory receives.
+              Type the number on the vial, or the testing laboratory&rsquo;s reference for the
+              sample, and read the same record we hold.
             </p>
             <Link
               href="/documentation"
