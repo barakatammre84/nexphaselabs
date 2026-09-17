@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, isNull, lte, ne, or } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { marketingConsents, type MarketingConsentRow } from '@/db/schema';
 import { normaliseEmail } from '@/lib/account-rules';
@@ -7,6 +7,7 @@ import { sendEmail } from '@/lib/email';
 import { ENTITY_FOOTER } from '@/lib/entity';
 import { publicOrigin } from '@/lib/site-config';
 import { sha256Hex } from '@/lib/staff-auth-core';
+import { recordCommerceEvent } from '@/lib/commerce-events';
 
 /**
  * Product-news opt-in (owner, 16 Sep 2026). Double opt-in from every source; this table is
@@ -247,6 +248,7 @@ export async function requestConsent(
       ...fields,
     });
 
+  recordCommerceEvent('newsletter_request_accepted', { source: input.source });
   if (input.sendConfirmation !== false) {
     const result = await sendEmail({
       to: email,
@@ -287,6 +289,7 @@ export async function confirmConsent(rawToken: string, now = new Date()): Promis
     .set({ status: 'confirmed', consentedAt: now, confirmTokenHash: null, revokedAt: null, revokeReason: null, brevoSyncedAt: null, updatedAt: now })
     .where(and(consentSnapshot(row), eq(marketingConsents.status, 'pending'))).returning();
   if (!confirmed) return 'invalid';
+  recordCommerceEvent('newsletter_confirmed', { source: confirmed.source as ConsentSource });
   await syncToBrevo(confirmed, now);
   return 'confirmed';
 }
@@ -308,6 +311,7 @@ export async function confirmConsentForAccount(accountId: string, now = new Date
     .set({ status: 'confirmed', consentedAt: now, confirmTokenHash: null, brevoSyncedAt: null, updatedAt: now })
     .where(consentSnapshot(row)).returning();
   if (!confirmed) return false;
+  recordCommerceEvent('newsletter_confirmed', { source: 'sign_up' });
   await syncToBrevo(confirmed, now);
   return true;
 }
@@ -332,8 +336,11 @@ export async function revokeConsent(selector: ConsentSelector, reason: string, n
     const [revoked] = await db
       .update(marketingConsents)
       .set({ status: 'revoked', revokedAt: now, revokeReason: reason.slice(0, 80), confirmTokenHash: null, brevoSyncedAt: null, updatedAt: now })
-      .where(eq(marketingConsents.id, row.id)).returning();
-    if (revoked) await syncToBrevo(revoked, now);
+      .where(and(eq(marketingConsents.id, row.id), ne(marketingConsents.status, 'revoked'))).returning();
+    if (revoked) {
+      recordCommerceEvent('newsletter_unsubscribed', { source: revoked.source as ConsentSource });
+      await syncToBrevo(revoked, now);
+    }
   }
   return true;
 }

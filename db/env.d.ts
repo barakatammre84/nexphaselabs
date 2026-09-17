@@ -6,6 +6,10 @@ declare namespace Cloudflare {
     DOCS: R2Bucket;
     /** Static assets served by Workers Assets. */
     ASSETS: Fetcher;
+    /** Optional anonymous commerce counters. Bound to a separate Analytics Engine dataset per environment. */
+    COMMERCE_EVENTS?: AnalyticsEngineDataset;
+    /** Exact "true" enables writes to COMMERCE_EVENTS; disabled by default pending privacy review. */
+    COMMERCE_ANALYTICS_ENABLED?: string;
     /** One hibernating real-time room per feedback conversation. */
     FEEDBACK_ROOMS: DurableObjectNamespace<
       import('../lib/feedback-room').FeedbackRoom

@@ -41,6 +41,7 @@ import {
   zellePaymentClaims,
 } from '@/db/commerce-schema';
 import { attachPaymentAttempt } from '@/lib/payment-attempts';
+import { recordCommerceEvent } from '@/lib/commerce-events';
 import {
   planReservations,
   reservationPlanGuard,
@@ -512,6 +513,7 @@ export async function createOrderFromCart(
             'Your account, delivery address, cart or available offer changed. Reload and review before submitting again.',
         };
       }
+      recordCommerceEvent('order_submitted', { source: 'storefront' });
       if (coupon?.ok) {
         // The count was already incremented by the claim above, so this writes only the record of
         // which order spent it. Marking it consumed is what stops the finally handing the claim back.

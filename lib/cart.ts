@@ -2,6 +2,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { cartItems, productVariants, products, type ProductRow, type ProductVariantRow } from '@/db/schema';
 import { MAX_CART_LINES } from '@/lib/order-rules';
+import { recordCommerceEvent } from '@/lib/commerce-events';
 import { effectiveUnitPrice, readPriceBreaks } from '@/lib/price-breaks';
 import { packAvailable } from '@/lib/storefront';
 import { priceFor, type Visibility } from '@/lib/visibility-rules';
@@ -205,7 +206,10 @@ export async function addToCart(accountId: string, sku: string, quantity: number
           unchanged,
         ))
         .returning({ id: cartItems.id });
-      if (changed.length) return { ok: true };
+      if (changed.length) {
+        recordCommerceEvent('cart_item_added', { quantity, source: 'storefront' });
+        return { ok: true };
+      }
     } else {
       const timestamp = Math.floor(now.getTime() / 1000);
       const inserted = await db.all(sql`
@@ -214,7 +218,10 @@ export async function addToCart(accountId: string, sku: string, quantity: number
         WHERE ${unchanged}
         ON CONFLICT (account_id, variant_id) DO NOTHING
         RETURNING id`);
-      if (inserted.length) return { ok: true };
+      if (inserted.length) {
+        recordCommerceEvent('cart_item_added', { quantity, source: 'storefront' });
+        return { ok: true };
+      }
     }
   }
   return { ok: false, error: 'Your cart changed while adding this pack size. Please try again.' };
@@ -232,14 +239,27 @@ export async function setCartQuantity(
   }
   const db = getDb();
   if (quantity === 0) {
-    await db.delete(cartItems).where(and(eq(cartItems.id, itemId), eq(cartItems.accountId, accountId)));
+    const removed = await db
+      .delete(cartItems)
+      .where(and(eq(cartItems.id, itemId), eq(cartItems.accountId, accountId)))
+      .returning({ quantity: cartItems.quantity });
+    if (removed.length) {
+      const removedQuantity = removed[0].quantity;
+      recordCommerceEvent(
+        'cart_item_removed',
+        Number.isSafeInteger(removedQuantity) && removedQuantity > 0
+          ? { quantity: removedQuantity, source: 'storefront' }
+          : { source: 'storefront' },
+      );
+    }
     return { ok: true };
   }
   const existing = await db
     .select({ id: cartItems.id, variantId: cartItems.variantId, quantity: cartItems.quantity })
     .from(cartItems)
     .where(eq(cartItems.accountId, accountId));
-  if (!existing.some((item) => item.id === itemId)) return { ok: true };
+  const target = existing.find((item) => item.id === itemId);
+  if (!target || target.quantity === quantity) return { ok: true };
   let count = quantity;
   for (const item of existing) {
     if (item.id === itemId) continue;
@@ -272,14 +292,26 @@ export async function setCartQuantity(
       unchangedCart(accountId, existing),
     ))
     .returning({ id: cartItems.id });
-  return changed.length
-    ? { ok: true }
-    : { ok: false, error: 'Your cart changed while updating this pack size. Please try again.' };
+  if (!changed.length)
+    return { ok: false, error: 'Your cart changed while updating this pack size. Please try again.' };
+  recordCommerceEvent('cart_quantity_updated', { quantity, source: 'storefront' });
+  return { ok: true };
 }
 
 export async function clearCart(accountId: string): Promise<void> {
   const db = getDb();
-  await db.delete(cartItems).where(eq(cartItems.accountId, accountId));
+  const removed = await db
+    .delete(cartItems)
+    .where(eq(cartItems.accountId, accountId))
+    .returning({ quantity: cartItems.quantity });
+  for (const row of removed) {
+    recordCommerceEvent(
+      'cart_item_removed',
+      Number.isSafeInteger(row.quantity) && row.quantity > 0
+        ? { quantity: row.quantity, source: 'storefront' }
+        : { source: 'storefront' },
+    );
+  }
 }
 
 export async function cartCount(accountId: string): Promise<number> {

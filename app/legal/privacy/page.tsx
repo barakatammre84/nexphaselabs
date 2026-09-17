@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { env } from 'cloudflare:workers';
 import { LegalPage, LegalSection } from '@/components/site/legal-layout';
 import { ENTITY } from '@/lib/entity';
 import { MINIMUM_AGE, PRIVACY_VERSION } from '@/lib/policy';
@@ -12,6 +13,8 @@ export const metadata: Metadata = {
 };
 
 export default function PrivacyPage() {
+  const commerceAnalyticsEnabled = env.COMMERCE_ANALYTICS_ENABLED === 'true';
+
   return (
     <LegalPage
       title="Privacy policy"
@@ -51,6 +54,11 @@ export default function PrivacyPage() {
           When you write to us: your message, the details you choose to give, and the page you wrote from. The site
           feedback panel is described in section 7.
         </p>
+        <p>
+          {commerceAnalyticsEnabled
+            ? 'We also keep anonymous, server-side counts of cart changes, submitted orders, and product-news requests, confirmations and unsubscribes. Each count identifies only the event and its source (storefront, or the original newsletter request source: sign-up, account or footer), plus an aggregate quantity where relevant. It does not contain an order or customer identifier, price, URL, IP address, email address or free-form text, so it cannot show a customer-level funnel.'
+            : 'Anonymous commerce-event measurement is currently disabled. If enabled after review, it will keep only server-side counts of cart changes, submitted orders, and product-news requests, confirmations and unsubscribes, identified by event and source with an aggregate quantity where relevant. For product news, the source is where the original request was made, not where a later confirmation or unsubscribe happened. It will not contain an order or customer identifier, price, URL, IP address, email address or free-form text, and will not show customer-level funnels.'}
+        </p>
       </LegalSection>
 
       <LegalSection heading="3. Why we collect it">
@@ -60,6 +68,12 @@ export default function PrivacyPage() {
           questions about an order, a lot or an account; to detect and refuse misuse; and to meet tax and
           record-keeping obligations.
         </p>
+        {commerceAnalyticsEnabled ? (
+          <p>
+            Anonymous commerce counts are used only to understand, in aggregate, whether the store and voluntary
+            product-news journey are working. They are not used for advertising, profiling or financial records.
+          </p>
+        ) : null}
       </LegalSection>
 
       <LegalSection heading="4. Who we share it with">
@@ -81,6 +95,9 @@ export default function PrivacyPage() {
           {webAnalyticsToken()
             ? 'None of them is an advertising tracker. The only measurement script is Cloudflare Web Analytics, from the provider that hosts the site: it counts page views without cookies, fingerprinting or cross-site tracking. We run no advertising scripts.'
             : 'None of them is an advertising tracker, and we do not run third-party analytics or advertising scripts.'}
+          {commerceAnalyticsEnabled
+            ? ' The anonymous commerce counts described above are sent by our server to Cloudflare Analytics Engine; they add no cookie or browser script.'
+            : ' The disabled anonymous commerce measurement would be server-side and would add no cookie or browser script if enabled.'}
         </p>
       </LegalSection>
 
@@ -104,6 +121,9 @@ export default function PrivacyPage() {
           and for the same period afterwards where they relate to an order. Correspondence is kept while it is
           useful for support and quality records, then deleted or de-identified. Server logs are kept for a short,
           rolling period by the hosting provider.
+          {commerceAnalyticsEnabled
+            ? ' Anonymous commerce counts are held by Cloudflare Analytics Engine for three months.'
+            : ''}
         </p>
       </LegalSection>
 

@@ -1,9 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { localD1 } from './helpers/local-d1';
 
-const { env } = vi.hoisted(() => ({ env: {} as Record<string, unknown> }));
+const { env, recordCommerceEvent } = vi.hoisted(() => ({
+  env: {} as Record<string, unknown>,
+  recordCommerceEvent: vi.fn(),
+}));
 vi.mock('cloudflare:workers', () => ({ env }));
 vi.mock('@/lib/email', () => ({ sendEmail: vi.fn(async () => ({ ok: true })) }));
+vi.mock('@/lib/commerce-events', () => ({ recordCommerceEvent }));
 
 import { confirmConsent, confirmConsentForAccount, requestConsent, revokeConsent, sweepMarketingSync } from '@/lib/marketing-consent';
 import { sendEmail } from '@/lib/email';
@@ -26,6 +30,7 @@ beforeEach(() => {
     BREVO_API_KEY: 'synthetic', BREVO_LIST_ID: '7', BREVO_SENDER: 'news@example.invalid',
   });
   vi.stubGlobal('fetch', vi.fn(async () => ok()));
+  recordCommerceEvent.mockClear();
 });
 afterEach(() => {
   local.sqlite.close();
@@ -35,6 +40,116 @@ afterEach(() => {
 });
 
 describe('newsletter retry safety', () => {
+  it('records persisted consent transitions, not idempotent repeats or provider sweeps', async () => {
+    const requested = await requestConsent({
+      email,
+      accountId: 'owner',
+      source: 'account',
+      sendConfirmation: false,
+    }, now);
+    expect(recordCommerceEvent.mock.calls).toEqual([
+      ['newsletter_request_accepted', { source: 'account' }],
+    ]);
+
+    recordCommerceEvent.mockClear();
+    expect(await confirmConsent(requested.confirmToken!, now)).toBe('confirmed');
+    expect(await confirmConsent(requested.confirmToken!, now)).toBe('invalid');
+    expect(recordCommerceEvent.mock.calls).toEqual([
+      ['newsletter_confirmed', { source: 'account' }],
+    ]);
+
+    recordCommerceEvent.mockClear();
+    expect(await revokeConsent({ email }, 'account', now)).toBe(true);
+    expect(await revokeConsent({ email }, 'account', now)).toBe(true);
+    expect(recordCommerceEvent.mock.calls).toEqual([
+      ['newsletter_unsubscribed', { source: 'account' }],
+    ]);
+
+    recordCommerceEvent.mockClear();
+    local.sqlite.prepare('UPDATE marketing_consents SET brevo_synced_at = NULL').run();
+    expect(await sweepMarketingSync(later)).toMatchObject({ synced: 1 });
+    expect(recordCommerceEvent).not.toHaveBeenCalled();
+  });
+
+  it('records account-verification confirmation as a sign-up transition', async () => {
+    await requestConsent({
+      email,
+      accountId: 'owner',
+      source: 'sign_up',
+      sendConfirmation: false,
+    }, now);
+    recordCommerceEvent.mockClear();
+    expect(await confirmConsentForAccount('owner', now)).toBe(true);
+    expect(await confirmConsentForAccount('owner', now)).toBe(false);
+    expect(recordCommerceEvent.mock.calls).toEqual([
+      ['newsletter_confirmed', { source: 'sign_up' }],
+    ]);
+  });
+
+  it('lets unsubscribe win when consent is rearmed between its read and write', async () => {
+    await subscribe();
+    recordCommerceEvent.mockClear();
+    const original = env.DB as D1Database;
+    const prepare = original.prepare.bind(original);
+    let interleaved = false;
+    const queries = new WeakMap<object, string>();
+    const interleave = (query: string) => {
+      if (
+        !interleaved
+        && query.toLowerCase().includes('update')
+        && query.toLowerCase().includes('marketing_consents')
+      ) {
+        interleaved = true;
+        local.sqlite.prepare(
+          "UPDATE marketing_consents SET status = 'pending', requested_at = requested_at + 1 WHERE email = ?",
+        ).run(email);
+      }
+    };
+    const wrap = (
+      statement: D1PreparedStatement,
+      query: string,
+    ): D1PreparedStatement => {
+      const proxy = new Proxy(statement, {
+        get(target, property) {
+          if (property === 'bind')
+            return (...values: Parameters<D1PreparedStatement['bind']>) =>
+              wrap(target.bind(...values), query);
+          if (property === 'run')
+            return async () => {
+              interleave(query);
+              return target.run();
+            };
+          if (property === 'all')
+            return async () => {
+              interleave(query);
+              return target.all();
+            };
+          const value = Reflect.get(target, property);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
+      queries.set(proxy, query);
+      return proxy;
+    };
+    env.DB = {
+      prepare(query: string) {
+        interleave(query);
+        return wrap(prepare(query), query);
+      },
+      batch(statements: D1PreparedStatement[]) {
+        for (const statement of statements) interleave(queries.get(statement) ?? '');
+        return original.batch(statements);
+      },
+    } as unknown as D1Database;
+
+    expect(await revokeConsent({ email }, 'one-click', later)).toBe(true);
+    expect(interleaved).toBe(true);
+    expect(state().status).toBe('revoked');
+    expect(recordCommerceEvent.mock.calls).toEqual([
+      ['newsletter_unsubscribed', { source: 'account' }],
+    ]);
+  });
+
   it('does not let a stale footer request overwrite a concurrent unsubscribe', async () => {
     await requestConsent({ email, source: 'footer', sendConfirmation: false }, now);
     vi.mocked(sendEmail).mockClear();

@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { localD1 } from './helpers/local-d1';
-const { env } = vi.hoisted(() => ({ env: {} as { DB?: D1Database } }));
+const { env, recordCommerceEvent } = vi.hoisted(() => ({
+  env: {} as { DB?: D1Database },
+  recordCommerceEvent: vi.fn(),
+}));
 vi.mock('cloudflare:workers', () => ({ env }));
+vi.mock('@/lib/commerce-events', () => ({ recordCommerceEvent }));
 import { getDb } from '@/db';
 import { accounts, accountSessions, cartItems, lots, organizations, products, productVariants } from '@/db/schema';
 import { createOrderFromCart, shipToFromOrganization, type ShipTo } from '@/lib/orders';
@@ -17,7 +21,7 @@ const token = 'a'.repeat(32);
 const submit = () => createOrderFromCart(account, visibility, shipTo, 'org1', null, token);
 const count = (table: string) => local.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get()!.n;
 beforeEach(async () => {
-  local = localD1(); env.DB = local.binding;
+  local = localD1(); env.DB = local.binding; recordCommerceEvent.mockClear();
   const db = getDb();
   await db.insert(accounts).values({ ...account, passwordHash: 'disabled' });
   await db.insert(accountSessions).values({ id: 'session1', accountId: account.id, tokenHash: 'unused', expiresAt: new Date(Date.now() + 3600000) });
@@ -42,6 +46,9 @@ describe('checkout acceptance is guarded at commit', () => {
     expect(row.created_at).toBeGreaterThan(0);
     expect((await submit()).ok).toBe(true);
     expect(count('orders')).toBe(1);
+    expect(recordCommerceEvent.mock.calls).toEqual([
+      ['order_submitted', { source: 'storefront' }],
+    ]);
   });
   it.each([
     "UPDATE accounts SET status = 'suspended'",
@@ -71,6 +78,9 @@ describe('checkout acceptance is guarded at commit', () => {
     expect(results.every((result) => result.ok)).toBe(true);
     if (results[0].ok && results[1].ok) expect(results[0].orderNumber).toBe(results[1].orderNumber);
     expect(count('orders')).toBe(1); expect(count('notifications')).toBe(1);
+    expect(recordCommerceEvent.mock.calls).toEqual([
+      ['order_submitted', { source: 'storefront' }],
+    ]);
   });
   it('accepts the full 20-line cart within D1 parameter limits', async () => {
     // Enough released stock for every line: this test is about D1 parameter limits, not stock.
