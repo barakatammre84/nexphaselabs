@@ -57,14 +57,15 @@ export default function DocumentationPage() {
           Verified batch documentation.
         </h1>
         <p className="mt-7 max-w-2xl text-lg leading-8 text-muted-foreground">
-          Searchable lot records, method-specific results, and analytical files
-          connected to the exact material your laboratory receives.
+          Every certificate names the laboratory that did the testing and that
+          laboratory&rsquo;s own reference for the sample, so the result is one you can
+          confirm with them rather than with us.
         </p>
         <div className="mt-9 flex flex-wrap gap-3">
           <Link href="/documentation/lot-lookup" className="action-primary gap-2">
             Search COAs <ArrowRight className="size-4" />
           </Link>
-          <Link href="/catalog" className="action-secondary">Shop products</Link>
+          <Link href="/documentation/guides" className="action-secondary">Laboratory guides</Link>
         </div>
         </div>
       </section>
@@ -95,8 +96,14 @@ export default function DocumentationPage() {
             </h2>
             <p className="mt-5 leading-8 text-muted-foreground">
               Every field below appears on the certificate issued for your lot. If a value is missing or you cannot
-              reconcile it with the vial in front of you, contact us before using the material.
+              reconcile it with the vial in front of you, stop and contact us before using the material.
             </p>
+            <Link
+              href="/documentation/guides/reading-a-certificate-of-analysis"
+              className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-primary"
+            >
+              How to read a certificate <ArrowRight className="size-4" />
+            </Link>
             <a
               href="mailto:research@nexphaselabs.net?subject=COA%20request"
               className="mt-7 inline-flex items-center gap-2 text-sm font-bold text-primary"

@@ -13,6 +13,7 @@ const staticColumns = [
       { href: '/documentation', label: 'Documentation & QC' },
       { href: '/documentation#coa', label: 'What a COA includes' },
       { href: '/documentation#handling', label: 'Storage & handling' },
+      { href: '/documentation/guides', label: 'Laboratory guides' },
       { href: '/documentation/lot-lookup', label: 'Lot lookup' },
       { href: '/documentation/sds', label: 'Safety data sheets' },
       { href: '/faq', label: 'FAQ' },

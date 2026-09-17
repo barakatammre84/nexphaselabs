@@ -24,6 +24,9 @@ vi.mock('@/lib/storefront', () => ({ listStorefrontProducts: async () => [], vis
 vi.mock('@/lib/classes', () => ({ listActiveClasses: async () => [] }));
 vi.mock('@/lib/visibility', () => ({ currentViewer: async () => ({ account: null, visibility: { pricing: 'none', availability: false } }) }));
 
+import { GUIDES } from '@/lib/guides';
+import GuidesIndexPage from '@/app/documentation/guides/page';
+import GuidePage from '@/app/documentation/guides/[slug]/page';
 import HomePage from '@/app/page';
 import AboutPage from '@/app/about/page';
 import WholesalePage from '@/app/wholesale/page';
@@ -36,7 +39,8 @@ import CommunityGuidelinesPage from '@/app/legal/community-guidelines/page';
  * language FDA has quoted in warning letters to peptide sellers, or a claim we cannot evidence.
  */
 const FORBIDDEN: [label: string, pattern: RegExp][] = [
-  ['a disease or treatment claim', /\b(cures?|treats?|treatment of|prevents?|diagnos(e|es|is)|therapeutic|therapy)\b/i],
+  ['a disease or treatment claim', /\b(cures?|treatment of|therapeutic|therapy|diagnos(e|es|is)|treats?\s+(a|an|any|the)?\s*\w*\s*(disease|condition|illness|symptom|patients?))\b/i],
+  ['a named disease', /\b(diabetes|obesity|cancer|alzheimer\w*|arthritis|depression|anxiety|hypertension|osteoporosis|fibrosis|ulcers?|covid)\b/i],
   ['a structure or function claim', /\b(weight loss|fat loss|appetite|satiety|muscle|recovery|anti-?aging|longevity|libido|healing|wound|inflammation|cognition|energy levels)\b/i],
   ['a human dose or route', /\b(dosage|dosing|mg\/kg|per kilogram|reconstitut\w*|subcutaneous|intramuscular|injection|syringe|insulin unit)\b/i],
   ['an approved medicine by name', /\b(ozempic|wegovy|mounjaro|egrifta|saxenda|zepbound)\b/i],
@@ -50,7 +54,8 @@ const FORBIDDEN: [label: string, pattern: RegExp][] = [
  * every page says in terms that we do not provide dosing guidance, and that sentence must stay.
  * Those sentences are dropped before the scan; everything else is held to the list above.
  */
-const DISCLAIMS = /\b(do(es)? not|cannot|never|no\b|not for|refus\w+|declin\w+|prohibit\w+|not permitted|outside what we answer)\b/i;
+const DISCLAIMS =
+  /\b(we (do not|don't|never|decline|cannot|refuse|would only note)|does not provide|do not provide|do not publish|is not something|will not find|not for human|not for veterinary|no dosing|not permitted|prohibit\w*|declin\w*|refus\w*)\b/i;
 
 const strip = (html: string) =>
   html
@@ -65,6 +70,13 @@ async function surfaces(): Promise<[string, string][]> {
     ['home', strip(renderToStaticMarkup(await HomePage()))],
     ['about', strip(renderToStaticMarkup(React.createElement(AboutPage)))],
     ['wholesale', strip(renderToStaticMarkup(React.createElement(WholesalePage)))],
+    ['guides index', strip(renderToStaticMarkup(React.createElement(GuidesIndexPage)))],
+    ...(await Promise.all(
+      GUIDES.map(async (guide) => [
+        `guide ${guide.slug}`,
+        strip(renderToStaticMarkup(await GuidePage({ params: Promise.resolve({ slug: guide.slug }) }))),
+      ] as [string, string]),
+    )),
   ];
 }
 

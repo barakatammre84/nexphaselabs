@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { GUIDES } from '@/lib/guides';
 import { appEnv, publicOrigin } from '@/lib/site-config';
 import { listStorefrontProductLinks } from '@/lib/storefront';
 import { listPublishableLotNumbers } from '@/lib/lots-public';
@@ -20,6 +21,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${origin}/documentation`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${origin}/documentation/lot-lookup`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${origin}/documentation/sds`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${origin}/documentation/guides`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
+    ...GUIDES.map((guide) => ({
+      url: `${origin}/documentation/guides/${guide.slug}`,
+      lastModified: now,
+      changeFrequency: 'yearly' as const,
+      priority: 0.5,
+    })),
     { url: `${origin}/about`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${origin}/wholesale`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${origin}/faq`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
