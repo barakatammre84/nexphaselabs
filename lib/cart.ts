@@ -126,6 +126,21 @@ export async function getCart(accountId: string, visibility: Visibility): Promis
 
 export type CartWriteResult = { ok: true } | { ok: false; error: string };
 
+/** Compare the whole owner's cart atomically, using one JSON bind for D1's parameter limit. */
+function unchangedCart(
+  accountId: string,
+  existing: Array<{ id: string; variantId: string; quantity: number }>,
+) {
+  return sql`
+    (SELECT count(*) FROM cart_items WHERE account_id = ${accountId}) = ${existing.length}
+    AND NOT EXISTS (
+      SELECT id, variant_id, quantity FROM cart_items WHERE account_id = ${accountId}
+      EXCEPT
+      SELECT json_extract(value, '$.id'), json_extract(value, '$.variantId'),
+        json_extract(value, '$.quantity') FROM json_each(${JSON.stringify(existing)})
+    )`;
+}
+
 /** Add or increase a line. The variant must be active on a published product and priced for this viewer. */
 export async function addToCart(accountId: string, sku: string, quantity: number, visibility: Visibility): Promise<CartWriteResult> {
   if (visibility.pricing === 'none') return { ok: false, error: 'Pricing is not available to your account yet.' };
@@ -178,15 +193,7 @@ export async function addToCart(accountId: string, sku: string, quantity: number
 
     // Guard the whole owner's cart, not just this line: concurrent additions
     // to different lines must not invalidate the cart-count or line-limit check.
-    // One JSON parameter keeps this below D1's bound-parameter limit.
-    const unchanged = sql`
-      (SELECT count(*) FROM cart_items WHERE account_id = ${accountId}) = ${existing.length}
-      AND NOT EXISTS (
-        SELECT id, variant_id, quantity FROM cart_items WHERE account_id = ${accountId}
-        EXCEPT
-        SELECT json_extract(value, '$.id'), json_extract(value, '$.variantId'),
-          json_extract(value, '$.quantity') FROM json_each(${JSON.stringify(existing)})
-      )`;
+    const unchanged = unchangedCart(accountId, existing);
     const now = new Date();
     if (current) {
       const changed = await db.update(cartItems)
@@ -229,19 +236,18 @@ export async function setCartQuantity(
     return { ok: true };
   }
   const existing = await db
-    .select({ id: cartItems.id, quantity: cartItems.quantity })
+    .select({ id: cartItems.id, variantId: cartItems.variantId, quantity: cartItems.quantity })
     .from(cartItems)
     .where(eq(cartItems.accountId, accountId));
-  if (existing.some((item) => item.id === itemId)) {
-    let count = quantity;
-    for (const item of existing) {
-      if (item.id === itemId) continue;
-      if (!Number.isSafeInteger(item.quantity) || item.quantity < 1)
-        return { ok: false, error: INVALID_CART_QUANTITY };
-      count += item.quantity;
-      if (!Number.isSafeInteger(count))
-        return { ok: false, error: 'The cart item count is too large.' };
-    }
+  if (!existing.some((item) => item.id === itemId)) return { ok: true };
+  let count = quantity;
+  for (const item of existing) {
+    if (item.id === itemId) continue;
+    if (!Number.isSafeInteger(item.quantity) || item.quantity < 1)
+      return { ok: false, error: INVALID_CART_QUANTITY };
+    count += item.quantity;
+    if (!Number.isSafeInteger(count))
+      return { ok: false, error: 'The cart item count is too large.' };
   }
   if (visibility) {
     const [owned] = await db
@@ -255,11 +261,20 @@ export async function setCartQuantity(
       if (priceError) return { ok: false, error: priceError };
     }
   }
-  await db
+  // Preserve absolute set semantics, but reject a stale snapshot rather than
+  // committing a replacement whose owner-cart count was validated before a race.
+  const changed = await db
     .update(cartItems)
     .set({ quantity, updatedAt: new Date() })
-    .where(and(eq(cartItems.id, itemId), eq(cartItems.accountId, accountId)));
-  return { ok: true };
+    .where(and(
+      eq(cartItems.id, itemId),
+      eq(cartItems.accountId, accountId),
+      unchangedCart(accountId, existing),
+    ))
+    .returning({ id: cartItems.id });
+  return changed.length
+    ? { ok: true }
+    : { ok: false, error: 'Your cart changed while updating this pack size. Please try again.' };
 }
 
 export async function clearCart(accountId: string): Promise<void> {

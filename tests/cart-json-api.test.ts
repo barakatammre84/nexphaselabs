@@ -52,7 +52,7 @@ function synchronizeCartReads() {
       return new Proxy(statement, {
         get(target, property) {
           if (property === 'bind') return (...values: unknown[]) => wrap(target.bind(...values));
-          if (property === 'raw' && /^select "id", "variant_id", "quantity" from "cart_items"/i.test(query)) {
+          if (property === 'raw' && /^select "id", (?:"variant_id", )?"quantity" from "cart_items"/i.test(query)) {
             return async () => {
               const result = await target.raw();
               if (reads++ < 2) {
@@ -114,6 +114,7 @@ beforeEach(async () => {
   } as never);
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   local.sqlite.close();
   for (const key of Object.keys(env)) delete env[key];
 });
@@ -285,6 +286,94 @@ describe('cart JSON API for the side drawer (owner, 16 Sep 2026)', () => {
     expect(await responses.find((response) => response.status === 409)!.json())
       .toMatchObject({ ok: false, error: 'The cart item count is too large.' });
     expect(await (await read(get())).json()).toMatchObject({ ok: true, count: Number.MAX_SAFE_INTEGER });
+  });
+
+  it.each(['set', 'add'])('keeps the count safe when a quantity edit races with another %s on a different line', async (otherWrite) => {
+    local.sqlite.prepare('UPDATE product_variants SET list_price_cents = 0').run();
+    await getDb().insert(productVariants).values({
+      id: 'v2', productId: 'p1', sku: 'NPL-9999-1MG', quantity: '1 mg', presentation: 'Test',
+      listPriceCents: 0, active: true,
+    });
+    await getDb().insert(cartItems).values([
+      { id: 'cit_editcount1', accountId: 'acct_cart', variantId: 'v1', quantity: Number.MAX_SAFE_INTEGER - 2 },
+      { id: 'cit_editcount2', accountId: 'acct_cart', variantId: 'v2', quantity: 1 },
+    ]);
+    synchronizeCartReads();
+    const responses = await Promise.all([
+      update(post('/api/cart/update', { item: 'cit_editcount1', quantity: String(Number.MAX_SAFE_INTEGER - 1) })),
+      otherWrite === 'set'
+        ? update(post('/api/cart/update', { item: 'cit_editcount2', quantity: '2' }))
+        : add(post('/api/cart', { sku: 'NPL-9999-1MG', quantity: '1' })),
+    ]);
+    expect(responses.filter((response) => response.status === 200)).toHaveLength(1);
+    const refused = responses.find((response) => response.status !== 200)!;
+    expect([400, 409]).toContain(refused.status);
+    expect(await refused.json()).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/Your cart changed while updating|The cart item count is too large/),
+    });
+    const rows = local.sqlite.prepare("SELECT quantity FROM cart_items WHERE account_id = 'acct_cart'").all();
+    expect(rows.reduce((sum, row) => sum + BigInt(row.quantity as number), BigInt(0)))
+      .toBe(BigInt(Number.MAX_SAFE_INTEGER));
+    expect(await (await read(get())).json()).toMatchObject({
+      ok: true, count: Number.MAX_SAFE_INTEGER, subtotalCents: 0,
+    });
+  });
+
+  it('rejects a conflicting same-line edit without turning absolute quantities into increments', async () => {
+    await getDb().insert(cartItems).values({
+      id: 'cit_editabsolute', accountId: 'acct_cart', variantId: 'v1', quantity: 3,
+    });
+    synchronizeCartReads();
+    const quantities = [2, 5];
+    const responses = await Promise.all(quantities.map((quantity) =>
+      update(post('/api/cart/update', { item: 'cit_editabsolute', quantity: String(quantity) })),
+    ));
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 400]);
+    const acceptedQuantity = quantities[responses.findIndex((response) => response.status === 200)];
+    expect(await (await read(get())).json()).toMatchObject({
+      ok: true, count: acceptedQuantity, lines: [{ quantity: acceptedQuantity }],
+    });
+  });
+
+  it('validates an edited absolute quantity at its volume price and rejects unsafe priced totals', async () => {
+    local.sqlite.prepare('UPDATE product_variants SET price_breaks = ?').run(JSON.stringify([
+      { minQuantity: 7, listPriceCents: 100, institutionalPriceCents: 80 },
+    ]));
+    await getDb().insert(cartItems).values({
+      id: 'cit_editpricing', accountId: 'acct_cart', variantId: 'v1', quantity: 2,
+    });
+    const changed = await update(post('/api/cart/update', { item: 'cit_editpricing', quantity: '7' }));
+    expect(changed.status).toBe(200);
+    expect(await changed.json()).toMatchObject({
+      ok: true, count: 7, subtotalCents: 700, lines: [{ quantity: 7, unitPriceCents: 100 }],
+    });
+    const unsafe = await update(post('/api/cart/update', {
+      item: 'cit_editpricing', quantity: String(Math.floor(Number.MAX_SAFE_INTEGER / 100) + 1),
+    }));
+    expect(unsafe.status).toBe(400);
+    expect(await unsafe.json()).toMatchObject({
+      ok: false, error: 'This cart total is too large to calculate safely. Remove an item or reduce a quantity.',
+    });
+    expect(local.sqlite.prepare("SELECT quantity FROM cart_items WHERE id = 'cit_editpricing'").get()!.quantity).toBe(7);
+  });
+
+  it('keeps edits and zero-removal scoped to the owner, including missing items', async () => {
+    await getDb().insert(cartItems).values([
+      { id: 'cit_editowned', accountId: 'acct_cart', variantId: 'v1', quantity: 3 },
+      { id: 'cit_editforeign', accountId: 'acct_other', variantId: 'v1', quantity: Number.MAX_SAFE_INTEGER },
+    ]);
+    for (const item of ['cit_editforeign', 'cit_editmissing']) {
+      for (const quantity of ['5', '0']) {
+        const response = await update(post('/api/cart/update', { item, quantity }));
+        expect(response.status).toBe(200);
+        expect(await response.json()).toMatchObject({ ok: true, count: 3 });
+      }
+    }
+    const removed = await update(post('/api/cart/update', { item: 'cit_editowned', quantity: '0' }));
+    expect(await removed.json()).toMatchObject({ ok: true, count: 0, lines: [] });
+    expect(local.sqlite.prepare("SELECT quantity FROM cart_items WHERE id = 'cit_editforeign'").get()!.quantity)
+      .toBe(Number.MAX_SAFE_INTEGER);
   });
 
   it.each([0, -1, 1.5])('refuses to add to an invalid stored quantity of %s', async (quantity) => {
