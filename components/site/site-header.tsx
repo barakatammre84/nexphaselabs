@@ -1,5 +1,7 @@
 import { NavLink } from '@/components/site/nav-link';
-import { openCheckoutEnabled } from '@/lib/site-config';
+import { accountRequired, openCheckoutEnabled } from '@/lib/site-config';
+import { CartDrawer } from '@/components/site/cart-drawer';
+import { cartCount } from '@/lib/cart';
 import { MobileMenu } from '@/components/site/mobile-menu';
 import { BrandLogo } from '@/components/site/brand-logo';
 import { FileCheck2, ShoppingCart, UserRound } from 'lucide-react';
@@ -17,17 +19,26 @@ const navigation = [
 export async function SiteHeader() {
   const open = openCheckoutEnabled();
   let signedIn = false;
-  if (!open) {
-    try {
-      const account = await getAccount();
-      signedIn = Boolean(account);
-    } catch (error) {
-      console.error(
-        '[header] account lookup failed',
-        error instanceof Error ? error.message : error,
-      );
-    }
+  let count = 0;
+  // The signed-in account is looked up on every page: the header cart is a live
+  // count and a drawer for an account, a sign-in link for everyone else.
+  try {
+    const account = await getAccount();
+    signedIn = Boolean(account);
+    if (account) count = await cartCount(account.id);
+  } catch (error) {
+    console.error(
+      '[header] account lookup failed',
+      error instanceof Error ? error.message : error,
+    );
   }
+  // Where the cart link goes for a visitor without an account (owner, 16 Sep 2026: sign in first).
+  const cartHref = open
+    ? accountRequired()
+      ? '/account/sign-in?return_to=%2Faccount%2Fcart'
+      : '/account/cart'
+    : '/account/sign-up?tier=institutional';
+  const cartLabel = open ? 'Cart' : 'Get access';
   const accountHref = open
     ? '/account/orders'
     : signedIn
@@ -78,13 +89,14 @@ export async function SiteHeader() {
           >
             <UserRound className="size-5" />
           </NavLink>
-          <NavLink
-            href={open || signedIn ? '/account/cart' : '/account/sign-up?tier=institutional'}
-            className="header-cart-link"
-          >
-            <ShoppingCart className="size-4" />
-            {open || signedIn ? 'Cart' : 'Get access'}
-          </NavLink>
+          {signedIn ? (
+            <CartDrawer initialCount={count} />
+          ) : (
+            <NavLink href={cartHref} className="header-cart-link">
+              <ShoppingCart className="size-4" />
+              {cartLabel}
+            </NavLink>
+          )}
         </div>
         <MobileMenu>
           <nav
@@ -113,10 +125,10 @@ export async function SiteHeader() {
               {accountLabel}
             </NavLink>
             <NavLink
-              href={open || signedIn ? '/account/cart' : '/account/sign-up?tier=institutional'}
+              href={signedIn ? '/account/cart' : cartHref}
               className="action-primary"
             >
-              {open || signedIn ? 'Cart' : 'Research access'}
+              {signedIn || open ? 'Cart' : 'Research access'}
             </NavLink>
           </nav>
         </MobileMenu>

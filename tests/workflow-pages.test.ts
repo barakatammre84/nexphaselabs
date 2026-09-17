@@ -10,7 +10,10 @@ const { state } = vi.hoisted(() => ({
     note: '<script>not markup</script> Please attach registration.',
   },
 }));
-vi.mock('@/lib/site-config', () => ({ openCheckoutEnabled: () => false }));
+vi.mock('@/lib/site-config', () => ({ openCheckoutEnabled: () => false, accountRequired: () => false }));
+// The header now carries the side cart, a client component (owner, 16 Sep 2026).
+vi.mock('next/navigation', () => ({ usePathname: () => '/', redirect: vi.fn(), notFound: vi.fn() }));
+vi.mock('@/lib/cart', () => ({ cartCount: async () => 0 }));
 vi.mock('next/link', () => ({
   default: ({
     children,
@@ -57,7 +60,9 @@ describe('navigation and account rendering', () => {
   it('renders cart links for signed-in customers', async () => {
     state.signedIn = true;
     const html = renderToStaticMarkup(await SiteHeader());
-    expect(html.match(/href="\/account\/cart"/g)).toHaveLength(2);
+    // Desktop: the side-cart trigger with its live count; mobile menu: the plain cart link.
+    expect(html).toContain('aria-label="Cart, 0 items"');
+    expect(html.match(/href="\/account\/cart"/g)).toHaveLength(1);
     expect(html).not.toContain('href="/account/sign-in"');
   });
   it('shows the actual review request safely and links to resubmission', async () => {

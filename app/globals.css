@@ -1515,3 +1515,50 @@ body.feedback-picking-element
     gap: 0.8rem;
   }
 }
+
+/* The side cart (owner, 16 Sep 2026): opens beside the page from the header. */
+.cart-drawer-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgb(14 18 59 / 48%);
+  backdrop-filter: blur(4px);
+}
+
+.cart-drawer {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  display: flex;
+  width: min(26rem, calc(100vw - 1.5rem));
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: white;
+  box-shadow: -30px 0 80px rgb(14 18 59 / 24%);
+  animation: cart-drawer-in 180ms ease-out;
+}
+
+@keyframes cart-drawer-in {
+  from {
+    transform: translateX(1.5rem);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.header-cart-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--ion-aqua-deep);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+}
