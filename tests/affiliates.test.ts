@@ -20,6 +20,8 @@ import {
 } from '@/lib/affiliate-rules';
 import {
   accrueCommission,
+  affiliateSettings,
+  saveAffiliateSettings,
   affiliateForAccount,
   applyForAffiliate,
   approvedAffiliateByCode,
@@ -361,5 +363,56 @@ describe('routes', () => {
     expect(anonymous.status).toBe(401);
     const cross = await staffRoute(post('/api/manage/affiliates', {}, { Origin: 'https://elsewhere.example' }));
     expect(cross.status).toBe(403);
+  });
+});
+
+describe('programme settings', () => {
+  it('falls back to the built-in defaults until an administrator sets them', async () => {
+    expect(await affiliateSettings()).toEqual({ commissionBps: 1000, payoutThresholdCents: 5000, holdDays: 30 });
+  });
+
+  it('saves the three numbers and refuses values outside their range', async () => {
+    expect(await saveAffiliateSettings({ commissionBps: 6000, payoutThresholdCents: 5000, holdDays: 30 }, staff)).toMatchObject({ ok: false });
+    expect(await saveAffiliateSettings({ commissionBps: -1, payoutThresholdCents: 5000, holdDays: 30 }, staff)).toMatchObject({ ok: false });
+    expect(await saveAffiliateSettings({ commissionBps: 1000, payoutThresholdCents: 2_000_000, holdDays: 30 }, staff)).toMatchObject({ ok: false });
+    expect(await saveAffiliateSettings({ commissionBps: 1000, payoutThresholdCents: 5000, holdDays: 400 }, staff)).toMatchObject({ ok: false });
+    expect(await saveAffiliateSettings({ commissionBps: 1000, payoutThresholdCents: 5000, holdDays: 1.5 }, staff)).toMatchObject({ ok: false });
+    expect(all('SELECT key FROM settings')).toHaveLength(0);
+
+    expect(await saveAffiliateSettings({ commissionBps: 1750, payoutThresholdCents: 12_500, holdDays: 14 }, staff)).toEqual({ ok: true });
+    expect(await affiliateSettings()).toEqual({ commissionBps: 1750, payoutThresholdCents: 12_500, holdDays: 14 });
+    // Zero is a real answer: no minimum, and vesting on delivery.
+    expect(await saveAffiliateSettings({ commissionBps: 0, payoutThresholdCents: 0, holdDays: 0 }, staff)).toEqual({ ok: true });
+    expect(await affiliateSettings()).toEqual({ commissionBps: 0, payoutThresholdCents: 0, holdDays: 0 });
+  });
+
+  it('gives a new partner the current default without repricing anyone already approved', async () => {
+    const first = await approvedPartner();
+    expect(first.commissionBps).toBe(1000);
+
+    await saveAffiliateSettings({ commissionBps: 1500, payoutThresholdCents: 5000, holdDays: 30 }, staff);
+    const second = await applyForAffiliate({ id: 'acct_other', name: 'Other Person' }, good);
+    if (!second.ok) throw new Error(second.errors.join(' '));
+    expect(second.affiliate.commissionBps).toBe(1500);
+    expect((await affiliateForAccount('acct_partner'))!.commissionBps).toBe(1000);
+  });
+
+  it('uses the changed hold when dating a delivered order, and the changed rate when accruing', async () => {
+    await saveAffiliateSettings({ commissionBps: 2000, payoutThresholdCents: 100, holdDays: 7 }, staff);
+    const applied = await applyForAffiliate({ id: 'acct_partner', name: 'Ada Partner' }, good);
+    if (!applied.ok) throw new Error('setup');
+    await decideAffiliate(applied.affiliate.id, 'approved', staff, null);
+    const partner = (await affiliateForAccount('acct_partner'))!;
+
+    const order = await syntheticOrder(2);
+    await bindReferral(partner.code, order.buyer.id);
+    expect(
+      await accrueCommission({ id: order.detail.order.id, orderNumber: 'NX-1', accountId: order.buyer.id, subtotalCents: 200 }),
+    ).toBe(40); // 20% of $2.00
+
+    const delivered = new Date('2026-09-16T00:00:00Z');
+    local.sqlite.prepare('UPDATE orders SET delivered_at = ? WHERE id = ?').run(Math.floor(delivered.getTime() / 1000), order.detail.order.id);
+    await sweepAffiliateCommissions(delivered);
+    expect(row('SELECT vests_at FROM affiliate_commissions')?.vests_at).toBe(Math.floor((delivered.getTime() + 7 * 86_400_000) / 1000));
   });
 });

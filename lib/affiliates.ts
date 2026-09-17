@@ -25,7 +25,7 @@ import {
   type AffiliateApplication,
 } from '@/lib/affiliate-rules';
 import { AFFILIATE_AGREEMENT_VERSION } from '@/lib/policy';
-import { AFFILIATE_SETTING_KEYS, readSettings } from '@/lib/settings';
+import { AFFILIATE_SETTING_KEYS, readSettings, writeSettings } from '@/lib/settings';
 import { affiliateProgramEnabled } from '@/lib/site-config';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 
@@ -77,6 +77,35 @@ export async function affiliateSettings(): Promise<AffiliateSettings> {
     payoutThresholdCents: positiveInt(map[AFFILIATE_SETTING_KEYS.payoutThresholdCents], DEFAULT_PAYOUT_THRESHOLD_CENTS),
     holdDays: positiveInt(map[AFFILIATE_SETTING_KEYS.holdDays], DEFAULT_HOLD_DAYS),
   };
+}
+
+export type AffiliateSettingsInput = { commissionBps: number; payoutThresholdCents: number; holdDays: number };
+
+/**
+ * The programme-wide numbers, set by an administrator on /manage/affiliates. Changing the
+ * default rate deliberately does NOT reprice existing partners: each partner's rate is stored
+ * on their own record when they are taken on, and is changed one at a time with setCommissionRate.
+ */
+export async function saveAffiliateSettings(
+  input: AffiliateSettingsInput,
+  staff: StaffPrincipal,
+): Promise<StaffOutcome> {
+  const { commissionBps, payoutThresholdCents, holdDays } = input;
+  if (!Number.isInteger(commissionBps) || commissionBps < 0 || commissionBps > 5000)
+    return { ok: false, error: 'Enter a default commission between 0% and 50%.' };
+  if (!Number.isInteger(payoutThresholdCents) || payoutThresholdCents < 0 || payoutThresholdCents > 1_000_000)
+    return { ok: false, error: 'Enter a payout minimum between $0 and $10,000.' };
+  if (!Number.isInteger(holdDays) || holdDays < 0 || holdDays > 365)
+    return { ok: false, error: 'Enter a hold between 0 and 365 days.' };
+  await writeSettings(
+    {
+      [AFFILIATE_SETTING_KEYS.commissionBps]: String(commissionBps),
+      [AFFILIATE_SETTING_KEYS.payoutThresholdCents]: String(payoutThresholdCents),
+      [AFFILIATE_SETTING_KEYS.holdDays]: String(holdDays),
+    },
+    staff,
+  );
+  return { ok: true };
 }
 
 export async function affiliateForAccount(accountId: string): Promise<AffiliateRow | null> {

@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { LegalPage, LegalSection } from '@/components/site/legal-layout';
 import { ENTITY } from '@/lib/entity';
-import { formatRate, DEFAULT_COMMISSION_BPS, DEFAULT_HOLD_DAYS } from '@/lib/affiliate-rules';
+import { formatRate, DEFAULT_COMMISSION_BPS, DEFAULT_HOLD_DAYS, DEFAULT_PAYOUT_THRESHOLD_CENTS } from '@/lib/affiliate-rules';
+import { affiliateSettings } from '@/lib/affiliates';
+import { formatCents } from '@/lib/visibility-rules';
 import { AFFILIATE_AGREEMENT_VERSION } from '@/lib/policy';
 import { SUPPORT } from '@/lib/support';
 
@@ -17,7 +19,15 @@ export const metadata: Metadata = {
  * third party speaking about regulated material, and the restrictions there are the same ones
  * CLAUDE.md places on this site's own copy. A partner who breaks them is suspended.
  */
-export default function AffiliateTermsPage() {
+export default async function AffiliateTermsPage() {
+  // The published rate is whatever an administrator has set (/manage/affiliates), so the
+  // agreement cannot drift from what partners are actually paid. A page of terms must still
+  // render when the database is unreachable, so the built-in defaults are the fallback.
+  const settings = await affiliateSettings().catch(() => ({
+    commissionBps: DEFAULT_COMMISSION_BPS,
+    payoutThresholdCents: DEFAULT_PAYOUT_THRESHOLD_CENTS,
+    holdDays: DEFAULT_HOLD_DAYS,
+  }));
   return (
     <LegalPage
       title="Partner agreement"
@@ -38,13 +48,14 @@ export default function AffiliateTermsPage() {
 
       <LegalSection heading="2. What you earn">
         <p>
-          Commission is {formatRate(DEFAULT_COMMISSION_BPS)} of the materials subtotal of a qualifying order, after any
-          promotional discount, unless we have agreed a different rate with you in writing. It is never calculated on
-          shipping or on sales tax, because neither is ours to share.
+          Commission is {formatRate(settings.commissionBps)} of the materials subtotal of a qualifying order, after
+          any promotional discount. If a different rate has been agreed with you it is shown on your partner page, and
+          that rate is the one that governs. Commission is never calculated on shipping or on sales tax, because
+          neither is ours to share.
         </p>
         <p>
           An order qualifies when the customer created their account through your link and the order is paid. Commission
-          accrues when the order is placed, and vests {DEFAULT_HOLD_DAYS} days after the material is delivered. A refund,
+          accrues when the order is placed, and vests {settings.holdDays} days after the material is delivered. A refund,
           return or cancellation reverses it, whether or not it had vested. Attribution is recorded once, when the account
           is created, and does not move to another partner afterwards. You never earn on your own orders.
         </p>
@@ -97,7 +108,7 @@ export default function AffiliateTermsPage() {
       <LegalSection heading="6. Payment">
         <p>
           Vested commission is paid by Zelle to the address on your partner record, in batches, once your vested
-          balance reaches the published minimum. We must hold a completed Form W-9 from you before the first payment
+          balance reaches {formatCents(settings.payoutThresholdCents)}. We must hold a completed Form W-9 from you before the first payment
           is sent. As an independent contractor you are responsible for your own taxes, and we report what we pay you
           as the law requires.
         </p>

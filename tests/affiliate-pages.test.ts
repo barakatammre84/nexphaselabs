@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -10,8 +9,12 @@ vi.mock('next/navigation', () => ({ redirect: vi.fn(), notFound: vi.fn() }));
 const account = { id: 'acct_a', email: 'a@example.invalid', name: 'Ada', status: 'active', verificationStatus: 'none', tier: 'researcher' as const, termsVersion: null, ruoVersion: null, sessionId: 's' };
 vi.mock('@/lib/account-auth', () => ({ requireAccount: async () => account }));
 
-const affiliate = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
+const affiliate = vi.hoisted(() => ({
+  current: null as Record<string, unknown> | null,
+  settings: { commissionBps: 1000, payoutThresholdCents: 5000, holdDays: 30 },
+}));
 vi.mock('@/lib/affiliates', () => ({
+  affiliateSettings: async () => affiliate.settings,
   affiliateForAccount: async () => affiliate.current,
   affiliateDashboard: async () => ({
     affiliate: affiliate.current,
@@ -19,7 +22,7 @@ vi.mock('@/lib/affiliates', () => ({
     referredAccounts: 7,
     commissions: [{ id: 'c1', orderNumber: 'NX-260916-0001', basisCents: 15_000, rateBps: 1000, amountCents: 1500, status: 'pending', vestsAt: new Date('2026-10-20T00:00:00Z'), createdAt: new Date('2026-09-16T00:00:00Z') }],
     payouts: [{ id: 'p1', amountCents: 4200, status: 'sent', sentAt: new Date('2026-09-10T00:00:00Z'), reference: 'Zelle 1234' }],
-    settings: { commissionBps: 1000, payoutThresholdCents: 5000, holdDays: 30 },
+    settings: affiliate.settings,
   }),
 }));
 
@@ -29,8 +32,9 @@ import AccountAffiliatePage from '@/app/account/affiliate/page';
 const render = async () => renderToStaticMarkup(await AccountAffiliatePage({ searchParams: Promise.resolve({}) }));
 
 describe('partner agreement', () => {
-  it('states the claim limits, the disclosure duty and the payment terms', () => {
-    const html = renderToStaticMarkup(React.createElement(AffiliateTermsPage));
+  it('states the claim limits, the disclosure duty and the payment terms', async () => {
+    affiliate.settings = { commissionBps: 1000, payoutThresholdCents: 5000, holdDays: 30 };
+    const html = renderToStaticMarkup(await AffiliateTermsPage());
     for (const phrase of [
       'laboratory research use only',
       'Name a disease or condition',
@@ -44,6 +48,20 @@ describe('partner agreement', () => {
       expect(html).toContain(phrase);
     // The agreement must never itself carry the thing it forbids.
     expect(html).not.toMatch(/\b(Ozempic|Wegovy|Mounjaro)\b/);
+    expect(html).toContain('10% of the materials subtotal');
+    expect(html).toContain('vests 30 days');
+    expect(html).toContain('reaches $50.00');
+  });
+
+  it('prints whatever rate, hold and minimum an administrator has set, so it cannot drift', async () => {
+    affiliate.settings = { commissionBps: 1750, payoutThresholdCents: 12_500, holdDays: 14 };
+    const html = renderToStaticMarkup(await AffiliateTermsPage());
+    expect(html).toContain('17.50% of the materials subtotal');
+    expect(html).toContain('vests 14 days');
+    expect(html).toContain('reaches $125.00');
+    expect(html).not.toContain('10% of the materials subtotal');
+    // A partner on their own negotiated rate is told which one governs.
+    expect(html).toContain('shown on your partner page');
   });
 });
 

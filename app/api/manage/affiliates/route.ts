@@ -4,6 +4,7 @@ import {
   decideAffiliate,
   markPayoutSent,
   recordTaxForm,
+  saveAffiliateSettings,
   setCommissionRate,
 } from '@/lib/affiliates';
 import { redirectWithNotice } from '@/lib/notice';
@@ -31,6 +32,24 @@ export async function POST(request: Request) {
       const decision = intent === 'approve' ? 'approved' : intent === 'decline' ? 'declined' : 'suspended';
       const result = await decideAffiliate(id, decision, staff, value('note', 500) || null);
       return result.ok ? done(`Partner ${decision}.`) : failed(result.error);
+    }
+    if (intent === 'settings') {
+      const percent = Number(value('commission_percent', 10));
+      const minimum = Number(value('payout_minimum_dollars', 12));
+      const hold = Number(value('hold_days', 6));
+      if (![percent, minimum, hold].every(Number.isFinite))
+        return failed('Enter a number in each of the three programme fields.');
+      const result = await saveAffiliateSettings(
+        {
+          commissionBps: Math.round(percent * 100),
+          payoutThresholdCents: Math.round(minimum * 100),
+          holdDays: Math.round(hold),
+        },
+        staff,
+      );
+      return result.ok
+        ? done(`Programme set to ${percent}% commission, $${minimum} minimum, ${Math.round(hold)}-day hold. Existing partners keep their own rate.`)
+        : failed(result.error);
     }
     if (intent === 'rate') {
       const percent = Number(value('rate_percent', 10));

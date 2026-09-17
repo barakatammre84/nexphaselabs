@@ -62,14 +62,70 @@ export default async function AffiliatesDeskPage({ searchParams }: Props) {
       {admin && settings && (
         <>
           <p className="mt-6 text-sm text-muted-foreground">
-            Default commission {formatRate(settings.commissionBps)} · vests {settings.holdDays} days after delivery ·
-            payout minimum {formatCents(settings.payoutThresholdCents)} ·{' '}
-            <a href="/api/manage/reports/affiliates.csv" className="font-semibold text-primary">commission ledger CSV</a>
+            <a href="/api/manage/reports/affiliates.csv" className="font-semibold text-primary">Commission ledger CSV</a>
             {' · '}
             <a href={`/api/manage/reports/affiliates.csv?year=${year}`} className="font-semibold text-primary">
               {year} payments CSV
             </a>
           </p>
+
+          <section className="mt-8 rounded-2xl border border-border bg-white p-6">
+            <h2 className="font-display text-xl font-bold">Programme settings</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+              These apply to partners taken on from now. Changing the default rate does not reprice anyone already
+              approved, because each partner's rate is stored on their own record; change those one at a time below.
+              The commission and the hold shown here are also the figures printed in the{' '}
+              <Link href="/legal/affiliate-terms" className="font-semibold text-primary">partner agreement</Link>.
+            </p>
+            <form method="post" action="/api/manage/affiliates" className="mt-4 flex flex-wrap items-end gap-4">
+              <input type="hidden" name="intent" value="settings" />
+              <label className="block text-sm">
+                <span className="font-semibold">Default commission %</span>
+                <input
+                  name="commission_percent"
+                  type="number"
+                  min="0"
+                  max="50"
+                  step="0.5"
+                  required
+                  defaultValue={settings.commissionBps / 100}
+                  className={`${field} mt-1 block w-32`}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="font-semibold">Payout minimum $</span>
+                <input
+                  name="payout_minimum_dollars"
+                  type="number"
+                  min="0"
+                  max="10000"
+                  step="1"
+                  required
+                  defaultValue={settings.payoutThresholdCents / 100}
+                  className={`${field} mt-1 block w-32`}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="font-semibold">Hold after delivery (days)</span>
+                <input
+                  name="hold_days"
+                  type="number"
+                  min="0"
+                  max="365"
+                  step="1"
+                  required
+                  defaultValue={settings.holdDays}
+                  className={`${field} mt-1 block w-40`}
+                />
+              </label>
+              <button type="submit" className="action-primary">Save programme settings</button>
+            </form>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Currently {formatRate(settings.commissionBps)} of materials after any promo code, vesting{' '}
+              {settings.holdDays} days after delivery, paid once a partner has {formatCents(settings.payoutThresholdCents)}{' '}
+              vested and a W-9 on file.
+            </p>
+          </section>
 
           {payouts.length > 0 && (
             <section className="mt-8 rounded-2xl border border-border bg-white p-6">
