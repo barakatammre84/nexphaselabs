@@ -442,6 +442,13 @@
       "when": 1789608966822,
       "tag": "0062_coupons",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "6",
+      "when": 1789612887038,
+      "tag": "0063_stock_waitlist",
+      "breakpoints": true
     }
   ]
 }

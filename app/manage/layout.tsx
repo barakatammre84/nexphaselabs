@@ -3,6 +3,7 @@ import { Lock } from 'lucide-react';
 import {
   canFulfil,
   canHandleFeedback,
+  canEditCatalog,
   canManageStaff,
   canVerifyAccounts,
   requireStaff,
@@ -62,6 +63,11 @@ export default async function ManageLayout({
             {canFulfil(staff) && (
               <Link href="/manage/procurement" className="hover:text-primary">
                 Procurement
+              </Link>
+            )}
+            {canEditCatalog(staff) && (
+              <Link href="/manage/waitlist" className="hover:text-primary">
+                Waitlist
               </Link>
             )}
             {/* The report exports answer only canVerifyAccounts (app/api/manage/reports). */}

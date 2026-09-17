@@ -2,7 +2,7 @@
 
 import type React from 'react';
 
-import { FileCheck2, Minus, Plus, ShoppingCart } from 'lucide-react';
+import { BellRing, FileCheck2, Minus, Plus, ShoppingCart } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { effectiveUnitPrice, nextBreak, priceLadder, type PriceBreak } from '@/lib/price-breaks';
 
@@ -29,6 +29,7 @@ export function ProductPurchasePanel({
   pricing,
   canOrder,
   orderingNote,
+  waitlisted = [],
 }: {
   productName: string;
   productSlug: string;
@@ -39,6 +40,8 @@ export function ProductPurchasePanel({
   /** Whether this viewer can place an order at all; prices can show before ordering opens to them. */
   canOrder: boolean;
   orderingNote?: string;
+  /** Pack sizes this account already asked to hear about (lib/waitlist.ts). */
+  waitlisted?: string[];
 }) {
   const [selectedSku, setSelectedSku] = useState(
     (variants.find((variant) => variant.sellable) ?? variants[0])?.sku ?? '',
@@ -46,6 +49,43 @@ export function ProductPurchasePanel({
   const [quantity, setQuantity] = useState(1);
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [joined, setJoined] = useState<string[]>(waitlisted);
+  const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+
+  // "Tell me when it's available": one request per pack size, answered by a single
+  // email when a released lot can supply it (owner, 16 Sep 2026). Without JavaScript
+  // the form posts and the product page shows the outcome.
+  async function joinViaFetch(event: React.FormEvent<HTMLFormElement>) {
+    if (typeof window === 'undefined' || typeof window.fetch !== 'function') return;
+    event.preventDefault();
+    const form = event.currentTarget;
+    const sku = String(new FormData(form).get('sku') ?? '');
+    setJoining(true);
+    setJoinError(null);
+    try {
+      const response = await fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+      });
+      const body = (await response.json().catch(() => null)) as { ok?: boolean; error?: string; signIn?: string } | null;
+      if (response.status === 401 && body?.signIn) {
+        window.location.assign(body.signIn);
+        return;
+      }
+      if (!response.ok || !body?.ok) {
+        setJoinError(body?.error ?? 'That request could not be saved. Try again shortly.');
+        return;
+      }
+      setJoined((current) => (current.includes(sku) ? current : [...current, sku]));
+    } catch {
+      setJoinError('That request could not be saved. Try again shortly.');
+    } finally {
+      setJoining(false);
+    }
+  }
 
   // With JavaScript the add stays on the page and opens the side cart (owner,
   // 16 Sep 2026); without it the form posts and the cart page answers as before.
@@ -84,6 +124,8 @@ export function ProductPurchasePanel({
   );
   if (!selected) return null;
   const available = canOrder && hasReleasedLot && selected.sellable && selected.priceCents !== null;
+  // Out of stock for a buyer who could otherwise order: offer the one-time notice instead of a dead button.
+  const waitlistable = canOrder && (!hasReleasedLot || !selected.sellable);
 
   // Volume pricing at the viewer's own tier, from the same module the cart and the
   // order guard use. With no ladder entered for this pack size, every value below is
@@ -192,23 +234,48 @@ export function ProductPurchasePanel({
           )}
         </div>
       )}
-      <form method="post" action="/api/cart" className="mt-4" onSubmit={addViaFetch}>
-        <input type="hidden" name="sku" value={selected.sku} />
-        <input type="hidden" name="quantity" value={quantity} />
-        <input type="hidden" name="return_to" value={`/catalog/${productSlug}`} />
-        <button type="submit" disabled={!available || adding} className="action-primary w-full justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50">
-            <ShoppingCart className="size-4" />
-            {adding
-              ? 'Adding…'
-              : available && unitPrice !== null
-              ? `Add to cart · ${money(unitPrice * quantity)}`
-            : !canOrder
-              ? 'Not available to order'
-              : !selected.sellable
-                ? 'This pack size is out of stock'
+      {waitlistable ? (
+        joined.includes(selected.sku) ? (
+          <p role="status" className="mt-4 rounded-xl border border-border bg-secondary p-4 text-center text-sm font-semibold">
+            You&rsquo;re on the list &mdash; we&rsquo;ll email you once when this pack size is released.{' '}
+            <a href="/account/waitlist" className="text-primary underline">
+              Manage
+            </a>
+          </p>
+        ) : (
+          <form method="post" action="/api/waitlist" className="mt-4" onSubmit={joinViaFetch}>
+            <input type="hidden" name="intent" value="join" />
+            <input type="hidden" name="sku" value={selected.sku} />
+            <input type="hidden" name="return_to" value={`/catalog/${productSlug}`} />
+            <button type="submit" disabled={joining} className="action-primary w-full justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50">
+              <BellRing className="size-4" />
+              {joining ? 'Saving…' : 'Tell me when it\'s available'}
+            </button>
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              One email when a lot is released for this pack size. It reserves nothing and is not marketing.
+            </p>
+          </form>
+        )
+      ) : (
+        <form method="post" action="/api/cart" className="mt-4" onSubmit={addViaFetch}>
+          <input type="hidden" name="sku" value={selected.sku} />
+          <input type="hidden" name="quantity" value={quantity} />
+          <input type="hidden" name="return_to" value={`/catalog/${productSlug}`} />
+          <button type="submit" disabled={!available || adding} className="action-primary w-full justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50">
+              <ShoppingCart className="size-4" />
+              {adding
+                ? 'Adding…'
+                : available && unitPrice !== null
+                ? `Add to cart · ${money(unitPrice * quantity)}`
+              : !canOrder
+                ? 'Not available to order'
                 : 'Not currently available'}
-        </button>
-      </form>
+          </button>
+        </form>
+      )}
+      {joinError && (
+        <p role="alert" className="mt-3 text-center text-xs font-semibold text-destructive">{joinError}</p>
+      )}
       {addError && (
         <p role="alert" className="mt-3 text-center text-xs font-semibold text-destructive">{addError}</p>
       )}

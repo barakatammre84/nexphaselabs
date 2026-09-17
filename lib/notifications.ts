@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { notificationPresentation } from '@/lib/notification-links';
 import { getDb } from '@/db';
 import { notificationEvents, notifications } from '@/db/notifications-schema';
 import {
@@ -87,15 +88,14 @@ export async function dispatchNotifications(limit = 5, now = new Date()) {
       const actionUrl = row.actionPath
         ? `${publicOrigin()}${row.actionPath}`
         : `${publicOrigin()}/account/orders/${encodeURIComponent(row.orderNumber)}`;
-      const actionLabel =
-        row.category === 'feedback' ? 'Feedback record' : 'Order details';
+      const { actionLabel, purpose } = notificationPresentation(row.category);
       envelope = row.envelope
         ? JSON.parse(row.envelope)
         : notificationEnvelope(
             row.recipient,
             row.subject,
             `${row.body}\n\n${actionLabel}: ${actionUrl}\n\n${ENTITY_FOOTER}`,
-            row.category === 'feedback' ? 'support' : 'orders',
+            purpose,
           );
       if (
         !envelope ||
