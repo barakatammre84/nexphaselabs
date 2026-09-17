@@ -1,5 +1,7 @@
 'use client';
 
+import type React from 'react';
+
 import { FileCheck2, Minus, Plus, ShoppingCart } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { effectiveUnitPrice, nextBreak, priceLadder, type PriceBreak } from '@/lib/price-breaks';
@@ -42,6 +44,40 @@ export function ProductPurchasePanel({
     (variants.find((variant) => variant.sellable) ?? variants[0])?.sku ?? '',
   );
   const [quantity, setQuantity] = useState(1);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  // With JavaScript the add stays on the page and opens the side cart (owner,
+  // 16 Sep 2026); without it the form posts and the cart page answers as before.
+  async function addViaFetch(event: React.FormEvent<HTMLFormElement>) {
+    if (typeof window === 'undefined' || typeof window.fetch !== 'function') return;
+    event.preventDefault();
+    const form = event.currentTarget;
+    setAdding(true);
+    setAddError(null);
+    try {
+      const response = await fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+      });
+      const data = (await response.json().catch(() => null)) as { ok?: boolean; error?: string; signIn?: string } | null;
+      if (response.status === 401 && data?.signIn) {
+        window.location.assign(data.signIn);
+        return;
+      }
+      if (!response.ok || !data?.ok) {
+        setAddError(data?.error ?? 'That could not be added to your cart.');
+        return;
+      }
+      window.dispatchEvent(new CustomEvent('nx:cart-open'));
+    } catch {
+      setAddError('The cart is temporarily unavailable.');
+    } finally {
+      setAdding(false);
+    }
+  }
   const selected = useMemo(
     () => variants.find((variant) => variant.sku === selectedSku) ?? variants[0],
     [selectedSku, variants],
@@ -156,14 +192,16 @@ export function ProductPurchasePanel({
           )}
         </div>
       )}
-      <form method="post" action="/api/cart" className="mt-4">
+      <form method="post" action="/api/cart" className="mt-4" onSubmit={addViaFetch}>
         <input type="hidden" name="sku" value={selected.sku} />
         <input type="hidden" name="quantity" value={quantity} />
         <input type="hidden" name="return_to" value={`/catalog/${productSlug}`} />
-        <button type="submit" disabled={!available} className="action-primary w-full justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50">
-          <ShoppingCart className="size-4" />
-          {available && unitPrice !== null
-            ? `Add to cart · ${money(unitPrice * quantity)}`
+        <button type="submit" disabled={!available || adding} className="action-primary w-full justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50">
+            <ShoppingCart className="size-4" />
+            {adding
+              ? 'Adding…'
+              : available && unitPrice !== null
+              ? `Add to cart · ${money(unitPrice * quantity)}`
             : !canOrder
               ? 'Not available to order'
               : !selected.sellable
@@ -171,6 +209,9 @@ export function ProductPurchasePanel({
                 : 'Not currently available'}
         </button>
       </form>
+      {addError && (
+        <p role="alert" className="mt-3 text-center text-xs font-semibold text-destructive">{addError}</p>
+      )}
       {!canOrder && orderingNote && (
         <p className="mt-3 text-center text-xs font-semibold text-muted-foreground">{orderingNote}</p>
       )}

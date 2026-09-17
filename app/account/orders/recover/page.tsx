@@ -1,7 +1,11 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { accountRequired } from '@/lib/site-config';
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Open a guest order', robots: { index: false, follow: false } };
 export default async function RecoverOrderPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  // Owner decision of 16 Sep 2026: there are no guest orders to recover; sign in instead.
+  if (accountRequired()) redirect('/account/sign-in?return_to=%2Faccount%2Forders');
   const { error } = await searchParams;
   return <main className="mx-auto max-w-xl px-5 py-16">
     <h1 className="page-title">Open a guest order</h1>
