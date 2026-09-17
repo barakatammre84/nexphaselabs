@@ -41,6 +41,36 @@ const get = (signedIn = true) =>
     headers: { Accept: 'application/json', ...(signedIn ? { Cookie: `nx_account=${TOKEN}` } : {}) },
   });
 
+/** Force both requests to validate the same real SQLite snapshot before either writes. */
+function synchronizeCartReads() {
+  const prepare = local.binding.prepare.bind(local.binding);
+  let reads = 0;
+  let release!: () => void;
+  const bothRead = new Promise<void>((resolve) => { release = resolve; });
+  vi.spyOn(local.binding, 'prepare').mockImplementation((query) => {
+    function wrap(statement: D1PreparedStatement): D1PreparedStatement {
+      return new Proxy(statement, {
+        get(target, property) {
+          if (property === 'bind') return (...values: unknown[]) => wrap(target.bind(...values));
+          if (property === 'raw' && /^select "id", "variant_id", "quantity" from "cart_items"/i.test(query)) {
+            return async () => {
+              const result = await target.raw();
+              if (reads++ < 2) {
+                if (reads === 2) release();
+                await bothRead;
+              }
+              return result;
+            };
+          }
+          const value = Reflect.get(target, property);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
+    }
+    return wrap(prepare(query));
+  });
+}
+
 beforeEach(async () => {
   local = localD1();
   Object.assign(env, {
@@ -186,6 +216,88 @@ describe('cart JSON API for the side drawer (owner, 16 Sep 2026)', () => {
     });
     expect(local.sqlite.prepare('SELECT quantity FROM cart_items WHERE id = ?').get('cit_overflow1')!.quantity)
       .toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it.each([0, 3])('preserves both concurrent additions with an initial quantity of %i', async (initial) => {
+    local.sqlite.prepare('UPDATE product_variants SET price_breaks = ?').run(JSON.stringify([
+      { minQuantity: 7, listPriceCents: 100, institutionalPriceCents: 80 },
+    ]));
+    await getDb().insert(cartItems).values({
+      id: 'cit_other_owner', accountId: 'acct_other', variantId: 'v1', quantity: Number.MAX_SAFE_INTEGER,
+    });
+    if (initial) {
+      await getDb().insert(cartItems).values({
+        id: 'cit_concurrent', accountId: 'acct_cart', variantId: 'v1', quantity: initial,
+      });
+    }
+    synchronizeCartReads();
+    const responses = await Promise.all([2, 5].map((quantity) =>
+      add(post('/api/cart', { sku: 'NPL-9999-2MG', quantity: String(quantity) })),
+    ));
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    expect(await (await read(get())).json()).toMatchObject({
+      ok: true, count: initial + 7, subtotalCents: (initial + 7) * 100,
+      lines: [{ quantity: initial + 7, unitPriceCents: 100 }],
+    });
+    expect(local.sqlite.prepare("SELECT count(*) AS n FROM cart_items WHERE account_id = 'acct_cart'").get()!.n).toBe(1);
+    expect(local.sqlite.prepare("SELECT quantity FROM cart_items WHERE id = 'cit_other_owner'").get()!.quantity)
+      .toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it.each([
+    { price: 0, initial: Number.MAX_SAFE_INTEGER - 1, error: 'The combined quantity is too large.' },
+    {
+      price: 125,
+      initial: Math.floor(Number.MAX_SAFE_INTEGER / 125) - 1,
+      error: 'This cart total is too large to calculate safely. Remove an item or reduce a quantity.',
+    },
+  ])('rechecks concurrent additions before overflowing quantity or price ($price cents)', async ({ price, initial, error }) => {
+    local.sqlite.prepare('UPDATE product_variants SET list_price_cents = ?').run(price);
+    await getDb().insert(cartItems).values({
+      id: 'cit_concurrent', accountId: 'acct_cart', variantId: 'v1', quantity: initial,
+    });
+    synchronizeCartReads();
+    const responses = await Promise.all([1, 1].map((quantity) =>
+      add(post('/api/cart', { sku: 'NPL-9999-2MG', quantity: String(quantity) })),
+    ));
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
+    expect(await responses.find((response) => response.status === 409)!.json())
+      .toMatchObject({ ok: false, error });
+    expect(local.sqlite.prepare('SELECT quantity FROM cart_items WHERE id = ?').get('cit_concurrent')!.quantity)
+      .toBe(initial + 1);
+  });
+
+  it('keeps the combined cart count safe when concurrent additions target different lines', async () => {
+    local.sqlite.prepare('UPDATE product_variants SET list_price_cents = 0').run();
+    await getDb().insert(productVariants).values({
+      id: 'v2', productId: 'p1', sku: 'NPL-9999-1MG', quantity: '1 mg', presentation: 'Test',
+      listPriceCents: 0, active: true,
+    });
+    await getDb().insert(cartItems).values([
+      { id: 'cit_count1', accountId: 'acct_cart', variantId: 'v1', quantity: Number.MAX_SAFE_INTEGER - 2 },
+      { id: 'cit_count2', accountId: 'acct_cart', variantId: 'v2', quantity: 1 },
+    ]);
+    synchronizeCartReads();
+    const responses = await Promise.all(['NPL-9999-2MG', 'NPL-9999-1MG'].map((sku) =>
+      add(post('/api/cart', { sku, quantity: '1' })),
+    ));
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
+    expect(await responses.find((response) => response.status === 409)!.json())
+      .toMatchObject({ ok: false, error: 'The cart item count is too large.' });
+    expect(await (await read(get())).json()).toMatchObject({ ok: true, count: Number.MAX_SAFE_INTEGER });
+  });
+
+  it.each([0, -1, 1.5])('refuses to add to an invalid stored quantity of %s', async (quantity) => {
+    await getDb().insert(cartItems).values({
+      id: 'cit_invalid', accountId: 'acct_cart', variantId: 'v1', quantity,
+    });
+    const response = await add(post('/api/cart', { sku: 'NPL-9999-2MG', quantity: '1' }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      ok: false, error: 'This cart line has an invalid quantity. Remove it and add the pack size again.',
+    });
+    expect(local.sqlite.prepare("SELECT quantity FROM cart_items WHERE id = 'cit_invalid'").get()!.quantity)
+      .toBe(quantity);
   });
 
   it('rejects a safe integer whose priced line total would be unsafe', async () => {

@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { cartItems, productVariants, products, type ProductRow, type ProductVariantRow } from '@/db/schema';
 import { MAX_CART_LINES } from '@/lib/order-rules';
@@ -148,23 +148,25 @@ export async function addToCart(accountId: string, sku: string, quantity: number
     return { ok: false, error: 'That pack size is out of stock. Choose another size, or check back when the next lot is released.' };
   }
 
-  const existing = await db
-    .select({ id: cartItems.id, variantId: cartItems.variantId, quantity: cartItems.quantity })
-    .from(cartItems)
-    .where(eq(cartItems.accountId, accountId));
-  const now = new Date();
-  const current = existing.find((e) => e.variantId === row.variant.id);
-  if (current) {
-    if (!Number.isSafeInteger(current.quantity) || current.quantity < 1) {
+  // A write commits only against the snapshot whose quantity/count/price we
+  // checked. Retry conflicts, including two first adds of the same variant.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const existing = await db
+      .select({ id: cartItems.id, variantId: cartItems.variantId, quantity: cartItems.quantity })
+      .from(cartItems)
+      .where(eq(cartItems.accountId, accountId));
+    const current = existing.find((e) => e.variantId === row.variant.id);
+    if (current && (!Number.isSafeInteger(current.quantity) || current.quantity < 1))
       return { ok: false, error: INVALID_CART_QUANTITY };
-    }
-    const next = current.quantity + quantity;
+    if (!current && existing.length >= MAX_CART_LINES)
+      return { ok: false, error: `A cart can hold up to ${MAX_CART_LINES} lines.` };
+    const next = (current?.quantity ?? 0) + quantity;
     if (!Number.isSafeInteger(next)) {
       return { ok: false, error: 'The combined quantity is too large.' };
     }
     let cartCount = next;
     for (const item of existing) {
-      if (item.id === current.id) continue;
+      if (item.id === current?.id) continue;
       if (!Number.isSafeInteger(item.quantity) || item.quantity < 1)
         return { ok: false, error: INVALID_CART_QUANTITY };
       cartCount += item.quantity;
@@ -173,22 +175,42 @@ export async function addToCart(accountId: string, sku: string, quantity: number
     }
     const priceError = pricedQuantityError(row.variant, next, visibility);
     if (priceError) return { ok: false, error: priceError };
-    await db.update(cartItems).set({ quantity: next, updatedAt: now }).where(eq(cartItems.id, current.id));
-    return { ok: true };
+
+    // Guard the whole owner's cart, not just this line: concurrent additions
+    // to different lines must not invalidate the cart-count or line-limit check.
+    // One JSON parameter keeps this below D1's bound-parameter limit.
+    const unchanged = sql`
+      (SELECT count(*) FROM cart_items WHERE account_id = ${accountId}) = ${existing.length}
+      AND NOT EXISTS (
+        SELECT id, variant_id, quantity FROM cart_items WHERE account_id = ${accountId}
+        EXCEPT
+        SELECT json_extract(value, '$.id'), json_extract(value, '$.variantId'),
+          json_extract(value, '$.quantity') FROM json_each(${JSON.stringify(existing)})
+      )`;
+    const now = new Date();
+    if (current) {
+      const changed = await db.update(cartItems)
+        .set({ quantity: next, updatedAt: now })
+        .where(and(
+          eq(cartItems.id, current.id),
+          eq(cartItems.accountId, accountId),
+          eq(cartItems.variantId, row.variant.id),
+          unchanged,
+        ))
+        .returning({ id: cartItems.id });
+      if (changed.length) return { ok: true };
+    } else {
+      const timestamp = Math.floor(now.getTime() / 1000);
+      const inserted = await db.all(sql`
+        INSERT INTO cart_items (id, account_id, variant_id, quantity, created_at, updated_at)
+        SELECT ${id('cit')}, ${accountId}, ${row.variant.id}, ${quantity}, ${timestamp}, ${timestamp}
+        WHERE ${unchanged}
+        ON CONFLICT (account_id, variant_id) DO NOTHING
+        RETURNING id`);
+      if (inserted.length) return { ok: true };
+    }
   }
-  if (existing.length >= MAX_CART_LINES) return { ok: false, error: `A cart can hold up to ${MAX_CART_LINES} lines.` };
-  let cartCount = quantity;
-  for (const item of existing) {
-    if (!Number.isSafeInteger(item.quantity) || item.quantity < 1)
-      return { ok: false, error: INVALID_CART_QUANTITY };
-    cartCount += item.quantity;
-    if (!Number.isSafeInteger(cartCount))
-      return { ok: false, error: 'The cart item count is too large.' };
-  }
-  const priceError = pricedQuantityError(row.variant, quantity, visibility);
-  if (priceError) return { ok: false, error: priceError };
-  await db.insert(cartItems).values({ id: id('cit'), accountId, variantId: row.variant.id, quantity, createdAt: now, updatedAt: now });
-  return { ok: true };
+  return { ok: false, error: 'Your cart changed while adding this pack size. Please try again.' };
 }
 
 /** Set a line's quantity; 0 removes it. Only the owner's lines are touched. */
