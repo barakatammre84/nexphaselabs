@@ -3,6 +3,7 @@ import { validateSignUp } from '@/lib/account-rules';
 import { researcherTierEnabled } from '@/lib/site-config';
 import { allow, clientAddress, rateLimitKey } from '@/lib/rate-limit';
 import { sameOrigin } from '@/lib/staff-auth';
+import { verifyTurnstile } from '@/lib/turnstile';
 
 /**
  * Account sign-up. Plain form POST. On success the person is sent to a
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
     acceptTerms: form.get('accept_terms') === 'on',
     acceptRuo: form.get('accept_ruo') === 'on',
     acceptAge: form.get('accept_age') === 'on',
+    dateOfBirth: field('date_of_birth'),
   };
 
   const back = (params: Record<string, string>) => {
@@ -48,6 +50,14 @@ export async function POST(request: Request) {
       email: raw.email.slice(0, 254),
       tier: raw.tier,
     });
+  }
+
+  // The bot check runs after validation so a person with a typo is not made to solve it twice.
+  // Off until both Turnstile keys are configured; fails closed once they are (lib/turnstile.ts).
+  const turnstile = await verifyTurnstile(field('cf-turnstile-response') || null, clientAddress(request));
+  if (!turnstile.ok) {
+    console.warn('[account] sign-up refused by turnstile:', turnstile.reason);
+    return back({ error: 'turnstile', name: raw.name.slice(0, 120), email: raw.email.slice(0, 254), tier: raw.tier });
   }
 
   try {

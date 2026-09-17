@@ -17,7 +17,7 @@ export const RUO_VERSION = '2026-09-14';
 export const RETURNS_VERSION = '2026-09-14';
 export const SHIPPING_VERSION = '2026-09-14';
 // Bump when the privacy text changes for visitors — including the first time CF_WEB_ANALYTICS_TOKEN is set (§5).
-export const PRIVACY_VERSION = '2026-09-14';
+export const PRIVACY_VERSION = '2026-09-16';
 export const RESEARCH_USE_POLICY_VERSION = '2026-09-14';
 
 /** Minimum age to enter the storefront, open an account or place an order. */
@@ -53,7 +53,7 @@ export const ENTRY_NOTICE = {
 export const DISCLOSURE_WORKFLOW = [
   { step: 'Entering the site', disclosure: 'Age and research-use interstitial (ENTRY_NOTICE)', recorded: 'Browser cookie only; nothing about a person is stored' },
   { step: 'Every product page and the catalog', disclosure: 'The regulatory statement above the fold, in the body of the page', recorded: 'Not applicable' },
-  { step: 'Creating an account', disclosure: 'Age affirmation, research-use acknowledgement and terms — three required boxes', recorded: 'Account: age confirmed at, acknowledgement version and time, terms version and time' },
+  { step: 'Creating an account', disclosure: 'Date of birth checked against the minimum age, plus the age affirmation, research-use acknowledgement and terms — one field and three required boxes', recorded: 'Account: date of birth, age confirmed at, acknowledgement version and time, terms version and time' },
   { step: 'Checkout, every order', disclosure: 'Age affirmation and research-use acknowledgement with the terms — two required boxes', recorded: 'Order: acknowledgement version, wording hash, time, connecting address, age confirmed, research setting' },
   { step: 'Order confirmation email', disclosure: 'The acknowledgement and terms versions accepted, restated', recorded: 'Order record: acknowledgement version and wording hash' },
   { step: 'The parcel', disclosure: 'Regulatory statement on the packing slip; certificate of analysis for the lot in the parcel', recorded: 'Packing slip and the certificate pinned to the order, with its checksum' },

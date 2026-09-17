@@ -1,4 +1,5 @@
 import { RUO_VERSION, TERMS_VERSION } from '@/lib/policy';
+import { MINIMUM_AGE } from '@/lib/policy';
 import { passwordPolicyError } from '@/lib/staff-auth-core';
 
 /**
@@ -84,10 +85,12 @@ export type SignUpInput = {
   acceptTerms: boolean;
   acceptRuo: boolean;
   acceptAge?: boolean;
+  /** ISO date (YYYY-MM-DD) from the sign-up form; checked against MINIMUM_AGE, stored, never shown. */
+  dateOfBirth?: string;
 };
 
 export type SignUpValidation =
-  | { ok: true; value: { name: string; email: string; password: string; tier: AccountTier; researchSetting: ResearchSetting | null; ageConfirmed: true } }
+  | { ok: true; value: { name: string; email: string; password: string; tier: AccountTier; researchSetting: ResearchSetting | null; ageConfirmed: true; dateOfBirth: string } }
   | { ok: false; errors: string[] };
 
 export function validateSignUp(raw: SignUpInput, researcherTierEnabled: boolean): SignUpValidation {
@@ -115,17 +118,50 @@ export function validateSignUp(raw: SignUpInput, researcherTierEnabled: boolean)
   if (!raw.acceptTerms) errors.push('You must accept the terms of sale.');
   if (!raw.acceptRuo) errors.push('You must confirm the research-use acknowledgement.');
   if (!raw.acceptAge) errors.push('You must confirm that you are at least 21 years of age.');
+  // The date of birth makes the age statement checkable instead of a bare checkbox (owner, 16 Sep 2026).
+  const dateOfBirth = (raw.dateOfBirth ?? '').trim();
+  const age = dateOfBirth ? ageOn(dateOfBirth) : null;
+  if (age === null) errors.push('Enter your date of birth.');
+  else if (age < MINIMUM_AGE) errors.push(`You must be at least ${MINIMUM_AGE} years of age to open an account.`);
 
   const settingRaw = (raw.researchSetting ?? '').trim();
   const researchSetting = (RESEARCH_SETTINGS as readonly string[]).includes(settingRaw) ? (settingRaw as ResearchSetting) : null;
   if (settingRaw && !researchSetting) errors.push('Choose a research setting from the list.');
 
   if (errors.length) return { ok: false, errors };
-  return { ok: true, value: { name, email, password, tier, researchSetting, ageConfirmed: true } };
+  return { ok: true, value: { name, email, password, tier, researchSetting, ageConfirmed: true, dateOfBirth } };
 }
 
 export function validateSignIn(raw: { email: string; password: string }): { email: string; password: string } | null {
   const email = normaliseEmail(raw.email);
   if (!EMAIL_PATTERN.test(email) || !raw.password) return null;
   return { email, password: raw.password };
+}
+
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * Whole years between an ISO date of birth and `now`, counted on the calendar (the day
+ * before a birthday is still the previous age). Null for anything that is not a real past
+ * date, so "31 February" or a future date cannot pass as an age.
+ */
+export function ageOn(dateOfBirth: string, now = new Date()): number | null {
+  const match = ISO_DATE.exec(dateOfBirth.trim());
+  if (!match) return null;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const birth = new Date(Date.UTC(year, month - 1, day));
+  if (birth.getUTCFullYear() !== year || birth.getUTCMonth() !== month - 1 || birth.getUTCDate() !== day) return null;
+  if (year < 1900 || birth.getTime() > now.getTime()) return null;
+  let age = now.getUTCFullYear() - year;
+  const beforeBirthday =
+    now.getUTCMonth() < month - 1 || (now.getUTCMonth() === month - 1 && now.getUTCDate() < day);
+  if (beforeBirthday) age -= 1;
+  return age;
+}
+
+/** The latest birth date that satisfies MINIMUM_AGE today — the sign-up form's `max`. */
+export function latestBirthDate(now = new Date()): string {
+  return new Date(Date.UTC(now.getUTCFullYear() - MINIMUM_AGE, now.getUTCMonth(), now.getUTCDate()))
+    .toISOString()
+    .slice(0, 10);
 }

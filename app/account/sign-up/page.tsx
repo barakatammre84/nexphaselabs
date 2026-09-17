@@ -5,7 +5,9 @@ import { redirect } from 'next/navigation';
 import { AlertCircle } from 'lucide-react';
 import { getAccount } from '@/lib/account-auth';
 import { AccessProgress } from '@/components/site/access-progress';
-import { AGE_STATEMENT, RUO_ACKNOWLEDGEMENT } from '@/lib/policy';
+import { AGE_STATEMENT, MINIMUM_AGE, RUO_ACKNOWLEDGEMENT } from '@/lib/policy';
+import { latestBirthDate } from '@/lib/account-rules';
+import { turnstileEnabled, turnstileSiteKey } from '@/lib/turnstile';
 import { researcherTierEnabled } from '@/lib/site-config';
 
 export const dynamic = 'force-dynamic';
@@ -32,10 +34,13 @@ export default async function SignUpPage({ searchParams }: Props) {
   const params = await searchParams;
   if (await getAccount()) redirect('/account');
   const consumer = researcherTierEnabled();
+  const turnstile = turnstileEnabled() ? turnstileSiteKey() : null;
 
   const errors =
     params.error === 'validation' && params.codes
       ? params.codes.split('|').filter(Boolean).slice(0, 10)
+      : params.error === 'turnstile'
+        ? ['We could not confirm that the request came from a person. Reload the page and try again.']
       : params.error === 'email'
         ? ['We could not send the verification email. Try again shortly.']
         : params.error === 'unavailable'
@@ -124,6 +129,24 @@ export default async function SignUpPage({ searchParams }: Props) {
             />
             <p className="text-xs leading-5 text-muted-foreground">
               At least 12 characters.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="date_of_birth" className="text-sm font-semibold">
+              Date of birth
+            </label>
+            <input
+              id="date_of_birth"
+              name="date_of_birth"
+              type="date"
+              required
+              max={latestBirthDate()}
+              autoComplete="bday"
+              className={input}
+            />
+            <p className="text-xs leading-5 text-muted-foreground">
+              Used only to check that you are at least {MINIMUM_AGE}. It is never shown or shared.
             </p>
           </div>
 
@@ -235,6 +258,12 @@ export default async function SignUpPage({ searchParams }: Props) {
             </label>
           </div>
 
+          {turnstile && (
+            <>
+              <div className="cf-turnstile" data-sitekey={turnstile} data-theme="light" />
+              <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
+            </>
+          )}
           <button
             type="submit"
             className="action-primary"

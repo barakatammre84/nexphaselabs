@@ -22,6 +22,10 @@ declare namespace Cloudflare {
     ACCOUNT_REQUIRED?: string;
     /** Cloudflare Web Analytics site token; unset = no beacon (lib/site-config.ts). */
     CF_WEB_ANALYTICS_TOKEN?: string;
+    /** Cloudflare Turnstile widget keys for the sign-up bot check; both unset = check off (lib/turnstile.ts). */
+    TURNSTILE_SITE_KEY?: string;
+    /** Secret — `wrangler secret put TURNSTILE_SECRET_KEY`. */
+    TURNSTILE_SECRET_KEY?: string;
     /** Basic-auth password for a deployed non-production storefront. Unset = the environment refuses every request with 503. */
     STAGING_ACCESS_PASSWORD?: string;
     POLICIES_COUNSEL_REVIEWED?: string;

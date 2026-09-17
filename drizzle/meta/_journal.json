@@ -456,6 +456,13 @@
       "when": 1789614227910,
       "tag": "0064_checkout_quotes_free_shipping",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "6",
+      "when": 1789614652109,
+      "tag": "0065_account_date_of_birth",
+      "breakpoints": true
     }
   ]
 }

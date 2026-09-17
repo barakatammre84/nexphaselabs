@@ -4,6 +4,7 @@ import { ENTITY } from '@/lib/entity';
 import { MINIMUM_AGE, PRIVACY_VERSION } from '@/lib/policy';
 import { SUPPORT } from '@/lib/support';
 import { webAnalyticsToken } from '@/lib/site-config';
+import { turnstileEnabled } from '@/lib/turnstile';
 
 export const metadata: Metadata = {
   title: 'Privacy policy',
@@ -30,9 +31,13 @@ export default function PrivacyPage() {
           of our hosting provider, and the cookies described in section 5.
         </p>
         <p>
-          When you create an account: your name, email address, a password we store only as a one-way hash, the
-          research setting you select, and the time and version of each confirmation you give — the age statement,
-          the research-use acknowledgement and the terms of sale.
+          When you create an account: your name, email address, your date of birth (used only to check the minimum
+          age, and never shown), a password we store only as a one-way hash, the research setting you select, and the
+          time and version of each confirmation you give — the age statement, the research-use acknowledgement and the
+          terms of sale.
+          {turnstileEnabled()
+            ? ' The sign-up form also runs Cloudflare Turnstile, a check by our hosting provider that the request comes from a person; it receives your IP address and browser details for that purpose only.'
+            : ''}
         </p>
         <p>
           When you order, with or without an account: your shipping and billing details, what you ordered, the

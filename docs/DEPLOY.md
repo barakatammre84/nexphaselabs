@@ -264,3 +264,19 @@ environment-bearing field it read, and the deploy command is safe to run only
 after it ends with `configuration targets staging. Proceeding.` If it refuses,
 rebuild with the staging environment rather than adding `--env staging` to the
 deploy command.
+
+## Turnstile on the sign-up form
+
+`lib/turnstile.ts` renders Cloudflare Turnstile on `/account/sign-up` and verifies its token in the
+sign-up route. It is off until both keys exist and fails closed once they do.
+
+1. Cloudflare dashboard (company account) → Turnstile → Add widget → hostname `nexphaselabs.net`,
+   managed mode. Copy the site key into `TURNSTILE_SITE_KEY` under the production `vars`.
+2. Secret, without it touching a terminal history or chat:
+
+```bash
+pbpaste | npx wrangler secret put TURNSTILE_SECRET_KEY
+```
+
+Staging uses Cloudflare's published always-passing test pair (site key in `wrangler.jsonc`, secret
+`1x0000000000000000000000000000000AA` via `--env staging`), so the widget can be exercised there.
