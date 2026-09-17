@@ -35,6 +35,7 @@ const staticColumns = [
       { href: '/legal/returns', label: 'Returns & refunds' },
       { href: '/legal/privacy', label: 'Privacy policy' },
       { href: '/legal/affiliate-terms', label: 'Partner agreement' },
+      { href: '/legal/community-guidelines', label: 'Community guidelines' },
       { href: '/legal/compliance', label: 'Compliance & disclosures' },
     ],
   },
