@@ -1,5 +1,9 @@
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { runStoreBuyingBaseline } from '@/lib/store-buying-baseline';
+import { localD1 } from './helpers/local-d1';
 
 function response(
   status: number,
@@ -29,10 +33,7 @@ function signedInFakeFetch(
   );
   const productBody =
     '<main>GHK-Cu NPL-0001-1MG Prices and lot availability are shown to research accounts.</main>';
-  anonymous['/catalog/ghk-cu'] = response(
-    200,
-    productBody,
-  );
+  anonymous['/catalog/ghk-cu'] = response(200, productBody);
   return async (url: string, init?: RequestInit) => {
     const path = new URL(url).pathname;
     const method = String(init?.method ?? 'GET').toUpperCase();
@@ -194,11 +195,15 @@ describe('store buying-flow baseline', () => {
         .filter((check) => check.name.startsWith('signed-in'))
         .every((check) => check.environment === 'staging'),
     ).toBe(true);
-    expect(report.checks.find((check) => check.name === 'signed-in-access')?.detail).toContain(
-      '[staging] /api/account/sign-in',
-    );
     expect(
-      calls.some((call) => /\/api\/orders|\/api\/payment|\/pay(?:$|\/)/.test(new URL(call.url).pathname)),
+      report.checks.find((check) => check.name === 'signed-in-access')?.detail,
+    ).toContain('[staging] /api/account/sign-in');
+    expect(
+      calls.some((call) =>
+        /\/api\/orders|\/api\/payment|\/pay(?:$|\/)/.test(
+          new URL(call.url).pathname,
+        ),
+      ),
     ).toBe(false);
   });
 
@@ -232,11 +237,15 @@ describe('store buying-flow baseline', () => {
       environment: 'local',
       requireProductRoute: true,
       fetcher: fakeFetch(
-        healthyRoutes('<main>Catalog Prices and lot availability are shown to research accounts.</main>'),
+        healthyRoutes(
+          '<main>Catalog Prices and lot availability are shown to research accounts.</main>',
+        ),
       ),
     });
 
-    const failure = report.checks.find((check) => check.name === 'browse-product');
+    const failure = report.checks.find(
+      (check) => check.name === 'browse-product',
+    );
     expect(report.ok).toBe(false);
     expect(failure).toMatchObject({
       environment: 'local',
@@ -244,5 +253,119 @@ describe('store buying-flow baseline', () => {
       ok: false,
     });
     expect(failure?.detail).toContain('seed the local baseline fixture');
+  });
+
+  it('applies the generated local fixture to a fresh migrated database', () => {
+    const projectRoot = fileURLToPath(new URL('../', import.meta.url));
+
+    execFileSync(
+      process.execPath,
+      ['node_modules/tsx/dist/cli.mjs', 'scripts/seed-catalog.ts'],
+      { cwd: projectRoot, stdio: 'pipe' },
+    );
+
+    const local = localD1();
+    try {
+      local.sqlite.exec(
+        readFileSync(
+          new URL('../drizzle/seed/local-baseline.sql', import.meta.url),
+          'utf8',
+        ),
+      );
+
+      const product = local.sqlite
+        .prepare(
+          `SELECT id, code, slug, name, status, visibility
+           FROM products
+           WHERE id = 'prd_local_baseline'`,
+        )
+        .get() as
+        | {
+            id: string;
+            code: string;
+            slug: string;
+            name: string;
+            status: string;
+            visibility: string;
+          }
+        | undefined;
+      expect(product).toEqual({
+        id: 'prd_local_baseline',
+        code: 'NPL-999',
+        slug: 'synthetic-baseline-material',
+        name: 'Synthetic Baseline Material',
+        status: 'available',
+        visibility: 'published',
+      });
+
+      const variant = local.sqlite
+        .prepare(
+          `SELECT product_id, sku, quantity, list_price_cents,
+                  institutional_price_cents, active
+           FROM product_variants
+           WHERE id = 'var_local_baseline_5mg'`,
+        )
+        .get() as
+        | {
+            product_id: string;
+            sku: string;
+            quantity: string;
+            list_price_cents: number;
+            institutional_price_cents: number;
+            active: number;
+          }
+        | undefined;
+      expect(variant).toEqual({
+        product_id: 'prd_local_baseline',
+        sku: 'NPL-999-5MG',
+        quantity: '5 mg',
+        list_price_cents: 1250,
+        institutional_price_cents: 1000,
+        active: 1,
+      });
+
+      const lot = local.sqlite
+        .prepare(
+          `SELECT product_code, lot_number, status, released_by,
+                  quantity_received, quantity_remaining
+           FROM lots
+           WHERE id = 'lot_local_baseline'`,
+        )
+        .get() as
+        | {
+            product_code: string;
+            lot_number: string;
+            status: string;
+            released_by: string;
+            quantity_received: string;
+            quantity_remaining: string;
+          }
+        | undefined;
+      expect(lot).toEqual({
+        product_code: 'NPL-999',
+        lot_number: 'LOCAL-BASELINE-2609',
+        status: 'released',
+        released_by: 'local-baseline-fixture',
+        quantity_received: '25 mg',
+        quantity_remaining: '25 mg',
+      });
+    } finally {
+      local.sqlite.close();
+    }
+  });
+
+  it('keeps the local-only fixture out of staging and production seed commands', () => {
+    const packageJson = JSON.parse(
+      readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+    ) as { scripts: Record<string, string> };
+    const localSeed = packageJson.scripts['db:seed:local'];
+    const stagingSeed = packageJson.scripts['db:seed:staging'];
+    const productionSeed = packageJson.scripts['db:seed:prod'];
+
+    expect(localSeed).toContain('drizzle/seed/local-baseline.sql');
+    expect(stagingSeed).toContain('drizzle/seed/catalog.sql');
+    expect(productionSeed).toContain('drizzle/seed/catalog.sql');
+    expect(stagingSeed).not.toContain('drizzle/seed/local-baseline.sql');
+    expect(productionSeed).not.toContain('drizzle/seed/local-baseline.sql');
   });
 });
