@@ -5,6 +5,8 @@ PUBLIC_ORIGIN=http://localhost:3000
 CONSUMER_TIER_ENABLED=false
 # Guest checkout is independent of optional account registration.
 OPEN_CHECKOUT_ENABLED=true
+# Owner decision of 16 Sep 2026: an account is required to see prices or order; guests only browse.
+ACCOUNT_REQUIRED=true
 EMAIL_FROM=NexPhase Labs <research@nexphaselabs.net>
 # Recommended deployed provider: Google Workspace Gmail API. Use one of the two credential modes below.
 # EMAIL_PROVIDER=google_workspace

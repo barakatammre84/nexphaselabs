@@ -1,4 +1,4 @@
-import { openCheckoutEnabled } from '@/lib/site-config';
+import { accountRequired, openCheckoutEnabled } from '@/lib/site-config';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -73,7 +73,7 @@ export default async function AccountSignInPage({ searchParams }: Props) {
           Sign in
         </h1>
 
-        {openCheckoutEnabled() && (
+        {openCheckoutEnabled() && !accountRequired() && (
           <div className="mt-6 rounded-lg bg-secondary p-5 text-sm">
             <p>
               Buying a product? You do not need to sign in or verify an email.

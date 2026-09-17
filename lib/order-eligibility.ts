@@ -1,4 +1,4 @@
-import { openCheckoutEnabled } from '@/lib/site-config';
+import { accountRequired, openCheckoutEnabled } from '@/lib/site-config';
 import { sql } from 'drizzle-orm';
 import { accounts, organizations, type Order } from '@/db/schema';
 
@@ -7,7 +7,9 @@ export function orderCustomerEligible(
   order: Pick<Order, 'accountId' | 'organizationId'>,
 ) {
   if (openCheckoutEnabled() && !order.organizationId)
-    return sql`EXISTS (SELECT 1 FROM ${accounts} WHERE ${accounts.id} = ${order.accountId} AND ${accounts.status} IN ('active', 'guest'))`;
+    return accountRequired()
+      ? sql`EXISTS (SELECT 1 FROM ${accounts} WHERE ${accounts.id} = ${order.accountId} AND ${accounts.status} = 'active')`
+      : sql`EXISTS (SELECT 1 FROM ${accounts} WHERE ${accounts.id} = ${order.accountId} AND ${accounts.status} IN ('active', 'guest'))`;
   return sql`EXISTS (SELECT 1 FROM ${accounts}
     INNER JOIN ${organizations} ON ${organizations.accountId} = ${accounts.id}
     WHERE ${accounts.id} = ${order.accountId} AND ${accounts.status} = 'active'

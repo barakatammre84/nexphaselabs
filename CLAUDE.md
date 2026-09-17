@@ -1,3 +1,7 @@
+## Owner-directed checkout change — 2026-09-16
+
+The owner now requires an account to see pricing, released-lot stock or the cart: `ACCOUNT_REQUIRED=true` in staging and production (`lib/site-config.ts`). Anonymous visitors browse the general site — chemistry, documentation, policies. A signed-in research account (email confirmed, acknowledgements current) or an approved wholesale account sees prices and orders through the open-checkout path. Guest checkout is retired while this is set; do not reintroduce it. The 4 September note below is kept for history — where they conflict, this one wins.
+
 ## Owner-directed checkout change — 2026-09-04
 
 The owner explicitly requested removal of buyer registration, email verification, and organization approval gates. `OPEN_CHECKOUT_ENABLED=true` enables guest checkout and public list prices; it is enabled for staging only. This supersedes the institutional-only purchasing restrictions below **for environments where that switch is enabled**. Do not reinstate those buyer gates on the staging purchase path. Optional account registration and staff authentication remain separate. Research-use notices, safe data access, real payment settlement checks, and released-lot/stock controls stay in place. Never invent selling prices or substitute a simulated payment for real payment. Guest contacts are order snapshots, not verified identities.

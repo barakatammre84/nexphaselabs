@@ -38,6 +38,9 @@
     // are sellable, so this opens GHK-Cu and nothing else.
     "RESEARCHER_TIER_ENABLED": "true",
     "OPEN_CHECKOUT_ENABLED": "true",
+    // Owner decision of 16 September 2026, evening: an account is required to see prices, stock or
+    // the cart. Guests browse the general site; guest checkout is retired while this is true.
+    "ACCOUNT_REQUIRED": "true",
     "ZELLE_RECIPIENT_EMAIL": "orders@nexphaselabs.net",
     "ZELLE_RECIPIENT_NAME": "8486 Ventures LLC",
     "ZELLE_MODE": "manual",
@@ -105,6 +108,7 @@
       "vars": {
         "APP_ENV": "staging",
         "OPEN_CHECKOUT_ENABLED": "true",
+        "ACCOUNT_REQUIRED": "true",
         // Public staging, by the owner's decision of 14 September 2026: storefront pages are open to
         // anonymous visitors and carry noindex, while staff pages and private APIs keep their own logins.
         // Declared here and never as a Worker secret, so the choice is reviewed and the deploy's last step

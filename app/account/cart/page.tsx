@@ -5,7 +5,7 @@ import { AlertCircle, ArrowLeft, CircleCheck, Trash2 } from 'lucide-react';
 import { getBuyer } from '@/lib/buyer-session';
 import { cookies } from 'next/headers';
 import { NOTICE_COOKIE, readNotice } from '@/lib/notice';
-import { openCheckoutEnabled } from '@/lib/site-config';
+import { accountRequired, openCheckoutEnabled } from '@/lib/site-config';
 import { CheckoutExperience } from '@/components/site/checkout-experience';
 import { requireAccount } from '@/lib/account-auth';
 import { getCart } from '@/lib/cart';
@@ -32,7 +32,9 @@ type Props = { searchParams: Promise<{ added?: string; error?: string }> };
 
 export default async function CartPage({ searchParams }: Props) {
   const open = openCheckoutEnabled();
-  const account = open
+  // Guests exist only while the storefront is open AND no account is required (owner, 16 Sep 2026).
+  const guests = open && !accountRequired();
+  const account = guests
     ? await getBuyer()
     : await requireAccount('/account/cart');
   const { added, error } = await searchParams;
@@ -75,7 +77,7 @@ export default async function CartPage({ searchParams }: Props) {
           <ArrowLeft className="size-4" /> Catalog
         </Link>
         <p className="ion-kicker mt-6">
-          {open ? 'Guest checkout · no account required' : 'Research account'}
+          {guests ? 'Guest checkout · no account required' : 'Research account'}
         </p>
         <h1 className="ion-heading mt-4 text-4xl sm:text-5xl">
           Your cart

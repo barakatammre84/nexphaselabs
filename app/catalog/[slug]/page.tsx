@@ -13,7 +13,7 @@ import { getStorefrontProduct, listStorefrontProducts, visibleStock } from '@/li
 import { listReleasedLotsForProduct } from '@/lib/lots-public';
 import { currentSds } from '@/lib/product-documents';
 import { STOREFRONT_COPY } from '@/lib/storefront-copy';
-import { openCheckoutEnabled } from '@/lib/site-config';
+import { accountRequired, openCheckoutEnabled } from '@/lib/site-config';
 import { cookies } from 'next/headers';
 import { NOTICE_COOKIE, readNotice } from '@/lib/notice';
 import { currentViewer } from '@/lib/visibility';
@@ -402,7 +402,7 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
         {visibility.pricing !== 'none' && (
           <div className="mt-5 flex max-w-2xl flex-wrap items-center justify-between gap-3 border-l-4 border-primary bg-secondary px-4 py-3 text-sm">
             {/* True of guest checkout only: in a closed storefront, whoever sees prices here is signed in. */}
-            {openCheckoutEnabled() && (
+            {openCheckoutEnabled() && !accountRequired() && (
               <span>
                 Choose a pack below. No account or email verification is required.
               </span>
@@ -559,6 +559,7 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
               <Lock className="mt-1 size-4 shrink-0 text-primary" />
               <p className="text-sm leading-6">
                 {visibility.reason === 'anonymous' && STOREFRONT_COPY.pricingAnonymous}
+                {visibility.reason === 'sign_in' && STOREFRONT_COPY.pricingSignIn}
                 {visibility.reason === 'unverified' && STOREFRONT_COPY.pricingUnverified}
                 {visibility.reason === 'acknowledgement' &&
                   'Confirm the current terms, the research-use acknowledgement and the age statement on your account page to see pricing.'}
@@ -567,7 +568,7 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
             </div>
             <Link
               href={
-                visibility.reason === 'anonymous'
+                visibility.reason === 'anonymous' || visibility.reason === 'sign_in'
                   ? '/account/sign-up'
                   : visibility.reason === 'unverified'
                     ? '/account/organization'
@@ -575,7 +576,9 @@ export default async function ProductPage({ params, searchParams }: PageProps) {
               }
               className="inline-flex h-12 shrink-0 items-center justify-center bg-primary px-6 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
             >
-              {visibility.reason === 'anonymous'
+              {visibility.reason === 'sign_in'
+                ? STOREFRONT_COPY.pricingSignInAction
+                : visibility.reason === 'anonymous'
                 ? STOREFRONT_COPY.pricingAnonymousAction
                 : visibility.reason === 'unverified'
                   ? account?.verificationStatus === 'none'

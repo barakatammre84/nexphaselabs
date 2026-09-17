@@ -26,6 +26,19 @@ export function openCheckoutEnabled(): boolean {
   return env.OPEN_CHECKOUT_ENABLED === 'true';
 }
 
+/**
+ * Owner decision of 16 September 2026: the storefront needs a signed-in
+ * account. Anonymous visitors browse chemistry, documentation and policies;
+ * prices, released-lot stock and the cart need a research account (email
+ * confirmed, acknowledgements current) or an approved wholesale account.
+ * While this is true guest checkout stays retired whatever
+ * OPEN_CHECKOUT_ENABLED says; the open-checkout order path is what signed-in
+ * researchers use.
+ */
+export function accountRequired(): boolean {
+  return env.ACCOUNT_REQUIRED === 'true';
+}
+
 export function publicOrigin(): string {
   return (env.PUBLIC_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
 }

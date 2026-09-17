@@ -9,7 +9,7 @@ import {
   type AccountPrincipal,
 } from '@/lib/account-auth';
 import { randomToken, sha256Hex } from '@/lib/staff-auth-core';
-import { openCheckoutEnabled } from '@/lib/site-config';
+import { accountRequired, openCheckoutEnabled } from '@/lib/site-config';
 
 export const GUEST_COOKIE = 'nx_guest';
 const TTL = 30 * 24 * 60 * 60;
@@ -20,7 +20,12 @@ const id = (prefix: string) =>
 export async function guestForToken(
   token?: string,
 ): Promise<AccountPrincipal | null> {
-  if (!openCheckoutEnabled() || !token || !/^[a-f0-9]{64}$/.test(token))
+  if (
+    !openCheckoutEnabled() ||
+    accountRequired() ||
+    !token ||
+    !/^[a-f0-9]{64}$/.test(token)
+  )
     return null;
   const [row] = await getDb()
     .select({ account: accounts, session: accountSessions })
@@ -73,13 +78,15 @@ export async function requireBuyer(
   if (buyer) return buyer;
   // Open checkout has no sign-in wall, so a visitor without a live session goes where an
   // order can be reopened (a recovery code, or signing in) instead of back to the catalog.
-  if (openCheckoutEnabled()) redirect('/account/orders/recover');
+  // With an account required there are no guest orders to recover: sign in.
+  if (openCheckoutEnabled() && !accountRequired()) redirect('/account/orders/recover');
   redirect(`/account/sign-in?return_to=${encodeURIComponent(returnTo)}`);
 }
 
 /** Call only from a same-origin, rate-limited cart POST after validating input. */
 export async function createGuestBuyer(secure: boolean) {
-  if (!openCheckoutEnabled()) throw new Error('Guest checkout disabled');
+  if (!openCheckoutEnabled() || accountRequired())
+    throw new Error('Guest checkout disabled');
   const token = randomToken();
   const accountId = id('gst');
   const sessionId = id('gss');

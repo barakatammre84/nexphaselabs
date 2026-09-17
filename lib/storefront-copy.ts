@@ -15,6 +15,10 @@ export const STOREFRONT_COPY = {
   pricingAnonymous:
     'Prices and current lot availability are shown to wholesale accounts while the storefront is being prepared. Every application is read by a person against our research-use policy.',
   pricingAnonymousAction: 'Apply for a wholesale account',
+  /** Product page and catalog: the storefront is open but requires an account, and the visitor is not signed in (owner, 16 Sep 2026). */
+  pricingSignIn:
+    'Prices, current lot availability and the cart are shown to signed-in research accounts. Create an account with your email, confirm it, and acknowledge the research-use conditions. Organizations that need purchase orders or net terms apply for a wholesale account the same way.',
+  pricingSignInAction: 'Create a research account',
   /** Product page, an account whose wholesale application is not yet approved. */
   pricingUnverified: 'Prices and lot availability appear once your wholesale application has been approved.',
   pricingUnverifiedStart: 'Complete your wholesale application',
