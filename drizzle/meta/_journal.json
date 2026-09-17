@@ -470,6 +470,13 @@
       "when": 1789615020055,
       "tag": "0066_marketing_consent",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "6",
+      "when": 1789618458965,
+      "tag": "0067_affiliates",
+      "breakpoints": true
     }
   ]
 }

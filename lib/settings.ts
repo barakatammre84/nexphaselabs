@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { settings } from '@/db/schema';
 import { ENTITY } from '@/lib/entity';
@@ -10,6 +10,7 @@ import { isSettingKey, type SettingKey, type SettingsMap } from '@/lib/settings-
 export {
   SETTING_KEYS,
   SHIPPING_SETTING_KEYS,
+  AFFILIATE_SETTING_KEYS,
   SETTING_LABEL,
   isSettingKey,
   type SettingKey,
@@ -46,26 +47,30 @@ export async function writeSettings(
   staff: StaffPrincipal,
 ): Promise<void> {
   const db = getDb();
-  const now = Math.floor(Date.now() / 1000);
+  const now = new Date();
   const actor = `${staff.name} (${staff.id})`;
 
   // One batch, so a form submission cannot half-apply. These values are
   // printed together on every container label and in the issued programme; an
   // address updated without its telephone would be worse than neither.
+  //
+  // Typed builders, not `db.run(sql\`…\`)`: a raw statement carrying parameters is never
+  // bound when it goes through a batch, so the whole write silently failed (found 16 Sep 2026
+  // while giving the affiliate programme its own settings, and covered by tests/settings.test.ts).
   const statements = [];
   for (const [key, raw] of Object.entries(values)) {
     if (!isSettingKey(key)) continue;
     const value = String(raw ?? '').trim();
     statements.push(
       value
-        ? db.run(
-            sql`INSERT INTO settings (key, value, updated_by, updated_at)
-                VALUES (${key}, ${value}, ${actor}, ${now})
-                ON CONFLICT(key) DO UPDATE SET value = excluded.value,
-                                               updated_by = excluded.updated_by,
-                                               updated_at = excluded.updated_at`,
-          )
-        : db.run(sql`DELETE FROM settings WHERE key = ${key}`),
+        ? db
+            .insert(settings)
+            .values({ key, value, updatedBy: actor, updatedAt: now })
+            .onConflictDoUpdate({
+              target: settings.key,
+              set: { value, updatedBy: actor, updatedAt: now },
+            })
+        : db.delete(settings).where(eq(settings.key, key)),
     );
   }
   if (statements.length === 0) return;

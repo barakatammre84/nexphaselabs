@@ -27,9 +27,20 @@ export const SHIPPING_SETTING_KEYS = {
   freeShippingThresholdCents: 'shipping.free_threshold_cents',
 } as const;
 
+/** Partner-programme numbers staff change on /manage/affiliates. Also kept out of the OSHA form. */
+export const AFFILIATE_SETTING_KEYS = {
+  /** Default commission in basis points; 1000 = 10%. A partner may be given their own rate. */
+  commissionBps: 'affiliate.commission_bps',
+  /** Minimum vested balance before a payout batch may be created. */
+  payoutThresholdCents: 'affiliate.payout_threshold_cents',
+  /** Days after delivery before a commission vests, so a return can still reverse it. */
+  holdDays: 'affiliate.hold_days',
+} as const;
+
 export type SettingKey =
   | (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
-  | (typeof SHIPPING_SETTING_KEYS)[keyof typeof SHIPPING_SETTING_KEYS];
+  | (typeof SHIPPING_SETTING_KEYS)[keyof typeof SHIPPING_SETTING_KEYS]
+  | (typeof AFFILIATE_SETTING_KEYS)[keyof typeof AFFILIATE_SETTING_KEYS];
 
 export const SETTING_LABEL: Record<SettingKey, string> = {
   'entity.registered_address':
@@ -43,9 +54,16 @@ export const SETTING_LABEL: Record<SettingKey, string> = {
   'hazcom.training': 'Training arrangements',
   'hazcom.non_routine': 'Non-routine tasks and how they are handled',
   'shipping.free_threshold_cents': 'Free shipping from this materials subtotal (cents; blank = off)',
+  'affiliate.commission_bps': 'Default partner commission in basis points (1000 = 10%)',
+  'affiliate.payout_threshold_cents': 'Minimum vested balance before a partner payout (cents)',
+  'affiliate.hold_days': 'Days after delivery before a partner commission vests',
 };
 
-const KEY_ORDER: SettingKey[] = [...Object.values(SETTING_KEYS), ...Object.values(SHIPPING_SETTING_KEYS)];
+const KEY_ORDER: SettingKey[] = [
+  ...Object.values(SETTING_KEYS),
+  ...Object.values(SHIPPING_SETTING_KEYS),
+  ...Object.values(AFFILIATE_SETTING_KEYS),
+];
 
 export function isSettingKey(value: string): value is SettingKey {
   return (KEY_ORDER as string[]).includes(value);

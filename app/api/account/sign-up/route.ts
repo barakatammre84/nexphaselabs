@@ -5,6 +5,8 @@ import { allow, clientAddress, rateLimitKey } from '@/lib/rate-limit';
 import { sameOrigin } from '@/lib/staff-auth';
 import { verifyTurnstile } from '@/lib/turnstile';
 import { requestConsent } from '@/lib/marketing-consent';
+import { bindReferral } from '@/lib/affiliates';
+import { readReferralCookie } from '@/lib/referral-cookie';
 
 /**
  * Account sign-up. Plain form POST. On success the person is sent to a
@@ -89,6 +91,21 @@ export async function POST(request: Request) {
         });
       } catch (error) {
         console.error('[account] product-news opt-in failed', error instanceof Error ? error.message : error);
+      }
+    }
+    if (result.ok) {
+      // First touch, once, at account creation: an existing customer was introduced by nobody
+      // and a partner cannot claim themselves (lib/affiliates.ts).
+      const referral = readReferralCookie(request.headers.get('cookie'));
+      if (referral) {
+        try {
+          await bindReferral(referral, result.accountId, {
+            clientAddress: clientAddress(request),
+            userAgent: request.headers.get('user-agent'),
+          });
+        } catch (error) {
+          console.error('[account] referral not bound', error instanceof Error ? error.message : error);
+        }
       }
     }
     // 'exists' falls through to the same success page deliberately.

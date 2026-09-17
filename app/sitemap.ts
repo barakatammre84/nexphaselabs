@@ -30,6 +30,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${origin}/legal/returns`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${origin}/legal/research-use`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${origin}/legal/compliance`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
+    { url: `${origin}/legal/affiliate-terms`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
   ];
   let products: { slug: string; updatedAt: Date | null }[] = [];
   let lotNumbers: string[] = [];

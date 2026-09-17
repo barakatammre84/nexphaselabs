@@ -26,6 +26,7 @@ export default async function ReportsPage({ searchParams }: Props) {
     { href: `/api/manage/reports/orders.csv?${periodQuery}`, title: 'Orders', detail: 'One row per order line submitted in the selected period: customer, organisation, SKU, quantity, price, lot, allocated cost and margin.' },
     { href: `/api/manage/reports/shipments.csv?${periodQuery}`, title: 'Movement ledger', detail: 'Every inventory movement occurring in the selected period, including named consignee, carrier and recorder.' },
     { href: '/api/manage/reports/lots.csv', title: 'Inventory by lot', detail: 'Current point-in-time quantity, landed cost, status, release and retest dates; this snapshot is not period-filtered.' },
+    { href: '/api/manage/reports/affiliates.csv', title: 'Partner commissions', detail: 'Every partner commission with the payout that settled it. Add ?year=YYYY for the calendar-year payment total per partner, which is what a contractor information return is prepared from.' },
   ];
 
   const inventory = admin ? await loadCatalog(lotInventory) : null;

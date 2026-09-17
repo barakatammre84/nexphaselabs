@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, like, sql, isNull } from 'drizzle-orm';
+import { accrueCommission, reverseCommissionForOrder } from '@/lib/affiliates';
 import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 import { getDb } from '@/db';
 import {
@@ -460,6 +461,23 @@ export async function createOrderFromCart(
         } catch (error) {
           console.error('[orders] coupon redemption not recorded', orderNumber, error instanceof Error ? error.message : error);
         }
+      }
+      // A partner's commission accrues here and is a liability from this moment (lib/affiliates.ts).
+      // It is calculated on materials after any promo code, never on shipping or tax, and a failure
+      // is logged rather than raised: nobody's order fails because of somebody else's commission.
+      try {
+        await accrueCommission(
+          {
+            id: orderId,
+            orderNumber,
+            accountId: account.id,
+            subtotalCents: totals.subtotalCents,
+            discountCents: totals.discountCents,
+          },
+          now,
+        );
+      } catch (error) {
+        console.error('[orders] affiliate commission not accrued', orderNumber, error instanceof Error ? error.message : error);
       }
       return { ok: true, orderNumber, orderId };
     } catch (error) {
@@ -976,5 +994,12 @@ export async function recordRefund(
       ok: false,
       error: 'The order changed while you were working. Reload and try again.',
     };
+  // A refunded order takes its partner commission back at once rather than on the next cron tick.
+  try {
+    await reverseCommissionForOrder(order.id, 'order refunded');
+  } catch (error) {
+    console.error('[orders] affiliate commission not reversed', order.orderNumber, error instanceof Error ? error.message : error);
+  }
   return { ok: true };
+
 }

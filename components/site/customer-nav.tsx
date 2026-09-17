@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import {
-  BellRing, CreditCard, FileText,
+  BellRing, CreditCard, FileText, Handshake,
   FileCheck2,
   LayoutDashboard,
   LifeBuoy,
@@ -10,6 +10,7 @@ import {
   ShoppingCart,
   UserRound,
 } from 'lucide-react';
+import { affiliateProgramEnabled } from '@/lib/site-config';
 
 /**
  * One navigation for every customer page (owner, 16 Sep 2026: a dashboard a
@@ -24,6 +25,7 @@ const items = [
   { href: '/account/payment', label: 'Payment', icon: CreditCard, membersOnly: true },
   { href: '/account/waitlist', label: 'Waitlist', icon: BellRing, membersOnly: true },
   { href: '/account/documents', label: 'Documents', icon: FileText, membersOnly: true },
+  { href: '/account/affiliate', label: 'Partner', icon: Handshake, membersOnly: true, whileOpen: true },
   { href: '/account/cart', label: 'Cart', icon: ShoppingCart },
   { href: '/catalog', label: 'Shop', icon: ShoppingBag },
   { href: '/documentation/lot-lookup', label: 'COAs', icon: FileCheck2 },
@@ -35,6 +37,7 @@ export function CustomerNav({ current, guest = false, orientation = 'horizontal'
     <nav aria-label="Customer account" className={orientation === 'vertical' ? 'grid gap-2' : 'flex flex-wrap gap-2'}>
       {items
         .filter((item) => !item.membersOnly || !guest)
+        .filter((item) => !item.whileOpen || affiliateProgramEnabled())
         .map(({ href, label, icon: Icon }) => {
           const active = current === href;
           return (
