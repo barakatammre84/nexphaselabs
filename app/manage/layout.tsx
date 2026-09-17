@@ -101,6 +101,9 @@ export default async function ManageLayout({
                 <Link href="/manage/accounts" className="hover:text-primary">
                   Accounts
                 </Link>
+                <Link href="/manage/coupons" className="hover:text-primary">
+                  Promo codes
+                </Link>
                 <Link href="/manage/staff" className="hover:text-primary">
                   Staff
                 </Link>

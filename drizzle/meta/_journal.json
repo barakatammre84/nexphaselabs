@@ -435,6 +435,13 @@
       "when": 1789605810142,
       "tag": "0061_account_pending_email",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "6",
+      "when": 1789608966822,
+      "tag": "0062_coupons",
+      "breakpoints": true
     }
   ]
 }

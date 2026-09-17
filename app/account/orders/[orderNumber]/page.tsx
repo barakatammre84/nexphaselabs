@@ -289,6 +289,12 @@ export default async function OrderPage({ params, searchParams }: Props) {
             <dt className="text-muted-foreground">Materials</dt>
             <dd className="font-mono">{formatCents(order.subtotalCents)}</dd>
           </div>
+          {order.discountCents > 0 && (
+            <div className="flex justify-between gap-5">
+              <dt className="text-muted-foreground">Promo code{order.couponCode ? ` · ${order.couponCode}` : ''}</dt>
+              <dd className="font-mono">−{formatCents(order.discountCents)}</dd>
+            </div>
+          )}
           <div className="flex justify-between gap-5">
             <dt className="text-muted-foreground">
               Shipping

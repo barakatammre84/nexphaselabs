@@ -88,6 +88,8 @@ async function loadSubject(
         status: order.status,
         currency: order.currency,
         subtotalCents: order.subtotalCents,
+        discountCents: order.discountCents,
+        couponCode: order.couponCode,
         shippingCents: order.shippingCents,
         taxCents: order.taxCents,
         totalCents: order.totalCents,

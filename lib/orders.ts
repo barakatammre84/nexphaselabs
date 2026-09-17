@@ -9,8 +9,7 @@ import {
   orderItems,
   orders,
   type Order,
-  type Organization,
-} from '@/db/schema';
+  type Organization, coupons, couponRedemptions } from '@/db/schema';
 import type { AccountPrincipal } from '@/lib/account-auth';
 import { getCart, type Cart } from '@/lib/cart';
 import {
@@ -19,6 +18,7 @@ import {
   GUEST_CHECKOUT_TERMS_VERSION,
 } from '@/lib/policy';
 import { buildOrderAttestation } from '@/lib/attestation';
+import { evaluateCoupon } from '@/lib/coupons';
 import {
   btcpayCheckoutUrl,
   getPaymentMethod,
@@ -241,6 +241,19 @@ export async function createOrderFromCart(
       error:
         'The selected delivery quote expired or no longer matches this cart and address.',
     };
+  // The promo code priced into the accepted quote is checked again now, at the
+  // moment it is spent; a code that stopped applying in between refuses the order.
+  let coupon: Awaited<ReturnType<typeof evaluateCoupon>> | null = null;
+  if (quote?.couponCode) {
+    coupon = await evaluateCoupon(quote.couponCode, account.id, cart.subtotalCents, now);
+    if (!coupon.ok)
+      return { ok: false, error: `${coupon.error} Compare delivery options again.` };
+    if (coupon.discountCents !== quote.discountCents)
+      return {
+        ok: false,
+        error: 'The promo code no longer gives the discount on the delivery quote. Compare delivery options again.',
+      };
+  }
   const lines = cart.lines.map((l) => ({
     unitPriceCents: l.unitPriceCents!,
     quantity: l.quantity,
@@ -249,6 +262,7 @@ export async function createOrderFromCart(
     lines,
     quote?.shippingCents ?? 0,
     quote?.taxCents ?? 0,
+    quote?.discountCents ?? 0,
   );
   const orderId = id('ord');
   const accepted = eq(orders.id, orderId);
@@ -296,6 +310,8 @@ export async function createOrderFromCart(
             status: 'submitted',
             currency: 'USD',
             subtotalCents: totals.subtotalCents,
+            discountCents: totals.discountCents,
+            couponCode: coupon?.ok ? coupon.coupon.code : null,
             shippingCents: totals.shippingCents,
             taxCents: totals.taxCents,
             totalCents: totals.totalCents,
@@ -421,6 +437,29 @@ export async function createOrderFromCart(
           error:
             'Your account, delivery address, cart or available offer changed. Reload and review before submitting again.',
         };
+      }
+      if (coupon?.ok) {
+        // The redemption is the record that this order spent the code. Written after
+        // the order exists; a failure here leaves the order standing and is logged.
+        try {
+          await db.batch([
+            db
+              .update(coupons)
+              .set({ redemptionCount: sql`${coupons.redemptionCount} + 1`, updatedAt: now })
+              .where(eq(coupons.id, coupon.coupon.id)),
+            db.insert(couponRedemptions).values({
+              id: id('cpr'),
+              couponId: coupon.coupon.id,
+              orderId,
+              accountId: account.id,
+              code: coupon.coupon.code,
+              discountCents: totals.discountCents,
+              createdAt: now,
+            }),
+          ]);
+        } catch (error) {
+          console.error('[orders] coupon redemption not recorded', orderNumber, error instanceof Error ? error.message : error);
+        }
       }
       return { ok: true, orderNumber, orderId };
     } catch (error) {

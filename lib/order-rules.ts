@@ -81,18 +81,23 @@ export function orderTotals(
   lines: PricedLine[],
   shippingCents = 0,
   taxCents = 0,
+  discountCents = 0,
 ): {
   subtotalCents: number;
+  discountCents: number;
   shippingCents: number;
   taxCents: number;
   totalCents: number;
 } {
   const subtotalCents = lines.reduce((sum, l) => sum + lineTotal(l), 0);
+  // A promo code comes off the materials subtotal before shipping and tax are added.
+  const discount = Math.min(Math.max(0, discountCents), subtotalCents);
   return {
     subtotalCents,
+    discountCents: discount,
     shippingCents,
     taxCents,
-    totalCents: subtotalCents + shippingCents + taxCents,
+    totalCents: subtotalCents - discount + shippingCents + taxCents,
   };
 }
 
