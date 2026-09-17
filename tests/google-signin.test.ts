@@ -215,6 +215,21 @@ describe('resolving an identity to an account', () => {
     expect(row('SELECT email_verified_at FROM accounts')?.email_verified_at).not.toBeNull();
   });
 
+  it('refuses an address whose account is already tied to a different Google identity', async () => {
+    await seed({ googleSubject: 'google-sub-ORIGINAL', googleLinkedAt: new Date() });
+    // A released and re-registered address gets a new subject from Google, still verified.
+    // Trusting the address alone here would hand the new owner the original account.
+    expect(await resolveGoogleSignIn({ ...identity, subject: 'google-sub-NEW' }, null)).toEqual({
+      outcome: 'refused',
+      reason: 'linked-elsewhere',
+    });
+    // The genuine owner still gets in, because the subject matches.
+    expect(await resolveGoogleSignIn({ ...identity, subject: 'google-sub-ORIGINAL' }, null)).toMatchObject({
+      outcome: 'signed-in',
+      linked: false,
+    });
+  });
+
   it('refuses a suspended account', async () => {
     await seed({ status: 'suspended' });
     expect(await resolveGoogleSignIn(identity, null)).toEqual({ outcome: 'refused', reason: 'suspended' });

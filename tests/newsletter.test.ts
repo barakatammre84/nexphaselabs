@@ -117,8 +117,10 @@ describe('product-news consent', () => {
     expect(row("SELECT status, revoke_reason FROM marketing_consents WHERE email = 'ada@example.org'")).toEqual({ status: 'revoked', revoke_reason: 'one-click' });
     expect(calls.at(-1)?.url).toBe('https://api.brevo.com/v3/contacts/lists/7/contacts/remove');
 
-    // Re-arming is a fresh double opt-in.
-    const again = await requestConsent({ email: 'ada@example.org', source: 'footer' });
+    // Re-arming is a fresh double opt-in, and only the owner may start it: a revoked address is a
+    // suppression list that a stranger typing it into the footer form cannot lift.
+    expect(await requestConsent({ email: 'ada@example.org', source: 'footer' })).toMatchObject({ status: 'revoked' });
+    const again = await requestConsent({ email: 'ada@example.org', accountId: 'acct_ada', source: 'account' });
     expect(again.status).toBe('pending');
     await confirmConsent(again.confirmToken!);
 
@@ -135,6 +137,26 @@ describe('product-news consent', () => {
     expect(bad.status).toBe(401);
 
     expect(await revokeConsent({ email: 'nobody@example.org' }, 'x')).toBe(false);
+  });
+
+  it('will not let a stranger re-solicit an address that unsubscribed', async () => {
+    const { confirmToken } = await requestConsent({ email: 'ada@example.org', accountId: 'acct_ada', source: 'account' });
+    await confirmConsent(confirmToken!);
+    await revokeConsent({ email: 'ada@example.org' }, 'one-click');
+    sent.length = 0;
+
+    // The footer form takes any address anybody types, so this is the vector.
+    expect(await requestConsent({ email: 'ada@example.org', source: 'footer' })).toMatchObject({ status: 'revoked' });
+    expect(await requestConsent({ email: 'ada@example.org', accountId: 'acct_bob', source: 'account' })).toMatchObject({ status: 'revoked' });
+    expect(sent).toHaveLength(0);
+    expect(row("SELECT status FROM marketing_consents WHERE email = 'ada@example.org'")?.status).toBe('revoked');
+
+    // The owner, signed in as that address, can still come off the suppression list.
+    const owner = await requestConsent({ email: 'ada@example.org', accountId: 'acct_ada', source: 'account' });
+    expect(owner.status).toBe('pending');
+    expect(sent).toHaveLength(1);
+    await confirmConsent(owner.confirmToken!);
+    expect(row("SELECT status FROM marketing_consents WHERE email = 'ada@example.org'")?.status).toBe('confirmed');
   });
 
   it('takes the sign-up box as a pending request and confirms it with the account verification link', async () => {

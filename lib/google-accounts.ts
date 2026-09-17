@@ -24,7 +24,7 @@ function newId(prefix: string): string {
 export type GoogleResolution =
   | { outcome: 'signed-in'; token: string; expiresAt: Date; account: Account; linked: boolean }
   | { outcome: 'needs-completion' }
-  | { outcome: 'refused'; reason: 'unverified-email' | 'suspended' | 'unavailable' };
+  | { outcome: 'refused'; reason: 'unverified-email' | 'suspended' | 'unavailable' | 'linked-elsewhere' };
 
 /**
  * Matches a Google identity to an existing account, by subject first and address second.
@@ -50,6 +50,12 @@ export async function resolveGoogleSignIn(
   const account = bySubject ?? byEmail;
   if (!account) return { outcome: 'needs-completion' };
   if (account.status === 'suspended') return { outcome: 'refused', reason: 'suspended' };
+  // Matched on the address, but this account is already tied to a different Google identity.
+  // A Workspace or Gmail address can be released and re-registered, and Google issues the new
+  // owner a new subject while still asserting the address is verified; signing them in here
+  // would hand them somebody else's account. The address is not enough on its own.
+  if (!bySubject && account.googleSubject && account.googleSubject !== identity.subject)
+    return { outcome: 'refused', reason: 'linked-elsewhere' };
 
   const linking = !account.googleSubject;
   // Google's verified assertion is at least as good as a link we posted, so an account that never
