@@ -77,7 +77,7 @@ function id(prefix: string): string {
 export type SignUpResult = { ok: true; accountId: string; emailSent: boolean } | { ok: false; reason: 'exists' | 'email' };
 
 export async function signUp(
-  input: { name: string; email: string; password: string; tier: AccountTier; researchSetting?: string | null; ageConfirmed?: boolean },
+  input: { name: string; email: string; password: string; tier: AccountTier; researchSetting?: string | null; ageConfirmed?: boolean; dateOfBirth?: string | null },
   userAgent: string | null,
 ): Promise<SignUpResult> {
   const db = getDb();
@@ -114,6 +114,7 @@ export async function signUp(
         tier: input.tier,
         researchSetting: input.researchSetting ?? null,
         ageConfirmedAt: input.ageConfirmed ? now : null,
+        dateOfBirth: input.dateOfBirth ?? null,
         status: 'pending_email',
         termsAcceptedAt: now,
         termsVersion: TERMS_VERSION,

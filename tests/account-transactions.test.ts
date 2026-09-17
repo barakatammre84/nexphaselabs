@@ -6,7 +6,7 @@ vi.mock('next/headers', () => ({ cookies: vi.fn() }));
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 import { getDb } from '@/db';
 import { accounts, emailTokens, staffUsers } from '@/db/schema';
-import { accountSignIn, verifyEmailToken } from '@/lib/account-auth';
+import { accountSignIn, signUp, verifyEmailToken } from '@/lib/account-auth';
 import { confirmEmailByStaff, resetPasswordWithToken } from '@/lib/account-service';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 import { eq } from 'drizzle-orm';
@@ -117,5 +117,18 @@ describe('confirming an email address by hand', () => {
     expect(scalar("SELECT status FROM accounts WHERE id = 'account_test'")).toBe('suspended');
     expect(scalar("SELECT used_at FROM email_tokens WHERE id = 'token_verify'")).toBeNull();
     expect(scalar("SELECT count(*) FROM account_events")).toBe(0);
+  });
+});
+
+describe('sign-up storage', () => {
+  it('stores the date of birth with the account and never echoes it back', async () => {
+    const result = await signUp(
+      { name: 'Dr New', email: 'new@example.org', password, tier: 'institutional', ageConfirmed: true, dateOfBirth: '1980-01-01' },
+      null,
+    );
+    expect(result.ok).toBe(true);
+    const row = local.sqlite.prepare("SELECT date_of_birth, age_confirmed_at FROM accounts WHERE email = 'new@example.org'").get() as Record<string, unknown>;
+    expect(row.date_of_birth).toBe('1980-01-01');
+    expect(row.age_confirmed_at).not.toBeNull();
   });
 });

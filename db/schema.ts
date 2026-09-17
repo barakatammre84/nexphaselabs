@@ -641,6 +641,8 @@ export const accounts = sqliteTable(
     researchSetting: text('research_setting'),
     /** When the person affirmed the minimum age (AGE_STATEMENT). */
     ageConfirmedAt: integer('age_confirmed_at', { mode: 'timestamp' }),
+    /** ISO date, used only for the minimum-age check at sign-up (migration 0065). Never rendered; null for older accounts. */
+    dateOfBirth: text('date_of_birth'),
     /** pending_email | active | suspended */
     status: text('status').notNull().default('pending_email'),
     emailVerifiedAt: integer('email_verified_at', { mode: 'timestamp' }),
