@@ -40,6 +40,8 @@ const ERROR_TEXT: Record<string, string> = {
   google_unverified:
     'Google has not verified that email address, so we cannot use it to identify you. Sign in with a password instead.',
   google_expired: 'That took too long and the Google sign-in expired. Start again.',
+  google_linked_elsewhere:
+    'An account already exists for that email address and it is linked to a different Google account. Sign in with your password, or contact research@nexphaselabs.net.',
 };
 
 const VERIFY_TEXT: Record<string, string> = {

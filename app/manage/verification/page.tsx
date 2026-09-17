@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
+import { canVerifyAccounts } from '@/lib/staff-auth';
 import Link from 'next/link';
 import { Lock } from 'lucide-react';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
@@ -25,7 +27,10 @@ export default async function VerificationQueuePage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  await requireStaff('/manage/verification');
+  // The decision has always required this capability; so must reading the dossier, which holds
+  // an applicant's legal name, address and uploaded identity documents.
+  const staff = await requireStaff('/manage/verification');
+  if (!canVerifyAccounts(staff)) redirect('/manage?denied=1');
   const loaded = await loadCatalog(listVerificationQueue);
   const requested = (await searchParams).status ?? '';
   const status = Object.hasOwn(STATUS_LABEL, requested) ? requested : '';

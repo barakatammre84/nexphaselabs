@@ -156,13 +156,25 @@ describe('buildInvoiceContent', () => {
     expect(content.shipTo).not.toContain('');
   });
 
-  it('omits a shipping line when there is no shipping charge', () => {
+  it('prints free delivery as a line rather than hiding it', () => {
+    // Suppressing the row made a free-shipping invoice silently different from a paid one.
+    const content = buildInvoiceContent(subject({ shippingCents: 0, totalCents: 25000 }));
+    expect(content.totals).toEqual([
+      ['Subtotal', '250.00'],
+      ['Shipping', 'Free'],
+      ['Total USD', '250.00'],
+    ]);
+  });
+
+  it('prints the promo code, so the rows sum to the total the customer paid', () => {
     const content = buildInvoiceContent(
-      subject({ shippingCents: 0, totalCents: 25000 }),
+      subject({ subtotalCents: 25000, discountCents: 5000, couponCode: 'SAVE20', shippingCents: 800, taxCents: 0, totalCents: 20800 }),
     );
-    expect(content.totals.map(([label]) => label)).toEqual([
-      'Subtotal',
-      'Total USD',
+    expect(content.totals).toEqual([
+      ['Subtotal', '250.00'],
+      ['Promo code · SAVE20', '-50.00'],
+      ['Shipping', '8.00'],
+      ['Total USD', '208.00'],
     ]);
   });
 

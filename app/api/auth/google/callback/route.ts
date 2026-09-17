@@ -67,8 +67,15 @@ export async function GET(request: Request) {
     return fail('unavailable');
   }
 
-  if (resolution.outcome === 'refused')
-    return fail(resolution.reason === 'suspended' ? 'suspended' : resolution.reason === 'unverified-email' ? 'google_unverified' : 'unavailable');
+  if (resolution.outcome === 'refused') {
+    const reasons = {
+      suspended: 'suspended',
+      'unverified-email': 'google_unverified',
+      'linked-elsewhere': 'google_linked_elsewhere',
+      unavailable: 'unavailable',
+    } as const;
+    return fail(reasons[resolution.reason]);
+  }
 
   if (resolution.outcome === 'needs-completion') {
     const sealed = await sealPendingIdentity(result.identity);

@@ -1,4 +1,4 @@
-import { and, count, eq } from 'drizzle-orm';
+import { and, count, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { couponRedemptions, coupons, type Coupon } from '@/db/schema';
 
@@ -125,4 +125,34 @@ export async function setCouponActive(id: string, active: boolean): Promise<bool
     .where(eq(coupons.id, id))
     .returning({ id: coupons.id });
   return rows.length > 0;
+}
+
+/**
+ * Takes one redemption against the cap, atomically.
+ *
+ * Reading `redemption_count` and then incrementing it are two statements, and two checkouts can
+ * pass the read before either writes. The guard here is the write itself: the cap is re-asserted
+ * in the WHERE, so exactly one of two racing orders gets the last use of a limited code. Returns
+ * false when the cap was taken in between, which the order path treats as a refusal.
+ */
+export async function claimCouponRedemption(couponId: string, now = new Date()): Promise<boolean> {
+  const rows = await getDb()
+    .update(coupons)
+    .set({ redemptionCount: sql`${coupons.redemptionCount} + 1`, updatedAt: now })
+    .where(
+      and(
+        eq(coupons.id, couponId),
+        sql`(${coupons.maxRedemptions} IS NULL OR ${coupons.redemptionCount} < ${coupons.maxRedemptions})`,
+      ),
+    )
+    .returning({ id: coupons.id });
+  return rows.length > 0;
+}
+
+/** Hands a claim back when the order it was taken for was never written. Never goes below zero. */
+export async function releaseCouponRedemption(couponId: string, now = new Date()): Promise<void> {
+  await getDb()
+    .update(coupons)
+    .set({ redemptionCount: sql`MAX(0, ${coupons.redemptionCount} - 1)`, updatedAt: now })
+    .where(eq(coupons.id, couponId));
 }

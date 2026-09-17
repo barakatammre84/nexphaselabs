@@ -228,6 +228,8 @@ export function validateReturn(
   raw: ReturnRaw,
   shippedAt: Date | null,
   now = new Date(),
+  /** What the order actually charged, so the ceiling cannot exceed it. */
+  charged?: { subtotalCents: number; discountCents: number; totalCents: number },
 ): ReturnValidation {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw.receivedOn))
     return { ok: false, error: 'Received date must be YYYY-MM-DD.' };
@@ -277,6 +279,16 @@ export function validateReturn(
       ok: false,
       error: 'Enter how many packs came back on at least one line.',
     };
+  // The lines above are at list value. A promo code means the customer paid less than that, and
+  // this figure is the only ceiling on what staff can refund, so leaving it undiscounted lets a
+  // $96 order be refunded $100 — and a fully discounted one refunded $100 having paid nothing.
+  // Scale it by what was actually charged for materials, then clamp to the order total.
+  if (charged && charged.subtotalCents > 0 && charged.discountCents > 0)
+    refundDueCents = Math.round(
+      (refundDueCents * Math.max(0, charged.subtotalCents - charged.discountCents)) / charged.subtotalCents,
+    );
+  if (charged) refundDueCents = Math.min(refundDueCents, Math.max(0, charged.totalCents));
+
   return {
     ok: true,
     lines,

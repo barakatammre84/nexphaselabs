@@ -322,6 +322,27 @@ describe('payouts and tax-year totals', () => {
     expect(await payoutYearTotals(2001)).toEqual([]);
   });
 
+  it('takes a refunded commission out of a batch that has not been sent', async () => {
+    const partner = await vestedPartner();
+    await recordTaxForm(partner.id, 'vault: partner-w9');
+    const payout = await createPayout(partner.id, staff);
+    if (!payout.ok) throw new Error(payout.error);
+    expect(payout.amountCents).toBe(40);
+
+    // The order is refunded after the batch was prepared but before the money was sent.
+    const orderId = String(row('SELECT order_id FROM affiliate_commissions')?.order_id);
+    expect(await reverseCommissionForOrder(orderId, 'order refunded')).toBe(true);
+
+    // The batch must not still be asking staff to send money the partner is no longer owed.
+    expect(row('SELECT status, amount_cents, commission_count FROM affiliate_payouts')).toMatchObject({
+      status: 'cancelled',
+      amount_cents: 40,
+    });
+    expect(row('SELECT status FROM affiliate_commissions')?.status).toBe('reversed');
+    // And nothing reaches the contractor total, because the batch was never sent.
+    expect(await payoutYearTotals(new Date().getUTCFullYear())).toEqual([]);
+  });
+
   it('holds a balance below the minimum back for the next batch', async () => {
     const partner = await approvedPartner();
     const order = await syntheticOrder(2);

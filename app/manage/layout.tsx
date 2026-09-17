@@ -51,15 +51,19 @@ export default async function ManageLayout({
             <Link href="/manage/lots" className="hover:text-primary">
               Lots
             </Link>
-            <Link href="/manage/verification" className="hover:text-primary">
-              Verification
-            </Link>
+            {canVerifyAccounts(staff) && (
+              <Link href="/manage/verification" className="hover:text-primary">
+                Verification
+              </Link>
+            )}
             <Link href="/manage/orders" className="hover:text-primary">
               Orders
             </Link>
-            <Link href="/manage/payments/zelle" className="hover:text-primary">
-              Zelle
-            </Link>
+            {canVerifyAccounts(staff) && (
+              <Link href="/manage/payments/zelle" className="hover:text-primary">
+                Zelle
+              </Link>
+            )}
             {canFulfil(staff) && (
               <Link href="/manage/procurement" className="hover:text-primary">
                 Procurement

@@ -85,6 +85,15 @@ export async function requestConsent(
   const db = getDb();
   const [existing] = await db.select().from(marketingConsents).where(eq(marketingConsents.email, email)).limit(1);
   if (existing?.status === 'confirmed') return { ok: true, status: 'confirmed', confirmToken: null };
+  // A revoked address is a suppression list, and only its owner may come off it. Anyone can type
+  // any address into the footer form, so without this an unsubscribed person could be sent a fresh
+  // "confirm product news" email by a stranger, repeatedly. Signed in as that address, from the
+  // account page, they can still resubscribe themselves.
+  if (existing?.status === 'revoked') {
+    const ownerAsking =
+      input.source === 'account' && Boolean(input.accountId) && input.accountId === existing.accountId;
+    if (!ownerAsking) return { ok: true, status: 'revoked', confirmToken: null };
+  }
 
   const confirmToken = randomToken();
   const confirmTokenHash = await sha256Hex(confirmToken);

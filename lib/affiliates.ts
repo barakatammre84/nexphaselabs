@@ -267,12 +267,43 @@ export async function accrueCommission(
 
 /** A refund or a cancellation takes the commission back, whether or not it had vested. */
 export async function reverseCommissionForOrder(orderId: string, reason: string, now = new Date()): Promise<boolean> {
-  const rows = await getDb()
+  const db = getDb();
+  const rows = await db
     .update(affiliateCommissions)
     .set({ status: 'reversed', reversedAt: now, reversedReason: reason.slice(0, 120), updatedAt: now })
     .where(and(eq(affiliateCommissions.orderId, orderId), inArray(affiliateCommissions.status, ['pending', 'vested'])))
-    .returning({ id: affiliateCommissions.id });
-  return rows.length > 0;
+    .returning({ id: affiliateCommissions.id, payoutId: affiliateCommissions.payoutId });
+  if (rows.length === 0) return false;
+
+  // A commission can already be sitting in a payout batch that has been prepared but not sent.
+  // Reversing it without touching the batch leaves staff a total to send that includes money the
+  // partner is no longer owed, and the batch would still be counted in their tax-year total. So the
+  // batch is rebuilt from what actually remains, and cancelled if nothing does.
+  for (const payoutId of new Set(rows.map((row) => row.payoutId).filter((id): id is string => Boolean(id)))) {
+    const [payout] = await db.select().from(affiliatePayouts).where(eq(affiliatePayouts.id, payoutId)).limit(1);
+    if (!payout || payout.status !== 'pending') continue;
+    const remaining = await db
+      .select({ amountCents: affiliateCommissions.amountCents })
+      .from(affiliateCommissions)
+      .where(and(eq(affiliateCommissions.payoutId, payoutId), eq(affiliateCommissions.status, 'vested')));
+    const amountCents = remaining.reduce((sum, row) => sum + row.amountCents, 0);
+    if (remaining.length === 0) {
+      await db
+        .update(affiliatePayouts)
+        .set({ status: 'cancelled', note: 'Every commission in this batch was reversed before it was sent.' })
+        .where(and(eq(affiliatePayouts.id, payoutId), eq(affiliatePayouts.status, 'pending')));
+      continue;
+    }
+    await db
+      .update(affiliatePayouts)
+      .set({
+        amountCents,
+        commissionCount: remaining.length,
+        note: 'Reduced: a commission in this batch was reversed before it was sent.',
+      })
+      .where(and(eq(affiliatePayouts.id, payoutId), eq(affiliatePayouts.status, 'pending')));
+  }
+  return true;
 }
 
 export type AffiliateSweep = { ok: true; skipped?: true; dated: number; vested: number; reversed: number };
@@ -520,36 +551,58 @@ export async function createPayout(affiliateId: string, staff: StaffPrincipal, n
   const db = getDb();
   const [affiliate] = await db.select().from(affiliates).where(eq(affiliates.id, affiliateId)).limit(1);
   if (!affiliate) return { ok: false, error: 'That partner was not found.' };
-  const vested = await db
-    .select({ id: affiliateCommissions.id, amountCents: affiliateCommissions.amountCents })
-    .from(affiliateCommissions)
+
+  // Claim the commissions first, then build the batch from what was actually claimed.
+  //
+  // Selecting them and stamping them afterwards is not safe here: two admins pressing the button,
+  // or one pressing it twice, would both select the same rows, both insert a payout, and the second
+  // unguarded stamp would overwrite the first. That leaves two batches to send for one lot of
+  // earnings, and the partner is paid twice. Claiming with `payout_id IS NULL` in the WHERE means
+  // only one of them gets the rows, and it also excludes anything a refund reversed in between.
+  const payoutId = newId('afp');
+  const claimed = await db
+    .update(affiliateCommissions)
+    .set({ payoutId, updatedAt: now })
     .where(
       and(
         eq(affiliateCommissions.affiliateId, affiliateId),
         eq(affiliateCommissions.status, 'vested'),
         isNull(affiliateCommissions.payoutId),
       ),
-    );
-  const amountCents = vested.reduce((sum, row) => sum + row.amountCents, 0);
+    )
+    .returning({ id: affiliateCommissions.id, amountCents: affiliateCommissions.amountCents });
+
+  const release = async () => {
+    await db
+      .update(affiliateCommissions)
+      .set({ payoutId: null, updatedAt: now })
+      .where(eq(affiliateCommissions.payoutId, payoutId));
+  };
+
+  const amountCents = claimed.reduce((sum, row) => sum + row.amountCents, 0);
   const { payoutThresholdCents } = await affiliateSettings();
   const readiness = payoutReadiness(amountCents, payoutThresholdCents, affiliate.taxFormStatus);
-  if (!readiness.ready) return { ok: false, error: readiness.reason ?? 'Nothing to pay.' };
+  if (!readiness.ready) {
+    await release();
+    return { ok: false, error: readiness.reason ?? 'Nothing to pay.' };
+  }
 
-  const payoutId = newId('afp');
-  await db.insert(affiliatePayouts).values({
-    id: payoutId,
-    affiliateId,
-    amountCents,
-    commissionCount: vested.length,
-    status: 'pending',
-    method: 'zelle',
-    createdBy: `${staff.name} (${staff.id})`,
-    createdAt: now,
-  });
-  await db
-    .update(affiliateCommissions)
-    .set({ payoutId, updatedAt: now })
-    .where(inArray(affiliateCommissions.id, vested.map((row) => row.id)));
+  try {
+    await db.insert(affiliatePayouts).values({
+      id: payoutId,
+      affiliateId,
+      amountCents,
+      commissionCount: claimed.length,
+      status: 'pending',
+      method: 'zelle',
+      createdBy: `${staff.name} (${staff.id})`,
+      createdAt: now,
+    });
+  } catch (error) {
+    // Without the payout row the claim would strand the commissions, so give them back.
+    await release();
+    throw error;
+  }
   return { ok: true, payoutId, amountCents };
 }
 
@@ -563,16 +616,25 @@ export async function markPayoutSent(
   const ref = reference.trim().slice(0, 120);
   if (ref.length < 3) return { ok: false, error: 'Record the payment confirmation reference.' };
   const db = getDb();
-  const rows = await db
-    .update(affiliatePayouts)
-    .set({ status: 'sent', reference: ref, sentAt: now, sentBy: `${staff.name} (${staff.id})` })
-    .where(and(eq(affiliatePayouts.id, payoutId), eq(affiliatePayouts.status, 'pending')))
-    .returning({ id: affiliatePayouts.id });
+  const [rows] = await db.batch([
+    db
+      .update(affiliatePayouts)
+      .set({ status: 'sent', reference: ref, sentAt: now, sentBy: `${staff.name} (${staff.id})` })
+      .where(and(eq(affiliatePayouts.id, payoutId), eq(affiliatePayouts.status, 'pending')))
+      .returning({ id: affiliatePayouts.id }),
+    // Conditioned on the payout id, so this only ever moves the commissions that batch claimed.
+    db
+      .update(affiliateCommissions)
+      .set({ status: 'paid', updatedAt: now })
+      .where(
+        and(
+          eq(affiliateCommissions.payoutId, payoutId),
+          eq(affiliateCommissions.status, 'vested'),
+          sql`EXISTS (SELECT 1 FROM ${affiliatePayouts} WHERE id = ${payoutId} AND status = 'sent')`,
+        ),
+      ),
+  ]);
   if (rows.length === 0) return { ok: false, error: 'That payout was not found, or it has already been sent.' };
-  await db
-    .update(affiliateCommissions)
-    .set({ status: 'paid', updatedAt: now })
-    .where(and(eq(affiliateCommissions.payoutId, payoutId), eq(affiliateCommissions.status, 'vested')));
   return { ok: true };
 }
 

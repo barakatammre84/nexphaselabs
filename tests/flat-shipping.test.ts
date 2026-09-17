@@ -69,9 +69,16 @@ describe('the flat rate table', () => {
   });
 
   it('allows free delivery as a deliberate choice', () => {
-    const { rates, issues } = parseFlatRates('[{"service":"standard","name":"Standard","cents":0,"days":null}]');
+    const { rates, issues } = parseFlatRates('[{"service":"standard","name":"Standard","cents":0,"days":3}]');
     expect(issues).toEqual([]);
-    expect(rates[0]).toMatchObject({ cents: 0, days: null });
+    expect(rates[0]).toMatchObject({ cents: 0, days: 3 });
+  });
+
+  it('insists on a transit estimate, because checkout filters out rates that have none', () => {
+    // compareShippingRates drops a null estimate when maxEstimatedDays is set, and checkout always
+    // sets it. A table without transit times would quietly vanish at checkout.
+    expect(parseFlatRates('[{"service":"standard","name":"Standard","cents":1200}]').issues[0]).toContain('transit estimate');
+    expect(parseFlatRates('[{"service":"standard","name":"Standard","cents":1200,"days":null}]').issues[0]).toContain('transit estimate');
   });
 
   it('turns the table into quotable rates without contacting anybody', () => {

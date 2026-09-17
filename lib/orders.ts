@@ -2,15 +2,7 @@ import { and, desc, eq, inArray, like, sql, isNull } from 'drizzle-orm';
 import { accrueCommission, reverseCommissionForOrder } from '@/lib/affiliates';
 import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 import { getDb } from '@/db';
-import {
-  accounts,
-  cartItems,
-  lots,
-  orderEvents,
-  orderItems,
-  orders,
-  type Order,
-  type Organization, coupons, couponRedemptions } from '@/db/schema';
+import { accounts, cartItems, lots, orderEvents, orderItems, orders, type Order, type Organization, couponRedemptions } from '@/db/schema';
 import type { AccountPrincipal } from '@/lib/account-auth';
 import { getCart, type Cart } from '@/lib/cart';
 import {
@@ -19,7 +11,7 @@ import {
   GUEST_CHECKOUT_TERMS_VERSION,
 } from '@/lib/policy';
 import { buildOrderAttestation } from '@/lib/attestation';
-import { evaluateCoupon } from '@/lib/coupons';
+import { claimCouponRedemption, COUPON_COPY, evaluateCoupon, releaseCouponRedemption } from '@/lib/coupons';
 import {
   btcpayCheckoutUrl,
   getPaymentMethod,
@@ -255,6 +247,18 @@ export async function createOrderFromCart(
         error: 'The promo code no longer gives the discount on the delivery quote. Compare delivery options again.',
       };
   }
+  // Take the redemption now, not after the order is written. evaluateCoupon only READ the count,
+  // and two checkouts can both pass that read before either increments; the claim re-asserts the
+  // cap in its own WHERE, so exactly one of them gets the last use of a limited code. If the order
+  // then fails, or turns out to be a duplicate submission, the finally below hands the claim back.
+  let claimedCouponId: string | null = null;
+  let couponConsumed = false;
+  if (coupon?.ok) {
+    if (!(await claimCouponRedemption(coupon.coupon.id, now)))
+      return { ok: false, error: `${COUPON_COPY.exhausted} Compare delivery options again.` };
+    claimedCouponId = coupon.coupon.id;
+  }
+  try {
   const lines = cart.lines.map((l) => ({
     unitPriceCents: l.unitPriceCents!,
     quantity: l.quantity,
@@ -440,14 +444,11 @@ export async function createOrderFromCart(
         };
       }
       if (coupon?.ok) {
-        // The redemption is the record that this order spent the code. Written after
-        // the order exists; a failure here leaves the order standing and is logged.
+        // The count was already incremented by the claim above, so this writes only the record of
+        // which order spent it. Marking it consumed is what stops the finally handing the claim back.
+        couponConsumed = true;
         try {
           await db.batch([
-            db
-              .update(coupons)
-              .set({ redemptionCount: sql`${coupons.redemptionCount} + 1`, updatedAt: now })
-              .where(eq(coupons.id, coupon.coupon.id)),
             db.insert(couponRedemptions).values({
               id: id('cpr'),
               couponId: coupon.coupon.id,
@@ -502,6 +503,14 @@ export async function createOrderFromCart(
     }
   }
   return { ok: false, error: 'The order could not be numbered. Try again.' };
+  } finally {
+    // Every exit that did not write a redemption row gives the use back, including the duplicate
+    // submission paths, which return an order that already spent its own claim.
+    if (claimedCouponId && !couponConsumed)
+      await releaseCouponRedemption(claimedCouponId, now).catch((error) =>
+        console.error('[orders] coupon claim not released', error instanceof Error ? error.message : error),
+      );
+  }
 }
 
 export async function listOrdersForAccount(

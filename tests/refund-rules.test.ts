@@ -59,3 +59,38 @@ describe('validateReturn', () => {
     expect(validateReturn(items, { packs: { a: 1 }, receivedOn: '2026-09-03', condition: ' ', note: '' }, shipped, now).ok).toBe(false);
   });
 });
+
+describe('a discounted order cannot be refunded more than it charged', () => {
+  const items = [{ id: 'oi_1', sku: 'NPL-9999-2MG', quantity: 1, lotId: 'lot_1', unitPriceCents: 10_000 }];
+  const raw = { receivedOn: '2026-09-17', condition: 'Sealed, unopened.', note: '', packs: { oi_1: 1 } };
+  const shipped = new Date('2026-09-16T00:00:00Z');
+  const now = new Date('2026-09-17T12:00:00Z');
+
+  it('scales the ceiling by the promo code the customer actually used', () => {
+    // $100 pack, 20% code, $8 shipping, $8 tax on the reduced base: the customer paid $96.
+    const result = validateReturn(items, raw, shipped, now, {
+      subtotalCents: 10_000,
+      discountCents: 2_000,
+      totalCents: 9_600,
+    });
+    expect(result.ok && result.refundDueCents).toBe(8_000);
+  });
+
+  it('cannot exceed the order total even when everything was discounted away', () => {
+    const result = validateReturn(items, raw, shipped, now, {
+      subtotalCents: 10_000,
+      discountCents: 10_000,
+      totalCents: 0,
+    });
+    expect(result.ok && result.refundDueCents).toBe(0);
+  });
+
+  it('leaves an undiscounted order exactly as it was', () => {
+    const result = validateReturn(items, raw, shipped, now, {
+      subtotalCents: 10_000,
+      discountCents: 0,
+      totalCents: 11_600,
+    });
+    expect(result.ok && result.refundDueCents).toBe(10_000);
+  });
+});
