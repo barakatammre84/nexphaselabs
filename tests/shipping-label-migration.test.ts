@@ -61,7 +61,7 @@ describe('shipping label history migration', () => {
     // rebuilds a table with the origin columns 0047 adds (0064 rebuilds checkout_quotes), so the
     // fixture can be seeded with today's schema and 0047 then runs against rows that exist.
     const replayedAfter = migrationFiles.filter(
-      (name) => name > '0047' && readFileSync(`${migrationDirectory}/${name}`, 'utf8').includes('origin_id'),
+      (name) => name > '0047_clean_namorita.sql' && readFileSync(`${migrationDirectory}/${name}`, 'utf8').includes('origin_id'),
     );
     for (const file of migrationFiles.filter(
       (name) => name !== '0047_clean_namorita.sql' && !replayedAfter.includes(name),
