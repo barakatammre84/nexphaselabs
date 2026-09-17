@@ -4,6 +4,8 @@ import { seedCommerceFixture } from './helpers/commerce-fixture';
 
 const { env } = vi.hoisted(() => ({ env: {} as Record<string, unknown> }));
 vi.mock('cloudflare:workers', () => ({ env }));
+vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined }) }));
+vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 
 import { getDb } from '@/db';
 import { lots, products, productVariants } from '@/db/schema';

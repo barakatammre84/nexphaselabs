@@ -67,7 +67,8 @@ export default async function CartPage({ searchParams }: Props) {
       : null;
   const org = organization?.data ?? null;
 
-  const freeShipping = freeShippingProgress(cart?.subtotalCents ?? 0, await freeShippingThresholdCents());
+  // A settings read that fails only hides the free-delivery line; it never blocks the cart.
+  const freeShipping = freeShippingProgress(cart?.subtotalCents ?? 0, await freeShippingThresholdCents().catch(() => null));
 
   return (
     <main className="text-foreground">
