@@ -6,6 +6,7 @@ import {
   recordTaxForm,
   saveAffiliateSettings,
   setCommissionRate,
+  verifyIndependentReferral,
 } from '@/lib/affiliates';
 import { redirectWithNotice } from '@/lib/notice';
 import { canManageStaff, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
@@ -56,6 +57,12 @@ export async function POST(request: Request) {
       if (!Number.isFinite(percent)) return failed('Enter the commission as a percentage.');
       const result = await setCommissionRate(id, Math.round(percent * 100));
       return result.ok ? done(`Commission set to ${percent}%.`) : failed(result.error);
+    }
+    if (intent === 'verify_referral') {
+      const result = await verifyIndependentReferral(id, staff);
+      return result.ok
+        ? done(`Referral verified as independent. ${result.accruedOrders ?? 0} eligible order${result.accruedOrders === 1 ? '' : 's'} credited.`)
+        : failed(result.error);
     }
     if (intent === 'tax_form') {
       const result = await recordTaxForm(id, value('reference'));

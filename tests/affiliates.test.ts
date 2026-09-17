@@ -8,7 +8,7 @@ vi.mock('next/headers', () => ({ cookies: async () => ({ get: () => undefined })
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 
 import { getDb } from '@/db';
-import { accounts } from '@/db/schema';
+import { accounts, staffSessions, staffUsers } from '@/db/schema';
 import {
   AFFILIATE_COPY,
   commissionBasisCents,
@@ -16,6 +16,7 @@ import {
   generateAffiliateCode,
   normaliseAffiliateCode,
   payoutReadiness,
+  totalCommissions,
   vestingDate,
 } from '@/lib/affiliate-rules';
 import {
@@ -31,14 +32,17 @@ import {
   decideAffiliate,
   listAffiliates,
   markPayoutSent,
+  listPendingReferralReviews,
   payoutYearTotals,
   recordTaxForm,
   reverseCommissionForOrder,
   sweepAffiliateCommissions,
+  verifyIndependentReferral,
 } from '@/lib/affiliates';
 import { AFFILIATE_AGREEMENT_VERSION } from '@/lib/policy';
 import { readReferralCookie } from '@/lib/referral-cookie';
 import type { StaffPrincipal } from '@/lib/staff-auth';
+import { sha256Hex } from '@/lib/staff-auth';
 import { GET as referralLink } from '@/app/r/[code]/route';
 import { POST as applyRoute } from '@/app/api/account/affiliate/route';
 import { POST as staffRoute } from '@/app/api/manage/affiliates/route';
@@ -76,6 +80,12 @@ async function approvedPartner() {
   return (await affiliateForAccount('acct_partner'))!;
 }
 
+function markReferralVerifiedFixture(accountId: string) {
+  local.sqlite.prepare(
+    'UPDATE affiliate_referrals SET independent_verified_at = ?, independent_verified_by = ? WHERE account_id = ?',
+  ).run(Math.floor(Date.now() / 1000), staff.id, accountId);
+}
+
 describe('commission arithmetic', () => {
   it('is calculated on materials after any promo code, never on shipping or tax', () => {
     expect(commissionBasisCents({ subtotalCents: 10_000, discountCents: 1_500 })).toBe(8_500);
@@ -91,6 +101,16 @@ describe('commission arithmetic', () => {
     expect(commissionCents(1_000, -5)).toBe(0);
     expect(commissionCents(-100, 1000)).toBe(0);
     expect(commissionCents(Number.NaN, 1000)).toBe(0);
+    const largeBasis = 9_007_199_254_740_924;
+    expect(commissionCents(largeBasis, 1000)).toBe(
+      Number((BigInt(largeBasis) * BigInt(1000) + BigInt(5000)) / BigInt(10_000)),
+    );
+    expect(commissionBasisCents({ subtotalCents: Number.MAX_SAFE_INTEGER + 1 })).toBe(0);
+    expect(() => totalCommissions([
+      { status: 'vested', amountCents: Number.MAX_SAFE_INTEGER },
+      { status: 'vested', amountCents: 1 },
+    ])).toThrow('Vested commissions must be a nonnegative safe integer.');
+    expect(payoutReadiness(Number.MAX_SAFE_INTEGER + 1, 5000, 'on_file')).toMatchObject({ ready: false });
   });
 
   it('normalises and generates codes, and dates vesting from delivery', () => {
@@ -158,6 +178,47 @@ describe('referral binding', () => {
     expect(await approvedAffiliateByCode(partner.code)).toBeNull();
   });
 
+  it('does not treat a public referral cookie as proof of an independent customer', async () => {
+    const partner = await approvedPartner();
+    expect(await bindReferral(partner.code, 'acct_other', { clientAddress: '192.0.2.10' })).toBe(true);
+    expect(
+      await accrueCommission({ id: 'order_unverified', orderNumber: 'NX-UNVERIFIED', accountId: 'acct_other', subtotalCents: 10_000 }),
+    ).toBe(0);
+    expect(all('SELECT id FROM affiliate_commissions')).toHaveLength(0);
+  });
+
+  it('lets staff verify independence and backfills eligible orders placed while review was pending', async () => {
+    const partner = await approvedPartner();
+    const order = await syntheticOrder(2);
+    expect(await bindReferral(partner.code, order.buyer.id, { clientAddress: '192.0.2.20' })).toBe(true);
+    expect(await listPendingReferralReviews()).toMatchObject([
+      { affiliateId: partner.id, orderCount: 1, latestShippingIdentity: expect.stringContaining('synthetic@example.invalid') },
+    ]);
+
+    expect(await verifyIndependentReferral(
+      String(row('SELECT id FROM affiliate_referrals')?.id),
+      staff,
+      new Date('2026-09-17T12:00:00Z'),
+    )).toEqual({ ok: true, accruedOrders: 1 });
+    expect(row('SELECT independent_verified_by FROM affiliate_referrals')?.independent_verified_by).toBe('Sam (staff_1)');
+    expect(row('SELECT amount_cents, order_id FROM affiliate_commissions')).toMatchObject({
+      amount_cents: 20,
+      order_id: order.detail.order.id,
+    });
+    expect(await listPendingReferralReviews()).toEqual([]);
+
+    const replay = await verifyIndependentReferral(
+      String(row('SELECT id FROM affiliate_referrals')?.id),
+      { id: 'staff_2', name: 'Mallory', role: 'admin' } as StaffPrincipal,
+      new Date('2026-09-18T12:00:00Z'),
+    );
+    expect(replay).toEqual({ ok: false, error: 'That referral was already reviewed.' });
+    expect(row('SELECT independent_verified_at, independent_verified_by FROM affiliate_referrals')).toMatchObject({
+      independent_verified_at: Math.floor(new Date('2026-09-17T12:00:00Z').getTime() / 1000),
+      independent_verified_by: 'Sam (staff_1)',
+    });
+  });
+
   it('carries the code from the link through the cookie', async () => {
     const response = await referralLink(
       new Request('https://staging.example.invalid/r/ada-x1?to=/catalog/synthetic'),
@@ -191,6 +252,7 @@ describe('commission lifecycle', () => {
     const partner = await approvedPartner();
     const order = await syntheticOrder(packs);
     await bindReferral(partner.code, order.buyer.id);
+    markReferralVerifiedFixture(order.buyer.id);
     const accrued = await accrueCommission({
       id: order.detail.order.id,
       orderNumber: order.detail.order.orderNumber,
@@ -282,6 +344,7 @@ describe('payouts and tax-year totals', () => {
     const partner = await approvedPartner();
     const order = await syntheticOrder(packs);
     await bindReferral(partner.code, order.buyer.id);
+    markReferralVerifiedFixture(order.buyer.id);
     await accrueCommission({
       id: order.detail.order.id,
       orderNumber: order.detail.order.orderNumber,
@@ -347,6 +410,7 @@ describe('payouts and tax-year totals', () => {
     const partner = await approvedPartner();
     const order = await syntheticOrder(2);
     await bindReferral(partner.code, order.buyer.id);
+    markReferralVerifiedFixture(order.buyer.id);
     await accrueCommission({ id: order.detail.order.id, orderNumber: 'X', accountId: order.buyer.id, subtotalCents: 200 });
     local.sqlite.prepare("UPDATE affiliate_commissions SET status = 'vested'").run();
     await recordTaxForm(partner.id, 'vault: partner-w9');
@@ -384,6 +448,46 @@ describe('routes', () => {
     expect(anonymous.status).toBe(401);
     const cross = await staffRoute(post('/api/manage/affiliates', {}, { Origin: 'https://elsewhere.example' }));
     expect(cross.status).toBe(403);
+  });
+
+  it('allows only an authenticated administrator to verify a referral', async () => {
+    const partner = await approvedPartner();
+    const order = await syntheticOrder(2);
+    await bindReferral(partner.code, order.buyer.id);
+    const referralId = String(row('SELECT id FROM affiliate_referrals')?.id);
+    const session = async (role: 'admin' | 'ops', token: string) => {
+      await getDb().insert(staffUsers).values({
+        id: `stf_${role}`,
+        email: `${role}@example.invalid`,
+        name: role,
+        role,
+        passwordHash: 'unused',
+      });
+      await getDb().insert(staffSessions).values({
+        id: `ses_${role}`,
+        tokenHash: await sha256Hex(token),
+        userId: `stf_${role}`,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      return { Cookie: `nx_staff=${token}` };
+    };
+
+    const ops = await staffRoute(post(
+      '/api/manage/affiliates',
+      { intent: 'verify_referral', id: referralId },
+      await session('ops', 'b'.repeat(64)),
+    ));
+    expect(ops.status).toBe(403);
+    expect(row('SELECT independent_verified_at FROM affiliate_referrals')?.independent_verified_at).toBeNull();
+
+    const admin = await staffRoute(post(
+      '/api/manage/affiliates',
+      { intent: 'verify_referral', id: referralId },
+      await session('admin', 'a'.repeat(64)),
+    ));
+    expect(admin.status).toBe(303);
+    expect(row('SELECT independent_verified_by FROM affiliate_referrals')?.independent_verified_by).toBe('admin (stf_admin)');
+    expect(all('SELECT id FROM affiliate_commissions')).toHaveLength(1);
   });
 });
 
@@ -427,6 +531,7 @@ describe('programme settings', () => {
 
     const order = await syntheticOrder(2);
     await bindReferral(partner.code, order.buyer.id);
+    markReferralVerifiedFixture(order.buyer.id);
     expect(
       await accrueCommission({ id: order.detail.order.id, orderNumber: 'NX-1', accountId: order.buyer.id, subtotalCents: 200 }),
     ).toBe(40); // 20% of $2.00

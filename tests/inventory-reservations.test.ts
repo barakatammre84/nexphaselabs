@@ -18,6 +18,14 @@ beforeEach(async () => {
 });
 afterEach(() => { expect(fetch).not.toHaveBeenCalled(); vi.unstubAllGlobals(); local.sqlite.close(); for (const k of Object.keys(env)) delete env[k]; });
 describe('inventory allocation transactions', () => {
+  it.each([undefined, 'invalid', '0'])('defaults to atomic reservations when configuration is %s', async (configured) => {
+    if (configured === undefined) delete env.INVENTORY_RESERVATION_MINUTES;
+    else env.INVENTORY_RESERVATION_MINUTES = configured;
+    const a = await syntheticBuyer(4); const b = await syntheticBuyer(4);
+    const results = await Promise.all([a.submit(), b.submit()]);
+    expect(results.filter(r => r.ok)).toHaveLength(1);
+    expect(local.sqlite.prepare('SELECT count(*) n FROM inventory_reservations').get()!.n).toBe(1);
+  });
   it('allows only one of two competing orders to reserve the same stock', async () => {
     const a = await syntheticBuyer(4); const b = await syntheticBuyer(4);
     const results = await Promise.all([a.submit(), b.submit()]);

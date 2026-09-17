@@ -8,6 +8,8 @@ import { parseQuantity } from '@/lib/lot-rules';
 import { safeAdd, safeMultiply } from '@/lib/safe-integer';
 
 const MASS: Record<string, number> = { ug: 1, mg: 1_000, g: 1_000_000, kg: 1_000_000_000 };
+
+const DEFAULT_RESERVATION_MINUTES = 30;
 export function stockUnits(value: string | null): { units: number; unit: string } | null {
   const parsed = value ? parseQuantity(value.replace('µg', 'ug')) : null;
   if (!parsed) return null;
@@ -22,11 +24,11 @@ export function containerMatches(containerSize: string | null, packUg: number): 
   return Boolean(container && container.unit === 'ug' && container.units === packUg);
 }
 
-export function reservationMinutes(): number | null {
+export function reservationMinutes(): number {
   const text = env.INVENTORY_RESERVATION_MINUTES ?? '';
-  if (!/^\d+$/.test(text)) return null;
+  if (!/^\d+$/.test(text)) return DEFAULT_RESERVATION_MINUTES;
   const minutes = Number(text);
-  return minutes >= 1 && minutes <= 1440 ? minutes : null;
+  return minutes >= 1 && minutes <= 1440 ? minutes : DEFAULT_RESERVATION_MINUTES;
 }
 
 /** Paid allocations never expire. Cancellation/shipment releases by order status in the same transaction. */
@@ -43,23 +45,10 @@ export async function planReservations(lines: { itemId: string; code: string; pa
   { ok: true; plan: ReservationPlan } | { ok: false; error: string }
 > {
   const minutes = reservationMinutes();
-  if (!minutes) return { ok: false, error: 'Inventory reservation policy has not been configured.' };
   const allocated = await allocateLines(lines, now);
   if (!allocated.ok) return allocated;
   return { ok: true, plan: { lines: allocated.lines, lots: allocated.lots, expiresAt: new Date(now.getTime() + minutes * 60_000) } };
 }
-
-/**
- * With reservations switched off, an order is still refused when no single released
- * lot can supply one of its lines in that pack size. Nothing is held.
- */
-export async function checkAllocatableStock(lines: { itemId: string; code: string; packSize: string; packs: number }[], now = new Date()): Promise<
-  { ok: true } | { ok: false; error: string }
-> {
-  const allocated = await allocateLines(lines, now);
-  return allocated.ok ? { ok: true } : allocated;
-}
-
 async function allocateLines(lines: { itemId: string; code: string; packSize: string; packs: number }[], now: Date): Promise<
   { ok: true; lines: ReservedLine[]; lots: ReviewedLot[] } | { ok: false; error: string }
 > {

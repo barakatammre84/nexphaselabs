@@ -66,6 +66,9 @@ export const affiliateReferrals = sqliteTable(
     boundAt: integer('bound_at', { mode: 'timestamp' }).notNull(),
     clientAddress: text('client_address'),
     userAgent: text('user_agent'),
+    /** Null until staff have established that the referred buyer is independent of the affiliate. */
+    independentVerifiedAt: integer('independent_verified_at', { mode: 'timestamp' }),
+    independentVerifiedBy: text('independent_verified_by'),
   },
   (table) => [
     uniqueIndex('affiliate_referrals_account_idx').on(table.accountId),

@@ -2,6 +2,7 @@
  * Affiliate arithmetic and wording, with no database and no environment (owner, 16 Sep 2026).
  * Kept pure so the numbers can be tested on their own and rendered in a client component.
  */
+import { roundedRatio, safeAdd } from '@/lib/safe-integer';
 
 /** 10%. The owner's default; staff can set a different rate per partner. */
 export const DEFAULT_COMMISSION_BPS = 1000;
@@ -55,15 +56,18 @@ export function generateAffiliateCode(name: string, random: () => number = Math.
  * a carrier's money and sales tax is the state's, so neither can be shared with a partner.
  */
 export function commissionBasisCents(order: { subtotalCents: number; discountCents?: number | null }): number {
-  return Math.max(0, Math.round(order.subtotalCents) - Math.round(order.discountCents ?? 0));
+  const discount = order.discountCents ?? 0;
+  if (!Number.isSafeInteger(order.subtotalCents) || order.subtotalCents < 0 ||
+      !Number.isSafeInteger(discount) || discount < 0) return 0;
+  return Math.max(0, order.subtotalCents - discount);
 }
 
 /** Commission in whole cents, rounded to nearest, never negative and never above the basis. */
 export function commissionCents(basisCents: number, rateBps: number): number {
-  if (!Number.isFinite(basisCents) || !Number.isFinite(rateBps)) return 0;
-  const basis = Math.max(0, Math.round(basisCents));
-  const rate = Math.min(10_000, Math.max(0, Math.round(rateBps)));
-  return Math.min(basis, Math.round((basis * rate) / 10_000));
+  if (!Number.isSafeInteger(basisCents) || basisCents < 0 ||
+      !Number.isSafeInteger(rateBps) || rateBps < 0) return 0;
+  const rate = Math.min(10_000, rateBps);
+  return Math.min(basisCents, roundedRatio(basisCents, rate, 10_000));
 }
 
 /** When a delivered order's commission may be paid. */
@@ -108,10 +112,10 @@ export function totalCommissions(
 ): CommissionTotals {
   const totals: CommissionTotals = { pendingCents: 0, vestedCents: 0, paidCents: 0, reversedCents: 0 };
   for (const row of rows) {
-    if (row.status === 'pending') totals.pendingCents += row.amountCents;
-    else if (row.status === 'vested') totals.vestedCents += row.amountCents;
-    else if (row.status === 'paid') totals.paidCents += row.amountCents;
-    else if (row.status === 'reversed') totals.reversedCents += row.amountCents;
+    if (row.status === 'pending') totals.pendingCents = safeAdd(totals.pendingCents, row.amountCents, 'Pending commissions');
+    else if (row.status === 'vested') totals.vestedCents = safeAdd(totals.vestedCents, row.amountCents, 'Vested commissions');
+    else if (row.status === 'paid') totals.paidCents = safeAdd(totals.paidCents, row.amountCents, 'Paid commissions');
+    else if (row.status === 'reversed') totals.reversedCents = safeAdd(totals.reversedCents, row.amountCents, 'Reversed commissions');
   }
   return totals;
 }
@@ -122,6 +126,9 @@ export function payoutReadiness(
   thresholdCents: number,
   taxFormStatus: string,
 ): { ready: boolean; reason: string | null } {
+  if (!Number.isSafeInteger(vestedCents) || vestedCents < 0 ||
+      !Number.isSafeInteger(thresholdCents) || thresholdCents < 0)
+    return { ready: false, reason: 'Commission totals could not be represented safely.' };
   if (vestedCents <= 0) return { ready: false, reason: 'Nothing has vested yet.' };
   if (TAX_FORM_REQUIRED_BEFORE_PAYOUT && taxFormStatus !== 'on_file')
     return { ready: false, reason: AFFILIATE_COPY.taxForm };

@@ -5,3 +5,5 @@
 - [Consent reconciliation](consent-reconciliation.md) — stale provider calls must invalidate acknowledgements and reconcile the current consent state, including pending re-subscriptions.
 - [Order quantity policy](order-quantity-policy.md) — no arbitrary per-line cap; future-stock checkout still requires an owner decision on restock payment.
 - [Framework dependency upgrades](framework-dependency-upgrades.md) — upgrade vinext/React/RSC and Wrangler/Cloudflare peers as coordinated sets.
+- [Affiliate independence](affiliate-independence.md) — referral attribution alone never authorizes commission; independence verification must fail closed.
+- [Inventory reservations](inventory-reservations.md) — checkout must always create atomic stock holds; invalid or missing duration settings use a safe default.

@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/sqlite-core';
 import { getDb } from '@/db';
 import {
   accounts,
@@ -27,6 +28,7 @@ import {
 import { AFFILIATE_AGREEMENT_VERSION } from '@/lib/policy';
 import { AFFILIATE_SETTING_KEYS, readSettings, writeSettings } from '@/lib/settings';
 import { affiliateProgramEnabled } from '@/lib/site-config';
+import { safeAdd } from '@/lib/safe-integer';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 
 /**
@@ -232,11 +234,18 @@ export async function accrueCommission(
   if (!affiliateProgramEnabled()) return 0;
   const db = getDb();
   const [referral] = await db
-    .select({ affiliateId: affiliateReferrals.affiliateId })
+    .select({
+      affiliateId: affiliateReferrals.affiliateId,
+      independentVerifiedAt: affiliateReferrals.independentVerifiedAt,
+      independentVerifiedBy: affiliateReferrals.independentVerifiedBy,
+    })
     .from(affiliateReferrals)
     .where(eq(affiliateReferrals.accountId, order.accountId))
     .limit(1);
-  if (!referral) return 0;
+  // A public referral cookie proves attribution, not that the buyer is independent. Commissions
+  // fail closed until staff have verified independence using payment/shipping identity or another
+  // documented signal. This prevents affiliates from earning through secondary accounts they own.
+  if (!referral?.independentVerifiedAt || !referral.independentVerifiedBy) return 0;
   const [affiliate] = await db.select().from(affiliates).where(eq(affiliates.id, referral.affiliateId)).limit(1);
   if (!affiliate || affiliate.status !== 'approved' || affiliate.accountId === order.accountId) return 0;
 
@@ -286,7 +295,16 @@ export async function reverseCommissionForOrder(orderId: string, reason: string,
       .select({ amountCents: affiliateCommissions.amountCents })
       .from(affiliateCommissions)
       .where(and(eq(affiliateCommissions.payoutId, payoutId), eq(affiliateCommissions.status, 'vested')));
-    const amountCents = remaining.reduce((sum, row) => sum + row.amountCents, 0);
+    let amountCents: number;
+    try {
+      amountCents = remaining.reduce((sum, row) => safeAdd(sum, row.amountCents, 'Payout total'), 0);
+    } catch {
+      await db
+        .update(affiliatePayouts)
+        .set({ status: 'cancelled', note: 'Commission total exceeded the safe accounting range.' })
+        .where(and(eq(affiliatePayouts.id, payoutId), eq(affiliatePayouts.status, 'pending')));
+      continue;
+    }
     if (remaining.length === 0) {
       await db
         .update(affiliatePayouts)
@@ -445,6 +463,59 @@ export type AffiliateSummaryRow = {
   paidCents: number;
 };
 
+export type PendingReferralReview = {
+  id: string;
+  affiliateId: string;
+  affiliateName: string;
+  affiliateEmail: string;
+  buyerName: string;
+  buyerEmail: string;
+  boundAt: Date;
+  clientAddress: string | null;
+  userAgent: string | null;
+  orderCount: number;
+  latestShippingIdentity: string | null;
+};
+
+/** Unverified referral attributions with enough context for an administrator to investigate. */
+export async function listPendingReferralReviews(): Promise<PendingReferralReview[]> {
+  const affiliateAccount = alias(accounts, 'affiliate_account');
+  const buyerAccount = alias(accounts, 'buyer_account');
+  return getDb()
+    .select({
+      id: affiliateReferrals.id,
+      affiliateId: affiliates.id,
+      affiliateName: affiliateAccount.name,
+      affiliateEmail: affiliateAccount.email,
+      buyerName: buyerAccount.name,
+      buyerEmail: buyerAccount.email,
+      boundAt: affiliateReferrals.boundAt,
+      clientAddress: affiliateReferrals.clientAddress,
+      userAgent: affiliateReferrals.userAgent,
+      orderCount: sql<number>`(SELECT count(*) FROM ${orders} review_order WHERE review_order.account_id = ${affiliateReferrals.accountId})`,
+      latestShippingIdentity: sql<string | null>`(
+        SELECT trim(
+          COALESCE(review_order.consignee_name, '') || ' · ' ||
+          COALESCE(review_order.ship_to_line1, '') || ' · ' ||
+          COALESCE(review_order.ship_to_city, '') || ', ' ||
+          COALESCE(review_order.ship_to_region, '') || ' ' ||
+          COALESCE(review_order.ship_to_postal_code, '') || ' · ' ||
+          COALESCE(review_order.contact_email, '')
+        )
+        FROM ${orders} review_order
+        WHERE review_order.account_id = ${affiliateReferrals.accountId}
+        ORDER BY review_order.created_at DESC
+        LIMIT 1
+      )`,
+    })
+    .from(affiliateReferrals)
+    .innerJoin(affiliates, eq(affiliates.id, affiliateReferrals.affiliateId))
+    .innerJoin(affiliateAccount, eq(affiliateAccount.id, affiliates.accountId))
+    .innerJoin(buyerAccount, eq(buyerAccount.id, affiliateReferrals.accountId))
+    .where(isNull(affiliateReferrals.independentVerifiedAt))
+    .orderBy(desc(affiliateReferrals.boundAt));
+}
+
 /** The staff desk: every partner with what they are owed. */
 export async function listAffiliates(): Promise<AffiliateSummaryRow[]> {
   const db = getDb();
@@ -493,6 +564,55 @@ export async function listAffiliates(): Promise<AffiliateSummaryRow[]> {
 }
 
 export type StaffOutcome = { ok: true } | { ok: false; error: string };
+
+/**
+ * Records an administrator's independence decision and safely catches up eligible orders that
+ * arrived while the referral was waiting. Repeating the action is safe: commission order IDs are
+ * unique and accrueCommission returns zero for an already-recorded order.
+ */
+export async function verifyIndependentReferral(
+  id: string,
+  staff: StaffPrincipal,
+  now = new Date(),
+): Promise<StaffOutcome & { accruedOrders?: number }> {
+  const db = getDb();
+  const [referral] = await db
+    .update(affiliateReferrals)
+    .set({
+      independentVerifiedAt: now,
+      independentVerifiedBy: `${staff.name} (${staff.id})`,
+    })
+    .where(and(eq(affiliateReferrals.id, id), isNull(affiliateReferrals.independentVerifiedAt)))
+    .returning({ accountId: affiliateReferrals.accountId });
+  if (!referral) {
+    const [existing] = await db
+      .select({ verifiedAt: affiliateReferrals.independentVerifiedAt })
+      .from(affiliateReferrals)
+      .where(eq(affiliateReferrals.id, id))
+      .limit(1);
+    return existing?.verifiedAt
+      ? { ok: false, error: 'That referral was already reviewed.' }
+      : { ok: false, error: 'That referral was not found.' };
+  }
+
+  const eligibleOrders = await db
+    .select({
+      id: orders.id,
+      orderNumber: orders.orderNumber,
+      accountId: orders.accountId,
+      subtotalCents: orders.subtotalCents,
+      discountCents: orders.discountCents,
+    })
+    .from(orders)
+    .where(and(
+      eq(orders.accountId, referral.accountId),
+      inArray(orders.status, ['submitted', 'awaiting_payment', 'paid', 'fulfilling', 'shipped', 'delivered']),
+    ));
+  let accruedOrders = 0;
+  for (const order of eligibleOrders)
+    if ((await accrueCommission(order, now)) > 0) accruedOrders++;
+  return { ok: true, accruedOrders };
+}
 
 /** Approve, decline, suspend or reinstate. Every decision records who made it. */
 export async function decideAffiliate(
@@ -579,7 +699,13 @@ export async function createPayout(affiliateId: string, staff: StaffPrincipal, n
       .where(eq(affiliateCommissions.payoutId, payoutId));
   };
 
-  const amountCents = claimed.reduce((sum, row) => sum + row.amountCents, 0);
+  let amountCents: number;
+  try {
+    amountCents = claimed.reduce((sum, row) => safeAdd(sum, row.amountCents, 'Payout total'), 0);
+  } catch {
+    await release();
+    return { ok: false, error: 'Commission total exceeded the safe accounting range.' };
+  }
   const { payoutThresholdCents } = await affiliateSettings();
   const readiness = payoutReadiness(amountCents, payoutThresholdCents, affiliate.taxFormStatus);
   if (!readiness.ready) {

@@ -42,9 +42,7 @@ import {
 } from '@/db/commerce-schema';
 import { attachPaymentAttempt } from '@/lib/payment-attempts';
 import {
-  checkAllocatableStock,
   planReservations,
-  reservationMinutes,
   reservationPlanGuard,
   reservationEligibility,
 } from '@/lib/inventory-reservations';
@@ -357,17 +355,11 @@ export async function createOrderFromCart(
     packSize: line.variant.quantity,
     packs: line.quantity,
   }));
-  // Reservations hold stock for the order. With them switched off (production today), a
-  // line that no single released lot can supply is still refused rather than sold.
-  const allocation = reservationMinutes()
-    ? await planReservations(allocationLines, now)
-    : null;
-  if (allocation && !allocation.ok) return allocation;
-  if (!allocation) {
-    const supply = await checkAllocatableStock(allocationLines, now);
-    if (!supply.ok) return supply;
-  }
-  const plan = allocation?.ok ? allocation.plan : null;
+  // Every accepted order atomically holds stock. The reservation duration has a safe default,
+  // so missing or malformed deployment configuration can never restore unreserved checkout.
+  const allocation = await planReservations(allocationLines, now);
+  if (!allocation.ok) return allocation;
+  const plan = allocation.plan;
 
   const attestation = await buildOrderAttestation({
     guest: openCheckoutEnabled() && !organizationId,
@@ -430,7 +422,7 @@ export async function createOrderFromCart(
           accounts,
           and(
             orderSubmissionGuard(account, organizationId, shipTo, cart, now),
-            plan ? reservationPlanGuard(plan, now) : sql`1 = 1`,
+            reservationPlanGuard(plan, now),
             quote
               ? sql`EXISTS (SELECT 1 FROM ${checkoutQuotes} WHERE ${checkoutQuotes.id} = ${quote.id} AND ${checkoutQuotes.accountId} = ${account.id} AND ${checkoutQuotes.expiresAt} > ${Math.floor(now.getTime() / 1000)})`
               : sql`1 = 1`,
@@ -458,21 +450,19 @@ export async function createOrderFromCart(
             accepted,
           ),
         ),
-        ...(plan
-          ? plan.lines.map((line) =>
-              conditionalInsert(
-                inventoryReservations,
-                {
-                  ...line,
-                  orderId,
-                  expiresAt: plan.expiresAt,
-                  createdAt: now,
-                },
-                orders,
-                accepted,
-              ),
-            )
-          : []),
+        ...plan.lines.map((line) =>
+          conditionalInsert(
+            inventoryReservations,
+            {
+              ...line,
+              orderId,
+              expiresAt: plan.expiresAt,
+              createdAt: now,
+            },
+            orders,
+            accepted,
+          ),
+        ),
         conditionalInsert(
           orderEvents,
           {

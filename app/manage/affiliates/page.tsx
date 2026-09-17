@@ -2,7 +2,13 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { AlertCircle, CircleCheck, Handshake } from 'lucide-react';
-import { affiliateSettings, listAffiliates, listPendingPayouts, payoutYearTotals } from '@/lib/affiliates';
+import {
+  affiliateSettings,
+  listAffiliates,
+  listPendingPayouts,
+  listPendingReferralReviews,
+  payoutYearTotals,
+} from '@/lib/affiliates';
 import { formatRate } from '@/lib/affiliate-rules';
 import { NOTICE_COOKIE, readNotice } from '@/lib/notice';
 import { affiliateProgramEnabled } from '@/lib/site-config';
@@ -28,9 +34,15 @@ export default async function AffiliatesDeskPage({ searchParams }: Props) {
   const { saved, error, year: yearParam } = await searchParams;
   const notice = saved || error ? readNotice((await cookies()).get(NOTICE_COOKIE)?.value) : null;
   const year = Number(yearParam) || new Date().getUTCFullYear();
-  const [rows, payouts, settings, yearTotals] = admin
-    ? await Promise.all([listAffiliates(), listPendingPayouts(), affiliateSettings(), payoutYearTotals(year)])
-    : [[], [], null, []];
+  const [rows, payouts, referrals, settings, yearTotals] = admin
+    ? await Promise.all([
+        listAffiliates(),
+        listPendingPayouts(),
+        listPendingReferralReviews(),
+        affiliateSettings(),
+        payoutYearTotals(year),
+      ])
+    : [[], [], [], null, []];
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-10">
@@ -165,6 +177,41 @@ export default async function AffiliatesDeskPage({ searchParams }: Props) {
               </ul>
             </section>
           )}
+
+          <section className="mt-8 rounded-2xl border border-border bg-white p-6">
+            <h2 className="font-display text-xl font-bold">Referral independence review</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+              A link records attribution only. Compare the buyer&rsquo;s payment and shipping identity with the
+              partner before confirming they are independent. Orders placed while review is pending are credited
+              after confirmation; unconfirmed referrals earn nothing.
+            </p>
+            {referrals.length === 0 ? (
+              <p className="mt-4 text-sm text-muted-foreground">No referrals are waiting for review.</p>
+            ) : (
+              <ul className="mt-4 grid gap-3">
+                {referrals.map((referral) => (
+                  <li key={referral.id} className="rounded-xl border border-border p-4 text-sm">
+                    <p className="font-semibold">
+                      {referral.buyerName} <span className="font-normal text-muted-foreground">{referral.buyerEmail}</span>
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      Referred by {referral.affiliateName} ({referral.affiliateEmail}) · {referral.orderCount} order
+                      {referral.orderCount === 1 ? '' : 's'} · bound {when(referral.boundAt)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Latest order identity: {referral.latestShippingIdentity || 'no order yet'} · signup address:{' '}
+                      {referral.clientAddress || 'unavailable'}
+                    </p>
+                    <form method="post" action="/api/manage/affiliates" className="mt-3">
+                      <input type="hidden" name="intent" value="verify_referral" />
+                      <input type="hidden" name="id" value={referral.id} />
+                      <button type="submit" className="action-primary">Confirm independent customer</button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
           <section className="mt-8">
             <h2 className="font-display text-xl font-bold">Partners and applications</h2>
