@@ -14,6 +14,7 @@ import { getDb } from '@/db';
 import { accounts, accountSessions, cartItems, lots, products, productVariants } from '@/db/schema';
 import { GET as read, POST as add } from '@/app/api/cart/route';
 import { POST as update } from '@/app/api/cart/update/route';
+import { clearCart, setCartQuantity } from '@/lib/cart';
 import { cartSummary } from '@/lib/cart-summary';
 import { hashPassword, sha256Hex } from '@/lib/staff-auth-core';
 
@@ -41,12 +42,9 @@ const get = (signedIn = true) =>
     headers: { Accept: 'application/json', ...(signedIn ? { Cookie: `nx_account=${TOKEN}` } : {}) },
   });
 
-/** Force both requests to validate the same real SQLite snapshot before either writes. */
-function synchronizeCartReads() {
+/** Run a hook after SQLite captures the snapshot, before the caller receives it. */
+function afterCartSnapshotRead(afterRead: () => Promise<void>) {
   const prepare = local.binding.prepare.bind(local.binding);
-  let reads = 0;
-  let release!: () => void;
-  const bothRead = new Promise<void>((resolve) => { release = resolve; });
   vi.spyOn(local.binding, 'prepare').mockImplementation((query) => {
     function wrap(statement: D1PreparedStatement): D1PreparedStatement {
       return new Proxy(statement, {
@@ -55,10 +53,7 @@ function synchronizeCartReads() {
           if (property === 'raw' && /^select "id", (?:"variant_id", )?"quantity" from "cart_items"/i.test(query)) {
             return async () => {
               const result = await target.raw();
-              if (reads++ < 2) {
-                if (reads === 2) release();
-                await bothRead;
-              }
+              await afterRead();
               return result;
             };
           }
@@ -68,6 +63,19 @@ function synchronizeCartReads() {
       });
     }
     return wrap(prepare(query));
+  });
+}
+
+/** Force both requests to validate the same real SQLite snapshot before either writes. */
+function synchronizeCartReads() {
+  let reads = 0;
+  let release!: () => void;
+  const bothRead = new Promise<void>((resolve) => { release = resolve; });
+  afterCartSnapshotRead(async () => {
+    if (reads++ < 2) {
+      if (reads === 2) release();
+      await bothRead;
+    }
   });
 }
 
@@ -334,6 +342,74 @@ describe('cart JSON API for the side drawer (owner, 16 Sep 2026)', () => {
     expect(await (await read(get())).json()).toMatchObject({
       ok: true, count: acceptedQuantity, lines: [{ quantity: acceptedQuantity }],
     });
+  });
+
+  describe.each(['library', 'JSON API'] as const)('deletion races through the %s', (entryPoint) => {
+    it.each(['edited line', 'other line', 'whole cart'] as const)(
+      'rejects a stale replacement after removing the %s without changing another owner',
+      async (removal) => {
+        await getDb().insert(productVariants).values({
+          id: 'v2', productId: 'p1', sku: 'NPL-9999-1MG', quantity: '1 mg', presentation: 'Test',
+          listPriceCents: 125, active: true,
+        });
+        await getDb().insert(cartItems).values([
+          { id: 'cit_raceedited', accountId: 'acct_cart', variantId: 'v1', quantity: 3 },
+          { id: 'cit_racesibling', accountId: 'acct_cart', variantId: 'v2', quantity: 2 },
+          { id: 'cit_raceforeign1', accountId: 'acct_other', variantId: 'v1', quantity: 11 },
+          { id: 'cit_raceforeign2', accountId: 'acct_other', variantId: 'v2', quantity: 13 },
+        ]);
+        const storedRows = () => local.sqlite.prepare('SELECT * FROM cart_items ORDER BY id').all();
+        const before = storedRows();
+        const removedId = removal === 'edited line' ? 'cit_raceedited' : 'cit_racesibling';
+        const expectedRows = before.filter((row) =>
+          row.account_id !== 'acct_cart' || (removal !== 'whole cart' && row.id !== removedId),
+        );
+        let snapshotReads = 0;
+        let removalCompleted = false;
+        afterCartSnapshotRead(async () => {
+          // Only the first snapshot is held. A retry must not repeat the deletion.
+          if (snapshotReads++ !== 0) return;
+          expect(storedRows()).toEqual(before);
+          if (removal === 'whole cart') {
+            await clearCart('acct_cart');
+          } else if (entryPoint === 'JSON API') {
+            const response = await update(post('/api/cart/update', { item: removedId, quantity: '0' }));
+            expect(response.status).toBe(200);
+            expect(await response.json()).toMatchObject({ ok: true });
+          } else {
+            expect(await setCartQuantity('acct_cart', removedId, 0)).toEqual({ ok: true });
+          }
+          expect(storedRows()).toEqual(expectedRows);
+          removalCompleted = true;
+        });
+
+        const conflict = {
+          ok: false,
+          error: 'Your cart changed while updating this pack size. Please try again.',
+        };
+        if (entryPoint === 'JSON API') {
+          const response = await update(post('/api/cart/update', { item: 'cit_raceedited', quantity: '7' }));
+          expect(response.status).toBe(400);
+          expect(await response.json()).toEqual(conflict);
+        } else {
+          expect(await setCartQuantity('acct_cart', 'cit_raceedited', 7)).toEqual(conflict);
+        }
+        // These checks ensure the intended interleaving actually ran, with no retry.
+        expect(snapshotReads).toBe(1);
+        expect(removalCompleted).toBe(true);
+        expect(storedRows()).toEqual(expectedRows);
+        const remaining = expectedRows.filter((row) => row.account_id === 'acct_cart');
+        const count = remaining.reduce((sum, row) => sum + Number(row.quantity), 0);
+        const response = await read(get());
+        expect(response.status).toBe(200);
+        const summary = await response.json() as { lines: unknown[] };
+        expect(summary).toMatchObject({
+          ok: true, count, subtotalCents: count * 125, orderable: remaining.length > 0,
+          lines: remaining.map((row) => ({ itemId: row.id, quantity: row.quantity })),
+        });
+        expect(summary.lines).toHaveLength(remaining.length);
+      },
+    );
   });
 
   it('validates an edited absolute quantity at its volume price and rejects unsafe priced totals', async () => {
