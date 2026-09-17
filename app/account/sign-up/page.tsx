@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { GoogleButton } from '@/components/site/google-button';
 import Link from 'next/link';
 import { RESEARCH_SETTINGS } from '@/lib/account-rules';
 import { redirect } from 'next/navigation';
@@ -79,6 +80,8 @@ export default async function SignUpPage({ searchParams }: Props) {
             </ul>
           </div>
         )}
+
+        <GoogleButton returnTo="/account" label="Sign up with Google" />
 
         <form
           method="post"

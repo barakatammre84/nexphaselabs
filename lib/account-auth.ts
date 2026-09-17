@@ -39,7 +39,7 @@ export type AccountPrincipal = {
 };
 
 /** Append-only acceptance rows for both documents at their current versions. */
-function acknowledgementRows(accountId: string, at: Date, userAgent: string | null) {
+export function acknowledgementRows(accountId: string, at: Date, userAgent: string | null) {
   return (['terms', 'ruo'] as const).map((document) => ({
     id: id('ack'),
     accountId,
@@ -276,6 +276,22 @@ export async function accountSignIn(email: string, password: string, userAgent: 
   if (account.status === 'suspended') return { ok: false, reason: 'suspended' };
   if (account.status !== 'active') return { ok: false, reason: 'invalid' };
 
+  const session = await startAccountSession(account, userAgent, now);
+  if (!session) return { ok: false, reason: 'invalid' };
+  return { ok: true, token: session.token, expiresAt: session.expiresAt, account };
+}
+
+/**
+ * Issues a session for an account that has already been authenticated, by whatever means. The
+ * insert is still conditional on the account looking exactly as it did when it was read, so a
+ * password change or a lockout racing this call wins rather than being overwritten.
+ */
+export async function startAccountSession(
+  account: Account,
+  userAgent: string | null,
+  now = new Date(),
+): Promise<{ token: string; expiresAt: Date } | null> {
+  const db = getDb();
   const token = randomToken();
   const expiresAt = new Date(now.getTime() + SESSION_TTL_SECONDS * 1000);
   const tokenHash = await sha256Hex(token);
@@ -299,8 +315,8 @@ export async function accountSignIn(email: string, password: string, userAgent: 
       .set({ failedAttempts: 0, lockedUntil: null, lastLoginAt: now, updatedAt: now })
       .where(and(eq(accounts.id, account.id), sql`changes() = 1`)),
   ]);
-  if (!inserted.length) return { ok: false, reason: 'invalid' };
-  return { ok: true, token, expiresAt, account };
+  if (!inserted.length) return null;
+  return { token, expiresAt };
 }
 
 export async function revokeAccountSession(token: string): Promise<void> {

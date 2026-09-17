@@ -647,6 +647,13 @@ export const accounts = sqliteTable(
     ageConfirmedAt: integer('age_confirmed_at', { mode: 'timestamp' }),
     /** ISO date, used only for the minimum-age check at sign-up (migration 0065). Never rendered; null for older accounts. */
     dateOfBirth: text('date_of_birth'),
+    /**
+     * Google's stable subject identifier for a linked sign-in (migration 0068). Matched in
+     * preference to the email address, because a person can change the address on their Google
+     * account and the link should survive it. Null for accounts that use a password only.
+     */
+    googleSubject: text('google_subject'),
+    googleLinkedAt: integer('google_linked_at', { mode: 'timestamp' }),
     /** pending_email | active | suspended */
     status: text('status').notNull().default('pending_email'),
     emailVerifiedAt: integer('email_verified_at', { mode: 'timestamp' }),
@@ -670,6 +677,7 @@ export const accounts = sqliteTable(
   },
   (table) => ({
     emailIdx: uniqueIndex('accounts_email_idx').on(table.email),
+    googleSubjectIdx: uniqueIndex('accounts_google_subject_idx').on(table.googleSubject),
     statusIdx: index('accounts_status_idx').on(table.status),
   }),
 );

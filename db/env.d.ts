@@ -35,6 +35,14 @@ declare namespace Cloudflare {
     ABANDONED_CART_REMINDERS?: string;
     /** "true" opens the partner (affiliate) programme (lib/affiliates.ts); approvals are still by hand. */
     AFFILIATE_PROGRAM_ENABLED?: string;
+    /**
+     * "Continue with Google" for customers (lib/google-signin.ts). A separate OAuth client from
+     * the Workspace mailbox credential above: external consent screen, scopes openid/email/profile.
+     * Both unset = the button is not rendered and the routes refuse.
+     */
+    GOOGLE_SIGN_IN_CLIENT_ID?: string;
+    /** Secret — `wrangler secret put GOOGLE_SIGN_IN_CLIENT_SECRET`. */
+    GOOGLE_SIGN_IN_CLIENT_SECRET?: string;
     /** Basic-auth password for a deployed non-production storefront. Unset = the environment refuses every request with 503. */
     STAGING_ACCESS_PASSWORD?: string;
     POLICIES_COUNSEL_REVIEWED?: string;
