@@ -10,7 +10,7 @@ const { state } = vi.hoisted(() => ({
     note: '<script>not markup</script> Please attach registration.',
   },
 }));
-vi.mock('@/lib/site-config', () => ({ openCheckoutEnabled: () => false, accountRequired: () => false }));
+vi.mock('@/lib/site-config', () => ({ openCheckoutEnabled: () => false, accountRequired: () => false, affiliateProgramEnabled: () => false }));
 // The header now carries the side cart, a client component (owner, 16 Sep 2026).
 vi.mock('next/navigation', () => ({ usePathname: () => '/', redirect: vi.fn(), notFound: vi.fn() }));
 vi.mock('@/lib/cart', () => ({ cartCount: async () => 0 }));

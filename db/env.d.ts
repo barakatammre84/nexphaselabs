@@ -33,6 +33,8 @@ declare namespace Cloudflare {
     BREVO_SENDER?: string;
     /** "true" switches on the once-per-cart reminder (lib/cart-reminders.ts); needs Brevo and a confirmed consent. */
     ABANDONED_CART_REMINDERS?: string;
+    /** "true" opens the partner (affiliate) programme (lib/affiliates.ts); approvals are still by hand. */
+    AFFILIATE_PROGRAM_ENABLED?: string;
     /** Basic-auth password for a deployed non-production storefront. Unset = the environment refuses every request with 503. */
     STAGING_ACCESS_PASSWORD?: string;
     POLICIES_COUNSEL_REVIEWED?: string;

@@ -11,6 +11,7 @@ import { runScheduledJobs } from './lib/scheduled-jobs';
 import { pollUspsTracking } from './lib/usps-tracking';
 import { sweepWaitlist } from './lib/waitlist';
 import { sendCartReminders } from './lib/cart-reminders';
+import { sweepAffiliateCommissions } from './lib/affiliates';
 import { withSecurityHeaders } from './lib/security-headers';
 
 export { FeedbackRoom } from './lib/feedback-room';
@@ -99,6 +100,8 @@ export default {
       waitlist: () => sweepWaitlist(),
       // Once-per-cart reminder to confirmed product-news subscribers; a no-op until the owner switches it on.
       cartReminders: () => sendCartReminders(),
+      // Dates, vests and reverses partner commissions; a no-op while the programme is closed.
+      affiliates: () => sweepAffiliateCommissions(),
     });
   },
 };

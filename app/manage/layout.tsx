@@ -92,6 +92,9 @@ export default async function ManageLayout({
             )}
             {canManageStaff(staff) && (
               <>
+                <Link href="/manage/affiliates" className="hover:text-primary">
+                  Partners
+                </Link>
                 <Link
                   href="/manage/notifications"
                   className="hover:text-primary"

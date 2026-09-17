@@ -34,6 +34,7 @@ const staticColumns = [
       { href: '/legal/shipping', label: 'Shipping policy' },
       { href: '/legal/returns', label: 'Returns & refunds' },
       { href: '/legal/privacy', label: 'Privacy policy' },
+      { href: '/legal/affiliate-terms', label: 'Partner agreement' },
       { href: '/legal/compliance', label: 'Compliance & disclosures' },
     ],
   },

@@ -86,6 +86,14 @@ dosing.**
    show both, as the NAD+ solubility and GHK-Cu formula entries do.
 5. Product images are optional (`image?`). Where no photograph exists, the page
    says so. Do not substitute another compound's vial.
+6. **Affiliates are the same claims problem, outsourced.** An approved partner is a
+   third party paid to talk about this material, which is the fact pattern in the FDA
+   letters and in the Aug 2026 Lilly suits pleaded on state consumer-protection law.
+   The programme is therefore approval-only (`AFFILIATE_PROGRAM_ENABLED`, then a named
+   person approves each application), governed by `app/legal/affiliate-terms/page.tsx`
+   whose section 3 repeats the "never add to this site" list, and every partner can be
+   suspended from `/manage/affiliates`. Do not add open self-serve signup, do not pay on
+   anything but the material subtotal, and do not relax section 3 to win partners.
 
 ## Catalog data notes (verified 2026-09-02)
 

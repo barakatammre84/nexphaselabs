@@ -65,3 +65,12 @@ export function webAnalyticsToken(): string | null {
   const token = (env.CF_WEB_ANALYTICS_TOKEN ?? '').trim();
   return token ? token : null;
 }
+
+/**
+ * Whether the partner (affiliate) programme accepts applications and pays commission.
+ * Off by default: approved partners are third parties speaking about regulated material,
+ * so the programme opens only when the owner says so (AFFILIATE_PROGRAM_ENABLED).
+ */
+export function affiliateProgramEnabled(): boolean {
+  return env.AFFILIATE_PROGRAM_ENABLED === 'true';
+}

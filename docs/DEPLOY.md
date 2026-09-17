@@ -304,3 +304,23 @@ pbpaste | npx wrangler secret put BREVO_WEBHOOK_TOKEN
    spam/complaint, blocked) pointing at `https://nexphaselabs.net/api/webhooks/brevo?token=<the same token>`.
 4. `ABANDONED_CART_REMINDERS` stays `"false"` until the owner decides to send the once-per-cart reminder
    to confirmed subscribers (lib/cart-reminders.ts).
+
+## Opening the partner (affiliate) programme
+
+Off by default. Opening it lets approved third parties earn commission for talking about
+research material, so the switch is only half of the control; the other half is that a named
+person approves each application against the agreement.
+
+1. Set `AFFILIATE_PROGRAM_ENABLED` to `"true"` in the production `vars` and deploy. Staging
+   already has it on.
+2. Optional numbers, on `/manage/affiliates` or as settings rows: `affiliate.commission_bps`
+   (default 1000, meaning 10%), `affiliate.payout_threshold_cents` (default 5000) and
+   `affiliate.hold_days` (default 30).
+3. Read each application against `app/legal/affiliate-terms/page.tsx` before approving. Section 3
+   is the part that matters: it repeats the claim restrictions in CLAUDE.md.
+4. Before the first payment to a partner, collect a completed Form W-9 and file it in the vault.
+   Record only where it is filed on `/manage/affiliates`; the form and the taxpayer identification
+   number must never be stored in the application database.
+5. In January, export `/api/manage/reports/affiliates.csv?year=YYYY` for the calendar-year total
+   paid to each partner. Confirm the current reporting threshold with the accountant, then file
+   the contractor returns. Zelle is a bank transfer network and reports nothing on our behalf.

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
+import { affiliateProgramEnabled } from '@/lib/site-config';
 import Link from 'next/link';
-import { Building2, CircleCheck, Clock, BellRing, CreditCard, FileText, LifeBuoy, Lock, MapPin, PackageSearch, UserRound } from 'lucide-react';
+import { Building2, CircleCheck, Clock, BellRing, CreditCard, FileText, Handshake, LifeBuoy, Lock, MapPin, PackageSearch, UserRound } from 'lucide-react';
 import { AccessProgress } from '@/components/site/access-progress';
 import { getOrganizationForAccount } from '@/lib/organizations';
 import { AcknowledgementForm } from '@/components/site/acknowledgement-form';
@@ -57,6 +58,7 @@ const HUB = [
   { href: '/account/payment', title: 'Payment', copy: 'How payment works and any order still waiting for it.', icon: CreditCard },
   { href: '/account/waitlist', title: 'Waitlist', copy: 'Pack sizes you asked to hear about when a lot is released.', icon: BellRing },
   { href: '/account/documents', title: 'Documents', copy: 'Certificates and safety data sheets exactly as they shipped with each order.', icon: FileText },
+  { href: '/account/affiliate', title: 'Partner programme', copy: 'Introduce researchers to the catalog and earn commission on what they buy.', icon: Handshake, whileOpen: true },
   { href: '/contact', title: 'Support', copy: 'A person answers within one business day. Include your order number.', icon: LifeBuoy },
 ] as const;
 
@@ -123,7 +125,7 @@ export default async function AccountPage({ searchParams }: Props) {
         <div className="ion-panel p-7 sm:p-10">
         <p className="utility-label text-primary">Manage your account</p>
         <ul className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {HUB.map(({ href, title, copy, icon: Icon }) => (
+          {HUB.filter((card) => !('whileOpen' in card) || affiliateProgramEnabled()).map(({ href, title, copy, icon: Icon }) => (
             <li key={href}>
               <Link
                 href={href}

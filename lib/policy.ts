@@ -19,6 +19,8 @@ export const SHIPPING_VERSION = '2026-09-14';
 // Bump when the privacy text changes for visitors — including the first time CF_WEB_ANALYTICS_TOKEN is set (§5).
 export const PRIVACY_VERSION = '2026-09-16';
 export const RESEARCH_USE_POLICY_VERSION = '2026-09-14';
+/** Partner (affiliate) agreement. A new version has to be accepted again before links stay live. */
+export const AFFILIATE_AGREEMENT_VERSION = '2026-09-16';
 
 /** Minimum age to enter the storefront, open an account or place an order. */
 export const MINIMUM_AGE = 21;
