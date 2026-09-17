@@ -27,9 +27,8 @@ export async function POST(request: Request) {
   }
 
   const back = (params: Record<string, string>) => {
-    const url = new URL('/account', request.url);
+    const url = new URL('/account/addresses', request.url);
     for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
-    url.hash = 'addresses';
     return Response.redirect(url, 303);
   };
 
