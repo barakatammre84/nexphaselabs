@@ -16,7 +16,7 @@ import type { ShippingRate } from '@/lib/shipping-rates';
  *   [{"service":"standard","name":"Standard (2-5 business days)","cents":1200,"days":5},
  *    {"service":"expedited","name":"Expedited (1-2 business days)","cents":3500,"days":2}]
  */
-export type FlatRate = { service: string; name: string; cents: number; days: number | null };
+export type FlatRate = { service: string; name: string; cents: number; days: number };
 
 const SERVICE = /^[a-z0-9_]{2,40}$/;
 
@@ -40,7 +40,7 @@ export function parseFlatRates(raw: string | undefined): { rates: FlatRate[]; is
     const service = String(row.service ?? '').trim().toLowerCase();
     const name = String(row.name ?? '').trim().slice(0, 80);
     const cents = Number(row.cents);
-    const days = row.days === null || row.days === undefined ? null : Number(row.days);
+    const days = Number(row.days);
     if (!SERVICE.test(service) || seen.has(service)) {
       issues.push(`Flat rate "${service || '(unnamed)'}" needs a unique lowercase service code.`);
       continue;
@@ -54,8 +54,12 @@ export function parseFlatRates(raw: string | undefined): { rates: FlatRate[]; is
       issues.push(`Flat rate "${service}" needs a whole amount in cents between 0 and 100000.`);
       continue;
     }
-    if (days !== null && (!Number.isInteger(days) || days < 1 || days > 30)) {
-      issues.push(`Flat rate "${service}" needs a transit estimate between 1 and 30 days, or none.`);
+    // Required, not optional. Checkout asks for rates with maxEstimatedDays set, and
+    // compareShippingRates drops any rate with no estimate when a maximum is given — so a table
+    // written without transit times would vanish at checkout and close the shop, which is the
+    // exact failure this module exists to prevent.
+    if (!Number.isInteger(days) || days < 1 || days > 30) {
+      issues.push(`Flat rate "${service}" needs a transit estimate between 1 and 30 days.`);
       continue;
     }
     seen.add(service);

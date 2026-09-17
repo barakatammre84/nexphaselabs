@@ -215,11 +215,15 @@ export function buildInvoiceContent(subject: InvoiceSubject): InvoiceContent {
     total: amount(line.lineTotalCents),
   }));
 
-  const totals: [string, string][] = [
-    ['Subtotal', amount(order.subtotalCents)],
-  ];
-  if (order.shippingCents !== 0)
-    totals.push(['Shipping', amount(order.shippingCents)]);
+  // Every line that makes up the total is printed, including the ones that reduce it. Omitting the
+  // promo code left an invoice whose visible rows summed to more than the total it stated, which is
+  // not something a customer's accounting document may do. A zero shipping row is printed for the
+  // same reason: free delivery is shown, not hidden (lib/free-shipping-rules.ts).
+  const totals: [string, string][] = [['Subtotal', amount(order.subtotalCents)]];
+  const discountCents = order.discountCents ?? 0;
+  if (discountCents !== 0)
+    totals.push([order.couponCode ? `Promo code · ${order.couponCode}` : 'Discount', `-${amount(discountCents)}`]);
+  totals.push(['Shipping', order.shippingCents === 0 ? 'Free' : amount(order.shippingCents)]);
   if (order.taxCents !== 0) totals.push(['Tax', amount(order.taxCents)]);
   totals.push([`Total ${order.currency}`, amount(order.totalCents)]);
 

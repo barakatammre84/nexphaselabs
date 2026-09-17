@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { AlertCircle, CheckCircle2, Landmark, RefreshCw } from 'lucide-react';
 import { formatCents } from '@/lib/visibility-rules';
@@ -39,6 +40,9 @@ export default async function ZellePaymentsPage({
   }>;
 }) {
   const staff = await requireStaff('/manage/payments/zelle');
+  // Every write API behind this page requires the capability; the receipt feed it renders is
+  // payer names, amounts, memos and the daily reconciliation, so reading it does too.
+  if (!canVerifyAccounts(staff)) redirect('/manage?denied=1');
   const params = await searchParams;
   const outcome = OUTCOMES.some(([value]) => value === params.outcome)
     ? params.outcome

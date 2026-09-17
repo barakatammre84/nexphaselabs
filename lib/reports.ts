@@ -37,6 +37,10 @@ export type OrderLineRow = {
   /** Order-level figures, repeated on every line of the order; exports print them once. */
   orderTotalCents: number;
   orderShippingCents: number;
+  /** The order's promo-code discount, and this line's pro-rata share of it. */
+  orderDiscountCents: number;
+  couponCode: string | null;
+  lineDiscountShareCents: number;
   /** Remaining recorded obligation, not proof that a provider refund has occurred. */
   refundOutstandingCents: number;
   refundCents: number | null;
@@ -106,6 +110,7 @@ export async function orderLines(period?: ReportPeriod): Promise<OrderLineRow[]>
       totalCents: orders.totalCents,
       shippingCents: orders.shippingCents,
       discountCents: orders.discountCents,
+      subtotalCents: orders.subtotalCents,
       couponCode: orders.couponCode,
       refundDueCents: orders.refundDueCents,
       refundCents: orders.refundCents,
@@ -169,6 +174,12 @@ export async function orderLines(period?: ReportPeriod): Promise<OrderLineRow[]>
     orderShippingCents: row.shippingCents,
     orderDiscountCents: row.discountCents,
     couponCode: row.couponCode,
+    // A discount is taken off materials, so each line carries its share by value. Without this the
+    // export reports the list price as revenue and overstates gross margin by the whole discount.
+    lineDiscountShareCents:
+      row.discountCents && row.subtotalCents > 0
+        ? Math.round((row.discountCents * row.lineTotalCents) / row.subtotalCents)
+        : 0,
     refundOutstandingCents: row.paymentStatus === 'refund_due' ? Math.max(0, (row.refundDueCents ?? row.totalCents) - (row.refundCents ?? 0)) : 0,
     refundCents: row.refundCents,
     refundedOn: row.refundedAt,

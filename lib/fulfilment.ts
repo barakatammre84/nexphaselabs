@@ -419,6 +419,8 @@ export async function recordReturn(detail: OrderDetail, input: ReturnInput, staf
     items.map((it) => ({ id: it.id, sku: it.sku, quantity: it.quantity, lotId: it.lotId, unitPriceCents: it.unitPriceCents })),
     input,
     order.shippedAt,
+    new Date(),
+    { subtotalCents: order.subtotalCents, discountCents: order.discountCents ?? 0, totalCents: order.totalCents },
   );
   if (!validated.ok) return validated;
   const { receivedOn, condition, note } = validated;

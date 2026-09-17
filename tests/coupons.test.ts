@@ -9,7 +9,7 @@ vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 
 import { getCart } from '@/lib/cart';
 import { createCheckoutQuotes } from '@/lib/checkout-quotes';
-import { COUPON_COPY, createCoupon, discountFor, evaluateCoupon, setCouponActive } from '@/lib/coupons';
+import { claimCouponRedemption, COUPON_COPY, createCoupon, discountFor, evaluateCoupon, releaseCouponRedemption, setCouponActive } from '@/lib/coupons';
 import { createOrderFromCart } from '@/lib/orders';
 import { orderTotals } from '@/lib/order-rules';
 import type { ShipTo } from '@/lib/orders';
@@ -127,5 +127,44 @@ describe('promo codes (owner, 16 Sep 2026)', () => {
     await addToCart(guest.buyer.id, 'NPL-9999-2MG', 1, visibility);
     const again = await createCheckoutQuotes(guest.buyer.id, await getCart(guest.buyer.id, visibility), shipTo, 'synthetic@example.invalid', 'WELCOME10');
     expect(again).toEqual({ ok: false, error: COUPON_COPY.used });
+  });
+});
+
+describe('the redemption cap under concurrent checkouts', () => {
+  it('lets exactly one of two racing orders take the last use', async () => {
+    const created = await createCoupon({ ...base, code: 'LASTONE', kind: 'percent', value: 10, maxRedemptions: 1 }, 'test');
+    if (!created.ok) throw new Error('setup');
+    const id = created.id;
+
+    // Both checkouts pass evaluateCoupon, because it only reads the count.
+    expect((await evaluateCoupon('LASTONE', 'acct_a', 10_000)).ok).toBe(true);
+    expect((await evaluateCoupon('LASTONE', 'acct_b', 10_000)).ok).toBe(true);
+
+    // The claim is the serialisation point: the second one loses.
+    expect(await claimCouponRedemption(id)).toBe(true);
+    expect(await claimCouponRedemption(id)).toBe(false);
+    expect(row('SELECT redemption_count FROM coupons')?.redemption_count).toBe(1);
+    expect((await evaluateCoupon('LASTONE', 'acct_c', 10_000)).ok).toBe(false);
+  });
+
+  it('hands a claim back when the order it was taken for is never written, and never below zero', async () => {
+    const created = await createCoupon({ ...base, code: 'GIVEBACK', kind: 'percent', value: 10, maxRedemptions: 1 }, 'test');
+    if (!created.ok) throw new Error('setup');
+    const id = created.id;
+    expect(await claimCouponRedemption(id)).toBe(true);
+    await releaseCouponRedemption(id);
+    expect(row('SELECT redemption_count FROM coupons')?.redemption_count).toBe(0);
+    // The use is available again, so a failed checkout does not burn a limited code.
+    expect(await claimCouponRedemption(id)).toBe(true);
+    await releaseCouponRedemption(id);
+    await releaseCouponRedemption(id);
+    expect(row('SELECT redemption_count FROM coupons')?.redemption_count).toBe(0);
+  });
+
+  it('never blocks an uncapped code', async () => {
+    const created = await createCoupon({ ...base, code: 'UNCAPPED', kind: 'percent', value: 10 }, 'test');
+    if (!created.ok) throw new Error('setup');
+    for (let i = 0; i < 5; i += 1) expect(await claimCouponRedemption(created.id)).toBe(true);
+    expect(row("SELECT redemption_count FROM coupons WHERE code = 'UNCAPPED'")?.redemption_count).toBe(5);
   });
 });

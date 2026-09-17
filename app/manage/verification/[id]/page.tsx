@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { ArrowLeft, CircleCheck, Download, Flag } from 'lucide-react';
 import { VerificationDecisionForm } from '@/components/manage/verification-decision-form';
 import { DOCUMENT_KIND_LABEL, ORGANIZATION_TYPE_LABEL, type OrganizationDocumentKind, type OrganizationType, decisionsFor } from '@/lib/organization-rules';
@@ -26,6 +26,9 @@ export default async function VerificationDetailPage({ params, searchParams }: P
   const { id } = await params;
   const { decided, emailed } = await searchParams;
   const staff = await requireStaff(`/manage/verification/${id}`);
+  // The decision form below already required this. The dossier itself holds an applicant's legal
+  // name, address and uploaded identity documents, so reading it requires the same.
+  if (!canVerifyAccounts(staff)) redirect('/manage?denied=1');
   if (!/^org_[a-z0-9]{8,32}$/.test(id)) notFound();
   const detail = await getOrganizationDetail(id);
   if (!detail) notFound();
