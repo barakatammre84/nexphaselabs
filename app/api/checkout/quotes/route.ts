@@ -7,7 +7,7 @@ import { validateCheckout } from '@/lib/checkout-input';
 import { shipToFromOrganization } from '@/lib/orders';
 import { getOrganizationForAccount } from '@/lib/organizations';
 import { allow, rateLimitKey } from '@/lib/rate-limit';
-import { researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
+import { accountRequired, researcherTierEnabled, openCheckoutEnabled } from '@/lib/site-config';
 import { sameOrigin } from '@/lib/staff-auth';
 import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 import { visibilityFor } from '@/lib/visibility-rules';
@@ -49,6 +49,7 @@ export async function POST(request: Request) {
     },
     researcherTierEnabled(),
     open,
+    accountRequired(),
   );
   try {
     let shipTo: ReturnType<typeof shipToFromOrganization>;
