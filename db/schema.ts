@@ -628,6 +628,8 @@ export const accounts = sqliteTable(
   {
     id: text('id').primaryKey(),
     email: text('email').notNull(),
+    /** A requested new address, applied only when its confirmation link is opened (migration 0061). */
+    pendingEmail: text('pending_email'),
     name: text('name').notNull(),
     passwordHash: text('password_hash').notNull(),
     /** researcher | institutional. 'researcher' replaced 'consumer' 2026-09-12: the qualifying question is only

@@ -202,16 +202,30 @@ export async function verifyEmailToken(token: string): Promise<VerifyResult> {
   if (row.usedAt) return 'already';
   if (row.expiresAt < now) return 'expired';
 
-  const [claimed] = await db.batch([
+  let claimed: { id: string }[];
+  try {
+    [claimed] = await db.batch([
     db.update(emailTokens).set({ usedAt: now }).where(and(
       eq(emailTokens.id, row.id), isNull(emailTokens.usedAt), sql`${emailTokens.expiresAt} > unixepoch()`,
       sql`EXISTS (SELECT 1 FROM ${accounts} WHERE ${accounts.id} = ${row.accountId} AND ${accounts.status} IN ('active', 'pending_email'))`,
     )).returning({ id: emailTokens.id }),
     db
       .update(accounts)
-      .set({ emailVerifiedAt: now, status: sql`CASE WHEN ${accounts.status} = 'pending_email' THEN 'active' ELSE ${accounts.status} END`, updatedAt: now })
+      .set({
+        emailVerifiedAt: now,
+        // A dashboard email change waits here until this link is opened (migration 0061).
+        email: sql`COALESCE(${accounts.pendingEmail}, ${accounts.email})`,
+        pendingEmail: null,
+        status: sql`CASE WHEN ${accounts.status} = 'pending_email' THEN 'active' ELSE ${accounts.status} END`,
+        updatedAt: now,
+      })
       .where(and(eq(accounts.id, row.accountId), sql`changes() = 1`)),
   ]);
+  } catch (error) {
+    // The pending address was taken by another account meanwhile; the token stays unused.
+    console.error('[account] verify failed', error instanceof Error ? error.message : error);
+    return 'invalid';
+  }
   return claimed.length ? 'verified' : 'invalid';
 }
 

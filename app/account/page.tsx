@@ -1,12 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Building2, CircleCheck, Clock, Lock } from 'lucide-react';
+import { Building2, CircleCheck, Clock, CreditCard, LifeBuoy, Lock, MapPin, PackageSearch, UserRound } from 'lucide-react';
 import { AccessProgress } from '@/components/site/access-progress';
 import { getOrganizationForAccount } from '@/lib/organizations';
 import { AcknowledgementForm } from '@/components/site/acknowledgement-form';
 import { requireAccount } from '@/lib/account-auth';
-import { listAddresses } from '@/lib/account-addresses';
-import { SavedAddresses } from '@/components/site/saved-addresses';
 import { acknowledgementsCurrent } from '@/lib/account-rules';
 import { loadCatalog } from '@/lib/catalog-data';
 import { ORDER_STATUS_LABEL, type OrderStatus } from '@/lib/order-rules';
@@ -21,13 +19,7 @@ export const metadata: Metadata = {
 };
 
 type Props = {
-  searchParams: Promise<{
-    ack?: string;
-    saved?: string;
-    removed?: string;
-    defaulted?: string;
-    address_error?: string;
-  }>;
+  searchParams: Promise<{ ack?: string }>;
 };
 
 const VERIFICATION_TEXT: Record<string, { title: string; body: string }> = {
@@ -57,9 +49,18 @@ const VERIFICATION_TEXT: Record<string, { title: string; body: string }> = {
   },
 };
 
+/** The dashboard hub: one card per thing a customer manages (owner, 16 Sep 2026). */
+const HUB = [
+  { href: '/account/orders', title: 'Orders', copy: 'Every order, its status, payment and the documents that shipped with it.', icon: PackageSearch },
+  { href: '/account/addresses', title: 'Addresses', copy: 'Delivery addresses saved for next time.', icon: MapPin },
+  { href: '/account/details', title: 'Account details', copy: 'Your name, email address and password.', icon: UserRound },
+  { href: '/account/payment', title: 'Payment', copy: 'How payment works and any order still waiting for it.', icon: CreditCard },
+  { href: '/contact', title: 'Support', copy: 'A person answers within one business day. Include your order number.', icon: LifeBuoy },
+] as const;
+
 export default async function AccountPage({ searchParams }: Props) {
   const account = await requireAccount('/account');
-  const { ack, saved, removed, defaulted, address_error: addressError } = await searchParams;
+  const { ack } = await searchParams;
   const current = acknowledgementsCurrent(account);
   const verification =
     VERIFICATION_TEXT[account.verificationStatus] ?? VERIFICATION_TEXT.none;
@@ -70,7 +71,6 @@ export default async function AccountPage({ searchParams }: Props) {
     : null;
   const recent =
     (await loadCatalog(() => listOrdersForAccount(account.id, 5))).data ?? [];
-  const addresses = await listAddresses(account.id);
 
   return (
     <main className="text-foreground">
@@ -119,6 +119,21 @@ export default async function AccountPage({ searchParams }: Props) {
         </aside>
 
         <div className="ion-panel p-7 sm:p-10">
+        <p className="utility-label text-primary">Manage your account</p>
+        <ul className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {HUB.map(({ href, title, copy, icon: Icon }) => (
+            <li key={href}>
+              <Link
+                href={href}
+                className="flex h-full flex-col gap-3 rounded-[1.2rem] border border-border p-5 transition-colors hover:border-primary"
+              >
+                <Icon className="size-5 text-primary" />
+                <span className="font-display text-lg font-bold tracking-tight">{title}</span>
+                <span className="text-sm leading-6 text-muted-foreground">{copy}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
 
         {!current ? (
           <div className="mt-10">
@@ -247,13 +262,6 @@ export default async function AccountPage({ searchParams }: Props) {
         </dl>
         </div>
 
-        <SavedAddresses
-          addresses={addresses}
-          saved={saved === '1'}
-          removed={removed === '1'}
-          defaulted={defaulted === '1'}
-          error={addressError ?? null}
-        />
         </div>
       </section>
     </main>
