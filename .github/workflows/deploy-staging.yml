@@ -114,3 +114,37 @@ jobs:
         env:
           STAGING_URL: ${{ vars.STAGING_URL }}
         run: node scripts/staging-access-check.mjs "$STAGING_URL" dist/server/wrangler.json
+      - name: Checkout browser boundary
+        id: checkout-browser-boundary
+        # Keep the synthetic customer's credentials in the staging environment's secrets. The browser
+        # baseline never includes them in its JSON report or network evidence.
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+          STAGING_BUYING_BASELINE_EMAIL: ${{ secrets.STAGING_BUYING_BASELINE_EMAIL }}
+          STAGING_BUYING_BASELINE_PASSWORD: ${{ secrets.STAGING_BUYING_BASELINE_PASSWORD }}
+        run: |
+          set -o pipefail
+          set +e
+          npx --no-install tsx scripts/store-buying-browser-baseline.ts \
+            --base-url "$STAGING_URL" \
+            --json | tee staging-browser-baseline.json
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            node <<'NODE'
+          const { readFileSync } = require('node:fs');
+          const report = JSON.parse(readFileSync('staging-browser-baseline.json', 'utf8'));
+          for (const check of report.checks.filter((entry) => !entry.ok)) {
+            console.error(`Checkout browser boundary failed at ${report.origin}${check.route}: ${check.detail}`);
+          }
+          NODE
+          fi
+          exit "$status"
+      - name: Retain checkout browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-checkout-browser-baseline-${{ github.sha }}
+          path: staging-browser-baseline.json
+          if-no-files-found: error
+          retention-days: 14

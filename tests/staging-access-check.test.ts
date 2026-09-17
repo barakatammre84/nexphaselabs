@@ -275,9 +275,31 @@ describe('the staging deploy job', () => {
   const steps = workflow.split(/\n {6}- /).slice(1);
   const step = (fragment: string) => steps.findIndex((text) => text.includes(fragment));
 
-  it('ends with the boundary check, run against the configuration it has just deployed', () => {
-    expect(steps.at(-1)).toContain('node scripts/staging-access-check.mjs "$STAGING_URL" dist/server/wrangler.json');
-    expect(step('npx wrangler deploy --config dist/server/wrangler.json')).toBeLessThan(steps.length - 1);
+  it('runs the browser boundary after access checks and retains its evidence', () => {
+    const accessBoundary = step(
+      'node scripts/staging-access-check.mjs "$STAGING_URL" dist/server/wrangler.json',
+    );
+    const browserBoundary = step(
+      'npx --no-install tsx scripts/store-buying-browser-baseline.ts',
+    );
+    const evidence = step('actions/upload-artifact@v4');
+    expect(accessBoundary).toBeGreaterThan(-1);
+    expect(browserBoundary).toBeGreaterThan(accessBoundary);
+    expect(evidence).toBeGreaterThan(browserBoundary);
+    expect(steps.at(-1)).toContain('actions/upload-artifact@v4');
+    expect(step('npx wrangler deploy --config dist/server/wrangler.json')).toBeLessThan(accessBoundary);
+    expect(steps[browserBoundary]).toContain(
+      'STAGING_BUYING_BASELINE_EMAIL: ${{ secrets.STAGING_BUYING_BASELINE_EMAIL }}',
+    );
+    expect(steps[browserBoundary]).toContain(
+      'STAGING_BUYING_BASELINE_PASSWORD: ${{ secrets.STAGING_BUYING_BASELINE_PASSWORD }}',
+    );
+    expect(steps[browserBoundary]).toContain('--json');
+    expect(steps[browserBoundary]).toContain(
+      'Checkout browser boundary failed at ${report.origin}${check.route}',
+    );
+    expect(steps[evidence]).toContain('if: always()');
+    expect(steps[evidence]).toContain('path: staging-browser-baseline.json');
     // the pre-decision rule — any answer but 401 fails — must not survive beside it
     expect(workflow).not.toContain('case "$code"');
   });

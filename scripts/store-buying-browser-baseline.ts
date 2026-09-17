@@ -67,6 +67,8 @@ function findChromium(): string | undefined {
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
     '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/opt/google/chrome/google-chrome',
   ];
   return candidates.find((candidate) => existsSync(candidate));
 }
