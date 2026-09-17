@@ -15,7 +15,7 @@ import { listRelatedProducts } from '@/lib/storefront';
 let local: ReturnType<typeof localD1>;
 
 async function product(id: string, code: string, chemicalClass: string, visibility = 'published') {
-  await getDb().insert(products).values({ id, code, slug: code.toLowerCase(), name: `Product ${code}`, formalName: 'Test', chemicalClass, casNumber: '50-00-0', molecularFormula: 'Test', molecularWeight: 'Test', purity: 'Test', form: 'Test', saltForm: 'Test', storageSolid: 'Test', storageStock: 'Test', stability: 'Test', shipping: 'Test', description: 'Local synthetic fixture', visibility });
+  await getDb().insert(products).values({ id, code, slug: code.toLowerCase(), name: `Product ${code}`, formalName: 'Test', chemicalClass, casNumber: '50-00-0', molecularFormula: 'Test', molecularWeight: 'Test', purity: 'Test', form: 'Test', saltForm: 'Test', storageSolid: 'Test', storageStock: 'Test', stability: 'Test', shipping: 'Test', description: 'Local synthetic fixture', visibility, image: '/images/synthetic.png' });
   await getDb().insert(productVariants).values({ id: `v_${id}`, productId: id, sku: `${code}-2MG`, quantity: '2 mg', presentation: 'powder', listPriceCents: 100, active: true });
   await getDb().insert(lots).values({ id: `l_${id}`, lotNumber: `LOT-${code}`, productCode: code, productName: `Product ${code}`, casNumber: '50-00-0', status: 'released', analyticalLab: 'Fixture lab', accessionNumber: `ACC-${code}`, testingStandard: 'Fixture panel v1', receivedAt: new Date(), quantityRemaining: '10 mg', quantityReceived: '10 mg' });
 }
@@ -23,7 +23,7 @@ async function product(id: string, code: string, chemicalClass: string, visibili
 beforeEach(async () => {
   local = localD1();
   Object.assign(env, { DB: local.binding, APP_ENV: 'staging', OPEN_CHECKOUT_ENABLED: 'true' });
-  await seedCommerceFixture(); // NPL-9999 in class "Test"
+  await seedCommerceFixture(); // NPL-9999 in class "Test" — no photograph, so it is never itself listed
   await product('same', 'NPL-8888', 'Test');
   await product('other', 'NPL-7777', 'Other class');
   await product('draft', 'NPL-6666', 'Test', 'draft');
