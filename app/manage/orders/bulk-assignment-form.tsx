@@ -27,6 +27,30 @@ export function BulkAssignmentForm({
     bulkAssignOrdersAction,
     initialState,
   );
+  return (
+    <BulkAssignmentView
+      rows={rows}
+      owners={owners}
+      state={state}
+      action={action}
+      pending={pending}
+    />
+  );
+}
+
+export function BulkAssignmentView({
+  rows,
+  owners,
+  state,
+  action,
+  pending = false,
+}: {
+  rows: Row[];
+  owners: Owner[];
+  state: BulkOrderAssignmentState;
+  action: ((data: FormData) => void) | string;
+  pending?: boolean;
+}) {
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -65,6 +89,7 @@ export function BulkAssignmentForm({
   return (
     <form
       action={action}
+      method={typeof action === 'string' ? 'post' : undefined}
       className="mt-8 border border-border bg-secondary p-5"
     >
       <h2 className="font-display text-xl font-bold">Assign selected orders</h2>

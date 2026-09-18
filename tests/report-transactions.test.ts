@@ -19,7 +19,7 @@ beforeEach(async () => {
   await getDb().insert(accounts).values({ id: 'customer', email: 'synthetic@example.invalid', name: 'Synthetic', passwordHash: 'disabled' });
   await getDb().insert(orders).values({ id: 'order1', orderNumber: 'NX-260904-0001', accountId: 'customer', status: 'shipped', paymentStatus: 'refund_due', subtotalCents: 300, shippingCents: 50, totalCents: 350, priceTier: 'institutional', consigneeName: 'Synthetic', shipToLine1: 'Test', shipToCity: 'Test', shipToRegion: 'CA', shipToPostalCode: '00000', shipToCountry: 'US', submittedAt: new Date(), deliveredAt: new Date('2026-09-09T00:00:00Z'), refundCents: 50, refundDueCents: 100, returnedAt: new Date() });
   await getDb().insert(lots).values({ id: 'lot1', lotNumber: 'LOCAL-LOT', productCode: 'NPL-001', productName: 'Synthetic', casNumber: '50-00-0', status: 'released', analyticalLab: 'Fixture lab', accessionNumber: 'ACC-FIXTURE', testingStandard: 'Fixture panel v1', receivedAt: new Date(), quantityReceived: '10 mg', quantityRemaining: '6 mg', costCents: 100 });
-    for (let i = 0; i < 4; i++) {
+  for (let i = 1; i <= 2; i++) await getDb().insert(orderItems).values({ id: `item${i}`, orderId: 'order1', productId: 'product1', productCode: 'NPL-001', productName: 'Synthetic', variantId: `variant${i}`, sku: `SKU-${i}`, packSize: '2 mg', presentation: 'powder', quantity: 1, unitPriceCents: i * 100, lineTotalCents: i * 100, lotId: 'lot1', lotNumber: 'LOCAL-LOT', returnedPacks: i === 1 ? 1 : 0 });
 });
 afterEach(() => { local.sqlite.close(); delete env.DB; });
 describe('report reconciliation', () => {

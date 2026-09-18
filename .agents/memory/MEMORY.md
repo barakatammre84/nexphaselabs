@@ -14,3 +14,4 @@
 - [Dependency lock validation](dependency-lock-validation.md) — Replit's package firewall can serve a tarball with a different integrity hash; validate npm ci in this environment.
 - [Sensitive export monitoring](sensitive-export-monitoring.md) — retain metadata, never copied customer rows; use approved purposes and preserve open-alert evidence through review.
 - [Queue assignment identity](queue-assignment-identity.md) — operational owners are active, role-eligible staff identities; recheck eligibility inside the atomic handoff.
+- [Server-action browser harnesses](server-action-browser-harnesses.md) — static React rendering cannot submit function-valued server actions; use a shared view with a private POST endpoint.
