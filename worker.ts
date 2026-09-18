@@ -1,6 +1,7 @@
 import handler from 'vinext/server/fetch-handler';
 import { dispatchNotifications } from './lib/notifications';
 import { cleanupExpiredCommerceRecords } from './lib/commerce-maintenance';
+import { cleanupSensitiveExportMonitoring } from './lib/report-exports';
 import { feedbackRealtime } from './lib/feedback-realtime';
 import { gateNonProduction, withNoindex } from './lib/environment-gate';
 import { legacyDecision, legacyResponse } from './lib/legacy-redirects';
@@ -87,6 +88,7 @@ export default {
     await runScheduledJobs({
       notifications: () => dispatchNotifications(),
       maintenance: () => cleanupExpiredCommerceRecords(),
+      sensitiveExportRetention: () => cleanupSensitiveExportMonitoring(),
       zelle: () =>
         zelleInboxEnabled()
           ? syncZelleMailbox()

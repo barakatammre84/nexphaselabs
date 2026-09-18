@@ -9,12 +9,12 @@ export async function GET(request: Request) {
   if (!staff) return new Response('Unauthorized', { status: 401 });
   if (!canDownloadSensitiveReports(staff)) return new Response('Forbidden', { status: 403 });
   const purpose = exportPurpose(new URL(request.url).searchParams);
-  if (!purpose) return new Response('A purpose of 12 to 200 characters is required.', { status: 400 });
+  if (!purpose) return new Response('An approved export purpose is required.', { status: 400 });
   const rows = await lotInventory();
   const body = toCsv(
     ['Lot', 'Product code', 'Product', 'Status', 'Received', 'Quantity received', 'Quantity remaining', 'Landed cost', 'Released', 'Retest'],
     rows.map((r) => [r.lotNumber, r.productCode, r.productName, r.status, utcDay(r.receivedOn), r.quantityReceived, r.quantityRemaining, dollars(r.costCents), businessDay(r.releasedOn), utcDay(r.retestDate)]),
   );
-  await recordSensitiveExport({ staff, purpose, reportType: 'lots', filters: { snapshot: new Date().toISOString().slice(0, 10) }, userAgent: request.headers.get('user-agent') });
+  await recordSensitiveExport({ staff, purpose, reportType: 'lots', filters: { snapshot: new Date().toISOString().slice(0, 10) }, rowCount: rows.length, userAgent: request.headers.get('user-agent') });
   return csvResponse(`nexphase-lots-${new Date().toISOString().slice(0, 10)}.csv`, body);
 }

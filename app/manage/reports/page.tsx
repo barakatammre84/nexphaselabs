@@ -5,7 +5,11 @@ import { loadCatalog } from '@/lib/catalog-data';
 import { dollars, utcDay } from '@/lib/csv';
 import { LOT_STATUS_LABEL, type LotStatus } from '@/lib/lots-admin';
 import { lotInventory, movementsForConsignee, reportPeriod, revenueByProduct } from '@/lib/reports';
-import { canDownloadSensitiveReports } from '@/lib/report-exports';
+import {
+  canDownloadSensitiveReports,
+  EXPORT_PURPOSES,
+  openSensitiveExportAlerts,
+} from '@/lib/report-exports';
 import { requireStaff } from '@/lib/staff-auth';
 
 export const dynamic = 'force-dynamic';
@@ -32,7 +36,8 @@ export default async function ReportsPage({ searchParams }: Props) {
   const inventory = admin ? await loadCatalog(lotInventory) : null;
   const revenue = admin ? await loadCatalog(() => revenueByProduct(period)) : null;
   const movements = admin ? await loadCatalog(() => movementsForConsignee(filter, period)) : null;
-  const unavailable = Boolean(inventory?.unavailable || revenue?.unavailable || movements?.unavailable);
+  const exportAlerts = admin ? await loadCatalog(openSensitiveExportAlerts) : null;
+  const unavailable = Boolean(inventory?.unavailable || revenue?.unavailable || movements?.unavailable || exportAlerts?.unavailable);
 
   return (
     <main className="bg-background text-foreground">
@@ -65,6 +70,19 @@ export default async function ReportsPage({ searchParams }: Props) {
         ) : (
           <>
             <h2 className="mt-12 utility-label text-primary">Exports</h2>
+            {(exportAlerts?.data?.length ?? 0) > 0 && (
+              <section role="alert" className="mt-4 border border-destructive/50 bg-secondary p-5">
+                <h3 className="font-display text-lg font-bold">Unusual export activity</h3>
+                <ul className="mt-3 grid gap-2 text-sm">
+                  {exportAlerts!.data!.map((alert) => (
+                    <li key={alert.id}>
+                      <strong>{alert.staffName}</strong>: {alert.reason} at{' '}
+                      <span className="font-mono text-xs">{alert.createdAt.toISOString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             <ul className="mt-4 grid gap-px bg-border sm:grid-cols-3">
               {exports.map((e) => (
                 <li key={e.href} className="bg-background p-6">
@@ -74,7 +92,12 @@ export default async function ReportsPage({ searchParams }: Props) {
                     {e.period ? <><input type="hidden" name="from" value={period.fromText} /><input type="hidden" name="to" value={period.toText} /></> : null}
                     <label className="grid gap-2 text-xs font-semibold">
                       Operational purpose
-                      <input name="purpose" required minLength={12} maxLength={200} placeholder="Why this export is needed" className="h-10 border border-input bg-background px-3 text-sm" />
+                      <select name="purpose" required defaultValue="" className="h-10 border border-input bg-background px-3 text-sm">
+                        <option value="" disabled>Select an approved purpose</option>
+                        {Object.entries(EXPORT_PURPOSES).map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
                     </label>
                     <button type="submit" className="inline-flex h-10 items-center justify-center gap-2 bg-primary px-4 text-sm font-bold text-primary-foreground hover:bg-primary/90">
                       <Download className="size-4" /> Download CSV

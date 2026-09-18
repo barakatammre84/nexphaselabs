@@ -599,6 +599,50 @@ export const staffEvents = sqliteTable(
 
 export type StaffEvent = typeof staffEvents.$inferSelect;
 
+/**
+ * Metadata-only record of sensitive report downloads. Exported customer rows
+ * are never copied here: monitoring needs only scope, purpose and volume.
+ */
+export const sensitiveReportExports = sqliteTable(
+  'sensitive_report_exports',
+  {
+    id: text('id').primaryKey(),
+    staffUserId: text('staff_user_id').notNull(),
+    purpose: text('purpose').notNull(),
+    reportType: text('report_type').notNull(),
+    filters: text('filters', { mode: 'json' }).$type<Record<string, string>>().notNull(),
+    rowCount: integer('row_count').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => ({
+    staffCreatedIdx: index('sensitive_report_exports_staff_created_idx').on(
+      table.staffUserId,
+      table.createdAt,
+    ),
+    createdIdx: index('sensitive_report_exports_created_idx').on(table.createdAt),
+  }),
+);
+
+/** Administrator-visible anomaly raised from export metadata, never export contents. */
+export const sensitiveReportExportAlerts = sqliteTable(
+  'sensitive_report_export_alerts',
+  {
+    id: text('id').primaryKey(),
+    exportId: text('export_id').notNull(),
+    staffUserId: text('staff_user_id').notNull(),
+    reason: text('reason').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    resolvedAt: integer('resolved_at', { mode: 'timestamp' }),
+  },
+  (table) => ({
+    openCreatedIdx: index('sensitive_report_export_alerts_open_created_idx').on(
+      table.resolvedAt,
+      table.createdAt,
+    ),
+    exportIdx: uniqueIndex('sensitive_report_export_alerts_export_idx').on(table.exportId),
+  }),
+);
+
 export const staffSessions = sqliteTable(
   'staff_sessions',
   {

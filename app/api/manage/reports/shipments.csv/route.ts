@@ -10,13 +10,13 @@ export async function GET(request: Request) {
   if (!canDownloadSensitiveReports(staff)) return new Response('Forbidden', { status: 403 });
   const url = new URL(request.url);
   const purpose = exportPurpose(url.searchParams);
-  if (!purpose) return new Response('A purpose of 12 to 200 characters is required.', { status: 400 });
+  if (!purpose) return new Response('An approved export purpose is required.', { status: 400 });
   const period = reportPeriod(url.searchParams.get('from'), url.searchParams.get('to'));
   const rows = await movementLedger(period);
   const body = toCsv(
     ['Date', 'Type', 'Direction', 'Lot', 'Product code', 'Product', 'Quantity', 'Consignee', 'Institution', 'Ship to', 'Carrier', 'Tracking'],
     rows.map((r) => [utcDay(r.occurredOn), r.movementType, r.direction, r.lotNumber, r.productCode, r.productName, r.quantity, r.consigneeName, r.consigneeInstitution, r.shipToAddress, r.carrier, r.trackingNumber]),
   );
-  await recordSensitiveExport({ staff, purpose, reportType: 'shipments', filters: { from: period.fromText, to: period.toText }, userAgent: request.headers.get('user-agent') });
+  await recordSensitiveExport({ staff, purpose, reportType: 'shipments', filters: { from: period.fromText, to: period.toText }, rowCount: rows.length, userAgent: request.headers.get('user-agent') });
   return csvResponse(`nexphase-movements-${period.fromText}-to-${period.toText}.csv`, body);
 }

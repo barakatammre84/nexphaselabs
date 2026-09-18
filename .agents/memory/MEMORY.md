@@ -12,3 +12,4 @@
 - [GitHub access verification](github-access-verification.md) — active connection metadata does not prove repository access or usable workspace authentication.
 - [Staging migration proof](staging-migration-proof.md) — a healthy staging worker can still be older than a pending D1 migration; verify release and migration evidence separately.
 - [Dependency lock validation](dependency-lock-validation.md) — Replit's package firewall can serve a tarball with a different integrity hash; validate npm ci in this environment.
+- [Sensitive export monitoring](sensitive-export-monitoring.md) — retain metadata, never copied customer rows; use approved purposes and preserve open-alert evidence through review.

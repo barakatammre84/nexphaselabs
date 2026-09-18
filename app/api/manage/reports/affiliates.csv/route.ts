@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const purpose = exportPurpose(url.searchParams);
-  if (!purpose) return new Response('A purpose of 12 to 200 characters is required.', { status: 400 });
+  if (!purpose) return new Response('An approved export purpose is required.', { status: 400 });
   const year = Number(url.searchParams.get('year') ?? '');
   if (Number.isInteger(year) && year > 2000) {
     const rows = await payoutYearTotals(year);
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
       ['Partner', 'Code', 'Tax form', 'Form filed at', 'Payouts', 'Paid in year'],
       rows.map((r) => [r.name, r.code, r.taxFormStatus, r.taxFormReference ?? '', r.payouts, dollars(r.paidCents)]),
     );
-    await recordSensitiveExport({ staff, purpose, reportType: 'affiliate-year-totals', filters: { year: String(year) }, userAgent: request.headers.get('user-agent') });
+    await recordSensitiveExport({ staff, purpose, reportType: 'affiliate-year-totals', filters: { year: String(year) }, rowCount: rows.length, userAgent: request.headers.get('user-agent') });
     return csvResponse(`nexphase-partner-payments-${year}.csv`, body);
   }
 
@@ -36,6 +36,6 @@ export async function GET(request: Request) {
       dollars(r.amountCents), r.status, businessDay(r.vestedAt), businessDay(r.payoutSentAt), r.payoutReference ?? '',
     ]),
   );
-  await recordSensitiveExport({ staff, purpose, reportType: 'affiliate-commissions', filters: {}, userAgent: request.headers.get('user-agent') });
+  await recordSensitiveExport({ staff, purpose, reportType: 'affiliate-commissions', filters: {}, rowCount: rows.length, userAgent: request.headers.get('user-agent') });
   return csvResponse('nexphase-partner-commissions.csv', body);
 }

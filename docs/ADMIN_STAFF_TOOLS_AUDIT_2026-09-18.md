@@ -28,10 +28,16 @@ The highest software-control risks are:
    destructive shipping actions are available through `canFulfil`
    (`lib/staff-roles.ts:5-30,38-51`,
    `app/api/manage/orders/[orderNumber]/shipping/refund/route.ts:13-21`).
-2. Sensitive CSV exports now require the dedicated report permission and a
-   stated purpose, record an attributed download event, and omit fields not
-   needed by each operational report. Retention and monitoring policy approval
-   remains an external dependency.
+2. Sensitive CSV exports require the dedicated report permission and one of
+   five approved operational purposes, record attributed metadata and row
+   volume, and omit fields not needed by each report. Metadata is retained for
+   400 days; the fifth export by one administrator in an hour or an export of
+   1,000 rows creates an administrator-visible alert. Exported customer rows
+   are never duplicated into monitoring storage. Open alerts and their source
+   metadata remain until review; resolved alerts are removed after 90 days.
+   Administrators review the reports-page alert list each business day and
+   document the investigation before an alert is marked resolved. The
+   five-minute scheduled worker enforces retention independently of downloads.
 3. The readiness ledger records evidence but does not itself block all
    launch-critical selling or shipping paths; this is intentional in code but
    needs an explicit business gate (`lib/operational-controls.ts:38-52`).
@@ -113,7 +119,7 @@ entry includes its nested pages and APIs unless separately noted.
 | `/manage/controls`, `/manage/readiness`; record controls and decide launch evidence | Control owners, due dates, evidence URL, status/event history; assignment/update actions | `operations.manage` for assigned work; admin review/launch gate | **Complete as ledger; intentionally manual as readiness** (`lib/operational-controls.ts:38-52`, `app/manage/readiness/page.tsx:62-365`) |
 | `/manage/cases`, nested case number; contain, investigate, CAPA/recall, close | Severity, owner, containment, root cause, actions, effectiveness, evidence, event history | `operations.manage`; assigned lead → admin closure | **Complete/partial**: workflow is guarded; mock recall/SLA escalation rehearsal absent (`app/manage/cases`, `lib/operational-cases.ts`) |
 | `/manage/activity`; review merged internal history | Role-filtered append-only domain events and queue counts | Session; investigation across domains | **Partial**: Zelle, feedback, notices, cases, reports, coupons, hazcom, shipping/returns are not first-class timeline domains (`lib/activity.ts:25-53,291-303`) |
-| `/manage/reports`; download orders/lots/shipments/affiliates CSV | Period-bounded CSVs containing operational, customer, and financial data | Admin navigation; API currently account-approval guard | **Complete export path; control partial**: no export audit or scheduled reconciliation (`app/manage/reports/page.tsx:25-75`, `app/api/manage/reports`) |
+| `/manage/reports`; download orders/lots/shipments/affiliates CSV | Period-bounded CSVs plus metadata-only audit and unusual-volume alerts | Dedicated sensitive-report permission; approved purpose required | **Complete export control**: alerts at 5 exports/hour or 1,000 rows; 400-day audit retention and 90-day resolved-alert retention |
 | `/manage/affiliates`; partner terms/referrals/commissions | Referral binding, verification, accrual/vesting/reversal; admin API | Admin; partner → independent verification → payout | **Complete/partial**: approval/compliance/payout manual (`app/manage/affiliates`, `lib/affiliates.ts:330+`) |
 | `/manage/coupons`; create/toggle promotional rules | Date/limit/free-shipping settings and actor; concurrent redemption rule | Admin; campaign policy → code → redemption | **Complete/partial**: no campaign approval/dual review (`app/manage/coupons`, `app/api/manage/coupons/route.ts:39-81`) |
 | `/manage/hazcom`; issue hazard communications and labels | SDS/product snapshot, hazard label render/issue records | Admin navigation; QC/catalog evidence → issue decision | **Complete/partial**: depends on real hazard evidence and issue approval (`app/manage/hazcom`, `lib/hazcom.ts:20-136`) |
@@ -235,7 +241,7 @@ or last actor, requiring drill-down.
 | Orders/checkout | cart, quote, order, payment-attempt, reservation, shipping, return/refund tests | Phase 9 and staging synthetic order rehearsal | Live rail/tax/carrier, approved policies, full named-team exception rehearsal |
 | Zelle/refunds | `zelle.test.ts`, payment/refund/reconciliation tests | Bank-payment rehearsal and operations audit | Historical transfer evidence remains to be verified (Task 48); Task 35 completed the code-side investigation; stale Zelle message cleanup (Task 34) and live reconciliation remain |
 | Notifications | notification, provider, route, links, scheduled-job tests | Notifications runbook; one staging inbox proof | Non-order durability, bounce/complaint events, recipient/credential evidence (Task 16 overlap) |
-| Reports/exports | CSV/report transaction tests | Commerce analytics docs | Export authorization/audit and bank/CPA reconciliation |
+| Reports/exports | CSV/report transaction tests cover permission, purpose, thresholds and cleanup | This audit defines the approved monitoring policy | Bank/CPA reconciliation remains operational |
 | Deploy/continuity | environment, deploy, health, backup scripts/tests | rollback and backup runbooks | Real D1/R2 restore/RTO and retained failed-release evidence (Tasks 38/39/44 overlap) |
 
 Stale documentation must not drive decisions:

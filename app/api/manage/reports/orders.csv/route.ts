@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   if (!canDownloadSensitiveReports(staff)) return new Response('Forbidden', { status: 403 });
   const url = new URL(request.url);
   const purpose = exportPurpose(url.searchParams);
-  if (!purpose) return new Response('A purpose of 12 to 200 characters is required.', { status: 400 });
+  if (!purpose) return new Response('An approved export purpose is required.', { status: 400 });
   const period = reportPeriod(url.searchParams.get('from'), url.searchParams.get('to'));
   const rows = await orderLines(period);
   // Order-level refund figures are printed on the first line of each order only, so a column sum is the true total.
@@ -28,6 +28,6 @@ export async function GET(request: Request) {
       r.costCents === null ? '' : dollars(r.lineTotalCents - r.lineDiscountShareCents - r.refundShareCents - r.costCents),
     ]),
   );
-  await recordSensitiveExport({ staff, purpose, reportType: 'orders', filters: { from: period.fromText, to: period.toText }, userAgent: request.headers.get('user-agent') });
+  await recordSensitiveExport({ staff, purpose, reportType: 'orders', filters: { from: period.fromText, to: period.toText }, rowCount: rows.length, userAgent: request.headers.get('user-agent') });
   return csvResponse(`nexphase-orders-${period.fromText}-to-${period.toText}.csv`, body);
 }

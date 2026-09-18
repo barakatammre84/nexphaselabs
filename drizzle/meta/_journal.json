@@ -498,6 +498,13 @@
       "when": 1789753966000,
       "tag": "0070_order_refund_references",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "6",
+      "when": 1789762500000,
+      "tag": "0071_sensitive_report_export_monitoring",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,7 @@ vi.mock('@/lib/feedback-realtime', () => ({ feedbackRealtime: realtime }));
 // The cron jobs are not under test; keep their modules out of the import graph.
 vi.mock('@/lib/notifications', () => ({ dispatchNotifications: vi.fn() }));
 vi.mock('@/lib/commerce-maintenance', () => ({ cleanupExpiredCommerceRecords: vi.fn() }));
+vi.mock('@/lib/report-exports', () => ({ cleanupSensitiveExportMonitoring: vi.fn() }));
 vi.mock('@/lib/zelle-gmail', () => ({ syncZelleMailbox: vi.fn() }));
 vi.mock('@/lib/feedback-room', () => ({ FeedbackRoom: class {} }));
 
