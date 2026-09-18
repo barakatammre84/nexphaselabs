@@ -15,19 +15,6 @@ available in some worker shells.
 failures. Use a Node 22.13+ runtime for complete validation; targeted tests
 that do not import the SQLite helper can still provide useful coverage.
 
-On the Replit x64 runner, a partially populated Rolldown native package can
-contain an ELF binding with missing section headers. Importing Rolldown then
-ends in a bus error before Vitest or vinext can report an application error.
-
-**Why:** Reinstalling ordinary JavaScript packages repaired missing declaration
-files, but the native Rolldown binding remained invalid and blocked both tests
-and preview startup.
-
-**How to apply:** When Vitest and vinext both exit with only `Bus error`, test a
-direct Rolldown import and inspect the native binding with `file`; treat missing
-ELF section headers as an environment/package integrity failure, not a source
-regression.
-
 Exclusive browser test selection must not rely on merging two `test.include`
 arrays with Vite's `mergeConfig`; those arrays are additive.
 

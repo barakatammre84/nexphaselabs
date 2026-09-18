@@ -76,6 +76,11 @@ export function randomToken(): string {
   return toHex(crypto.getRandomValues(new Uint8Array(32)));
 }
 
+/** Staff account ids created by both the admin UI and bootstrap script. */
+export function isStaffUserId(value: string): boolean {
+  return /^stf_[a-f0-9]{8,32}$/.test(value);
+}
+
 /** Password policy for staff: length is what matters. */
 export function passwordPolicyError(password: string): string | null {
   if (password.length < 12) return 'Password must be at least 12 characters.';

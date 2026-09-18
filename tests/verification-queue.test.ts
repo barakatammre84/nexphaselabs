@@ -11,16 +11,18 @@ let local: ReturnType<typeof localD1>;
 beforeEach(async () => {
   local = localD1();
   env.DB = local.binding;
-  await getDb().insert(accounts).values(Array.from({ length: 55 }, (_, i) => ({
-    id: `account_${i}`, email: `applicant${i}@example.invalid`, name: `Applicant ${i}`, passwordHash: 'disabled',
-  })));
-  await getDb().insert(organizations).values(Array.from({ length: 55 }, (_, i) => ({
-    id: `org_${i}`, accountId: `account_${i}`, legalName: i === 54 ? 'Target Research' : `Research ${i}`,
-    website: `https://lab${i}.example.invalid`, emailDomain: `lab${i}.example.invalid`,
-    organizationType: 'analytical_lab', addressLine1: '1 Test Way', city: 'Test', region: 'CA',
-    postalCode: '00000', country: 'US', researchContext: 'Testing', receivingParty: 'Applicant',
-    submittedAt: new Date(1700000000000 + i * 1000), verificationStatus: 'submitted', reviewFlags: [],
-  })));
+  for (let i = 0; i < 55; i += 1) {
+    await getDb().insert(accounts).values({
+      id: `account_${i}`, email: `applicant${i}@example.invalid`, name: `Applicant ${i}`, passwordHash: 'disabled',
+    });
+    await getDb().insert(organizations).values({
+      id: `org_${i}`, accountId: `account_${i}`, legalName: i === 54 ? 'Target Research' : `Research ${i}`,
+      website: `https://lab${i}.example.invalid`, emailDomain: `lab${i}.example.invalid`,
+      organizationType: 'analytical_lab', addressLine1: '1 Test Way', city: 'Test', region: 'CA',
+      postalCode: '00000', country: 'US', researchContext: 'Testing', receivingParty: 'Applicant',
+      submittedAt: new Date(1700000000000 + i * 1000), verificationStatus: 'submitted', reviewFlags: [],
+    });
+  }
 });
 afterEach(() => { local.sqlite.close(); delete env.DB; });
 
@@ -36,5 +38,12 @@ describe('staff verification queue query', () => {
   it('filters status in SQL', async () => {
     await getDb().update(organizations).set({ verificationStatus: 'approved' }).where(sql`id = 'org_54'`);
     expect((await listVerificationQueue({ status: 'approved' })).rows.map((row) => row.organization.id)).toEqual(['org_54']);
+  });
+  it('filters dedicated owner and due fields in SQL', async () => {
+    const tomorrow = new Date();
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    await getDb().update(organizations).set({ assignedTo: 'staff_alex', assignedName: 'Alex QC', serviceDueAt: tomorrow }).where(sql`id = 'org_54'`);
+    expect((await listVerificationQueue({ owner: 'alex' })).rows.map((row) => row.organization.id)).toEqual(['org_54']);
+    expect((await listVerificationQueue({ due: 'upcoming' })).rows.map((row) => row.organization.id)).toEqual(['org_54']);
   });
 });

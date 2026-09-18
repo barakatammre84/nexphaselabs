@@ -105,6 +105,13 @@ export const lots = sqliteTable(
     releasedAt: integer('released_at', { mode: 'timestamp' }),
     /** Required whenever status is not 'released'. */
     statusReason: text('status_reason'),
+    /** Active queue responsibility, separate from the person who made a disposition decision. */
+    assignedTo: text('assigned_to'),
+    assignedName: text('assigned_name'),
+    /** Operational service deadline, separate from retest and release dates. */
+    serviceDueAt: integer('service_due_at', { mode: 'timestamp' }),
+    /** Id of the assignment event that produced the current queue assignment. */
+    lastAssignmentId: text('last_assignment_id'),
 
     quantityReceived: text('quantity_received'),
     quantityRemaining: text('quantity_remaining'),
@@ -138,6 +145,8 @@ export const lots = sqliteTable(
     lotNumberLookupIdx: index('lots_lot_number_idx2').on(table.lotNumber),
     productIdx: index('lots_product_idx').on(table.productCode),
     statusIdx: index('lots_status_idx').on(table.status),
+    assignedIdx: index('lots_assigned_idx').on(table.assignedTo),
+    serviceDueIdx: index('lots_service_due_idx').on(table.serviceDueAt),
     accessionIdx: index('lots_accession_idx').on(table.accessionNumber),
   }),
 );
@@ -193,6 +202,25 @@ export const lotStatusEvents = sqliteTable(
 
 export type LotStatusEvent = typeof lotStatusEvents.$inferSelect;
 
+/** Append-only operational assignment history; disposition evidence remains in lot_status_events. */
+export const lotAssignmentEvents = sqliteTable(
+  'lot_assignment_events',
+  {
+    id: text('id').primaryKey(),
+    lotId: text('lot_id').notNull(),
+    fromOwnerId: text('from_owner_id'),
+    fromOwner: text('from_owner'),
+    toOwnerId: text('to_owner_id'),
+    toOwner: text('to_owner'),
+    fromServiceDueAt: integer('from_service_due_at', { mode: 'timestamp' }),
+    toServiceDueAt: integer('to_service_due_at', { mode: 'timestamp' }),
+    assignedBy: text('assigned_by').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    lotIdx: index('lot_assignment_events_lot_idx').on(table.lotId),
+  }),
+);
 /**
  * Analytical documents attached to a lot, one row per upload. The lot row's
  * `coaKey` / `chromatogramKey` / `massSpecKey` / `sdsKey` point at the row
@@ -985,6 +1013,13 @@ export const organizations = sqliteTable(
     reviewedBy: text('reviewed_by'),
     reviewedAt: integer('reviewed_at', { mode: 'timestamp' }),
     reviewNote: text('review_note'),
+    /** Active queue responsibility, separate from the person who made the verification decision. */
+    assignedTo: text('assigned_to'),
+    assignedName: text('assigned_name'),
+    /** Operational service deadline, separate from submission and review dates. */
+    serviceDueAt: integer('service_due_at', { mode: 'timestamp' }),
+    /** Id of the assignment event that produced the current queue assignment. */
+    lastAssignmentId: text('last_assignment_id'),
     /** Id of the decision that produced the current status; lets the event insert be conditional on it. */
     lastDecisionId: text('last_decision_id'),
     createdAt: integer('created_at', { mode: 'timestamp' })
@@ -997,6 +1032,8 @@ export const organizations = sqliteTable(
   (table) => ({
     accountIdx: uniqueIndex('organizations_account_idx').on(table.accountId),
     statusIdx: index('organizations_status_idx').on(table.verificationStatus),
+    assignedIdx: index('organizations_assigned_idx').on(table.assignedTo),
+    serviceDueIdx: index('organizations_service_due_idx').on(table.serviceDueAt),
   }),
 );
 
@@ -1041,10 +1078,30 @@ export const verificationEvents = sqliteTable(
   }),
 );
 
+/** Append-only operational assignment history; verification decisions remain in verification_events. */
+export const verificationAssignmentEvents = sqliteTable(
+  'verification_assignment_events',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull(),
+    fromOwnerId: text('from_owner_id'),
+    fromOwner: text('from_owner'),
+    toOwnerId: text('to_owner_id'),
+    toOwner: text('to_owner'),
+    fromServiceDueAt: integer('from_service_due_at', { mode: 'timestamp' }),
+    toServiceDueAt: integer('to_service_due_at', { mode: 'timestamp' }),
+    assignedBy: text('assigned_by').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    orgIdx: index('verification_assignment_events_org_idx').on(table.organizationId),
+  }),
+);
 export type Organization = typeof organizations.$inferSelect;
 export type OrganizationDocument = typeof organizationDocuments.$inferSelect;
 export type VerificationEvent = typeof verificationEvents.$inferSelect;
 
+export type VerificationAssignmentEvent = typeof verificationAssignmentEvents.$inferSelect;
 /**
  * Cart. Server-side, per account, so a price is never trusted from the
  * browser: the line is a variant reference and a quantity, nothing more.
@@ -1724,3 +1781,5 @@ export const couponRedemptions = sqliteTable(
 
 export type Coupon = typeof coupons.$inferSelect;
 export type CouponRedemption = typeof couponRedemptions.$inferSelect;
+
+export type LotAssignmentEvent = typeof lotAssignmentEvents.$inferSelect;

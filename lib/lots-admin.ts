@@ -4,17 +4,20 @@ import { getDb } from '@/db';
 import { inventoryReservations } from '@/db/commerce-schema';
 import {
   lotDocuments,
+  lotAssignmentEvents,
   lotMovements,
   lotStatusEvents,
   lotTests,
   lots,
   orders,
   products,
+  staffUsers,
   purchaseOrderEvents,
   purchaseOrderLines,
   purchaseOrders,
   type Lot,
   type LotDocument,
+  type LotAssignmentEvent,
   type LotMovement,
   type LotStatusEvent,
   type LotTest,
@@ -34,6 +37,7 @@ import {
 } from '@/lib/lot-rules';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 import { randomToken } from '@/lib/staff-auth-core';
+import { roleHasPermission } from '@/lib/staff-roles';
 import { lotFamilyIds } from '@/lib/lot-family';
 import { receiptStatements, type ExpectedReceipt } from '@/lib/procurement';
 import { adjustQuantity, compareQuantities, quantitiesComparable, quantityRatio, receiptCostCents } from '@/lib/procurement-quantities';
@@ -240,7 +244,8 @@ export function queuePage(raw?: string): number {
   return Number.isSafeInteger(n) && n > 0 ? Math.min(n, 100000) : 1;
 }
 
-export type LotQueueOptions = { query?: string; status?: string; page?: number };
+export type QueueDueFilter = 'overdue' | 'today' | 'upcoming' | 'unset';
+export type LotQueueOptions = { query?: string; status?: string; owner?: string; due?: QueueDueFilter; page?: number };
 export async function listLots(options: LotQueueOptions = {}): Promise<{ rows: Lot[]; hasNext: boolean }> {
   const db = getDb();
   const search = (options.query ?? '').trim().slice(0, 120).toLowerCase();
@@ -248,8 +253,24 @@ export async function listLots(options: LotQueueOptions = {}): Promise<{ rows: L
     ? sql`instr(lower(${lots.lotNumber} || ' ' || ${lots.productName} || ' ' || ${lots.productCode} || ' ' || coalesce(${lots.manufacturerName}, '')), ${search}) > 0`
     : undefined;
   const status = options.status && options.status !== 'all' ? eq(lots.status, options.status) : undefined;
+  const owner = (options.owner ?? '').trim().slice(0, 120).toLowerCase();
+  const ownerMatch = owner ? sql`instr(lower(coalesce(${lots.assignedName}, '')), ${owner}) > 0` : undefined;
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const tomorrow = new Date(today.getTime() + 86_400_000);
+  const todayEpoch = Math.floor(today.getTime() / 1000);
+  const tomorrowEpoch = Math.floor(tomorrow.getTime() / 1000);
+  const due = options.due === 'overdue'
+    ? sql`${lots.serviceDueAt} < ${todayEpoch}`
+    : options.due === 'today'
+      ? sql`${lots.serviceDueAt} >= ${todayEpoch} AND ${lots.serviceDueAt} < ${tomorrowEpoch}`
+      : options.due === 'upcoming'
+        ? sql`${lots.serviceDueAt} >= ${tomorrowEpoch}`
+        : options.due === 'unset'
+          ? isNull(lots.serviceDueAt)
+          : undefined;
   const rows = await db.select().from(lots)
-    .where(and(isNull(lots.supersededById), matching, status))
+    .where(and(isNull(lots.supersededById), matching, status, ownerMatch, due))
     .orderBy(desc(lots.receivedAt), asc(lots.lotNumber))
     .limit(51).offset((queuePage(String(options.page ?? 1)) - 1) * 50);
   return { rows: rows.slice(0, 50), hasNext: rows.length > 50 };
@@ -261,6 +282,7 @@ export type LotDetail = {
   movements: LotMovement[];
   documents: LotDocument[];
   statusEvents: LotStatusEvent[];
+  assignmentEvents: LotAssignmentEvent[];
 };
 
 /** The current record for a lot number (a corrected record supersedes the earlier one). */
@@ -279,13 +301,74 @@ export async function getLotDetail(lotNumber: string): Promise<LotDetail | null>
   const lot = await getLot(lotNumber);
   if (!lot) return null;
   const family = await lotFamilyIds(lot.id);
-  const [tests, movements, documents, statusEvents] = await Promise.all([
+  const [tests, movements, documents, statusEvents, assignmentEvents] = await Promise.all([
     db.select().from(lotTests).where(sql`${lotTests.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)}))`).orderBy(asc(lotTests.createdAt)),
     db.select().from(lotMovements).where(sql`${lotMovements.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)}))`).orderBy(asc(lotMovements.occurredAt)),
     db.select().from(lotDocuments).where(sql`${lotDocuments.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)}))`).orderBy(desc(lotDocuments.uploadedAt)),
     db.select().from(lotStatusEvents).where(sql`${lotStatusEvents.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)}))`).orderBy(asc(lotStatusEvents.createdAt)),
+    db.select().from(lotAssignmentEvents).where(sql`${lotAssignmentEvents.lotId} IN (SELECT value FROM json_each(${JSON.stringify(family)}))`).orderBy(asc(lotAssignmentEvents.createdAt)),
   ]);
-  return { lot, tests, movements, documents, statusEvents };
+  return { lot, tests, movements, documents, statusEvents, assignmentEvents };
+}
+
+export type AssignmentResult = { ok: true } | { ok: false; error: string };
+
+export async function listLotAssignees(): Promise<{ id: string; name: string; role: string }[]> {
+  return getDb()
+    .select({ id: staffUsers.id, name: staffUsers.name, role: staffUsers.role })
+    .from(staffUsers)
+    .where(and(eq(staffUsers.active, true), sql`${staffUsers.role} IN ('admin', 'qc')`))
+    .orderBy(asc(staffUsers.name));
+}
+
+export async function assignLot(
+  lot: Lot,
+  ownerId: string | null,
+  serviceDueAt: Date | null,
+  staff: StaffPrincipal,
+): Promise<AssignmentResult> {
+  if (!roleHasPermission(staff.role, 'quality.manage')) return { ok: false, error: 'Only QC and admin roles can assign lot work.' };
+  const db = getDb();
+  const now = new Date();
+  let owner: { id: string; name: string } | null = null;
+  if (ownerId) {
+    [owner] = await db.select({ id: staffUsers.id, name: staffUsers.name }).from(staffUsers)
+      .where(and(eq(staffUsers.id, ownerId), eq(staffUsers.active, true), sql`${staffUsers.role} IN ('admin', 'qc')`))
+      .limit(1);
+    if (!owner) return { ok: false, error: 'Choose an active quality or administrator owner.' };
+    if (!serviceDueAt) return { ok: false, error: 'Set a service due date when assigning lot work.' };
+  } else {
+    serviceDueAt = null;
+  }
+  if (lot.assignedTo === owner?.id && lot.serviceDueAt?.getTime() === serviceDueAt?.getTime()) {
+    return { ok: false, error: 'Nothing changed.' };
+  }
+  const assignmentId = `las_${randomToken().slice(0, 24)}`;
+  const [changed] = await db.batch([
+    db.update(lots).set({ assignedTo: owner?.id ?? null, assignedName: owner?.name ?? null, serviceDueAt, lastAssignmentId: assignmentId, updatedAt: now })
+      .where(and(
+        eq(lots.id, lot.id),
+        isNull(lots.supersededById),
+        sql`${lots.assignedTo} IS ${lot.assignedTo}`,
+        sql`${lots.serviceDueAt} IS ${lot.serviceDueAt}`,
+        sql`${lots.lastAssignmentId} IS ${lot.lastAssignmentId}`,
+        owner ? sql`EXISTS (SELECT 1 FROM ${staffUsers} WHERE ${staffUsers.id} = ${owner.id} AND ${staffUsers.active} = 1 AND ${staffUsers.role} IN ('admin', 'qc'))` : sql`1 = 1`,
+      ))
+      .returning({ id: lots.id }),
+    db.insert(lotAssignmentEvents).select(db.select({
+      id: sql<string>`${assignmentId}`.as('id'),
+      lotId: lots.id,
+      fromOwnerId: sql<string | null>`${lot.assignedTo}`.as('from_owner_id'),
+      fromOwner: sql<string | null>`${lot.assignedName}`.as('from_owner'),
+      toOwnerId: sql<string | null>`${owner?.id ?? null}`.as('to_owner_id'),
+      toOwner: sql<string | null>`${owner?.name ?? null}`.as('to_owner'),
+      fromServiceDueAt: sql<number | null>`${lot.serviceDueAt ? Math.floor(lot.serviceDueAt.getTime() / 1000) : null}`.as('from_service_due_at'),
+      toServiceDueAt: sql<number | null>`${serviceDueAt ? Math.floor(serviceDueAt.getTime() / 1000) : null}`.as('to_service_due_at'),
+      assignedBy: sql<string>`${recordedBy(staff)}`.as('assigned_by'),
+      createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
+    }).from(lots).where(and(eq(lots.id, lot.id), eq(lots.lastAssignmentId, assignmentId)))),
+  ]);
+  return changed.length ? { ok: true } : { ok: false, error: 'The lot assignment changed while you were working. Reload and try again.' };
 }
 
 export type DispositionResult = { ok: true; status: string } | { ok: false; error: string };

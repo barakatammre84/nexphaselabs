@@ -3,15 +3,16 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArrowLeft, CircleCheck, Download, Flag } from 'lucide-react';
 import { VerificationDecisionForm } from '@/components/manage/verification-decision-form';
+import { QueueAssignmentForm } from '@/components/manage/queue-assignment-form';
 import { DOCUMENT_KIND_LABEL, ORGANIZATION_TYPE_LABEL, type OrganizationDocumentKind, type OrganizationType, decisionsFor } from '@/lib/organization-rules';
-import { getOrganizationDetail } from '@/lib/organizations';
+import { getOrganizationDetail, listVerificationAssignees } from '@/lib/organizations';
 import { canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
-import { decideVerificationAction } from '../actions';
+import { assignVerificationAction, decideVerificationAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Verification', robots: { index: false, follow: false } };
 
-type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ decided?: string; emailed?: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ decided?: string; emailed?: string; assigned?: string }> };
 
 function Row({ label, value }: { label: string; value: string | null | undefined }) {
   return (
@@ -24,7 +25,7 @@ function Row({ label, value }: { label: string; value: string | null | undefined
 
 export default async function VerificationDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
-  const { decided, emailed } = await searchParams;
+  const { decided, emailed, assigned } = await searchParams;
   const staff = await requireStaff(`/manage/verification/${id}`);
   // The decision form below already required this. The dossier itself holds an applicant's legal
   // name, address and uploaded identity documents, so reading it requires the same.
@@ -32,8 +33,9 @@ export default async function VerificationDetailPage({ params, searchParams }: P
   if (!/^org_[a-z0-9]{8,32}$/.test(id)) notFound();
   const detail = await getOrganizationDetail(id);
   if (!detail) notFound();
-  const { organization: org, account, documents, events } = detail;
+  const { organization: org, account, documents, events, assignmentEvents } = detail;
   const decisions = decisionsFor(org.verificationStatus);
+  const assignees = await listVerificationAssignees();
   const decidable = decisions.length > 0;
 
   return (
@@ -50,6 +52,7 @@ export default async function VerificationDetailPage({ params, searchParams }: P
               : 'The applicant has been emailed.'}
           </p>
         )}
+        {assigned && <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm"><CircleCheck className="size-4 text-primary" /> Assignment updated.</p>}
         <p className="mt-6 font-mono text-xs text-muted-foreground">
           {org.verificationStatus} &middot; submitted {org.submittedAt.toISOString().slice(0, 10)}
         </p>
@@ -124,6 +127,19 @@ export default async function VerificationDetailPage({ params, searchParams }: P
                 </p>
               )}
             </div>
+
+            <h2 className="mt-10 utility-label text-primary">Queue assignment</h2>
+            <dl className="mt-4 border-t border-border">
+              <Row label="Current owner" value={org.assignedName} />
+              <Row label="Service due" value={org.serviceDueAt?.toISOString().slice(0, 10)} />
+            </dl>
+            <QueueAssignmentForm ownerId={org.assignedTo ?? ''} people={assignees} due={org.serviceDueAt?.toISOString().slice(0, 10) ?? ''} action={assignVerificationAction.bind(null, org.id)} />
+            <p className="mt-6 text-sm font-semibold">Assignment history</p>
+            {assignmentEvents.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">No assignment changes recorded yet.</p> : (
+              <ul className="mt-2 divide-y divide-border border border-border text-sm">
+                {assignmentEvents.map((event) => <li key={event.id} className="p-3"><span className="font-mono text-xs">{event.createdAt.toISOString().slice(0, 10)}</span> · {event.fromOwner ?? 'Unassigned'} → <strong>{event.toOwner ?? 'Unassigned'}</strong> · due {event.toServiceDueAt?.toISOString().slice(0, 10) ?? '—'} · {event.assignedBy}</li>)}
+              </ul>
+            )}
 
             <h2 className="mt-10 utility-label text-primary">History</h2>
             <ul className="mt-4 divide-y divide-border border border-border text-sm">

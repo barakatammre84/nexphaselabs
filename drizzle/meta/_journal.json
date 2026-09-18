@@ -505,6 +505,13 @@
       "when": 1789762500000,
       "tag": "0071_sensitive_report_export_monitoring",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "6",
+      "when": 1789763000000,
+      "tag": "0072_queue_assignments",
+      "breakpoints": true
     }
   ]
 }

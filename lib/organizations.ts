@@ -1,15 +1,18 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
 import { STOREFRONT_COPY } from '@/lib/storefront-copy';
 import { getDb } from '@/db';
 import {
   accounts,
   organizationDocuments,
   organizations,
+  staffUsers,
   verificationEvents,
+  verificationAssignmentEvents,
   type Account,
   type Organization,
   type OrganizationDocument,
   type VerificationEvent,
+  type VerificationAssignmentEvent,
 } from '@/db/schema';
 import type { AccountPrincipal } from '@/lib/account-auth';
 import type { StoredDocument } from '@/lib/documents';
@@ -17,6 +20,7 @@ import { sendEmail } from '@/lib/email';
 import { DECISION_TARGET, decisionsFor, type OrganizationValidation, type VerificationDecision } from '@/lib/organization-rules';
 import { publicOrigin } from '@/lib/site-config';
 import type { StaffPrincipal } from '@/lib/staff-auth';
+import { roleHasPermission } from '@/lib/staff-roles';
 import { recordedBy } from '@/lib/lots-admin';
 import { ENTITY_FOOTER } from '@/lib/entity';
 
@@ -130,7 +134,7 @@ export async function attachOrganizationDocument(
 
 export type QueueRow = { organization: Organization; account: Account };
 
-export type VerificationQueueOptions = { query?: string; status?: string; page?: number };
+export type VerificationQueueOptions = { query?: string; status?: string; owner?: string; due?: 'overdue' | 'today' | 'upcoming' | 'unset'; page?: number };
 export function verificationQueuePage(raw?: string): number {
   const n = Number(raw);
   return Number.isSafeInteger(n) && n > 0 ? Math.min(n, 100000) : 1;
@@ -144,18 +148,34 @@ export async function listVerificationQueue(options: VerificationQueueOptions = 
   const status = options.status && options.status !== 'all'
     ? eq(organizations.verificationStatus, options.status)
     : undefined;
+  const owner = (options.owner ?? '').trim().slice(0, 120).toLowerCase();
+  const ownerMatch = owner ? sql`instr(lower(coalesce(${organizations.assignedName}, '')), ${owner}) > 0` : undefined;
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const tomorrow = new Date(today.getTime() + 86_400_000);
+  const todayEpoch = Math.floor(today.getTime() / 1000);
+  const tomorrowEpoch = Math.floor(tomorrow.getTime() / 1000);
+  const due = options.due === 'overdue'
+    ? sql`${organizations.serviceDueAt} < ${todayEpoch}`
+    : options.due === 'today'
+      ? sql`${organizations.serviceDueAt} >= ${todayEpoch} AND ${organizations.serviceDueAt} < ${tomorrowEpoch}`
+      : options.due === 'upcoming'
+        ? sql`${organizations.serviceDueAt} >= ${tomorrowEpoch}`
+        : options.due === 'unset'
+          ? isNull(organizations.serviceDueAt)
+          : undefined;
   const rows = await db
     .select({ organization: organizations, account: accounts })
     .from(organizations)
     .innerJoin(accounts, eq(organizations.accountId, accounts.id))
-    .where(and(matching, status))
+    .where(and(matching, status, ownerMatch, due))
     .orderBy(sql`CASE ${organizations.verificationStatus} WHEN 'submitted' THEN 0 WHEN 'more_info' THEN 1 WHEN 'approved' THEN 2 WHEN 'declined' THEN 3 ELSE 9 END`, desc(organizations.submittedAt))
     .limit(51)
     .offset((verificationQueuePage(String(options.page ?? 1)) - 1) * 50);
   return { rows: rows.slice(0, 50), hasNext: rows.length > 50 };
 }
 
-export type OrganizationDetail = QueueRow & { documents: OrganizationDocument[]; events: VerificationEvent[] };
+export type OrganizationDetail = QueueRow & { documents: OrganizationDocument[]; events: VerificationEvent[]; assignmentEvents: VerificationAssignmentEvent[] };
 
 export async function getOrganizationDetail(organizationId: string): Promise<OrganizationDetail | null> {
   const db = getDb();
@@ -166,11 +186,69 @@ export async function getOrganizationDetail(organizationId: string): Promise<Org
     .where(eq(organizations.id, organizationId))
     .limit(1);
   if (!row) return null;
-  const [documents, events] = await Promise.all([
+  const [documents, events, assignmentEvents] = await Promise.all([
     listOrganizationDocuments(organizationId),
     db.select().from(verificationEvents).where(eq(verificationEvents.organizationId, organizationId)).orderBy(asc(verificationEvents.createdAt)),
+    db.select().from(verificationAssignmentEvents).where(eq(verificationAssignmentEvents.organizationId, organizationId)).orderBy(asc(verificationAssignmentEvents.createdAt)),
   ]);
-  return { ...row, documents, events };
+  return { ...row, documents, events, assignmentEvents };
+}
+
+export async function assignVerification(
+  organization: Organization,
+  ownerId: string | null,
+  serviceDueAt: Date | null,
+  staff: StaffPrincipal,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!roleHasPermission(staff.role, 'accounts.approve')) return { ok: false, error: 'Only an admin can assign verification work.' };
+  const db = getDb();
+  const now = new Date();
+  let owner: { id: string; name: string } | null = null;
+  if (ownerId) {
+    [owner] = await db.select({ id: staffUsers.id, name: staffUsers.name }).from(staffUsers)
+      .where(and(eq(staffUsers.id, ownerId), eq(staffUsers.active, true), eq(staffUsers.role, 'admin')))
+      .limit(1);
+    if (!owner) return { ok: false, error: 'Choose an active administrator owner.' };
+    if (!serviceDueAt) return { ok: false, error: 'Set a service due date when assigning verification work.' };
+  } else {
+    serviceDueAt = null;
+  }
+  if (organization.assignedTo === owner?.id && organization.serviceDueAt?.getTime() === serviceDueAt?.getTime()) {
+    return { ok: false, error: 'Nothing changed.' };
+  }
+  const assignmentId = id('vas');
+  const [changed] = await db.batch([
+    db.update(organizations).set({ assignedTo: owner?.id ?? null, assignedName: owner?.name ?? null, serviceDueAt, lastAssignmentId: assignmentId, updatedAt: now })
+      .where(and(
+        eq(organizations.id, organization.id),
+        sql`${organizations.assignedTo} IS ${organization.assignedTo}`,
+        sql`${organizations.serviceDueAt} IS ${organization.serviceDueAt}`,
+        sql`${organizations.lastAssignmentId} IS ${organization.lastAssignmentId}`,
+        owner ? sql`EXISTS (SELECT 1 FROM ${staffUsers} WHERE ${staffUsers.id} = ${owner.id} AND ${staffUsers.active} = 1 AND ${staffUsers.role} = 'admin')` : sql`1 = 1`,
+      ))
+      .returning({ id: organizations.id }),
+    db.insert(verificationAssignmentEvents).select(db.select({
+      id: sql<string>`${assignmentId}`.as('id'),
+      organizationId: organizations.id,
+      fromOwnerId: sql<string | null>`${organization.assignedTo}`.as('from_owner_id'),
+      fromOwner: sql<string | null>`${organization.assignedName}`.as('from_owner'),
+      toOwnerId: sql<string | null>`${owner?.id ?? null}`.as('to_owner_id'),
+      toOwner: sql<string | null>`${owner?.name ?? null}`.as('to_owner'),
+      fromServiceDueAt: sql<number | null>`${organization.serviceDueAt ? Math.floor(organization.serviceDueAt.getTime() / 1000) : null}`.as('from_service_due_at'),
+      toServiceDueAt: sql<number | null>`${serviceDueAt ? Math.floor(serviceDueAt.getTime() / 1000) : null}`.as('to_service_due_at'),
+      assignedBy: sql<string>`${recordedBy(staff)}`.as('assigned_by'),
+      createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
+    }).from(organizations).where(and(eq(organizations.id, organization.id), eq(organizations.lastAssignmentId, assignmentId)))),
+  ]);
+  return changed.length ? { ok: true } : { ok: false, error: 'The verification assignment changed while you were working. Reload and try again.' };
+}
+
+export async function listVerificationAssignees(): Promise<{ id: string; name: string; role: string }[]> {
+  return getDb()
+    .select({ id: staffUsers.id, name: staffUsers.name, role: staffUsers.role })
+    .from(staffUsers)
+    .where(and(eq(staffUsers.active, true), eq(staffUsers.role, 'admin')))
+    .orderBy(asc(staffUsers.name));
 }
 
 export async function getOrganizationDocumentById(organizationId: string, documentId: string): Promise<OrganizationDocument | null> {

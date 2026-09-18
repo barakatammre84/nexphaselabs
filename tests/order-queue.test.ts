@@ -38,8 +38,8 @@ beforeEach(async () => {
         shipToPostalCode: '00000',
         shipToCountry: 'US',
         submittedAt: new Date(1700000000000 + i * 1000),
-         assignedTo: i % 2 === 0 ? 'ops' : null,
-         assignedName: i % 2 === 0 ? 'Operations' : null,
+         assignedTo: i > 0 && i % 2 === 0 ? 'ops' : null,
+         assignedName: i > 0 && i % 2 === 0 ? 'Operations' : null,
          serviceDueAt: i % 3 === 0 ? new Date('2027-01-15T12:00:00Z') : null,
       });
 });

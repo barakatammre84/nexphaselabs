@@ -13,17 +13,18 @@ import { labelPreviewForLot } from '@/lib/hazard-label';
 import { documentHistory } from '@/lib/issued-documents';
 import { ALLOWED_TRANSITIONS, TEST_TYPE_LABEL, lotNumberFromParam, publicationBlockers, publicationWarnings, releaseBlockers, type TestType } from '@/lib/lot-rules';
 import { lotVersions } from '@/lib/lot-family';
-import { LOT_STATUS_LABEL, currentDocumentKey, getLotDetail, lotToIntakeInput, type LotStatus } from '@/lib/lots-admin';
 import { canFulfil, canManageFinance, canRecordResults, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
 import { lotConsignees, reachabilityLabel, reachabilitySummary } from '@/lib/customer-reachability';
-import { addLotTestAction, correctLotAction, recordInventoryMovementAction, setLotDispositionAction } from '../actions';
+import { QueueAssignmentForm } from '@/components/manage/queue-assignment-form';
+import { LOT_STATUS_LABEL, currentDocumentKey, getLotDetail, listLotAssignees, lotToIntakeInput, type LotStatus } from '@/lib/lots-admin';
+import { addLotTestAction, assignLotAction, correctLotAction, recordInventoryMovementAction, setLotDispositionAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Lot', robots: { index: false, follow: false } };
 
 type Props = {
   params: Promise<{ lotNumber: string }>;
-  searchParams: Promise<{ received?: string; uploaded?: string; error?: string; tested?: string; decided?: string; cost?: string; corrected?: string; issued?: string; movement?: string }>;
+  searchParams: Promise<{ received?: string; uploaded?: string; error?: string; tested?: string; decided?: string; cost?: string; corrected?: string; issued?: string; movement?: string; assigned?: string }>;
 };
 
 const UPLOAD_ERROR: Record<string, string> = {
@@ -67,14 +68,14 @@ const MOVEMENT_LABEL: Record<string, string> = {
 
 export default async function LotDetailPage({ params, searchParams }: Props) {
   const { lotNumber } = await params;
-  const { received, uploaded, error, tested, decided, cost, corrected, issued, movement } = await searchParams;
+  const { received, uploaded, error, tested, decided, cost, corrected, issued, movement, assigned } = await searchParams;
   const staff = await requireStaff(`/manage/lots/${encodeURIComponent(lotNumber)}`);
 
   const normalised = lotNumberFromParam(lotNumber);
   if (!normalised) notFound();
   const detail = await getLotDetail(normalised);
   if (!detail) notFound();
-  const { lot, tests, movements, documents, statusEvents } = detail;
+  const { lot, tests, movements, documents, statusEvents, assignmentEvents } = detail;
   const versions = await lotVersions(lot.id);
   const correctionInitial = Object.fromEntries(Object.entries(lotToIntakeInput(lot)).map(([k, v]) => [k, v ?? '']));
   const blockers = releaseBlockers(lot, tests);
@@ -82,11 +83,12 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
   const pubWarnings = publicationWarnings(lot);
   const allowed = ALLOWED_TRANSITIONS[lot.status] ?? [];
   const uploadError = error ? (UPLOAD_ERROR[error] ?? UPLOAD_ERROR.store) : null;
-  const [coa, issuedDocs, label, consignees] = await Promise.all([
+  const [coa, issuedDocs, label, consignees, assignees] = await Promise.all([
     previewCoa(normalised),
     documentHistory('lot', lot.lotNumber),
     labelPreviewForLot(normalised),
     lotConsignees(lot.lotNumber),
+    listLotAssignees(),
   ]);
   const reach = reachabilitySummary(consignees);
   const coaHistory = issuedDocs.filter((d) => d.kind === 'coa');
@@ -103,6 +105,7 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
             <CircleCheck className="size-4 text-primary" /> Receipt recorded. The lot is in quarantine.
           </p>
         )}
+        {assigned && <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm"><CircleCheck className="size-4 text-primary" /> Assignment updated.</p>}
         {tested && (
           <p role="status" className="mt-6 flex items-center gap-2 border border-border bg-secondary p-4 text-sm">
             <CircleCheck className="size-4 text-primary" /> Test result recorded.
@@ -168,6 +171,18 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
           <div className="mt-6">
             <LotCorrectionForm initial={correctionInitial} quantityLocked={lot.quantityRemaining !== lot.quantityReceived} action={correctLotAction.bind(null, lot.lotNumber)} />
           </div>
+        )}
+        <h2 className="mt-10 utility-label text-primary">Queue assignment</h2>
+        <dl className="mt-4 border-t border-border">
+          <Row label="Current owner" value={lot.assignedName} />
+          <Row label="Service due" value={day(lot.serviceDueAt)} />
+        </dl>
+        {canRecordResults(staff) && <QueueAssignmentForm ownerId={lot.assignedTo ?? ''} people={assignees} due={day(lot.serviceDueAt) === '—' ? '' : day(lot.serviceDueAt)} action={assignLotAction.bind(null, lot.lotNumber)} />}
+        <p className="mt-6 text-sm font-semibold">Assignment history</p>
+        {assignmentEvents.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">No assignment changes recorded yet.</p> : (
+          <ul className="mt-2 divide-y divide-border border border-border text-sm">
+            {assignmentEvents.map((event) => <li key={event.id} className="p-3"><span className="font-mono text-xs">{day(event.createdAt)}</span> · {event.fromOwner ?? 'Unassigned'} → <strong>{event.toOwner ?? 'Unassigned'}</strong> · due {day(event.toServiceDueAt)} · {event.assignedBy}</li>)}
+          </ul>
         )}
 
         <div className="mt-10 grid gap-12 lg:grid-cols-2">

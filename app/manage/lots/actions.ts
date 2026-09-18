@@ -13,22 +13,25 @@ import {
   type LotIntakeInput,
   type LotTestInput,
 } from '@/lib/lot-rules';
-import { addLotTest, correctLot, createLot, getLot, lotToIntakeInput, setLotDisposition } from '@/lib/lots-admin';
+import { addLotTest, assignLot, correctLot, createLot, getLot, lotToIntakeInput, setLotDisposition } from '@/lib/lots-admin';
 import { getExpectedReceipt } from '@/lib/procurement';
 import type { Violation } from '@/lib/catalog-rules';
 import { canFulfil, canManageFinance, canRecordResults, canVerifyAccounts, getStaff } from '@/lib/staff-auth';
+import { isStaffUserId } from '@/lib/staff-auth-core';
 import {
   recordInventoryMovement,
   validateInventoryMovement,
   type InventoryMovementInput,
 } from '@/lib/inventory-movements';
-
 export type LotFormState = {
   values: Record<string, string>;
   errors: string[];
   violations: Violation[];
 };
 
+function assignmentValues(data: FormData) {
+  return { ownerId: String(data.get('ownerId') ?? '').trim(), due: String(data.get('due') ?? '').trim() };
+}
 const FIELDS = [
   'lotNumber',
   'productCode',
@@ -287,4 +290,35 @@ export async function recordInventoryMovementAction(
     return fail('The inventory movement could not be recorded. Try again shortly.');
   }
   redirect(`/manage/lots/${encodeURIComponent(number)}?movement=1`);
+}
+
+export async function assignLotAction(lotNumber: string, _prev: LotFormState, data: FormData): Promise<LotFormState> {
+  const values = assignmentValues(data);
+  const fail = (message: string): LotFormState => ({ values, errors: [message], violations: [] });
+  if (!(await sameOriginAction())) return fail('Request rejected: cross-origin.');
+  const staff = await getStaff();
+  if (!staff) redirect('/staff/sign-in?return_to=%2Fmanage%2Flots');
+  if (!canRecordResults(staff)) return fail('Only QC and admin roles can assign lot work.');
+  if (values.ownerId && !isStaffUserId(values.ownerId)) return fail('Choose a valid owner.');
+  const due = assignmentDate(values.due);
+  if (due === undefined) return fail('Enter a valid service due date.');
+  const number = lotNumberFromParam(lotNumber);
+  if (!number) return fail('Unknown lot.');
+  try {
+    const lot = await getLot(number);
+    if (!lot) return fail('Unknown lot.');
+    const result = await assignLot(lot, values.ownerId || null, due, staff);
+    if (!result.ok) return fail(result.error);
+  } catch (error) {
+    console.error('[lots] assignment failed', error instanceof Error ? error.message : error);
+    return fail('The assignment could not be recorded. Try again shortly.');
+  }
+  redirect(`/manage/lots/${encodeURIComponent(number)}?assigned=1`);
+}
+
+function assignmentDate(raw: string): Date | null | undefined {
+  if (!raw) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return undefined;
+  const date = new Date(`${raw}T12:00:00.000Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== raw ? undefined : date;
 }

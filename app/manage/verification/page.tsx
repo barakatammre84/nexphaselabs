@@ -25,7 +25,7 @@ const STATUS_LABEL: Record<string, string> = {
 export default async function VerificationQueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; owner?: string; due?: string; page?: string }>;
 }) {
   // The decision has always required this capability; so must reading the dossier, which holds
   // an applicant's legal name, address and uploaded identity documents.
@@ -35,8 +35,10 @@ export default async function VerificationQueuePage({
   const requested = params.status ?? '';
   const status = Object.hasOwn(STATUS_LABEL, requested) ? requested : '';
   const query = (params.q ?? '').trim().slice(0, 120);
+  const owner = (params.owner ?? '').trim().slice(0, 120);
+  const due = ['overdue', 'today', 'upcoming', 'unset'].includes(params.due ?? '') ? params.due as 'overdue' | 'today' | 'upcoming' | 'unset' : undefined;
   const page = verificationQueuePage(params.page);
-  const loaded = await loadCatalog(() => listVerificationQueue({ query, status, page }));
+  const loaded = await loadCatalog(() => listVerificationQueue({ query, status, owner, due, page }));
   const rows = loaded.data?.rows ?? [];
 
   return (
@@ -67,6 +69,14 @@ export default async function VerificationQueuePage({
                   {label}
                 </option>
               ))}
+            </select>
+          </label>
+          <label className="grid gap-2 text-sm font-semibold">Owner
+            <input name="owner" defaultValue={owner} maxLength={120} className="min-h-11 rounded-md border border-input px-3" />
+          </label>
+          <label className="grid gap-2 text-sm font-semibold">Service due
+            <select name="due" defaultValue={due ?? ''} className="min-h-11 rounded-md border border-input bg-background px-3">
+              <option value="">Any date</option><option value="overdue">Overdue</option><option value="today">Today</option><option value="upcoming">Upcoming</option><option value="unset">Not set</option>
             </select>
           </label>
           <label className="grid min-w-0 flex-1 basis-64 gap-2 text-sm font-semibold">
@@ -131,7 +141,7 @@ export default async function VerificationQueuePage({
                       {organization.reviewFlags.length || '—'}
                     </td>
                     <td className="p-4">
-                      {organization.reviewedBy ?? 'Unassigned'}<span className="block text-xs text-muted-foreground">due {organization.submittedAt.toISOString().slice(0, 10)}</span>
+                       {organization.assignedName ?? 'Unassigned'}<span className="block text-xs text-muted-foreground">due {organization.serviceDueAt?.toISOString().slice(0, 10) ?? '—'}</span>
                     </td>
                     <td className="p-4">
                       {STATUS_LABEL[organization.verificationStatus] ??
@@ -150,7 +160,7 @@ export default async function VerificationQueuePage({
                 <article key={organization.id} className="grid gap-2 p-4 text-sm">
                   <Link href={`/manage/verification/${organization.id}`} className="font-semibold text-primary">{organization.legalName}</Link>
                   <span>{account.name} · {account.email}</span>
-                  <span className="text-muted-foreground">Owner: {organization.reviewedBy ?? 'Unassigned'} · Due: {organization.submittedAt?.toISOString().slice(0, 10) ?? '—'}</span>
+                   <span className="text-muted-foreground">Owner: {organization.assignedName ?? 'Unassigned'} · Due: {organization.serviceDueAt?.toISOString().slice(0, 10) ?? '—'}</span>
                   <span>Blocker: {organization.reviewNote ?? (organization.reviewFlags.length ? `${organization.reviewFlags.length} review flag(s)` : 'None recorded')} · Next: {organization.verificationStatus === 'submitted' ? 'Review dossier and evidence' : 'Monitor resubmission or renewal'}</span>
                   <span className="text-xs text-muted-foreground">Latest evidence: {organization.reviewedAt ? `Decision ${organization.reviewedAt.toISOString().slice(0, 10)}` : 'Submission documents'}</span>
                 </article>
@@ -160,8 +170,8 @@ export default async function VerificationQueuePage({
         )}
         {!loaded.unavailable && (page > 1 || loaded.data?.hasNext) && (
           <nav aria-label="Verification pages" className="mt-6 flex gap-3">
-            {page > 1 && <Link href={`/manage/verification?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&page=${page - 1}`} className="action-secondary">Previous page</Link>}
-            {loaded.data?.hasNext && <Link href={`/manage/verification?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&page=${page + 1}`} className="action-secondary">Next page</Link>}
+            {page > 1 && <Link href={`/manage/verification?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&owner=${encodeURIComponent(owner)}&due=${due ?? ''}&page=${page - 1}`} className="action-secondary">Previous page</Link>}
+            {loaded.data?.hasNext && <Link href={`/manage/verification?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&owner=${encodeURIComponent(owner)}&due=${due ?? ''}&page=${page + 1}`} className="action-secondary">Next page</Link>}
           </nav>
         )}
       </section>

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { localD1 } from './helpers/local-d1';
 
 const { env } = vi.hoisted(() => ({ env: {} as { DB?: D1Database } }));
@@ -78,17 +79,24 @@ describe('public released-lot search', () => {
     expect(await searchReleasedLots('A_')).toEqual([]);
   });
   it('paginates and searches the staff lot queue server-side', async () => {
-    await getDb().insert(lots).values(Array.from({ length: 52 }, (_, i) => ({
-      id: `queue_${i}`, lotNumber: `QUEUE-${String(i).padStart(3, '0')}`,
-      productCode: 'NPL-Q', productName: i === 51 ? 'Target material' : 'Queue material',
-      casNumber: '80-00-0', receivedAt: new Date(1700000000000 + i * 1000),
-    })));
+    for (let i = 0; i < 53; i += 1) {
+      await getDb().insert(lots).values({
+        id: `queue_${i}`, lotNumber: `QUEUE-${String(i).padStart(3, '0')}`,
+        productCode: 'NPL-Q', productName: i === 51 ? 'Target material' : 'Queue material',
+        casNumber: '80-00-0', receivedAt: new Date(1700000000000 + i * 1000),
+      });
+    }
     const first = await listLots();
     const second = await listLots({ page: 2 });
     expect(first.rows).toHaveLength(50);
     expect(first.hasNext).toBe(true);
     expect(second.rows).toHaveLength(5);
     expect((await listLots({ query: 'target' })).rows.map((row) => row.lotNumber)).toEqual(['QUEUE-051']);
+    const tomorrow = new Date();
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    await getDb().update(lots).set({ assignedTo: 'staff_quality', assignedName: 'Quality Team', serviceDueAt: tomorrow }).where(eq(lots.lotNumber, 'QUEUE-051'));
+    expect((await listLots({ owner: 'quality' })).rows.map((row) => row.lotNumber)).toEqual(['QUEUE-051']);
+    expect((await listLots({ due: 'upcoming' })).rows.map((row) => row.lotNumber)).toEqual(['QUEUE-051']);
   });
 });
 

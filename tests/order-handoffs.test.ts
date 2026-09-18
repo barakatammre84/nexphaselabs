@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { localD1 } from './helpers/local-d1';
 
 const { env } = vi.hoisted(() => ({ env: {} as { DB?: D1Database } }));
@@ -42,7 +43,7 @@ async function order(id = 'order', orderNumber = 'NX-260908-0001') {
     shipToCountry: 'US',
     submittedAt: now,
   });
-  return (await getDb().select().from(orders))[0];
+  return (await getDb().select().from(orders).where(eq(orders.id, id)))[0];
 }
 
 beforeEach(async () => {

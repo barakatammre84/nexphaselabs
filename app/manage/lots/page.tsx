@@ -30,16 +30,18 @@ function day(d: Date | null): string {
 export default async function LotsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; owner?: string; due?: string; page?: string }>;
 }) {
   await requireStaff('/manage/lots');
   const params = await searchParams;
   const requested = params.status ?? '';
   const status = Object.hasOwn(LOT_STATUS_LABEL, requested) ? requested : '';
   const query = (params.q ?? '').trim().slice(0, 120);
+  const owner = (params.owner ?? '').trim().slice(0, 120);
+  const due = ['overdue', 'today', 'upcoming', 'unset'].includes(params.due ?? '') ? params.due as 'overdue' | 'today' | 'upcoming' | 'unset' : undefined;
   const page = queuePage(params.page);
   const loaded = await loadCatalog(async () => ({
-    lots: await listLots({ query, status, page }),
+    lots: await listLots({ query, status, owner, due, page }),
     alerts: await lotAlerts(),
   }));
   const items = loaded.data?.lots.rows ?? [];
@@ -82,6 +84,14 @@ export default async function LotsPage({
                   {label}
                 </option>
               ))}
+            </select>
+          </label>
+          <label className="grid gap-2 text-sm font-semibold">Owner
+            <input name="owner" defaultValue={owner} maxLength={120} className="min-h-11 rounded-md border border-input px-3" />
+          </label>
+          <label className="grid gap-2 text-sm font-semibold">Service due
+            <select name="due" defaultValue={due ?? ''} className="min-h-11 rounded-md border border-input bg-background px-3">
+              <option value="">Any date</option><option value="overdue">Overdue</option><option value="today">Today</option><option value="upcoming">Upcoming</option><option value="unset">Not set</option>
             </select>
           </label>
           <label className="grid min-w-0 flex-1 basis-64 gap-2 text-sm font-semibold">
@@ -158,9 +168,9 @@ export default async function LotsPage({
                       {day(lot.retestDate)}
                     </td>
                     <td className="p-4">
-                      {lot.releasedBy ?? 'Unassigned'}
+                       {lot.assignedName ?? 'Unassigned'}
                       <span className="block text-xs text-muted-foreground">
-                        due {day(lot.retestDate)}
+                         due {day(lot.serviceDueAt)}
                       </span>
                     </td>
                     <td className="p-4">
@@ -190,7 +200,7 @@ export default async function LotsPage({
                 <article key={lot.id} className="grid gap-2 p-4 text-sm">
                   <Link href={`/manage/lots/${encodeURIComponent(lot.lotNumber)}`} className="font-semibold text-primary">{lot.lotNumber}</Link>
                   <span>{lot.productName} <span className="font-mono text-xs text-muted-foreground">{lot.productCode}</span></span>
-                  <span className="text-muted-foreground">Owner: {lot.releasedBy ?? 'Unassigned'} · Due: {day(lot.retestDate)}</span>
+                   <span className="text-muted-foreground">Owner: {lot.assignedName ?? 'Unassigned'} · Due: {day(lot.serviceDueAt)}</span>
                   <span>Blocker: {lot.statusReason ?? 'None recorded'} · Next: {lot.status === 'quarantine' ? 'Review evidence and release' : 'Monitor lot status'}</span>
                   <span className="text-xs text-muted-foreground">Latest evidence: {lot.coaKey || lot.sdsKey || lot.chromatogramKey || lot.massSpecKey ? 'Document recorded' : 'None recorded'}</span>
                 </article>
@@ -200,8 +210,8 @@ export default async function LotsPage({
         )}
         {!loaded.unavailable && (page > 1 || loaded.data?.lots.hasNext) && (
           <nav aria-label="Lot pages" className="mt-6 flex gap-3">
-            {page > 1 && <Link href={`/manage/lots?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&page=${page - 1}`} className="action-secondary">Previous page</Link>}
-            {loaded.data?.lots.hasNext && <Link href={`/manage/lots?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&page=${page + 1}`} className="action-secondary">Next page</Link>}
+            {page > 1 && <Link href={`/manage/lots?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&owner=${encodeURIComponent(owner)}&due=${due ?? ''}&page=${page - 1}`} className="action-secondary">Previous page</Link>}
+            {loaded.data?.lots.hasNext && <Link href={`/manage/lots?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&owner=${encodeURIComponent(owner)}&due=${due ?? ''}&page=${page + 1}`} className="action-secondary">Next page</Link>}
           </nav>
         )}
       </section>
