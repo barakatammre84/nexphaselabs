@@ -63,6 +63,16 @@ export function BulkAssignmentView({
   const someSelected = selectedCount > 0 && !allSelected;
 
   useEffect(() => {
+    const visibleOrderIds = new Set(rows.map((row) => row.id));
+    setSelectedOrderIds((current) => {
+      const next = new Set(
+        [...current].filter((orderId) => visibleOrderIds.has(orderId)),
+      );
+      return next.size === current.size ? current : next;
+    });
+  }, [rows]);
+
+  useEffect(() => {
     if (selectAllRef.current) {
       selectAllRef.current.indeterminate = someSelected;
     }

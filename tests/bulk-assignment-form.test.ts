@@ -93,4 +93,60 @@ describe('bulk assignment page selection', () => {
     expect(selectAll.checked).toBe(false);
     expect(selectAll.indeterminate).toBe(true);
   });
+
+  it('drops removed rows and starts newly visible rows unselected', async () => {
+    const user = userEvent.setup();
+    const owners = [{ id: 'owner-1', name: 'Order owner' }];
+    const { container, rerender } = render(
+      createElement(BulkAssignmentForm, {
+        rows: rows.slice(0, 2),
+        owners,
+      }),
+    );
+
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: 'Select all orders on this page',
+      }),
+    );
+    expect(screen.getByText('2 selected')).toBeTruthy();
+
+    rerender(
+      createElement(BulkAssignmentForm, {
+        rows: [rows[1], rows[2]],
+        owners,
+      }),
+    );
+
+    const selectAll = screen.getByRole('checkbox', {
+      name: 'Select all orders on this page',
+    }) as HTMLInputElement;
+    const visibleCheckboxes = screen.getAllByRole('checkbox', {
+      name: /NX-260918-/,
+    }) as HTMLInputElement[];
+
+    expect(screen.queryByRole('checkbox', { name: rows[0].orderNumber })).toBe(
+      null,
+    );
+    expect(visibleCheckboxes[0].checked).toBe(true);
+    expect(visibleCheckboxes[1].checked).toBe(false);
+    expect(screen.getByText('1 selected')).toBeTruthy();
+    expect(selectAll.checked).toBe(false);
+    expect(selectAll.indeterminate).toBe(true);
+
+    const formData = new FormData(container.querySelector('form')!);
+    expect(
+      formData.getAll('orders').map((value) => JSON.parse(String(value)).id),
+    ).toEqual([rows[1].id]);
+
+    await user.click(selectAll);
+
+    expect(visibleCheckboxes.every((checkbox) => checkbox.checked)).toBe(true);
+    expect(screen.getByText('2 selected')).toBeTruthy();
+    expect(
+      new FormData(container.querySelector('form')!)
+        .getAll('orders')
+        .map((value) => JSON.parse(String(value)).id),
+    ).toEqual([rows[1].id, rows[2].id]);
+  });
 });
