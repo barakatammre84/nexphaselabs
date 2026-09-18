@@ -28,9 +28,10 @@ The highest software-control risks are:
    destructive shipping actions are available through `canFulfil`
    (`lib/staff-roles.ts:5-30,38-51`,
    `app/api/manage/orders/[orderNumber]/shipping/refund/route.ts:13-21`).
-2. Sensitive CSV exports have no export event, purpose, step-up confirmation,
-   or download audit, although they contain customer and financial data
-   (`app/api/manage/reports/orders.csv/route.ts:7-25`).
+2. Sensitive CSV exports now require the dedicated report permission and a
+   stated purpose, record an attributed download event, and omit fields not
+   needed by each operational report. Retention and monitoring policy approval
+   remains an external dependency.
 3. The readiness ledger records evidence but does not itself block all
    launch-critical selling or shipping paths; this is intentional in code but
    needs an explicit business gate (`lib/operational-controls.ts:38-52`).

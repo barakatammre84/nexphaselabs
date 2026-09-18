@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { localD1 } from './helpers/local-d1';
 const { env, auth } = vi.hoisted(() => ({ env: {} as { DB?: D1Database }, auth: { role: 'admin' as string | null } }));
 vi.mock('cloudflare:workers', () => ({ env }));
-vi.mock('@/lib/staff-auth', () => ({ getStaffFromRequest: async () => auth.role ? { role: auth.role } : null, canVerifyAccounts: (s: { role: string }) => s.role === 'admin' }));
+vi.mock('@/lib/staff-auth', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/staff-auth')>()), getStaffFromRequest: async () => auth.role ? { id: 'staff_admin', name: 'Admin', email: 'admin@example.invalid', sessionId: 'session', mustChangePassword: false, role: auth.role } : null }));
 import { getDb } from '@/db';
-import { accounts, lots, orderItems, orders } from '@/db/schema';
+import { accounts, lots, orderItems, orders, staffEvents } from '@/db/schema';
 import { orderLines, reportPeriod, revenueByProduct } from '@/lib/reports';
 import { GET } from '@/app/api/manage/reports/orders.csv/route';
 let local: ReturnType<typeof localD1>;
@@ -36,7 +36,7 @@ describe('report reconciliation', () => {
     expect(await revenueByProduct()).toMatchObject([{ revenueCents: 300, refundedCents: 50, costCents: 40 }]);
   });
   it('exports order totals and obligations once, with net and gross margins distinguished', async () => {
-    const response = await GET(new Request('https://example.invalid/api/manage/reports/orders.csv'));
+    const response = await GET(new Request('https://example.invalid/api/manage/reports/orders.csv?purpose=Monthly+financial+reconciliation'));
     expect(response.status).toBe(200);
     const rows = (await response.text()).trim().split(/\r?\n/).map((r) =>
       [...r.matchAll(/(?:^|,)(?:"((?:""|[^"])*)"|([^,]*))/g)].map((m) => (m[1] ?? m[2]).replace(/""/g, '"')));
@@ -44,9 +44,23 @@ describe('report reconciliation', () => {
     for (const [header, expected] of [['Order total', '3.50'], ['Order shipping', '0.50'], ['Order refund outstanding', '0.50'], ['Order refund', '0.50']]) {
       expect(rows[1][index(header)]).toBe(expected); expect(rows[2][index(header)]).toBe('');
     }
-    expect(rows[1][index('Ship to')]).toBe('Test, Test, CA, 00000, US');
+    expect(index('Customer')).toBe(-1);
+    expect(index('Email')).toBe(-1);
+    expect(index('Ship to')).toBe(-1);
     expect(rows[1][index('Delivered on')]).toBe('2026-09-09');
     expect(rows[1].at(-1)).toBe('0.30'); expect(rows[2].at(-1)).toBe('1.80');
+  });
+  it('requires and records an attributed purpose and filters', async () => {
+    expect((await GET(new Request('https://example.invalid/api/manage/reports/orders.csv'))).status).toBe(400);
+    const response = await GET(new Request('https://example.invalid/api/manage/reports/orders.csv?from=2026-09-01&to=2026-09-30&purpose=Monthly+financial+reconciliation'));
+    expect(response.status).toBe(200);
+    const [event] = await getDb().select().from(staffEvents);
+    expect(event).toMatchObject({ userId: 'staff_admin', action: 'sensitive_report_export', actor: 'Admin (staff_admin)' });
+    expect(JSON.parse(event.detail ?? '{}')).toEqual({
+      purpose: 'Monthly financial reconciliation',
+      reportType: 'orders',
+      filters: { from: '2026-09-01', to: '2026-09-30' },
+    });
   });
   it('excludes cancelled orders from sales while retaining their refund obligation in the order report', async () => {
     local.sqlite.exec("UPDATE orders SET status = 'cancelled'");
@@ -55,6 +69,6 @@ describe('report reconciliation', () => {
   });
   it.each([null, 'qc'])('refuses exports to non-admin callers: %s', async (role) => {
     auth.role = role;
-    expect((await GET(new Request('https://example.invalid/api/manage/reports/orders.csv'))).status).toBe(role ? 403 : 401);
+    expect((await GET(new Request('https://example.invalid/api/manage/reports/orders.csv?purpose=Monthly+financial+reconciliation'))).status).toBe(role ? 403 : 401);
   });
 });

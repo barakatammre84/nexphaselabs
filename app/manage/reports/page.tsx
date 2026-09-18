@@ -5,7 +5,8 @@ import { loadCatalog } from '@/lib/catalog-data';
 import { dollars, utcDay } from '@/lib/csv';
 import { LOT_STATUS_LABEL, type LotStatus } from '@/lib/lots-admin';
 import { lotInventory, movementsForConsignee, reportPeriod, revenueByProduct } from '@/lib/reports';
-import { canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
+import { canDownloadSensitiveReports } from '@/lib/report-exports';
+import { requireStaff } from '@/lib/staff-auth';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Reports', robots: { index: false, follow: false } };
@@ -17,16 +18,15 @@ const td = 'p-3 align-top';
 
 export default async function ReportsPage({ searchParams }: Props) {
   const staff = await requireStaff('/manage/reports');
-  const admin = canVerifyAccounts(staff);
+  const admin = canDownloadSensitiveReports(staff);
   const { consignee, from, to } = await searchParams;
   const filter = (consignee ?? '').slice(0, 80);
   const period = reportPeriod(from, to);
-  const periodQuery = new URLSearchParams({ from: period.fromText, to: period.toText }).toString();
   const exports = [
-    { href: `/api/manage/reports/orders.csv?${periodQuery}`, title: 'Orders', detail: 'One row per order line submitted in the selected period: customer, organisation, SKU, quantity, price, lot, allocated cost and margin.' },
-    { href: `/api/manage/reports/shipments.csv?${periodQuery}`, title: 'Movement ledger', detail: 'Every inventory movement occurring in the selected period, including named consignee, carrier and recorder.' },
-    { href: '/api/manage/reports/lots.csv', title: 'Inventory by lot', detail: 'Current point-in-time quantity, landed cost, status, release and retest dates; this snapshot is not period-filtered.' },
-    { href: '/api/manage/reports/affiliates.csv', title: 'Partner commissions', detail: 'Every partner commission with the payout that settled it. Add ?year=YYYY for the calendar-year payment total per partner, which is what a contractor information return is prepared from.' },
+    { href: '/api/manage/reports/orders.csv', period: true, title: 'Orders', detail: 'One row per order line submitted in the selected period, limited to order, product, payment, refund, cost and margin fields.' },
+    { href: '/api/manage/reports/shipments.csv', period: true, title: 'Movement ledger', detail: 'Every inventory movement occurring in the selected period, limited to custody, destination and carrier fields.' },
+    { href: '/api/manage/reports/lots.csv', period: false, title: 'Inventory by lot', detail: 'Current quantity, landed cost, status, release and retest dates; supplier notes are omitted.' },
+    { href: '/api/manage/reports/affiliates.csv', period: false, title: 'Partner commissions', detail: 'Partner commission and payout settlement fields; account and payout email addresses are omitted.' },
   ];
 
   const inventory = admin ? await loadCatalog(lotInventory) : null;
@@ -70,9 +70,16 @@ export default async function ReportsPage({ searchParams }: Props) {
                 <li key={e.href} className="bg-background p-6">
                   <h3 className="font-display text-lg font-bold tracking-tight">{e.title}</h3>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">{e.detail}</p>
-                  <a href={e.href} className="mt-4 inline-flex h-10 items-center gap-2 bg-primary px-4 text-sm font-bold text-primary-foreground hover:bg-primary/90">
-                    <Download className="size-4" /> Download CSV
-                  </a>
+                  <form action={e.href} method="get" className="mt-4 grid gap-3">
+                    {e.period ? <><input type="hidden" name="from" value={period.fromText} /><input type="hidden" name="to" value={period.toText} /></> : null}
+                    <label className="grid gap-2 text-xs font-semibold">
+                      Operational purpose
+                      <input name="purpose" required minLength={12} maxLength={200} placeholder="Why this export is needed" className="h-10 border border-input bg-background px-3 text-sm" />
+                    </label>
+                    <button type="submit" className="inline-flex h-10 items-center justify-center gap-2 bg-primary px-4 text-sm font-bold text-primary-foreground hover:bg-primary/90">
+                      <Download className="size-4" /> Download CSV
+                    </button>
+                  </form>
                 </li>
               ))}
             </ul>

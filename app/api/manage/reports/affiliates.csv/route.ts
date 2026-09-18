@@ -1,6 +1,7 @@
 import { commissionLedger, payoutYearTotals } from '@/lib/affiliates';
 import { businessDay, csvResponse, dollars, toCsv } from '@/lib/csv';
-import { canVerifyAccounts, getStaffFromRequest } from '@/lib/staff-auth';
+import { canDownloadSensitiveReports, exportPurpose, recordSensitiveExport } from '@/lib/report-exports';
+import { getStaffFromRequest } from '@/lib/staff-auth';
 
 /**
  * The partner commission ledger, and with `?year=YYYY` the calendar-year payment total per
@@ -11,15 +12,19 @@ import { canVerifyAccounts, getStaffFromRequest } from '@/lib/staff-auth';
 export async function GET(request: Request) {
   const staff = await getStaffFromRequest(request);
   if (!staff) return new Response('Unauthorized', { status: 401 });
-  if (!canVerifyAccounts(staff)) return new Response('Forbidden', { status: 403 });
+  if (!canDownloadSensitiveReports(staff)) return new Response('Forbidden', { status: 403 });
 
-  const year = Number(new URL(request.url).searchParams.get('year') ?? '');
+  const url = new URL(request.url);
+  const purpose = exportPurpose(url.searchParams);
+  if (!purpose) return new Response('A purpose of 12 to 200 characters is required.', { status: 400 });
+  const year = Number(url.searchParams.get('year') ?? '');
   if (Number.isInteger(year) && year > 2000) {
     const rows = await payoutYearTotals(year);
     const body = toCsv(
-      ['Partner', 'Code', 'Account email', 'Payout email', 'Tax form', 'Form filed at', 'Payouts', 'Paid in year'],
-      rows.map((r) => [r.name, r.code, r.email, r.payoutEmail ?? '', r.taxFormStatus, r.taxFormReference ?? '', r.payouts, dollars(r.paidCents)]),
+      ['Partner', 'Code', 'Tax form', 'Form filed at', 'Payouts', 'Paid in year'],
+      rows.map((r) => [r.name, r.code, r.taxFormStatus, r.taxFormReference ?? '', r.payouts, dollars(r.paidCents)]),
     );
+    await recordSensitiveExport({ staff, purpose, reportType: 'affiliate-year-totals', filters: { year: String(year) }, userAgent: request.headers.get('user-agent') });
     return csvResponse(`nexphase-partner-payments-${year}.csv`, body);
   }
 
@@ -31,5 +36,6 @@ export async function GET(request: Request) {
       dollars(r.amountCents), r.status, businessDay(r.vestedAt), businessDay(r.payoutSentAt), r.payoutReference ?? '',
     ]),
   );
+  await recordSensitiveExport({ staff, purpose, reportType: 'affiliate-commissions', filters: {}, userAgent: request.headers.get('user-agent') });
   return csvResponse('nexphase-partner-commissions.csv', body);
 }

@@ -1,16 +1,20 @@
 import { businessDay, csvResponse, dollars, toCsv, utcDay } from '@/lib/csv';
+import { canDownloadSensitiveReports, exportPurpose, recordSensitiveExport } from '@/lib/report-exports';
 import { lotInventory } from '@/lib/reports';
-import { canVerifyAccounts, getStaffFromRequest } from '@/lib/staff-auth';
+import { getStaffFromRequest } from '@/lib/staff-auth';
 
 /** Inventory by lot with landed cost. Admin only. */
 export async function GET(request: Request) {
   const staff = await getStaffFromRequest(request);
   if (!staff) return new Response('Unauthorized', { status: 401 });
-  if (!canVerifyAccounts(staff)) return new Response('Forbidden', { status: 403 });
+  if (!canDownloadSensitiveReports(staff)) return new Response('Forbidden', { status: 403 });
+  const purpose = exportPurpose(new URL(request.url).searchParams);
+  if (!purpose) return new Response('A purpose of 12 to 200 characters is required.', { status: 400 });
   const rows = await lotInventory();
   const body = toCsv(
-    ['Lot', 'Product code', 'Product', 'Status', 'Received', 'Manufacturer', 'Supplier', 'Quantity received', 'Quantity remaining', 'Landed cost', 'Cost note', 'Released', 'Retest'],
-    rows.map((r) => [r.lotNumber, r.productCode, r.productName, r.status, utcDay(r.receivedOn), r.manufacturerName, r.supplierName, r.quantityReceived, r.quantityRemaining, dollars(r.costCents), r.costNote, businessDay(r.releasedOn), utcDay(r.retestDate)]),
+    ['Lot', 'Product code', 'Product', 'Status', 'Received', 'Quantity received', 'Quantity remaining', 'Landed cost', 'Released', 'Retest'],
+    rows.map((r) => [r.lotNumber, r.productCode, r.productName, r.status, utcDay(r.receivedOn), r.quantityReceived, r.quantityRemaining, dollars(r.costCents), businessDay(r.releasedOn), utcDay(r.retestDate)]),
   );
+  await recordSensitiveExport({ staff, purpose, reportType: 'lots', filters: { snapshot: new Date().toISOString().slice(0, 10) }, userAgent: request.headers.get('user-agent') });
   return csvResponse(`nexphase-lots-${new Date().toISOString().slice(0, 10)}.csv`, body);
 }

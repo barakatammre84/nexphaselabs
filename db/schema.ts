@@ -582,7 +582,7 @@ export const staffEvents = sqliteTable(
     id: text('id').primaryKey(),
     /** The staff user the event is about. */
     userId: text('user_id').notNull(),
-    /** create | role | deactivate | reactivate | password_reset | password_changed | sessions_revoked | sign_in | sign_in_failed | locked */
+    /** Staff identity changes, authentication events, and sensitive_report_export. */
     action: text('action').notNull(),
     detail: text('detail'),
     /** "Name (stf_id)" of the actor, or "self" / "system". */
