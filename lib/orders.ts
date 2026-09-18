@@ -478,6 +478,25 @@ export async function createOrderFromCart(
           orders,
           accepted,
         ),
+        // A discounted order must never commit without its per-account usage record.
+        // Guard this insert just like order items: rejected/duplicate submissions
+        // must not consume another redemption.
+        ...(coupon?.ok ? [
+          conditionalInsert(
+            couponRedemptions,
+            {
+              id: id('cpr'),
+              couponId: coupon.coupon.id,
+              orderId,
+              accountId: account.id,
+              code: coupon.coupon.code,
+              discountCents: totals.discountCents,
+              createdAt: now,
+            },
+            orders,
+            accepted,
+          ),
+        ] : []),
         // The cart is cleared in the same transaction as the order is written.
         db
           .delete(cartItems)
@@ -513,27 +532,10 @@ export async function createOrderFromCart(
             'Your account, delivery address, cart or available offer changed. Reload and review before submitting again.',
         };
       }
+      // The order and redemption record committed together. Retain the earlier
+      // cap claim only now; failed batches return it in finally.
+      if (coupon?.ok) couponConsumed = true;
       recordCommerceEvent('order_submitted', { source: 'storefront' });
-      if (coupon?.ok) {
-        // The count was already incremented by the claim above, so this writes only the record of
-        // which order spent it. Marking it consumed is what stops the finally handing the claim back.
-        couponConsumed = true;
-        try {
-          await db.batch([
-            db.insert(couponRedemptions).values({
-              id: id('cpr'),
-              couponId: coupon.coupon.id,
-              orderId,
-              accountId: account.id,
-              code: coupon.coupon.code,
-              discountCents: totals.discountCents,
-              createdAt: now,
-            }),
-          ]);
-        } catch (error) {
-          console.error('[orders] coupon redemption not recorded', orderNumber, error instanceof Error ? error.message : error);
-        }
-      }
       // A partner's commission accrues here and is a liability from this moment (lib/affiliates.ts).
       // It is calculated on materials after any promo code, never on shipping or tax, and a failure
       // is logged rather than raised: nobody's order fails because of somebody else's commission.

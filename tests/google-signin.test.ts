@@ -240,7 +240,6 @@ describe('completing a Google sign-up', () => {
   const identity = { subject: 'google-sub-1', email: 'ada@example.org', emailVerified: true, name: 'Ada Lovelace' };
   const good = {
     tier: 'researcher',
-    dateOfBirth: '1980-01-01',
     acceptTerms: true,
     acceptRuo: true,
     acceptAge: true,
@@ -248,7 +247,6 @@ describe('completing a Google sign-up', () => {
 
   it('will not create an account without the age and the acknowledgements Google cannot give', async () => {
     for (const [field, value, expected] of [
-      ['dateOfBirth', '', 'Enter your date of birth.'],
       ['acceptTerms', false, 'You must accept the terms of sale.'],
       ['acceptRuo', false, 'You must confirm the research-use acknowledgement.'],
       ['acceptAge', false, 'You must confirm that you are at least 21 years of age.'],
@@ -261,7 +259,7 @@ describe('completing a Google sign-up', () => {
     expect(local.sqlite.prepare('SELECT count(*) AS n FROM accounts').get()).toEqual({ n: 0 });
   });
 
-  it('creates an active, already-verified account linked to the Google subject', async () => {
+  it('creates a researcher without a DOB, persisting the age and research-use consent', async () => {
     const result = await completeGoogleSignUp(identity, good, 'test-agent', true);
     expect(result.ok).toBe(true);
     const account = row('SELECT email, name, status, google_subject, date_of_birth, tier FROM accounts')!;
@@ -270,7 +268,7 @@ describe('completing a Google sign-up', () => {
       name: 'Ada Lovelace',
       status: 'active',
       google_subject: 'google-sub-1',
-      date_of_birth: '1980-01-01',
+      date_of_birth: null,
       tier: 'researcher',
     });
     expect(row('SELECT email_verified_at, age_confirmed_at, terms_accepted_at, ruo_accepted_at FROM accounts')).not.toContain(null);
@@ -278,6 +276,27 @@ describe('completing a Google sign-up', () => {
     expect((local.sqlite.prepare('SELECT count(*) AS n FROM account_acknowledgements').get() as { n: number }).n).toBeGreaterThan(0);
     // No usable password: the only ways in are Google or a reset started from their own mailbox.
     expect(String(row('SELECT password_hash FROM accounts')?.password_hash).length).toBeGreaterThan(20);
+  });
+
+  it('rejects a supplied young DOB and requires DOB plus a corporate address for institutional completion', async () => {
+    const young = await completeGoogleSignUp(identity, { ...good, dateOfBirth: '2010-05-05' }, null, true);
+    expect(!young.ok && young.errors.some((e) => e.includes('at least 21'))).toBe(true);
+
+    const missing = await completeGoogleSignUp(
+      { ...identity, email: 'ada@research-lab.example' },
+      { ...good, tier: 'institutional' },
+      null,
+      true,
+    );
+    expect(!missing.ok && missing.errors).toContain('Enter your date of birth.');
+
+    const freeMail = await completeGoogleSignUp(
+      { ...identity, email: 'ada@gmail.com' },
+      { ...good, tier: 'institutional', dateOfBirth: '1980-01-01' },
+      null,
+      true,
+    );
+    expect(!freeMail.ok && freeMail.errors.some((e) => e.includes('own domain'))).toBe(true);
   });
 
   it('refuses a tier the storefront is not offering, and a duplicate address', async () => {

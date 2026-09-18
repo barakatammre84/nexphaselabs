@@ -1,4 +1,5 @@
 import { accountCookie, safeAccountReturnPath } from '@/lib/account-auth';
+import { researchAgeConsents } from '@/lib/account-rules';
 import { bindReferral } from '@/lib/affiliates';
 import { completeGoogleSignUp } from '@/lib/google-accounts';
 import { PENDING_COOKIE, clearedCookie, openPendingIdentity } from '@/lib/google-signin';
@@ -24,6 +25,12 @@ export async function POST(request: Request) {
   const form = await request.formData();
   const field = (name: string) => String(form.get(name) ?? '');
   const returnTo = safeAccountReturnPath(field('return_to'));
+  const acceptsResearchAge = form.get('accept_research_age') === 'on';
+  const researchAgeConsent = researchAgeConsents(
+    acceptsResearchAge,
+    form.get('accept_age') === 'on',
+    form.get('accept_ruo') === 'on',
+  );
 
   let result: Awaited<ReturnType<typeof completeGoogleSignUp>>;
   try {
@@ -34,17 +41,18 @@ export async function POST(request: Request) {
         researchSetting: field('research_setting'),
         dateOfBirth: field('date_of_birth'),
         acceptTerms: form.get('accept_terms') === 'on',
-        acceptRuo: form.get('accept_ruo') === 'on',
-        acceptAge: form.get('accept_age') === 'on',
+        // One explicit current-form checkbox records both affirmations; old
+        // completion forms with separate fields remain valid.
+        ...researchAgeConsent,
       },
       request.headers.get('user-agent'),
       researcherTierEnabled(),
     );
   } catch (error) {
     console.error('[google] completion failed', error instanceof Error ? error.message : error);
-    return back(request, ['Your account could not be created just now. Try again shortly.'], returnTo);
+    return back(request, ['Your account could not be created just now. Try again shortly.'], returnTo, field('tier'));
   }
-  if (!result.ok) return back(request, result.errors, returnTo);
+  if (!result.ok) return back(request, result.errors, returnTo, field('tier'));
 
   // The same two side effects the password sign-up has, so a Google account is not a second-class one.
   const referral = readReferralCookie(request.headers.get('cookie'));
@@ -89,10 +97,11 @@ function readPending(request: Request): string | null {
   return null;
 }
 
-function back(request: Request, errors: string[], returnTo: string): Response {
+function back(request: Request, errors: string[], returnTo: string, tier: string): Response {
   const url = new URL('/account/complete', request.url);
   url.searchParams.set('error', 'validation');
   url.searchParams.set('codes', errors.join('|'));
   url.searchParams.set('return_to', returnTo);
+  if (tier === 'institutional' || tier === 'researcher') url.searchParams.set('tier', tier);
   return Response.redirect(url, 303);
 }

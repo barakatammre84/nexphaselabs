@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acknowledgementsCurrent, ageOn, isFreeMailDomain, latestBirthDate, normaliseEmail, validateSignIn, validateSignUp } from '@/lib/account-rules';
+import { acknowledgementsCurrent, ageOn, isFreeMailDomain, latestBirthDate, normaliseEmail, researchAgeConsents, validateSignIn, validateSignUp } from '@/lib/account-rules';
 import { RUO_VERSION, TERMS_VERSION } from '@/lib/policy';
 
 describe('acknowledgementsCurrent', () => {
@@ -22,6 +22,18 @@ const good = {
 };
 
 describe('validateSignUp', () => {
+  it('maps the combined checkbox to both consents without inferring either from terms', () => {
+    expect(researchAgeConsents(true, false, false)).toEqual({ acceptAge: true, acceptRuo: true });
+    expect(researchAgeConsents(false, true, true)).toEqual({ acceptAge: true, acceptRuo: true });
+    const termsOnly = validateSignUp({ ...good, acceptTerms: true, acceptAge: false, acceptRuo: false }, false);
+    expect(!termsOnly.ok && termsOnly.errors).toEqual(
+      expect.arrayContaining([
+        'You must confirm the research-use acknowledgement.',
+        'You must confirm that you are at least 21 years of age.',
+      ]),
+    );
+  });
+
   it('accepts an institutional sign-up on an organisation domain', () => {
     const r = validateSignUp(good, false);
     expect(r.ok).toBe(true);
@@ -42,6 +54,15 @@ describe('validateSignUp', () => {
   it('refuses consumer accounts unless the owner enables the tier', () => {
     expect(validateSignUp({ ...good, tier: 'researcher', email: 'ada@gmail.com' }, false).ok).toBe(false);
     expect(validateSignUp({ ...good, tier: 'researcher', email: 'ada@gmail.com' }, true).ok).toBe(true);
+  });
+
+  it('accepts a researcher with a free mailbox and no date of birth when the tier is enabled', () => {
+    const result = validateSignUp(
+      { ...good, tier: 'researcher', email: 'ada@gmail.com', dateOfBirth: undefined, researchSetting: undefined },
+      true,
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.dateOfBirth).toBeNull();
   });
 
   it('requires both acknowledgements, the age statement, a name, and a 12+ character password', () => {
@@ -82,12 +103,22 @@ describe('date of birth at sign-up', () => {
       expect(ageOn(bad, today)).toBeNull();
   });
 
-  it('requires a date of birth and the minimum age, and keeps it in the validated value', () => {
+  it('requires an institutional date of birth and keeps it in the validated value', () => {
     const ok = validateSignUp(good, false);
     expect(ok.ok && ok.value.dateOfBirth).toBe('1980-01-01');
     const missing = validateSignUp({ ...good, dateOfBirth: '' }, false);
     expect(!missing.ok && missing.errors).toContain('Enter your date of birth.');
+  });
+
+  it('rejects an invalid or underage date whenever a researcher supplies one', () => {
+    const invalid = validateSignUp({ ...good, tier: 'researcher', email: 'ada@gmail.com', dateOfBirth: 'not-a-date' }, true);
+    expect(!invalid.ok && invalid.errors).toContain('Enter a valid date of birth.');
     const young = validateSignUp({ ...good, dateOfBirth: latestBirthDate(new Date(Date.now() + 86_400_000)) }, false);
     expect(!young.ok && young.errors.some((e) => e.includes('at least 21 years of age to open an account'))).toBe(true);
+    const youngResearcher = validateSignUp(
+      { ...good, tier: 'researcher', email: 'ada@gmail.com', dateOfBirth: '2010-05-05' },
+      true,
+    );
+    expect(!youngResearcher.ok && youngResearcher.errors.some((e) => e.includes('at least 21'))).toBe(true);
   });
 });

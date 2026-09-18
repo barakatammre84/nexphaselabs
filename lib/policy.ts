@@ -17,7 +17,7 @@ export const RUO_VERSION = '2026-09-14';
 export const RETURNS_VERSION = '2026-09-14';
 export const SHIPPING_VERSION = '2026-09-14';
 // Bump when the privacy text changes for visitors — including measurement changes described in §2 and §5.
-export const PRIVACY_VERSION = '2026-09-17';
+export const PRIVACY_VERSION = '2026-09-18';
 export const RESEARCH_USE_POLICY_VERSION = '2026-09-14';
 /** What may be said about the material anywhere our name appears (app/legal/community-guidelines). */
 export const COMMUNITY_GUIDELINES_VERSION = '2026-09-16';
@@ -34,7 +34,7 @@ export const MINIMUM_AGE = 21;
  */
 export const SHIPPING_CUTOFF = '2:00 PM Pacific';
 
-/** The age affirmation, verbatim. A separate checkbox at sign-up and checkout; recorded on the account and on the order. */
+/** The age affirmation, verbatim. Combined with RUO at current sign-up, separate at checkout; always recorded. */
 export const AGE_STATEMENT = `I am at least ${MINIMUM_AGE} years of age.`;
 
 /** The research-use acknowledgement, verbatim. Shown at sign-up, at checkout and on /legal/research-use. */
@@ -57,7 +57,7 @@ export const ENTRY_NOTICE = {
 export const DISCLOSURE_WORKFLOW = [
   { step: 'Entering the site', disclosure: 'Age and research-use interstitial (ENTRY_NOTICE)', recorded: 'Browser cookie only; nothing about a person is stored' },
   { step: 'Every product page and the catalog', disclosure: 'The regulatory statement above the fold, in the body of the page', recorded: 'Not applicable' },
-  { step: 'Creating an account', disclosure: 'Date of birth checked against the minimum age, plus the age affirmation, research-use acknowledgement and terms — one field and three required boxes. Signing up with Google does not skip any of them; it proves the email address only', recorded: 'Account: date of birth, age confirmed at, acknowledgement version and time, terms version and time' },
+  { step: 'Creating an account', disclosure: 'Researchers self-declare that they are at least 21 while accepting the research-use acknowledgement, and separately accept the terms. Institutional accounts also supply a date of birth, which is checked against the minimum age. A date supplied through a legacy researcher form is also checked. Signing up with Google does not skip these confirmations; it proves the email address only', recorded: 'Account: age confirmed at, acknowledgement version and time, terms version and time; date of birth only for institutional accounts or when supplied through a legacy form' },
   { step: 'Checkout, every order', disclosure: 'Age affirmation and research-use acknowledgement with the terms — two required boxes', recorded: 'Order: acknowledgement version, wording hash, time, connecting address, age confirmed, research setting' },
   { step: 'Order confirmation email', disclosure: 'The acknowledgement and terms versions accepted, restated', recorded: 'Order record: acknowledgement version and wording hash' },
   { step: 'The parcel', disclosure: 'Regulatory statement on the packing slip; certificate of analysis for the lot in the parcel', recorded: 'Packing slip and the certificate pinned to the order, with its checksum' },

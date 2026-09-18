@@ -1,5 +1,5 @@
 import { signUp } from '@/lib/account-auth';
-import { validateSignUp } from '@/lib/account-rules';
+import { researchAgeConsents, validateSignUp } from '@/lib/account-rules';
 import { researcherTierEnabled } from '@/lib/site-config';
 import { allow, clientAddress, rateLimitKey } from '@/lib/rate-limit';
 import { sameOrigin } from '@/lib/staff-auth';
@@ -24,6 +24,12 @@ export async function POST(request: Request) {
     return new Response('Bad request', { status: 400 });
   }
   const field = (name: string) => String(form.get(name) ?? '');
+  const acceptsResearchAge = form.get('accept_research_age') === 'on';
+  const researchAgeConsent = researchAgeConsents(
+    acceptsResearchAge,
+    form.get('accept_age') === 'on',
+    form.get('accept_ruo') === 'on',
+  );
   const raw = {
     name: field('name'),
     email: field('email'),
@@ -31,8 +37,9 @@ export async function POST(request: Request) {
     tier: field('tier') || 'institutional',
     researchSetting: field('research_setting'),
     acceptTerms: form.get('accept_terms') === 'on',
-    acceptRuo: form.get('accept_ruo') === 'on',
-    acceptAge: form.get('accept_age') === 'on',
+    // The current form combines these two affirmations. Keep accepting the
+    // separate fields posted by forms opened before this change.
+    ...researchAgeConsent,
     dateOfBirth: field('date_of_birth'),
   };
   const productNews = form.get('product_news') === 'on';

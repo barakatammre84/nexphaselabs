@@ -48,13 +48,12 @@ describe('the completion page', () => {
     pending.current = { subject: 'sub', email: 'ada@example.org', emailVerified: true, name: 'Ada', issuedAt: 0 };
     const html = renderToStaticMarkup(await render());
     expect(html).toContain('ada@example.org');
-    expect(html).toContain('name="date_of_birth"');
-    expect(html).toContain('name="accept_age"');
-    expect(html).toContain('name="accept_ruo"');
+    expect(html).not.toContain('name="date_of_birth"');
+    expect(html).toContain('name="accept_research_age"');
     expect(html).toContain('name="accept_terms"');
     expect(html).toContain('action="/api/account/complete"');
     // No password field: this account signs in with Google.
     expect(html).not.toContain('type="password"');
-    expect(html).toMatch(/Nothing is created until you submit/i);
+    expect(html).toContain('Confirm your age and research use');
   });
 });

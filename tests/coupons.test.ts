@@ -142,6 +142,40 @@ describe('promo codes (owner, 16 Sep 2026)', () => {
 });
 
 describe('the redemption cap under concurrent checkouts', () => {
+  it('rolls back the order and preserves the cart if its coupon use cannot be recorded, then safely retries', async () => {
+    await createCoupon({ ...base, code: 'ATOMIC10', kind: 'percent', value: 10, perAccountLimit: 1, maxRedemptions: 1 }, 'test');
+    const guest = await syntheticBuyer(2);
+    const visibility = visibilityFor(null, false, true);
+    const cart = await getCart(guest.buyer.id, visibility);
+    const quotes = await createCheckoutQuotes(guest.buyer.id, cart, shipTo, 'synthetic@example.invalid', 'ATOMIC10');
+    if (!quotes.ok) throw new Error(quotes.error);
+    const token = 'd'.repeat(32);
+    const submit = () => createOrderFromCart(
+      guest.buyer, visibility, shipTo, null, null, token,
+      'synthetic@example.invalid', quotes.quotes[0].id,
+    );
+    local.sqlite.exec(`CREATE TRIGGER fail_coupon_record BEFORE INSERT ON coupon_redemptions
+      BEGIN SELECT RAISE(ABORT, 'synthetic coupon record failure'); END;`);
+
+    // The route already catches storage errors and returns a retry notice.
+    await expect(submit()).rejects.toThrow('synthetic coupon record failure');
+    expect(row('SELECT count(*) AS n FROM orders')?.n).toBe(0);
+    expect(row('SELECT count(*) AS n FROM order_items')?.n).toBe(0);
+    expect(row('SELECT count(*) AS n FROM inventory_reservations')?.n).toBe(0);
+    expect(row('SELECT count(*) AS n FROM coupon_redemptions')?.n).toBe(0);
+    expect(row("SELECT redemption_count AS n FROM coupons WHERE code = 'ATOMIC10'")?.n).toBe(0);
+    expect((await getCart(guest.buyer.id, visibility)).lines).toHaveLength(cart.lines.length);
+
+    local.sqlite.exec('DROP TRIGGER fail_coupon_record');
+    const submitted = await submit();
+    expect(submitted).toMatchObject({ ok: true });
+    expect(await submit()).toMatchObject({ ok: true, duplicate: true });
+    expect(row('SELECT count(*) AS n FROM orders')?.n).toBe(1);
+    expect(row('SELECT count(*) AS n FROM coupon_redemptions')?.n).toBe(1);
+    expect(row("SELECT redemption_count AS n FROM coupons WHERE code = 'ATOMIC10'")?.n).toBe(1);
+    expect((await getCart(guest.buyer.id, visibility)).lines).toHaveLength(0);
+  });
+
   it('lets exactly one of two racing orders take the last use', async () => {
     const created = await createCoupon({ ...base, code: 'LASTONE', kind: 'percent', value: 10, maxRedemptions: 1 }, 'test');
     if (!created.ok) throw new Error('setup');

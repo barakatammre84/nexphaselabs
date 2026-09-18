@@ -6,17 +6,17 @@ import { redirect } from 'next/navigation';
 import { AlertCircle } from 'lucide-react';
 import { getAccount } from '@/lib/account-auth';
 import { AccessProgress } from '@/components/site/access-progress';
-import { AGE_STATEMENT, MINIMUM_AGE, RUO_ACKNOWLEDGEMENT } from '@/lib/policy';
+import { MINIMUM_AGE } from '@/lib/policy';
+import { SignupAcknowledgements } from '@/components/site/signup-acknowledgements';
 import { latestBirthDate } from '@/lib/account-rules';
 import { turnstileEnabled, turnstileSiteKey } from '@/lib/turnstile';
-import { NEWSLETTER_COPY } from '@/lib/marketing-consent';
 import { accountRequired, researcherTierEnabled } from '@/lib/site-config';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Create a research account',
   description:
-    'Open a NexPhase Labs research account. Accounts are reviewed before pricing and ordering are enabled.',
+    'Create a research account with your email address. Verify your email to access researcher pricing and ordering. Wholesale applications are reviewed separately.',
 };
 
 type Props = {
@@ -36,6 +36,7 @@ export default async function SignUpPage({ searchParams }: Props) {
   const params = await searchParams;
   if (await getAccount()) redirect('/account');
   const consumer = researcherTierEnabled();
+  const wholesale = !consumer || params.tier === 'institutional';
   const turnstile = turnstileEnabled() ? turnstileSiteKey() : null;
 
   const errors =
@@ -52,19 +53,31 @@ export default async function SignUpPage({ searchParams }: Props) {
   return (
     <main className="text-foreground">
       <section className="ion-panel mx-auto my-12 max-w-3xl px-7 py-10 sm:px-10">
-        <p className="ion-kicker">{consumer ? 'Your account' : 'Wholesale account'}</p>
+        <p className="ion-kicker">{wholesale ? 'Wholesale account' : 'Researcher account'}</p>
         <h1 className="ion-heading mt-6 text-4xl sm:text-5xl">
-          Create your account
+          {wholesale ? 'Apply for wholesale' : 'Create your account'}
         </h1>
         <p className="mt-4 leading-7 text-muted-foreground">
-          {!consumer
+          {wholesale
             ? 'An account is the first step of a wholesale application. Prices, lot availability and ordering open once a person has approved it.'
             : accountRequired()
-              ? 'An account is how prices, lot availability and the cart are shown, and it keeps your orders, saved addresses and the certificates that shipped with each order in one place.'
+              ? 'Use your email to access researcher prices, your cart and order records. Independent and home-laboratory researchers are welcome. Verify your email to get started—no wholesale application is needed.'
               : 'An account keeps your orders, saved addresses and the certificates that shipped with each order in one place. You can also check out as a guest without one.'}
         </p>
 
-        {!consumer && <AccessProgress current={0} />}
+        {wholesale && <AccessProgress current={0} />}
+
+        {consumer && (
+          <p className="mt-4 text-sm text-muted-foreground">
+            {wholesale ? 'Not applying for wholesale? ' : 'Buying on purchase order or applying for net terms? '}
+            <Link
+              href={wholesale ? '/account/sign-up' : '/account/sign-up?tier=institutional'}
+              className="font-semibold text-primary underline underline-offset-4"
+            >
+              {wholesale ? 'Create a researcher account' : 'Apply for a wholesale account'}
+            </Link>
+          </p>
+        )}
 
         {errors.length > 0 && (
           <div
@@ -90,6 +103,7 @@ export default async function SignUpPage({ searchParams }: Props) {
           action="/api/account/sign-up"
           className="mt-10 flex flex-col gap-6"
         >
+          <input type="hidden" name="tier" value={wholesale ? 'institutional' : 'researcher'} />
           <div className="flex flex-col gap-2">
             <label htmlFor="name" className="text-sm font-semibold">
               Full name
@@ -105,7 +119,7 @@ export default async function SignUpPage({ searchParams }: Props) {
           </div>
           <div className="flex flex-col gap-2">
             <label htmlFor="email" className="text-sm font-semibold">
-              Work email address
+              {wholesale ? 'Work email address' : 'Email address'}
             </label>
             <input
               id="email"
@@ -117,7 +131,9 @@ export default async function SignUpPage({ searchParams }: Props) {
               className={input}
             />
             <p className="text-xs leading-5 text-muted-foreground">
-              For a wholesale account, use an address on your organisation&rsquo;s own domain.
+              {wholesale
+                ? 'Use an address on your organisation’s own domain for a wholesale application.'
+                : 'Personal email addresses are welcome.'}
             </p>
           </div>
           <div className="flex flex-col gap-2">
@@ -138,7 +154,7 @@ export default async function SignUpPage({ searchParams }: Props) {
             </p>
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          {wholesale && <div className="flex flex-col gap-1.5">
             <label htmlFor="date_of_birth" className="text-sm font-semibold">
               Date of birth
             </label>
@@ -154,49 +170,9 @@ export default async function SignUpPage({ searchParams }: Props) {
             <p className="text-xs leading-5 text-muted-foreground">
               Used only to check that you are at least {MINIMUM_AGE}. It is never shown or shared.
             </p>
-          </div>
+          </div>}
 
-          {consumer ? (
-            <fieldset className="flex flex-col gap-3">
-              <legend className="text-sm font-semibold">Account type</legend>
-              <label className="flex items-start gap-3 text-sm">
-                <input
-                  type="radio"
-                  name="tier"
-                  value="researcher"
-                  defaultChecked={params.tier !== 'institutional'}
-                  className="mt-1"
-                />
-                <span>
-                  <span className="font-semibold">Researcher</span>
-                  <span className="block text-muted-foreground">
-                    Buy from the storefront at list price, in any research setting — including an
-                    independent or home laboratory. Laboratory research use only.
-                  </span>
-                </span>
-              </label>
-              <label className="flex items-start gap-3 text-sm">
-                <input
-                  type="radio"
-                  name="tier"
-                  value="institutional"
-                  defaultChecked={params.tier === 'institutional'}
-                  className="mt-1"
-                />
-                <span>
-                  <span className="font-semibold">Wholesale account</span>
-                  <span className="block text-muted-foreground">
-                    A university, CRO or company buying on purchase order with net terms. A
-                    person approves the application before ordering.
-                  </span>
-                </span>
-              </label>
-            </fieldset>
-          ) : (
-            <input type="hidden" name="tier" value="institutional" />
-          )}
-
-          <div className="flex flex-col gap-1.5">
+          {wholesale && <div className="flex flex-col gap-1.5">
             <label htmlFor="research_setting" className="text-sm font-semibold">
               Research setting <span className="font-normal text-muted-foreground">(optional)</span>
             </label>
@@ -217,61 +193,19 @@ export default async function SignUpPage({ searchParams }: Props) {
               Helps us route documentation requests. It is not a verification step and does not
               restrict where we ship.
             </p>
-          </div>
+          </div>}
+
+          <SignupAcknowledgements />
 
           <label className="flex items-start gap-3 text-sm">
             <input type="checkbox" name="product_news" className="mt-1" />
             <span>
               <span className="font-semibold">Product news (optional)</span>
-              <span className="block text-muted-foreground">{NEWSLETTER_COPY.scope} Confirmed by the same
-              email that verifies your account; unsubscribe any time.</span>
+              <span className="block text-muted-foreground">
+                New materials and released lots, a few times a year. Unsubscribe any time.
+              </span>
             </span>
           </label>
-
-          <div className="rounded-[1.4rem] border border-border bg-secondary p-5">
-            <p className="utility-label text-primary">
-              Research-use acknowledgement
-            </p>
-            <p className="mt-3 text-sm leading-6">{RUO_ACKNOWLEDGEMENT}</p>
-            <label className="mt-4 flex items-start gap-3 text-sm">
-              <input type="checkbox" name="accept_age" required className="mt-1" />
-              <span>{AGE_STATEMENT}</span>
-            </label>
-            <label className="mt-3 flex items-start gap-3 text-sm">
-              <input
-                type="checkbox"
-                name="accept_ruo"
-                required
-                className="mt-1"
-              />
-              <span>I confirm the acknowledgement above.</span>
-            </label>
-            <label className="mt-3 flex items-start gap-3 text-sm">
-              <input
-                type="checkbox"
-                name="accept_terms"
-                required
-                className="mt-1"
-              />
-              <span>
-                I accept the{' '}
-                <Link
-                  href="/legal/terms"
-                  className="font-semibold text-primary"
-                >
-                  terms of sale
-                </Link>{' '}
-                and the{' '}
-                <Link
-                  href="/legal/privacy"
-                  className="font-semibold text-primary"
-                >
-                  privacy policy
-                </Link>
-                .
-              </span>
-            </label>
-          </div>
 
           {turnstile && (
             <>

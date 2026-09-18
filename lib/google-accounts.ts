@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { accountAcknowledgements, accounts, type Account } from '@/db/schema';
 import { acknowledgementRows, startAccountSession } from '@/lib/account-auth';
-import { ACCOUNT_TIERS, ageOn, normaliseEmail, RESEARCH_SETTINGS, type AccountTier } from '@/lib/account-rules';
+import { ACCOUNT_TIERS, ageOn, isFreeMailDomain, normaliseEmail, RESEARCH_SETTINGS, type AccountTier } from '@/lib/account-rules';
 import type { GoogleIdentity } from '@/lib/google-signin';
 import { MINIMUM_AGE, RUO_VERSION, TERMS_VERSION } from '@/lib/policy';
 import { randomToken, hashPassword } from '@/lib/staff-auth-core';
@@ -84,7 +84,7 @@ export async function resolveGoogleSignIn(
 export type CompletionInput = {
   tier: string;
   researchSetting?: string;
-  dateOfBirth: string;
+  dateOfBirth?: string;
   acceptTerms: boolean;
   acceptRuo: boolean;
   acceptAge: boolean;
@@ -109,22 +109,27 @@ export async function completeGoogleSignUp(
 ): Promise<CompletionResult> {
   const errors: string[] = [];
   const tier = input.tier.trim() as AccountTier;
+  const email = normaliseEmail(identity.email);
   if (!(ACCOUNT_TIERS as readonly string[]).includes(tier)) errors.push('Choose an account type.');
   else if (tier === 'researcher' && !researcherTierEnabled)
     errors.push('Accounts are currently opened for research organisations only.');
+  else if (tier === 'institutional' && isFreeMailDomain(email))
+    errors.push("An institutional account needs an email address on your organisation's own domain, not a personal mailbox.");
   if (!input.acceptTerms) errors.push('You must accept the terms of sale.');
   if (!input.acceptRuo) errors.push('You must confirm the research-use acknowledgement.');
   if (!input.acceptAge) errors.push(`You must confirm that you are at least ${MINIMUM_AGE} years of age.`);
-  const age = input.dateOfBirth.trim() ? ageOn(input.dateOfBirth.trim(), now) : null;
-  if (age === null) errors.push('Enter your date of birth.');
-  else if (age < MINIMUM_AGE) errors.push(`You must be at least ${MINIMUM_AGE} years of age to open an account.`);
+  const dateOfBirth = (input.dateOfBirth ?? '').trim();
+  const age = dateOfBirth ? ageOn(dateOfBirth, now) : null;
+  if (!dateOfBirth && tier === 'institutional') errors.push('Enter your date of birth.');
+  else if (dateOfBirth && age === null) errors.push('Enter a valid date of birth.');
+  else if (age !== null && age < MINIMUM_AGE)
+    errors.push(`You must be at least ${MINIMUM_AGE} years of age to open an account.`);
   const settingRaw = (input.researchSetting ?? '').trim();
   const researchSetting = (RESEARCH_SETTINGS as readonly string[]).includes(settingRaw) ? settingRaw : null;
   if (settingRaw && !researchSetting) errors.push('Choose a research setting from the list.');
   if (errors.length) return { ok: false, errors };
 
   const db = getDb();
-  const email = normaliseEmail(identity.email);
   const accountId = newId('acc');
   try {
     await db.batch([
@@ -136,7 +141,7 @@ export async function completeGoogleSignUp(
         passwordHash: await hashPassword(randomToken()),
         tier,
         researchSetting,
-        dateOfBirth: input.dateOfBirth.trim(),
+        dateOfBirth: dateOfBirth || null,
         ageConfirmedAt: now,
         googleSubject: identity.subject,
         googleLinkedAt: now,

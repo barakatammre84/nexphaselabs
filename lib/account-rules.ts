@@ -75,6 +75,14 @@ export function isFreeMailDomain(email: string): boolean {
   return FREE_MAIL_DOMAINS.has(emailDomain(email));
 }
 
+/** Current forms use one explicit age + RUO box; legacy forms posted the two separately. */
+export function researchAgeConsents(combined: boolean, legacyAge: boolean, legacyRuo: boolean) {
+  return {
+    acceptAge: combined || legacyAge,
+    acceptRuo: combined || legacyRuo,
+  };
+}
+
 export type SignUpInput = {
   name: string;
   email: string;
@@ -85,12 +93,12 @@ export type SignUpInput = {
   acceptTerms: boolean;
   acceptRuo: boolean;
   acceptAge?: boolean;
-  /** ISO date (YYYY-MM-DD) from the sign-up form; checked against MINIMUM_AGE, stored, never shown. */
+  /** Optional for researchers; institutional accounts require it. Any supplied ISO date is age-checked and stored. */
   dateOfBirth?: string;
 };
 
 export type SignUpValidation =
-  | { ok: true; value: { name: string; email: string; password: string; tier: AccountTier; researchSetting: ResearchSetting | null; ageConfirmed: true; dateOfBirth: string } }
+  | { ok: true; value: { name: string; email: string; password: string; tier: AccountTier; researchSetting: ResearchSetting | null; ageConfirmed: true; dateOfBirth: string | null } }
   | { ok: false; errors: string[] };
 
 export function validateSignUp(raw: SignUpInput, researcherTierEnabled: boolean): SignUpValidation {
@@ -118,18 +126,19 @@ export function validateSignUp(raw: SignUpInput, researcherTierEnabled: boolean)
   if (!raw.acceptTerms) errors.push('You must accept the terms of sale.');
   if (!raw.acceptRuo) errors.push('You must confirm the research-use acknowledgement.');
   if (!raw.acceptAge) errors.push('You must confirm that you are at least 21 years of age.');
-  // The date of birth makes the age statement checkable instead of a bare checkbox (owner, 16 Sep 2026).
   const dateOfBirth = (raw.dateOfBirth ?? '').trim();
   const age = dateOfBirth ? ageOn(dateOfBirth) : null;
-  if (age === null) errors.push('Enter your date of birth.');
-  else if (age < MINIMUM_AGE) errors.push(`You must be at least ${MINIMUM_AGE} years of age to open an account.`);
+  if (!dateOfBirth && tier === 'institutional') errors.push('Enter your date of birth.');
+  else if (dateOfBirth && age === null) errors.push('Enter a valid date of birth.');
+  else if (age !== null && age < MINIMUM_AGE)
+    errors.push(`You must be at least ${MINIMUM_AGE} years of age to open an account.`);
 
   const settingRaw = (raw.researchSetting ?? '').trim();
   const researchSetting = (RESEARCH_SETTINGS as readonly string[]).includes(settingRaw) ? (settingRaw as ResearchSetting) : null;
   if (settingRaw && !researchSetting) errors.push('Choose a research setting from the list.');
 
   if (errors.length) return { ok: false, errors };
-  return { ok: true, value: { name, email, password, tier, researchSetting, ageConfirmed: true, dateOfBirth } };
+  return { ok: true, value: { name, email, password, tier, researchSetting, ageConfirmed: true, dateOfBirth: dateOfBirth || null } };
 }
 
 export function validateSignIn(raw: { email: string; password: string }): { email: string; password: string } | null {

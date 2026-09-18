@@ -52,13 +52,19 @@ describe('turnstile', () => {
 describe('sign-up form', () => {
   const render = async () => renderToStaticMarkup(await SignUpPage({ searchParams: Promise.resolve({}) }));
 
-  it('asks for a date of birth capped at the minimum age, and shows no widget while turnstile is off', async () => {
+  it('asks researchers to affirm their age without a birth date, and shows no widget while turnstile is off', async () => {
     const html = await render();
+    expect(html).not.toContain('name="date_of_birth"');
+    expect(html).toContain('name="accept_research_age"');
+    expect(html).not.toContain('cf-turnstile');
+    expect(html).not.toContain('challenges.cloudflare.com');
+  });
+
+  it('still caps wholesale birth dates at the minimum age', async () => {
+    const html = renderToStaticMarkup(await SignUpPage({ searchParams: Promise.resolve({ tier: 'institutional' }) }));
     expect(html).toContain('name="date_of_birth"');
     expect(html).toContain(`max="${latestBirthDate()}"`);
     expect(html).toContain('type="date"');
-    expect(html).not.toContain('cf-turnstile');
-    expect(html).not.toContain('challenges.cloudflare.com');
   });
 
   it('renders the widget and its script once both keys exist', async () => {
