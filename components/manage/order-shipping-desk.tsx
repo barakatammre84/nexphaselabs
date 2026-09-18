@@ -47,6 +47,7 @@ export function OrderShippingDesk({
   initialLabel,
   initialHistory,
   origins,
+  financeAuthorized,
 }: {
   orderNumber: string;
   parcel: {
@@ -58,6 +59,7 @@ export function OrderShippingDesk({
   initialLabel: Label | null;
   initialHistory: Label[];
   origins: { id: string; label: string }[];
+  financeAuthorized: boolean;
 }) {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [selected, setSelected] = useState('');
@@ -129,7 +131,7 @@ export function OrderShippingDesk({
             Ship from: {label.originLabel}
             {label.refundReason ? ` · Cancellation: ${label.refundReason}` : ''}
           </p>
-          {label.state === 'ready' && (
+          {label.state === 'ready' && financeAuthorized && (
             <div className="mt-4 flex flex-wrap gap-3">
               {label.labelUrl ? (
                 <a
@@ -240,7 +242,7 @@ export function OrderShippingDesk({
               </button>
             </form>
           )}
-          {['voiding', 'attention'].includes(label.state) &&
+          {financeAuthorized && ['voiding', 'attention'].includes(label.state) &&
             label.refundState && (
               <button
                 type="button"
@@ -283,7 +285,7 @@ export function OrderShippingDesk({
           {label.error && (
             <p className="mt-3 text-destructive">{label.error}</p>
           )}
-          {label.state === 'attention' &&
+          {financeAuthorized && label.state === 'attention' &&
             !label.refundState &&
             !label.trackingNumber && (
               <form

@@ -5,6 +5,8 @@ import {
   canHandleFeedback,
   canEditCatalog,
   canManageStaff,
+  canManageFinance,
+  canViewSensitiveReports,
   canVerifyAccounts,
   requireStaff,
 } from '@/lib/staff-auth';
@@ -59,7 +61,7 @@ export default async function ManageLayout({
             <Link href="/manage/orders" className="hover:text-primary">
               Orders
             </Link>
-            {canVerifyAccounts(staff) && (
+            {canManageFinance(staff) && (
               <Link href="/manage/payments/zelle" className="hover:text-primary">
                 Zelle
               </Link>
@@ -74,8 +76,7 @@ export default async function ManageLayout({
                 Waitlist
               </Link>
             )}
-            {/* The report exports answer only canVerifyAccounts (app/api/manage/reports). */}
-            {canVerifyAccounts(staff) && (
+            {canViewSensitiveReports(staff) && (
               <Link href="/manage/reports" className="hover:text-primary">
                 Reports
               </Link>

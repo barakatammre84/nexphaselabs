@@ -2,7 +2,7 @@ import { manualPaymentRecording } from '@/lib/manual-payment-rules';
 import { orderNumberFromParam } from '@/lib/order-rules';
 import { getOrderByNumber, markOrderPaid } from '@/lib/orders';
 import { recordedBy } from '@/lib/lots-admin';
-import { canVerifyAccounts, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
+import { canManageFinance, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
 import { zelleMode } from '@/lib/zelle-config';
 
 /**
@@ -14,7 +14,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
   if (!sameOrigin(request)) return new Response('Forbidden', { status: 403 });
   const staff = await getStaffFromRequest(request);
   if (!staff) return new Response('Unauthorized', { status: 401 });
-  if (!canVerifyAccounts(staff)) return new Response('Forbidden', { status: 403 });
+  if (!canManageFinance(staff)) return new Response('Forbidden', { status: 403 });
   const { orderNumber } = await params;
   const number = orderNumberFromParam(orderNumber);
   if (!number) return new Response('Not found', { status: 404 });

@@ -36,7 +36,7 @@ describe('report reconciliation', () => {
     expect(await revenueByProduct()).toMatchObject([{ revenueCents: 300, refundedCents: 50, costCents: 40 }]);
   });
   it('exports order totals and obligations once, with net and gross margins distinguished', async () => {
-    const response = await GET(new Request('https://example.invalid/api/manage/reports/orders.csv?purpose=Monthly+financial+reconciliation'));
+    const response = await GET(new Request('https://example.invalid/api/manage/reports/orders.csv?from=2026-09-01&to=2026-09-30&purpose=Monthly+financial+reconciliation'));
     expect(response.status).toBe(200);
     const rows = (await response.text()).trim().split(/\r?\n/).map((r) =>
       [...r.matchAll(/(?:^|,)(?:"((?:""|[^"])*)"|([^,]*))/g)].map((m) => (m[1] ?? m[2]).replace(/""/g, '"')));
@@ -67,7 +67,7 @@ describe('report reconciliation', () => {
     expect(await revenueByProduct()).toEqual([]);
     expect((await orderLines())[0].refundOutstandingCents).toBe(50);
   });
-  it.each([null, 'qc'])('refuses exports to non-admin callers: %s', async (role) => {
+  it.each([null, 'qc', 'ops'])('refuses exports to non-admin callers: %s', async (role) => {
     auth.role = role;
     expect((await GET(new Request('https://example.invalid/api/manage/reports/orders.csv?purpose=Monthly+financial+reconciliation'))).status).toBe(role ? 403 : 401);
   });

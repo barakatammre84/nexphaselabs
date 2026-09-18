@@ -1,4 +1,4 @@
-import { canManageStaff, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
+import { canManageFinance, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
 import { orderNumberFromParam } from '@/lib/order-rules';
 import { getOrderByNumber } from '@/lib/orders';
 import { reconcilePaymentAttempt } from '@/lib/payment-attempts';
@@ -8,7 +8,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
   if (!sameOrigin(request)) return new Response('Forbidden', { status: 403 });
   const staff = await getStaffFromRequest(request);
   if (!staff) return new Response('Unauthorized', { status: 401 });
-  if (!canManageStaff(staff)) return new Response('Forbidden', { status: 403 });
+  if (!canManageFinance(staff)) return new Response('Forbidden', { status: 403 });
   const number = orderNumberFromParam((await params).orderNumber);
   if (!number) return new Response('Not found', { status: 404 });
   if (!(await allow(rateLimitKey('reconcile-payment', staff.id), 20, 3600))) return new Response('Try again later', { status: 429 });

@@ -4,7 +4,7 @@ import { getOrderByNumber, transitionOrder } from '@/lib/orders';
 import { invalidateBtcpayInvoice } from '@/lib/payments';
 import { currentShippingLabel } from '@/lib/shipping-labels';
 import {
-  canVerifyAccounts,
+  canManageFinance,
   getStaffFromRequest,
   sameOrigin,
 } from '@/lib/staff-auth';
@@ -17,7 +17,7 @@ export async function POST(
   if (!sameOrigin(request)) return new Response('Forbidden', { status: 403 });
   const staff = await getStaffFromRequest(request);
   if (!staff) return new Response('Unauthorized', { status: 401 });
-  if (!canVerifyAccounts(staff))
+  if (!canManageFinance(staff))
     return new Response('Forbidden', { status: 403 });
   const { orderNumber } = await params;
   const number = orderNumberFromParam(orderNumber);

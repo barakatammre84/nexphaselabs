@@ -1,7 +1,7 @@
 import { getOrderByNumber } from '@/lib/orders';
 import { orderNumberFromParam } from '@/lib/order-rules';
 import { clearFailedLabelPurchase } from '@/lib/shipping-labels';
-import { canFulfil, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
+import { canManageFinance, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
 
 /**
  * Clears a label purchase the carrier did not complete, once a person has checked
@@ -17,7 +17,7 @@ export async function POST(
   if (!sameOrigin(request)) return reply({ error: 'Forbidden' }, 403);
   const staff = await getStaffFromRequest(request);
   if (!staff) return reply({ error: 'Unauthorized' }, 401);
-  if (!canFulfil(staff)) return reply({ error: 'Forbidden' }, 403);
+  if (!canManageFinance(staff)) return reply({ error: 'Forbidden' }, 403);
   const number = orderNumberFromParam((await context.params).orderNumber);
   if (!number) return reply({ error: 'Order not found' }, 404);
   const detail = await getOrderByNumber(number);

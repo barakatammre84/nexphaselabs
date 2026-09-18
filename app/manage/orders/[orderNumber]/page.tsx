@@ -25,7 +25,7 @@ import { contactVerification } from '@/lib/order-contact-verification';
 import { previewInvoice } from '@/lib/invoice';
 import { previewPackingSlip } from '@/lib/packing-slip';
 import { documentHistory } from '@/lib/issued-documents';
-import { canFulfil, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
+import { canFulfil, canManageFinance, requireStaff } from '@/lib/staff-auth';
 import { manualPaymentRecording } from '@/lib/manual-payment-rules';
 import { zelleMode } from '@/lib/zelle-config';
 import { trackingUrl } from '@/lib/tracking';
@@ -509,7 +509,7 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
               </div>
             )}
             {refundAllowed(order) &&
-              (canVerifyAccounts(staff) ? (
+              (canManageFinance(staff) ? (
                 <form
                   method="post"
                   action={`/api/manage/orders/${order.orderNumber}/refund`}
@@ -559,7 +559,7 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                 </p>
               ))}
             {order.status === 'awaiting_payment' &&
-              (canVerifyAccounts(staff) && manualPayment.allowed ? (
+              (canManageFinance(staff) && manualPayment.allowed ? (
                 <form
                   method="post"
                   action={`/api/manage/orders/${order.orderNumber}/paid`}
@@ -821,6 +821,7 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
                 }
                 initialHistory={shippingHistory.map(serializeShippingLabel)}
                 origins={shippingOrigins}
+                financeAuthorized={canManageFinance(staff)}
               />
             )}
             {order.status === 'fulfilling' && canFulfil(staff) && (
@@ -1015,7 +1016,7 @@ export default async function ManageOrderPage({ params, searchParams }: Props) {
               order.status === 'awaiting_payment' ||
               order.status === 'paid' ||
               order.status === 'fulfilling') &&
-              canVerifyAccounts(staff) && (
+              canManageFinance(staff) && (
                 <div className="mt-6">
                   {shippingLabel && shippingLabel.state !== 'voided' && (
                     <p

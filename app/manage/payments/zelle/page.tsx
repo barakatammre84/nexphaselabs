@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { AlertCircle, CheckCircle2, Landmark, RefreshCw } from 'lucide-react';
 import { formatCents } from '@/lib/visibility-rules';
-import { canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
+import { canManageFinance, requireStaff } from '@/lib/staff-auth';
 import {
   currentPacificDate,
   listZelleReconciliationRuns,
@@ -42,7 +42,7 @@ export default async function ZellePaymentsPage({
   const staff = await requireStaff('/manage/payments/zelle');
   // Every write API behind this page requires the capability; the receipt feed it renders is
   // payer names, amounts, memos and the daily reconciliation, so reading it does too.
-  if (!canVerifyAccounts(staff)) redirect('/manage?denied=1');
+  if (!canManageFinance(staff)) redirect('/manage?denied=1');
   const params = await searchParams;
   const outcome = OUTCOMES.some(([value]) => value === params.outcome)
     ? params.outcome
@@ -54,7 +54,7 @@ export default async function ZellePaymentsPage({
     listZelleReconciliationRuns(),
   ]);
   const configuration = zelleConfigurationStatus();
-  const canDecide = canVerifyAccounts(staff);
+  const canDecide = canManageFinance(staff);
   // A sync refuses an inbox that is disabled or incomplete (syncZelleMailbox), so it is offered only when it can run.
   const canSync = canDecide && configuration.inboxConfigured;
   return (

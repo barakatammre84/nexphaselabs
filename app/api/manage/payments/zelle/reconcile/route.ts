@@ -1,12 +1,12 @@
 import { recordedBy } from '@/lib/lots-admin';
-import { canVerifyAccounts, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
+import { canManageFinance, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
 import { recordZelleReconciliation } from '@/lib/zelle';
 
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return new Response('Forbidden', { status: 403 });
   const staff = await getStaffFromRequest(request);
   if (!staff) return new Response('Unauthorized', { status: 401 });
-  if (!canVerifyAccounts(staff)) return new Response('Forbidden', { status: 403 });
+  if (!canManageFinance(staff)) return new Response('Forbidden', { status: 403 });
   let form: FormData;
   try {
     form = await request.formData();

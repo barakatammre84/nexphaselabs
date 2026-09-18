@@ -16,7 +16,7 @@ import {
 import { addLotTest, correctLot, createLot, getLot, lotToIntakeInput, setLotDisposition } from '@/lib/lots-admin';
 import { getExpectedReceipt } from '@/lib/procurement';
 import type { Violation } from '@/lib/catalog-rules';
-import { canFulfil, canRecordResults, canVerifyAccounts, getStaff } from '@/lib/staff-auth';
+import { canFulfil, canManageFinance, canRecordResults, canVerifyAccounts, getStaff } from '@/lib/staff-auth';
 import {
   recordInventoryMovement,
   validateInventoryMovement,
@@ -76,7 +76,7 @@ export async function receiveLotAction(_prev: LotFormState, data: FormData): Pro
 
   const result = validateLotIntake(values as unknown as LotIntakeInput);
   if (!result.ok) return { values, errors: result.errors, violations: result.violations };
-  if ((result.value.costCents !== null || result.value.costNote) && !canVerifyAccounts(staff)) {
+  if ((result.value.costCents !== null || result.value.costNote) && !canManageFinance(staff)) {
     return fail('Only an admin can record landed cost. Leave the cost fields blank; an admin can set it from the lot page.');
   }
 

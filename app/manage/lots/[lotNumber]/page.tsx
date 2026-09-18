@@ -14,7 +14,7 @@ import { documentHistory } from '@/lib/issued-documents';
 import { ALLOWED_TRANSITIONS, TEST_TYPE_LABEL, lotNumberFromParam, publicationBlockers, publicationWarnings, releaseBlockers, type TestType } from '@/lib/lot-rules';
 import { lotVersions } from '@/lib/lot-family';
 import { LOT_STATUS_LABEL, currentDocumentKey, getLotDetail, lotToIntakeInput, type LotStatus } from '@/lib/lots-admin';
-import { canFulfil, canRecordResults, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
+import { canFulfil, canManageFinance, canRecordResults, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
 import { lotConsignees, reachabilityLabel, reachabilitySummary } from '@/lib/customer-reachability';
 import { addLotTestAction, correctLotAction, recordInventoryMovementAction, setLotDispositionAction } from '../actions';
 
@@ -189,7 +189,7 @@ export default async function LotDetailPage({ params, searchParams }: Props) {
               <Row label="Container size" value={lot.containerSize} />
               <Row label="Landed cost" value={lot.costCents === null ? null : `$${(lot.costCents / 100).toFixed(2)}${lot.costNote ? ` — ${lot.costNote}` : ''}`} />
             </dl>
-            {canVerifyAccounts(staff) && (
+            {canManageFinance(staff) && (
               <form method="post" action={`/api/manage/lots/${encodeURIComponent(lot.lotNumber)}/cost`} className="mt-4 flex flex-wrap items-end gap-3 text-sm">
                 <label className="flex flex-col gap-1">
                   Landed cost (USD)

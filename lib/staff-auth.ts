@@ -241,6 +241,16 @@ export function canManageStaff(staff: StaffPrincipal): boolean {
   return hasStaffPermission(staff, 'staff.manage');
 }
 
+/** Financial decisions and corrections, including payment, refund and cost records. */
+export function canManageFinance(staff: StaffPrincipal): boolean {
+  return hasStaffPermission(staff, 'finance.manage');
+}
+
+/** Access to reports containing sensitive customer, order or financial data. */
+export function canViewSensitiveReports(staff: StaffPrincipal): boolean {
+  return hasStaffPermission(staff, 'reports.sensitive');
+}
+
 /** Roles allowed to create and edit catalog products. */
 export function canEditCatalog(staff: StaffPrincipal): boolean {
   return hasStaffPermission(staff, 'catalog.manage');

@@ -1,6 +1,6 @@
 import { orderNumberFromParam } from '@/lib/order-rules';
 import { recordedBy } from '@/lib/lots-admin';
-import { canVerifyAccounts, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
+import { canManageFinance, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
 import { rejectZelleReceipt, settleZelleReceipt } from '@/lib/zelle';
 
 export async function POST(
@@ -10,7 +10,7 @@ export async function POST(
   if (!sameOrigin(request)) return new Response('Forbidden', { status: 403 });
   const staff = await getStaffFromRequest(request);
   if (!staff) return new Response('Unauthorized', { status: 401 });
-  if (!canVerifyAccounts(staff)) return new Response('Forbidden', { status: 403 });
+  if (!canManageFinance(staff)) return new Response('Forbidden', { status: 403 });
   const id = (await params).id;
   if (!/^zrc_[a-f0-9]{24}$/u.test(id)) return new Response('Not found', { status: 404 });
   let form: FormData;

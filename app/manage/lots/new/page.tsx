@@ -5,7 +5,7 @@ import { LotForm } from '@/components/manage/lot-form';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { listAllProducts, loadCatalog } from '@/lib/catalog-data';
 import { openExpectedReceipts } from '@/lib/procurement';
-import { canFulfil, canVerifyAccounts, requireStaff } from '@/lib/staff-auth';
+import { canFulfil, canManageFinance, requireStaff } from '@/lib/staff-auth';
 import { receiveLotAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
@@ -41,7 +41,7 @@ export default async function NewLotPage() {
           {loaded.unavailable ? (
             <CatalogUnavailable />
           ) : (
-            <LotForm products={products} expected={expected} today={new Date().toISOString().slice(0, 10)} canRecordCost={canVerifyAccounts(staff)} action={receiveLotAction} />
+            <LotForm products={products} expected={expected} today={new Date().toISOString().slice(0, 10)} canRecordCost={canManageFinance(staff)} action={receiveLotAction} />
           )}
         </div>
       </section>

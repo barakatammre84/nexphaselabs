@@ -35,6 +35,7 @@ const render = (initialLabel: Label) =>
       initialLabel,
       initialHistory: [],
       origins: [],
+      financeAuthorized: true,
     }),
   );
 

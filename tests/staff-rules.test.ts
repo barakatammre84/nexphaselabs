@@ -48,4 +48,13 @@ describe('three-person authority matrix', () => {
     expect(roleHasPermission('ops', 'quality.manage')).toBe(false);
     expect(roleHasPermission('ops', 'staff.manage')).toBe(false);
   });
+
+  it('keeps financial and sensitive-report authority with admin only', () => {
+    expect(roleHasPermission('admin', 'finance.manage')).toBe(true);
+    expect(roleHasPermission('admin', 'reports.sensitive')).toBe(true);
+    expect(roleHasPermission('qc', 'finance.manage')).toBe(false);
+    expect(roleHasPermission('qc', 'reports.sensitive')).toBe(false);
+    expect(roleHasPermission('ops', 'finance.manage')).toBe(false);
+    expect(roleHasPermission('ops', 'reports.sensitive')).toBe(false);
+  });
 });
