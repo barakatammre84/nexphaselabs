@@ -10,3 +10,4 @@
 - [Researcher signup](researcher-signup.md) — keep registration minimal and separate from wholesale; 21+ self-attestation remains explicit, not independently verified age.
 - [Refund reference identity](refund-reference-identity.md) — reject reused per-order references atomically; reserve legacy identities without guessing or rewriting money.
 - [GitHub access verification](github-access-verification.md) — active connection metadata does not prove repository access or usable workspace authentication.
+- [Staging migration proof](staging-migration-proof.md) — a healthy staging worker can still be older than a pending D1 migration; verify release and migration evidence separately.
