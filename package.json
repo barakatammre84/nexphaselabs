@@ -13,6 +13,7 @@
     "lint": "oxlint",
     "format": "oxfmt",
     "test": "vitest run",
+    "test:bank:browser": "vitest run --config tests/bank-payment-browser.config.ts",
     "baseline:store": "tsx scripts/store-buying-baseline.ts",
     "baseline:store:browser": "tsx scripts/store-buying-browser-baseline.ts",
     "baseline:store:browser:pricing": "node scripts/store-browser-baseline.mjs",
