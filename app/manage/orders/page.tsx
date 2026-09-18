@@ -39,7 +39,10 @@ export default async function ManageOrdersPage({
   );
   const list = loaded.data?.rows ?? [];
   const filterParams = Object.fromEntries(
-    Object.entries(filters).filter(([, value]): value is string => Boolean(value)),
+    Object.entries(filters).filter(
+      (entry): entry is [string, string] =>
+        typeof entry[1] === 'string' && Boolean(entry[1]),
+    ),
   );
   const pageHref = (n: number) =>
     '/manage/orders?' +

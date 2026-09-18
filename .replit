@@ -8,7 +8,7 @@ expertMode = true
 
 [postMerge]
 path = "scripts/post-merge.sh"
-timeoutMs = 120000
+timeoutMs = 300000
 
 [workflows]
 runButton = "Project"
@@ -37,4 +37,9 @@ waitForPort = 5000
 [[ports]]
 localPort = 5000
 externalPort = 80
+exposeLocalhost = true
+
+[[ports]]
+localPort = 9229
+externalPort = 3000
 exposeLocalhost = true
