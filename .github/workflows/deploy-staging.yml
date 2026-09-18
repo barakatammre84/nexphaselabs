@@ -71,12 +71,15 @@ jobs:
             exit 1
           fi
       - name: Apply migrations (staging D1)
+        id: staging-migrations
         # Migrations are backwards-compatible by convention (docs/DEPLOY.md), so the running worker
         # keeps working during the seconds between this step and the deploy.
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npm run db:migrate:staging
+        run: |
+          set -o pipefail
+          npm run db:migrate:staging 2>&1 | tee staging-migration.log
       - name: Seed reference data (idempotent, INSERT OR IGNORE)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -114,6 +117,12 @@ jobs:
         env:
           STAGING_URL: ${{ vars.STAGING_URL }}
         run: node scripts/staging-access-check.mjs "$STAGING_URL" dist/server/wrangler.json
+      - name: Refund retry rehearsal
+        id: staging-refund-rehearsal
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: node scripts/staging-refund-rehearsal.mjs "$STAGING_URL" "$GITHUB_SHA" | tee staging-refund-rehearsal.json
       - name: Checkout browser boundary
         id: checkout-browser-boundary
         # Keep the synthetic customer's credentials in the staging environment's secrets. The browser
@@ -147,4 +156,40 @@ jobs:
           name: staging-checkout-browser-baseline-${{ github.sha }}
           path: staging-browser-baseline.json
           if-no-files-found: error
+          retention-days: 14
+      - name: Write staging release report
+        if: always()
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          MIGRATION_RESULT: ${{ steps.staging-migrations.outcome }}
+          REFUND_REHEARSAL_RESULT: ${{ steps.staging-refund-rehearsal.outcome }}
+        run: |
+          node <<'NODE'
+          const { readFileSync, writeFileSync, existsSync } = require('node:fs');
+          const readJson = (path) => {
+            if (!existsSync(path)) return null;
+            try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return null; }
+          };
+          writeFileSync('staging-release-report.json', JSON.stringify({
+            release: process.env.GITHUB_SHA,
+            migration: {
+              result: process.env.MIGRATION_RESULT,
+              log: existsSync('staging-migration.log') ? 'staging-migration.log' : null,
+            },
+            refundRehearsal: {
+              result: process.env.REFUND_REHEARSAL_RESULT,
+              report: readJson('staging-refund-rehearsal.json'),
+            },
+          }, null, 2) + '\n');
+          NODE
+      - name: Retain staging release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-release-evidence-${{ github.sha }}
+          path: |
+            staging-release-report.json
+            staging-migration.log
+            staging-refund-rehearsal.json
+          if-no-files-found: warn
           retention-days: 14
