@@ -266,6 +266,118 @@ describe('private browser bank-payment rehearsal', () => {
   });
 
   for (const method of ['bank_transfer', 'zelle'] as const) {
+    it(`${method}: sequential refund-reference retries never increase totals or events`, async () => {
+      const fixture = await submittedRehearsalOrder(2);
+      harness.buyer = fixture.buyer;
+      const { orderNumber: number, id, totalCents } = fixture.detail.order;
+      const buyer = await newPage('buyer');
+      const admin = await newPage('admin');
+      const buyerUrl = `${origin}/account/orders/${number}`;
+      const staffUrl = `${origin}/manage/orders/${number}`;
+      const refundPath = `/api/manage/orders/${number}/refund`;
+      const money = (cents: number) => (cents / 100).toFixed(2);
+      const snapshot = async () => {
+        const order = (await getOrderByNumber(number))!.order;
+        return {
+          paymentStatus: order.paymentStatus,
+          refundCents: order.refundCents ?? 0,
+          refundRef: order.refundRef,
+          events: local.sqlite.prepare('SELECT COUNT(*) AS n FROM order_events WHERE order_id = ?').get(id)?.n,
+        };
+      };
+      const expectDisplayedTotals = async (state: Awaited<ReturnType<typeof snapshot>>) => {
+        await buyer.reload();
+        await admin.reload();
+        const buyerText = await buyer.locator('body').innerText();
+        const adminText = await admin.locator('body').innerText();
+        const sent = money(state.refundCents);
+        const remaining = money(totalCents - state.refundCents);
+        expect(adminText).toContain(`$${sent} sent of $${money(totalCents)} owed`);
+        if (state.refundCents === totalCents) {
+          expect(buyerText).toContain('refund complete.');
+          expect(await admin.locator('form[action$="/refund"]').count()).toBe(0);
+        } else {
+          expect(buyerText).toContain(`Refund: $${sent} sent`);
+          expect(buyerText).toContain(`remaining amount of $${remaining} awaits a manual refund.`);
+        }
+      };
+      const rejectedWithoutChange = async (
+        amountCents: number,
+        reference: string,
+        message: RegExp,
+        native = false,
+      ) => {
+        const before = await snapshot();
+        let location: string;
+        if (native) {
+          const form = admin.locator('form[action$="/refund"]');
+          expect(await form.count()).toBe(1);
+          await form.locator('[name="amount"]').fill(money(amountCents));
+          await form.locator('[name="reference"]').fill(reference);
+          await Promise.all([
+            admin.waitForNavigation(),
+            form.locator('button[type="submit"]').click(),
+          ]);
+          location = admin.url();
+        } else {
+          const response = await directPost(admin, refundPath, {
+            amount: money(amountCents),
+            reference,
+          });
+          expect(response.status()).toBe(303);
+          expect(response.headers().location).toBeTruthy();
+          location = response.headers().location!;
+        }
+        const error = new URL(location, origin).searchParams.get('error');
+        expect(error).toMatch(message);
+        expect(await snapshot()).toEqual(before);
+        if (native) expect(await admin.locator('[role="alert"]').innerText()).toMatch(message);
+        await expectDisplayedTotals(before);
+        return location;
+      };
+
+      await buyer.goto(buyerUrl);
+      await buyer.locator(`input[name="method"][value="${method}"]`).check();
+      await submit(buyer, 'pay', {});
+      await admin.goto(staffUrl);
+      await submit(admin, 'paid', { reference: `SYNTHETIC-REFERENCE-CHECK-${method}` });
+      await submit(admin, 'cancel', { reason: 'Synthetic refund-reference regression' });
+
+      const firstCents = Math.floor(totalCents / 4);
+      const secondCents = Math.floor(totalCents / 4);
+      const firstRef = `SYNTHETIC-${method}-REFUND-A`;
+      const secondRef = `SYNTHETIC-${method}-REFUND-B`;
+      const finalRef = `SYNTHETIC-${method}-REFUND-C`;
+
+      await submit(admin, 'refund', { amount: money(firstCents), reference: firstRef });
+      expect((await snapshot()).refundCents).toBe(firstCents);
+      await rejectedWithoutChange(firstCents, firstRef, /already recorded/i, true);
+
+      await submit(admin, 'refund', { amount: money(secondCents), reference: secondRef });
+      expect((await snapshot()).refundCents).toBe(firstCents + secondCents);
+      await rejectedWithoutChange(firstCents, firstRef, /already recorded/i);
+      await rejectedWithoutChange(firstCents + 1, firstRef, /different amount/i);
+
+      const finalCents = totalCents - firstCents - secondCents;
+      await submit(admin, 'refund', { amount: money(finalCents), reference: finalRef });
+      expect(await snapshot()).toMatchObject({
+        paymentStatus: 'refunded',
+        refundCents: totalCents,
+        refundRef: finalRef,
+      });
+      const duplicateLocation = await rejectedWithoutChange(
+        finalCents,
+        finalRef,
+        /already recorded/i,
+      );
+      await admin.goto(new URL(duplicateLocation, origin).href);
+      expect(await admin.locator('[role="alert"]').innerText()).toMatch(/already recorded/i);
+      await admin.screenshot({
+        path: `outputs/bank-payment-rehearsal/${method}-refund-reference-retry.jpg`,
+        fullPage: true,
+      });
+    });
+
     for (const expired of [false, true]) {
       it(`${method}: buyer/staff payment forms, ${expired ? 'expired stock' : 'cleared payment'}, zero/partial/full refunds`, async () => {
         const fixture = await submittedRehearsalOrder(2);

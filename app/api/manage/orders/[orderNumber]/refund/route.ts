@@ -1,4 +1,4 @@
-import { orderNumberFromParam, refundDue, validateRefund } from '@/lib/order-rules';
+import { orderNumberFromParam, validateRefund } from '@/lib/order-rules';
 import { getOrderByNumber, recordRefund } from '@/lib/orders';
 import { recordedBy } from '@/lib/lots-admin';
 import { canVerifyAccounts, getStaffFromRequest, sameOrigin } from '@/lib/staff-auth';
@@ -21,7 +21,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ ord
   } catch {
     return back('error=badform');
   }
-  const validated = validateRefund({ amount: String(form.get('amount') ?? ''), reference: String(form.get('reference') ?? '') }, refundDue(detail.order) - (detail.order.refundCents ?? 0));
+  // Parse input here; recordRefund checks durable identity before the remaining
+  // balance, so retries still get the right error after top-ups or completion.
+  const validated = validateRefund({ amount: String(form.get('amount') ?? ''), reference: String(form.get('reference') ?? '') }, Number.MAX_SAFE_INTEGER);
   if (!validated.ok) return back(`error=${encodeURIComponent(validated.error)}`);
   try {
     const result = await recordRefund(detail, validated.amountCents, validated.reference, recordedBy(staff));

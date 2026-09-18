@@ -2,7 +2,8 @@
 
 **Date:** 2026-09-18  
 **Environment:** isolated local SQLite/D1-compatible database and private Chromium harness  
-**Result:** core workflows verified locally; **two reproducible defects remain**.
+**Result:** core workflows verified locally; refund-reference idempotency is
+resolved locally, while **one reproducible defect remains**.
 This is not a clean payment-readiness sign-off.
 
 ## Safety and scope
@@ -46,10 +47,10 @@ This is not a clean payment-readiness sign-off.
 | Expired stock hold | ACH and Zelle late payments cancel fulfillment and create the exact full refund obligation. Browser staff warning says nothing may ship. Released holds permit a competing order; settlement does not decrement physical lot stock. |
 | Zero sent | Buyer says no refund has been sent and shows the full remaining amount. Staff shows `$0.00 sent of … owed`. A zero-dollar refund submission is rejected. |
 | Partial refund | Buyer and staff show the exact recorded amount and remaining obligation. Excess refund is rejected. |
-| Completed refund | A distinct-reference top-up marks the refund complete. Refund/fulfillment controls disappear; post-completion retry cannot increase the recorded refund. |
+| Completed refund | A distinct-reference top-up marks the refund complete. Refund/fulfillment controls disappear; a same-reference post-completion retry is rejected as already recorded and cannot increase totals or events. |
 | Refund authorization | Buyer and operations staff cannot submit refunds; only the authorized admin gets refund controls. |
 | Simultaneous stale partial-refund calls | Exactly one succeeds; optimistic concurrency prevents two ledger writes from the same stale snapshot. |
-| Later same-reference partial-refund retry | **Defect:** a fresh-read retry counts the same refund again; see finding 1. |
+| Sequential refund-reference reuse | **Resolved locally:** for ACH and Zelle, immediate same-reference retries, retries after distinct-reference top-ups, mismatched-amount reuse, and retries after completion are rejected without increasing refund totals or events. Distinct references still top up the refund. |
 | Reloading the settled Zelle claim URL | **Defect:** obsolete checking-bank message remains alongside confirmed payment; see finding 2. |
 
 ### Commands and results
@@ -59,60 +60,71 @@ No credentials or running store are required.
 
 ```sh
 npm run test:bank:browser
-# 6 passing cases + 1 expected failure documenting finding 2
+# 1 file passed; 8 passing cases + 1 expected failure documenting finding 2
 
-npx vitest run \
-  tests/bank-payment-rehearsal.test.ts \
-  tests/bank-payment-retry-findings.test.ts \
-  tests/zelle.test.ts tests/manual-payment-rules.test.ts \
-  tests/payment-recovery.test.ts tests/bank-payment-copy.test.ts \
-  tests/order-refund-status.test.ts tests/reconcile-payment-confirmation.test.ts
-# 8 files; 52 passing cases + 1 expected failure documenting finding 1
+npm test
+# 159 files; 1,451 passing cases, including 24 ACH/Zelle refund retry regressions
 
 npm run typecheck
 # passed
 
-npx oxlint tests/bank-payment* tests/helpers/bank-payment-rehearsal.ts
+npx oxlint lib/orders.ts lib/order-rules.ts db/commerce-schema.ts \
+  'app/api/manage/orders/[orderNumber]/refund/route.ts' \
+  tests/bank-payment-retry-findings.test.ts tests/refund-rules.test.ts \
+  tests/bank-payment.browser.ts
 # passed
 ```
 
-The two `it.fails` cases assert the intended safe behavior. Their expected
-failures are **known defects**, not evidence that those requirements passed.
-When fixed, convert them to ordinary passing regression tests. Each finding also
-has observed-state assertions or browser evidence.
+The remaining browser `it.fails` case asserts the intended safe behavior for
+finding 2. Its expected failure is a **known defect**, not evidence that the
+requirement passed. Finding 1 now has ordinary passing service and browser
+regressions. The isolated D1-compatible suite also covers racing same/different
+references, amount conflicts, per-order scoping, migration of historical duplicate
+references, and atomic rollback if the identity, event, or notification insert fails.
 
-Browser screenshots are generated under `outputs/bank-payment-rehearsal/`:
+Browser screenshots were generated under `outputs/bank-payment-rehearsal/`:
 buyer/staff views at zero, partial and complete refund states for both payment
 methods, both ordinary cancellation and expired holds; automatic Zelle settlement;
-and the stale-claim-message finding. Outputs are intentionally ignored by Git.
+ACH/Zelle refund-reference retry rejection after completion; and the
+stale-claim-message finding. Outputs are intentionally ignored by Git.
+The new completion/retry evidence is
+`bank_transfer-refund-reference-retry.jpg` and
+`zelle-refund-reference-retry.jpg`.
 
 The separate local storefront preview rendered its research-use gate, but logged
 `[catalog] read failed`. It was not used for payment evidence, and this rehearsal
 does not certify that preview's catalog configuration.
 
-## Findings requiring fixes
+## Findings
 
-### 1. High: repeated partial-refund reference double-counts refunded money
+### 1. Resolved locally: repeated partial-refund reference double-counting
 
-**Observed:** a cancelled ACH order owes `$4.00`. Recording `$1.00` with one
-synthetic bank reference produces `refundCents=100`. Repeating that same amount
-and reference after reloading the order succeeds again, produces
-`refundCents=200`, and adds a second refund ledger event. No money moved in either
-operation. The recorded refund can therefore overstate what was actually sent.
+**Previous observation:** a fresh-read retry with the same amount and synthetic
+bank reference could count the refund twice and add a second ledger event.
 
-The optimistic guard protects a concurrent/stale snapshot, but not a sequential
-retry after a fresh read. The shared implementation is used for ACH and Zelle;
-the dedicated retry reproduction uses ACH.
+**Local resolution:** refund references are now durable per-order idempotency
+keys. Browser regressions exercise both ACH and Zelle and verify that immediate
+same-reference retries, retries after an intervening distinct-reference top-up,
+mismatched-amount reuse, and retries after completion all return descriptive
+“already recorded” or “different amount” errors without increasing refund totals
+or event counts. Buyer and staff sent/remaining totals also remain unchanged
+after every rejection. Distinct-reference top-ups continue to work and can
+complete the refund.
+
+Migration `0070_order_refund_references.sql` creates the durable reference
+registry. It reserves references recoverable from canonical historical refund
+event notes and each order's latest refund reference; legacy recovered
+references have an unknown amount. The migration prevents reuse but deliberately
+does **not** guess at or correct any historically inflated refund total.
+Migration 0070 must be applied before deploying the application change. It was
+not applied to staging or production during this rehearsal.
 
 **Relevant code:** `lib/orders.ts` (`recordRefund`),
 `app/api/manage/orders/[orderNumber]/refund/route.ts`,
 `tests/bank-payment-retry-findings.test.ts`.
 
-**Next fix:** persist a per-order refund identity/reference and atomically prevent
-reusing it, including after other partial refunds. Preserve distinct-reference
-top-ups and reject mismatched reuse. Until fixed, reconcile existing refund
-history before retrying a manual refund record; do not interpret a repeated
-submission as evidence of another bank refund.
+This is local synthetic evidence only. Staging data and live payment providers
+were not accessed, and no live operation was performed.
 
 ### 2. Medium: obsolete Zelle claim banner survives settlement
 
@@ -140,5 +152,5 @@ and claim state; cover paid, cancelled/refund-due, and fully refunded reloads.
   refund was exercised. The app did not send refund money.
 - **Cards:** outside scope and not tested or presented as available.
 
-No production application code, database migration or deployment configuration
-was changed during this verification-only task.
+No deployment configuration or live environment was changed during this local
+verification.

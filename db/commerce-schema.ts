@@ -9,6 +9,21 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import { accounts, lots, orderItems, orders } from './schema';
 
+/** Durable deduplication keys, not a second ledger: order_events remains the audit history. */
+export const orderRefundReferences = sqliteTable(
+  'order_refund_references',
+  {
+    orderId: text('order_id').notNull().references(() => orders.id),
+    reference: text('reference').notNull(),
+    // Legacy references are reserved with an unknown amount; never infer money from a note.
+    amountCents: integer('amount_cents'),
+  },
+  (t) => [
+    uniqueIndex('order_refund_references_order_reference_idx').on(t.orderId, t.reference),
+    check('order_refund_references_amount_check', sql`${t.amountCents} IS NULL OR ${t.amountCents} > 0`),
+  ],
+);
+
 /** One durable attempt per order. An uncertain external request is NEVER retried by creating another invoice. */
 export const paymentAttempts = sqliteTable(
   'payment_attempts',

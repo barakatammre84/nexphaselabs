@@ -37,6 +37,7 @@ import { beginClaimedPayment } from '@/lib/payment-attempts';
 import {
   checkoutQuotes,
   inventoryReservations,
+  orderRefundReferences,
   paymentAttempts,
   zellePaymentClaims,
 } from '@/db/commerce-schema';
@@ -1037,6 +1038,25 @@ export async function recordRefund(
       error: 'Enter a bank or provider reference of at most 120 characters.',
     };
   const order = detail.order;
+  const db = getDb();
+  const referenceGuard = and(
+    eq(orderRefundReferences.orderId, order.id),
+    eq(orderRefundReferences.reference, reference),
+  )!;
+  const reusedReference = async () => {
+    const [existing] = await db.select({ amountCents: orderRefundReferences.amountCents })
+      .from(orderRefundReferences).where(referenceGuard).limit(1);
+    if (!existing) return null;
+    return {
+      ok: false as const,
+      error: existing.amountCents !== null && existing.amountCents !== amountCents
+        ? 'This refund reference was already recorded with a different amount. Use a new reference for a separate refund.'
+        : 'This refund reference was already recorded. No additional refund was recorded.',
+    };
+  };
+  // Check identity before balance/status, including completed orders and old top-ups.
+  const duplicate = await reusedReference();
+  if (duplicate) return duplicate;
   if (!refundAllowed(order))
     return {
       ok: false,
@@ -1049,7 +1069,6 @@ export async function recordRefund(
       ok: false,
       error: `The refund cannot exceed the $${((due - already) / 100).toFixed(2)} still owed.`,
     };
-  const db = getDb();
   const now = new Date();
   const marker = id('otr');
   const complete = already + amountCents >= due;
@@ -1072,9 +1091,18 @@ export async function recordRefund(
           eq(orders.paymentStatus, 'refund_due'),
           sql`COALESCE(${orders.refundCents}, 0) = ${already}`,
           sql`COALESCE(${orders.refundDueCents}, ${orders.totalCents}) = ${due}`,
+          // The pre-read is only for a useful error. This guard and the unique
+          // key enforce identity inside D1's atomic batch, even across workers.
+          sql`NOT EXISTS (SELECT 1 FROM ${orderRefundReferences} WHERE ${referenceGuard})`,
         ),
       )
       .returning({ id: orders.id }),
+    conditionalInsert(
+      orderRefundReferences,
+      { orderId: order.id, reference, amountCents },
+      orders,
+      and(eq(orders.id, order.id), eq(orders.lastTransitionId, marker))!,
+    ),
     db.insert(orderEvents).select(
       db
         .select({
@@ -1096,7 +1124,7 @@ export async function recordRefund(
     ),
   ]);
   if (!changed || changed.length === 0)
-    return {
+    return (await reusedReference()) ?? {
       ok: false,
       error: 'The order changed while you were working. Reload and try again.',
     };

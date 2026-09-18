@@ -18,6 +18,13 @@ describe('refund and return gates', () => {
 });
 
 describe('validateRefund', () => {
+  it('never truncates a reference into a different refund identity', () => {
+    const reference = 'R'.repeat(120);
+    expect(validateRefund({ amount: '1', reference: ` ${reference} ` }, 400))
+      .toMatchObject({ ok: true, reference });
+    expect(validateRefund({ amount: '1', reference: `${reference}X` }, 400))
+      .toMatchObject({ ok: false });
+  });
   it('preserves exact cents for large orders and rejects unsafe refunds', () => {
     expect(validateRefund({ amount: '90071992547409.91', reference: 'RF-1' }, Number.MAX_SAFE_INTEGER))
       .toEqual({ ok: true, amountCents: Number.MAX_SAFE_INTEGER, reference: 'RF-1' });

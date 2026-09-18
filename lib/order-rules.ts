@@ -182,12 +182,14 @@ export function validateRefund(
   remainingDueCents: number,
 ): RefundValidation {
   const totalCents = remainingDueCents;
-  const reference = (raw.reference ?? '').trim().slice(0, 120);
+  const reference = (raw.reference ?? '').trim();
   if (!reference)
     return {
       ok: false,
       error: 'Enter the bank or provider reference for the refund.',
     };
+  if (reference.length > 120)
+    return { ok: false, error: 'Enter a bank or provider reference of at most 120 characters.' };
   const text = (raw.amount ?? '').trim().replace(/^\$/, '');
   if (!/^\d+(?:\.\d{1,2})?$/.test(text))
     return {
