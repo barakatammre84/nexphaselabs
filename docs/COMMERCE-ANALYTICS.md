@@ -4,6 +4,10 @@
 
 Commerce analytics is configured for Cloudflare Workers Analytics Engine, not Replit. It is **disabled initially** in production and staging:
 
+For the bounded live acceptance procedure, expected synthetic counts, access
+blockers and owner activation checklist, see
+[Staging verification](COMMERCE-ANALYTICS-STAGING-VERIFICATION.md).
+
 - `COMMERCE_ANALYTICS_ENABLED` must equal the exact string `"true"` before the server sink writes.
 - The owner must review the privacy-policy change before enabling it.
 - Enabling the flag/config is an ordinary, owner-reviewed deployment through the existing Cloudflare process. This repository change does not enable production, publish a Worker or create a migration.

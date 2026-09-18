@@ -1,4 +1,4 @@
-- [Runtime validation](runtime-validation.md) — Node 22.13+ is required; keep opt-in browser test selection separate from the full suite.
+- [Runtime validation](runtime-validation.md) — this project requires Node 22.13+; Node 20 cannot run SQLite-backed tests or current build tooling; keep opt-in browser tests separate.
 - [Local runtime and preview](local-runtime-and-preview.md) — Wrangler needs Node 22; Replit webview needs vinext bound to 0.0.0.0:5000.
 - [Empty catalog diagnosis](catalog-visibility-diagnosis.md) — a static-only sitemap is inconclusive; healthy connectivity does not prove listing queries succeeded.
 - [Browser acceptance selectors](browser-acceptance-selectors.md) — scope selectors to their owning form because storefront-wide fields can share names.
@@ -9,3 +9,4 @@
 - [Inventory reservations](inventory-reservations.md) — checkout must always create atomic stock holds; invalid or missing duration settings use a safe default.
 - [Researcher signup](researcher-signup.md) — keep registration minimal and separate from wholesale; 21+ self-attestation remains explicit, not independently verified age.
 - [Refund reference identity](refund-reference-identity.md) — reject reused per-order references atomically; reserve legacy identities without guessing or rewriting money.
+- [GitHub access verification](github-access-verification.md) — active connection metadata does not prove repository access or usable workspace authentication.
