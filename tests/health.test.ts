@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { checkDependencies, SCHEMA_PROBES } from '@/lib/health';
+import { checkDependencies, checkMigrationState, MIGRATION_HISTORY_PROBE, SCHEMA_PROBES } from '@/lib/health';
 
 function database(batch = vi.fn().mockResolvedValue(SCHEMA_PROBES.map(() => ({ success: true })))) {
   return { prepare: vi.fn((query: string) => ({ query })), batch } as unknown as Pick<D1Database, 'prepare' | 'batch'>;
@@ -28,5 +28,33 @@ describe('deployment dependency health', () => {
     expect(await checkDependencies({ DB: database(), DOCS: { head: vi.fn().mockRejectedValue(new Error('bucket denied')) } }))
       .toEqual({ ok: false, db: 'ok', docs: 'unavailable' });
     expect((await checkDependencies({ DB: database(vi.fn().mockResolvedValue([{ success: false }])), DOCS })).ok).toBe(false);
+  });
+
+  it('proves staging D1 has exactly the build migration history', async () => {
+    const all = vi.fn().mockResolvedValue({
+      results: [{ name: '0000_wild_living_lightning' }, { name: '0001_fast_spyke' }],
+    });
+    const DB = { prepare: vi.fn(() => ({ all })) } as unknown as Pick<D1Database, 'prepare'>;
+    expect(await checkMigrationState(DB, ['0000_wild_living_lightning', '0001_fast_spyke'])).toEqual({
+      ok: true,
+      expected: ['0000_wild_living_lightning', '0001_fast_spyke'],
+      applied: ['0000_wild_living_lightning', '0001_fast_spyke'],
+    });
+    expect(DB.prepare).toHaveBeenCalledWith(MIGRATION_HISTORY_PROBE);
+    expect(
+      await checkMigrationState(DB, ['0000_wild_living_lightning', '0001_fast_spyke', '0002_pending']),
+    ).toMatchObject({ ok: false, applied: ['0000_wild_living_lightning', '0001_fast_spyke'] });
+  });
+
+  it('fails closed when the migration history table cannot be read', async () => {
+    const DB = { prepare: vi.fn(() => ({ all: vi.fn().mockRejectedValue(new Error('missing table')) })) } as unknown as Pick<
+      D1Database,
+      'prepare'
+    >;
+    expect(await checkMigrationState(DB, ['0000_wild_living_lightning'])).toEqual({
+      ok: false,
+      expected: ['0000_wild_living_lightning'],
+      applied: null,
+    });
   });
 });

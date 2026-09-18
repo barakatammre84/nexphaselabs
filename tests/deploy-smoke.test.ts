@@ -87,3 +87,22 @@ describe('the release the smoke test waits for', () => {
     expect(readFileSync('vite.config.ts', 'utf8')).toContain('process.env.GITHUB_SHA');
   });
 });
+
+describe('the staging migration proof', () => {
+  const staging = readFileSync('.github/workflows/deploy-staging.yml', 'utf8');
+  const production = readFileSync('.github/workflows/deploy-production.yml', 'utf8');
+  const steps = staging.split(/\n {6}- /).slice(1);
+  const step = (fragment: string) => steps.findIndex((text) => text.includes(fragment));
+
+  it('runs the read-only release and migration proof before staging smoke', () => {
+    const proof = step('node scripts/staging-migration-check.mjs "$STAGING_URL" "$GITHUB_SHA"');
+    const smoke = step('name: Smoke test');
+    expect(proof).toBeGreaterThan(-1);
+    expect(smoke).toBeGreaterThan(proof);
+    expect(staging).toContain('the exact D1');
+  });
+
+  it('keeps the migration proof out of production', () => {
+    expect(production).not.toContain('staging-migration-check.mjs');
+  });
+});

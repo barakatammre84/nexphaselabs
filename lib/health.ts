@@ -1,6 +1,7 @@
 import { getTableColumns, getTableName, is, Table } from 'drizzle-orm';
 import * as schema from '@/db/schema';
 import * as commerceSchema from '@/db/commerce-schema';
+import { migrationListsMatch } from '@/lib/migrations';
 
 // Probe the actual schema, including every column, without reading business rows.
 // A SELECT 1 succeeds against an empty database and cannot prove deploy readiness.
@@ -12,6 +13,28 @@ export const SCHEMA_PROBES = [...Object.values(schema), ...Object.values(commerc
     const columns = Object.values(getTableColumns(table)).map((column) => `${name}.${quote(column.name)}`);
     return `SELECT ${columns.join(', ')} FROM ${name} LIMIT 0`;
   });
+
+export const MIGRATION_HISTORY_PROBE = 'SELECT name FROM d1_migrations ORDER BY id';
+
+export async function checkMigrationState(
+  DB: Pick<D1Database, 'prepare'> | undefined,
+  expected: readonly string[],
+) {
+  const expectedTags = [...expected];
+  if (!DB || expectedTags.length === 0) return { ok: false, expected: expectedTags, applied: null };
+
+  try {
+    const result = await DB.prepare(MIGRATION_HISTORY_PROBE).all<{ name: string }>();
+    const applied = result.results.map((row) => row.name);
+    return {
+      ok: migrationListsMatch(expectedTags, applied),
+      expected: expectedTags,
+      applied,
+    };
+  } catch {
+    return { ok: false, expected: expectedTags, applied: null };
+  }
+}
 
 export async function checkDependencies(bindings: {
   DB?: Pick<D1Database, 'prepare' | 'batch'>;

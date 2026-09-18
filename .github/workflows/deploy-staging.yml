@@ -94,6 +94,12 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy --config dist/server/wrangler.json
+      - name: Staging release and migration proof
+        # The read-only health report must identify both this build and the exact D1
+        # migration history from the journal before any staging smoke test runs.
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        run: node scripts/staging-migration-check.mjs "$STAGING_URL" "$GITHUB_SHA"
       - name: Smoke test
         # Healthy is not proof the deploy took effect: the worker it replaced answers ok too. Pass only
         # once /api/health names the commit this job built (GITHUB_SHA, written in by vite.config.ts).

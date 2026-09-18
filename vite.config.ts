@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { readFileSync, readdirSync } from 'node:fs';
 import { cloudflare } from '@cloudflare/vite-plugin';
 import tailwindcss from '@tailwindcss/postcss';
 import vinext from 'vinext';
@@ -25,9 +26,30 @@ function releaseSha(): string {
   }
 }
 
+function migrationTags(): string[] {
+  const journal = JSON.parse(readFileSync('drizzle/meta/_journal.json', 'utf8')) as {
+    entries?: Array<{ tag?: unknown }>;
+  };
+  const journalTags = (journal.entries ?? []).map((entry) => entry.tag).filter((tag): tag is string => typeof tag === 'string');
+  const sqlTags = readdirSync('drizzle')
+    .filter((file) => /^\d+_.+\.sql$/.test(file))
+    .sort()
+    .map((file) => file.slice(0, -4));
+  if (JSON.stringify(journalTags) !== JSON.stringify(sqlTags)) {
+    throw new Error(
+      `drizzle migration manifest is out of sync: journal has ${journalTags.at(-1) ?? 'none'}, SQL has ${sqlTags.at(-1) ?? 'none'}`,
+    );
+  }
+  return journalTags;
+}
+
 export default defineConfig(() => {
+  const migrations = migrationTags();
   return {
-    define: { __RELEASE_SHA__: JSON.stringify(releaseSha()) },
+    define: {
+      __RELEASE_SHA__: JSON.stringify(releaseSha()),
+      __EXPECTED_MIGRATIONS__: JSON.stringify(migrations),
+    },
     css: { postcss: { plugins: [tailwindcss()] } },
     server: {
       watch: {
