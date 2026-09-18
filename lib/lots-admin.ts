@@ -235,9 +235,24 @@ export async function createLot(
 }
 
 /** Current record of every lot (superseded versions excluded). */
-export async function listLots(): Promise<Lot[]> {
+export function queuePage(raw?: string): number {
+  const n = Number(raw);
+  return Number.isSafeInteger(n) && n > 0 ? Math.min(n, 100000) : 1;
+}
+
+export type LotQueueOptions = { query?: string; status?: string; page?: number };
+export async function listLots(options: LotQueueOptions = {}): Promise<{ rows: Lot[]; hasNext: boolean }> {
   const db = getDb();
-  return db.select().from(lots).where(isNull(lots.supersededById)).orderBy(desc(lots.receivedAt), asc(lots.lotNumber));
+  const search = (options.query ?? '').trim().slice(0, 120).toLowerCase();
+  const matching = search
+    ? sql`instr(lower(${lots.lotNumber} || ' ' || ${lots.productName} || ' ' || ${lots.productCode} || ' ' || coalesce(${lots.manufacturerName}, '')), ${search}) > 0`
+    : undefined;
+  const status = options.status && options.status !== 'all' ? eq(lots.status, options.status) : undefined;
+  const rows = await db.select().from(lots)
+    .where(and(isNull(lots.supersededById), matching, status))
+    .orderBy(desc(lots.receivedAt), asc(lots.lotNumber))
+    .limit(51).offset((queuePage(String(options.page ?? 1)) - 1) * 50);
+  return { rows: rows.slice(0, 50), hasNext: rows.length > 50 };
 }
 
 export type LotDetail = {

@@ -152,14 +152,18 @@ intentionally/manual or blocked rather than silently automated.
 
 ### Search, filtering, bulk, and status clarity
 
-Orders have queue, free-text search, and pagination (up to 50), but no
-multi-filter for owner/date/payment/status and no bulk assignment or action
-(`app/manage/orders/page.tsx:49-87,176-188`). Lots have status filtering but
-load/filter in memory with no search or pagination; verification has status
-only and no search/pagination (`app/manage/lots/page.tsx:30-45,70-89`,
-`app/manage/verification/page.tsx:35-74`). No orders/lots/verification bulk
-workflow was found. Orders have next steps; lots and verification do not
-surface owner, due date, blocking reason, or next action in the list.
+Orders now use owner, due-date, payment, status, and text filters. Lots and
+verification use server-side text/status filters with 50-row pagination.
+Responsive card views summarize owner, due date, blocker, next action, and
+latest evidence without forcing horizontal scrolling on phones
+(`app/manage/orders/page.tsx`, `app/manage/lots/page.tsx`,
+`app/manage/verification/page.tsx`, `lib/order-queue.ts`,
+`lib/lots-admin.ts`, `lib/organizations.ts`). The current operating policy
+approves no bulk assignment action: it remains deliberately unavailable until
+an owner approves selection, due-date, partial-failure, and handoff rules. The
+existing single-order handoff remains the only assignment mutation and retains
+its conditional marker/event audit guard, so every assignment is attributable
+and concurrency-safe.
 
 ### Accessibility, keyboard, and mobile
 

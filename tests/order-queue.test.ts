@@ -38,6 +38,9 @@ beforeEach(async () => {
         shipToPostalCode: '00000',
         shipToCountry: 'US',
         submittedAt: new Date(1700000000000 + i * 1000),
+         assignedTo: i % 2 === 0 ? 'ops' : null,
+         assignedName: i % 2 === 0 ? 'Operations' : null,
+         serviceDueAt: i % 3 === 0 ? new Date('2027-01-15T12:00:00Z') : null,
       });
 });
 afterEach(() => {
@@ -78,6 +81,27 @@ describe('order queue database queries', () => {
     expect((await listOrderQueue('unassigned', '')).rows.map((o) => o.id)).toEqual([
       'order000',
     ]);
+  });
+  it('combines owner, due date, payment, and status filters before pagination', async () => {
+    const result = await listOrderQueue('all', '', 1, undefined, {
+      owner: 'unassigned',
+      dueFrom: '2027-01-01',
+      dueTo: '2027-01-31',
+      payment: 'paid',
+      status: 'shipped',
+    });
+    expect(result.rows.length).toBeGreaterThan(0);
+    expect(result.rows.every((row) =>
+      row.assignedTo === null &&
+      row.status === 'shipped' &&
+      row.paymentStatus === 'paid' &&
+      row.serviceDueAt !== null,
+    )).toBe(true);
+    const owned = await listOrderQueue('all', '', 1, undefined, { owner: 'unassigned' });
+    expect(owned.rows.every((row) => row.assignedTo === null)).toBe(true);
+  });
+  it('ignores malformed date filters instead of constructing invalid dates', async () => {
+    await expect(listOrderQueue('all', '', 1, undefined, { dueFrom: '2027-02-31' })).resolves.toBeTruthy();
   });
   it('normalizes invalid page values', () => {
     for (const raw of ['-1', '0', '1.5', 'NaN', 'Infinity', ''])

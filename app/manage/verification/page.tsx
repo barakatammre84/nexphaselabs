@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Lock } from 'lucide-react';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { loadCatalog } from '@/lib/catalog-data';
-import { listVerificationQueue } from '@/lib/organizations';
+import { listVerificationQueue, verificationQueuePage } from '@/lib/organizations';
 import { requireStaff } from '@/lib/staff-auth';
 
 export const dynamic = 'force-dynamic';
@@ -25,18 +25,19 @@ const STATUS_LABEL: Record<string, string> = {
 export default async function VerificationQueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; page?: string }>;
 }) {
   // The decision has always required this capability; so must reading the dossier, which holds
   // an applicant's legal name, address and uploaded identity documents.
   const staff = await requireStaff('/manage/verification');
   if (!canVerifyAccounts(staff)) redirect('/manage?denied=1');
-  const loaded = await loadCatalog(listVerificationQueue);
-  const requested = (await searchParams).status ?? '';
+  const params = await searchParams;
+  const requested = params.status ?? '';
   const status = Object.hasOwn(STATUS_LABEL, requested) ? requested : '';
-  const rows = (loaded.data ?? []).filter(
-    (row) => !status || row.organization.verificationStatus === status,
-  );
+  const query = (params.q ?? '').trim().slice(0, 120);
+  const page = verificationQueuePage(params.page);
+  const loaded = await loadCatalog(() => listVerificationQueue({ query, status, page }));
+  const rows = loaded.data?.rows ?? [];
 
   return (
     <main className="bg-background text-foreground">
@@ -68,6 +69,11 @@ export default async function VerificationQueuePage({
               ))}
             </select>
           </label>
+          <label className="grid min-w-0 flex-1 basis-64 gap-2 text-sm font-semibold">
+            Organisation, applicant, or domain
+            <input type="search" name="q" defaultValue={query} maxLength={120}
+              className="min-h-11 rounded-md border border-input px-3" />
+          </label>
           <button className="action-primary" type="submit">
             Apply filter
           </button>
@@ -81,8 +87,8 @@ export default async function VerificationQueuePage({
             No submissions match this status.
           </p>
         ) : (
-          <div className="mt-10 overflow-x-auto border border-border">
-            <table className="w-full min-w-[900px] border-collapse text-sm">
+          <div className="mt-10 border border-border">
+            <table className="hidden w-full border-collapse text-sm md:table">
               <thead>
                 <tr className="border-b border-border bg-secondary text-left">
                   <th className="p-4 font-semibold">Organisation</th>
@@ -90,7 +96,9 @@ export default async function VerificationQueuePage({
                   <th className="p-4 font-semibold">Domain</th>
                   <th className="p-4 font-semibold">Submitted</th>
                   <th className="p-4 font-semibold">Flags</th>
-                  <th className="p-4 font-semibold">Status</th>
+                  <th className="p-4 font-semibold">Owner / due</th>
+                  <th className="p-4 font-semibold">Status / blocker / next action</th>
+                  <th className="p-4 font-semibold">Latest evidence</th>
                 </tr>
               </thead>
               <tbody>
@@ -123,14 +131,38 @@ export default async function VerificationQueuePage({
                       {organization.reviewFlags.length || '—'}
                     </td>
                     <td className="p-4">
+                      {organization.reviewedBy ?? 'Unassigned'}<span className="block text-xs text-muted-foreground">due {organization.submittedAt.toISOString().slice(0, 10)}</span>
+                    </td>
+                    <td className="p-4">
                       {STATUS_LABEL[organization.verificationStatus] ??
                         organization.verificationStatus}
+                      <span className="mt-1 block text-xs text-muted-foreground">Blocker: {organization.reviewNote ?? (organization.reviewFlags.length ? `${organization.reviewFlags.length} review flag(s)` : 'None recorded')}<br />Next: {organization.verificationStatus === 'submitted' ? 'Review dossier and evidence' : 'Monitor resubmission or renewal'}</span>
+                    </td>
+                    <td className="p-4 text-xs text-muted-foreground">
+                      {organization.reviewedAt ? `Decision ${organization.reviewedAt.toISOString().slice(0, 10)}` : 'Submission documents'}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <div className="grid divide-y divide-border md:hidden">
+              {rows.map(({ organization, account }) => (
+                <article key={organization.id} className="grid gap-2 p-4 text-sm">
+                  <Link href={`/manage/verification/${organization.id}`} className="font-semibold text-primary">{organization.legalName}</Link>
+                  <span>{account.name} · {account.email}</span>
+                  <span className="text-muted-foreground">Owner: {organization.reviewedBy ?? 'Unassigned'} · Due: {organization.submittedAt?.toISOString().slice(0, 10) ?? '—'}</span>
+                  <span>Blocker: {organization.reviewNote ?? (organization.reviewFlags.length ? `${organization.reviewFlags.length} review flag(s)` : 'None recorded')} · Next: {organization.verificationStatus === 'submitted' ? 'Review dossier and evidence' : 'Monitor resubmission or renewal'}</span>
+                  <span className="text-xs text-muted-foreground">Latest evidence: {organization.reviewedAt ? `Decision ${organization.reviewedAt.toISOString().slice(0, 10)}` : 'Submission documents'}</span>
+                </article>
+              ))}
+            </div>
           </div>
+        )}
+        {!loaded.unavailable && (page > 1 || loaded.data?.hasNext) && (
+          <nav aria-label="Verification pages" className="mt-6 flex gap-3">
+            {page > 1 && <Link href={`/manage/verification?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&page=${page - 1}`} className="action-secondary">Previous page</Link>}
+            {loaded.data?.hasNext && <Link href={`/manage/verification?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&page=${page + 1}`} className="action-secondary">Next page</Link>}
+          </nav>
         )}
       </section>
     </main>

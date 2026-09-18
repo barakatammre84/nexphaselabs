@@ -130,16 +130,29 @@ export async function attachOrganizationDocument(
 
 export type QueueRow = { organization: Organization; account: Account };
 
-export async function listVerificationQueue(): Promise<QueueRow[]> {
+export type VerificationQueueOptions = { query?: string; status?: string; page?: number };
+export function verificationQueuePage(raw?: string): number {
+  const n = Number(raw);
+  return Number.isSafeInteger(n) && n > 0 ? Math.min(n, 100000) : 1;
+}
+export async function listVerificationQueue(options: VerificationQueueOptions = {}): Promise<{ rows: QueueRow[]; hasNext: boolean }> {
   const db = getDb();
+  const search = (options.query ?? '').trim().slice(0, 120).toLowerCase();
+  const matching = search
+    ? sql`instr(lower(${organizations.legalName} || ' ' || ${organizations.website} || ' ' || ${organizations.emailDomain} || ' ' || ${accounts.name} || ' ' || ${accounts.email}), ${search}) > 0`
+    : undefined;
+  const status = options.status && options.status !== 'all'
+    ? eq(organizations.verificationStatus, options.status)
+    : undefined;
   const rows = await db
     .select({ organization: organizations, account: accounts })
     .from(organizations)
     .innerJoin(accounts, eq(organizations.accountId, accounts.id))
-    .orderBy(asc(organizations.verificationStatus), desc(organizations.submittedAt));
-  // 'submitted' first, then more_info, approved, declined.
-  const order: Record<string, number> = { submitted: 0, more_info: 1, approved: 2, declined: 3 };
-  return rows.sort((a, b) => (order[a.organization.verificationStatus] ?? 9) - (order[b.organization.verificationStatus] ?? 9));
+    .where(and(matching, status))
+    .orderBy(sql`CASE ${organizations.verificationStatus} WHEN 'submitted' THEN 0 WHEN 'more_info' THEN 1 WHEN 'approved' THEN 2 WHEN 'declined' THEN 3 ELSE 9 END`, desc(organizations.submittedAt))
+    .limit(51)
+    .offset((verificationQueuePage(String(options.page ?? 1)) - 1) * 50);
+  return { rows: rows.slice(0, 50), hasNext: rows.length > 50 };
 }
 
 export type OrganizationDetail = QueueRow & { documents: OrganizationDocument[]; events: VerificationEvent[] };

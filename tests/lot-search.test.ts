@@ -7,6 +7,7 @@ vi.mock('cloudflare:workers', () => ({ env }));
 import { getDb } from '@/db';
 import { lots, lotTests } from '@/db/schema';
 import { getPublicLot, searchReleasedLots } from '@/lib/lots-public';
+import { listLots } from '@/lib/lots-admin';
 
 let local: ReturnType<typeof localD1>;
 
@@ -75,6 +76,19 @@ describe('public released-lot search', () => {
   it('treats SQL wildcard characters as literal search text', async () => {
     expect(await searchReleasedLots('A%')).toEqual([]);
     expect(await searchReleasedLots('A_')).toEqual([]);
+  });
+  it('paginates and searches the staff lot queue server-side', async () => {
+    await getDb().insert(lots).values(Array.from({ length: 52 }, (_, i) => ({
+      id: `queue_${i}`, lotNumber: `QUEUE-${String(i).padStart(3, '0')}`,
+      productCode: 'NPL-Q', productName: i === 51 ? 'Target material' : 'Queue material',
+      casNumber: '80-00-0', receivedAt: new Date(1700000000000 + i * 1000),
+    })));
+    const first = await listLots();
+    const second = await listLots({ page: 2 });
+    expect(first.rows).toHaveLength(50);
+    expect(first.hasNext).toBe(true);
+    expect(second.rows).toHaveLength(5);
+    expect((await listLots({ query: 'target' })).rows.map((row) => row.lotNumber)).toEqual(['QUEUE-051']);
   });
 });
 

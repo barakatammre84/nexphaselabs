@@ -5,7 +5,7 @@ import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { loadCatalog } from '@/lib/catalog-data';
 import { LotAlerts } from '@/components/manage/lot-alerts';
 import { lotAlerts } from '@/lib/lot-alerts';
-import { LOT_STATUS_LABEL, listLots, type LotStatus } from '@/lib/lots-admin';
+import { LOT_STATUS_LABEL, listLots, queuePage, type LotStatus } from '@/lib/lots-admin';
 import { requireStaff } from '@/lib/staff-auth';
 
 export const dynamic = 'force-dynamic';
@@ -30,18 +30,19 @@ function day(d: Date | null): string {
 export default async function LotsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; page?: string }>;
 }) {
   await requireStaff('/manage/lots');
+  const params = await searchParams;
+  const requested = params.status ?? '';
+  const status = Object.hasOwn(LOT_STATUS_LABEL, requested) ? requested : '';
+  const query = (params.q ?? '').trim().slice(0, 120);
+  const page = queuePage(params.page);
   const loaded = await loadCatalog(async () => ({
-    lots: await listLots(),
+    lots: await listLots({ query, status, page }),
     alerts: await lotAlerts(),
   }));
-  const requested = (await searchParams).status ?? '';
-  const status = Object.hasOwn(LOT_STATUS_LABEL, requested) ? requested : '';
-  const items = (loaded.data?.lots ?? []).filter(
-    (lot) => !status || lot.status === status,
-  );
+  const items = loaded.data?.lots.rows ?? [];
   const alerts = loaded.data?.alerts ?? [];
 
   return (
@@ -83,6 +84,11 @@ export default async function LotsPage({
               ))}
             </select>
           </label>
+          <label className="grid min-w-0 flex-1 basis-64 gap-2 text-sm font-semibold">
+            Lot, product, or manufacturer
+            <input type="search" name="q" defaultValue={query} maxLength={120}
+              className="min-h-11 rounded-md border border-input px-3" />
+          </label>
           <button className="action-primary" type="submit">
             Apply filter
           </button>
@@ -102,8 +108,8 @@ export default async function LotsPage({
             No lots match this status.
           </p>
         ) : (
-          <div className="mt-10 overflow-x-auto border border-border">
-            <table className="w-full min-w-[960px] border-collapse text-sm">
+          <div className="mt-10 border border-border">
+            <table className="hidden w-full border-collapse text-sm md:table">
               <thead>
                 <tr className="border-b border-border bg-secondary text-left">
                   <th className="p-4 font-semibold">Lot</th>
@@ -112,7 +118,9 @@ export default async function LotsPage({
                   <th className="p-4 font-semibold">Manufacturer</th>
                   <th className="p-4 font-semibold">On hand</th>
                   <th className="p-4 font-semibold">Retest</th>
-                  <th className="p-4 font-semibold">Status</th>
+                  <th className="p-4 font-semibold">Owner / due</th>
+                  <th className="p-4 font-semibold">Status / blocker / next action</th>
+                  <th className="p-4 font-semibold">Latest evidence</th>
                 </tr>
               </thead>
               <tbody>
@@ -150,18 +158,51 @@ export default async function LotsPage({
                       {day(lot.retestDate)}
                     </td>
                     <td className="p-4">
+                      {lot.releasedBy ?? 'Unassigned'}
+                      <span className="block text-xs text-muted-foreground">
+                        due {day(lot.retestDate)}
+                      </span>
+                    </td>
+                    <td className="p-4">
                       <span
                         className={`inline-block px-2 py-1 font-mono text-[11px] uppercase tracking-[0.08em] ${STATUS_CLASS[lot.status as LotStatus] ?? ''}`}
                       >
                         {LOT_STATUS_LABEL[lot.status as LotStatus] ??
                           lot.status}
                       </span>
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        Blocker: {lot.statusReason ?? 'None recorded'}
+                        <br />
+                        Next: {lot.status === 'quarantine' ? 'Review evidence and release' : 'Monitor lot status'}
+                      </span>
+                    </td>
+                    <td className="p-4 text-xs text-muted-foreground">
+                      {lot.coaKey || lot.sdsKey || lot.chromatogramKey || lot.massSpecKey
+                        ? 'Document recorded'
+                        : 'None recorded'}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <div className="grid divide-y divide-border md:hidden">
+              {items.map((lot) => (
+                <article key={lot.id} className="grid gap-2 p-4 text-sm">
+                  <Link href={`/manage/lots/${encodeURIComponent(lot.lotNumber)}`} className="font-semibold text-primary">{lot.lotNumber}</Link>
+                  <span>{lot.productName} <span className="font-mono text-xs text-muted-foreground">{lot.productCode}</span></span>
+                  <span className="text-muted-foreground">Owner: {lot.releasedBy ?? 'Unassigned'} · Due: {day(lot.retestDate)}</span>
+                  <span>Blocker: {lot.statusReason ?? 'None recorded'} · Next: {lot.status === 'quarantine' ? 'Review evidence and release' : 'Monitor lot status'}</span>
+                  <span className="text-xs text-muted-foreground">Latest evidence: {lot.coaKey || lot.sdsKey || lot.chromatogramKey || lot.massSpecKey ? 'Document recorded' : 'None recorded'}</span>
+                </article>
+              ))}
+            </div>
           </div>
+        )}
+        {!loaded.unavailable && (page > 1 || loaded.data?.lots.hasNext) && (
+          <nav aria-label="Lot pages" className="mt-6 flex gap-3">
+            {page > 1 && <Link href={`/manage/lots?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&page=${page - 1}`} className="action-secondary">Previous page</Link>}
+            {loaded.data?.lots.hasNext && <Link href={`/manage/lots?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&page=${page + 1}`} className="action-secondary">Next page</Link>}
+          </nav>
         )}
       </section>
     </main>

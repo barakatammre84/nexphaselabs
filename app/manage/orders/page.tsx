@@ -4,7 +4,7 @@ import { Lock } from 'lucide-react';
 import { CatalogUnavailable } from '@/components/site/catalog-unavailable';
 import { loadCatalog } from '@/lib/catalog-data';
 import { ORDER_STATUS_LABEL, type OrderStatus } from '@/lib/order-rules';
-import { listOrderQueue, queuePage } from '@/lib/order-queue';
+import { listOrderQueue, queuePage, type OrderQueueFilters } from '@/lib/order-queue';
 import {
   orderNextStep,
   orderQueue,
@@ -23,20 +23,27 @@ export const metadata: Metadata = {
 export default async function ManageOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ queue?: string; q?: string; page?: string }>;
+  searchParams: Promise<{ queue?: string; q?: string; page?: string; owner?: string; dueFrom?: string; dueTo?: string; payment?: string; status?: string }>;
 }) {
   const staff = await requireStaff('/manage/orders');
   const params = await searchParams;
   const queue = orderQueue(params.queue);
   const query = searchQuery(params.q);
   const page = queuePage(params.page);
+  const filters: OrderQueueFilters = {
+    owner: params.owner, dueFrom: params.dueFrom, dueTo: params.dueTo,
+    payment: params.payment, status: params.status,
+  };
   const loaded = await loadCatalog(() =>
-    listOrderQueue(queue, query, page, staff.id),
+    listOrderQueue(queue, query, page, staff.id, filters),
   );
   const list = loaded.data?.rows ?? [];
+  const filterParams = Object.fromEntries(
+    Object.entries(filters).filter(([, value]): value is string => Boolean(value)),
+  );
   const pageHref = (n: number) =>
     '/manage/orders?' +
-    new URLSearchParams({ queue, q: query, page: String(n) });
+    new URLSearchParams({ queue, q: query, page: String(n), ...filterParams });
   return (
     <main className="bg-background text-foreground">
       <section className="mx-auto max-w-[1500px] px-5 py-14 sm:px-8 lg:px-12">
@@ -75,6 +82,23 @@ export default async function ManageOrdersPage({
               className="min-h-11 rounded-md border border-input px-3"
             />
           </label>
+          <label className="grid gap-2 text-sm font-semibold">Owner
+            <select name="owner" defaultValue={filters.owner ?? 'all'} className="min-h-11 rounded-md border border-input bg-background px-3">
+              <option value="all">All owners</option><option value="mine">Mine</option><option value="unassigned">Unassigned</option>
+            </select>
+          </label>
+          <label className="grid gap-2 text-sm font-semibold">Due from<input type="date" name="dueFrom" defaultValue={filters.dueFrom} className="min-h-11 rounded-md border border-input px-3" /></label>
+          <label className="grid gap-2 text-sm font-semibold">Due to<input type="date" name="dueTo" defaultValue={filters.dueTo} className="min-h-11 rounded-md border border-input px-3" /></label>
+          <label className="grid gap-2 text-sm font-semibold">Payment
+            <select name="payment" defaultValue={filters.payment ?? 'all'} className="min-h-11 rounded-md border border-input bg-background px-3">
+              <option value="all">All payments</option><option value="paid">Paid</option><option value="pending">Pending</option><option value="refund_due">Refund due</option>
+            </select>
+          </label>
+          <label className="grid gap-2 text-sm font-semibold">Status
+            <select name="status" defaultValue={filters.status ?? 'all'} className="min-h-11 rounded-md border border-input bg-background px-3">
+              <option value="all">All statuses</option>{Object.entries(ORDER_STATUS_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </label>
           <button type="submit" className="action-primary">
             Apply filters
           </button>
@@ -96,7 +120,7 @@ export default async function ManageOrdersPage({
           </p>
         ) : (
           <div className="mt-10 overflow-x-auto border border-border">
-            <table className="w-full min-w-[900px] border-collapse text-sm">
+            <table className="hidden w-full border-collapse text-sm md:table">
               <thead>
                 <tr className="border-b border-border bg-secondary text-left">
                   <th className="p-4 font-semibold">Order</th>
@@ -105,7 +129,8 @@ export default async function ManageOrdersPage({
                   <th className="p-4 font-semibold">Total</th>
                   <th className="p-4 font-semibold">Payment</th>
                   <th className="p-4 font-semibold">Owner / due</th>
-                  <th className="p-4 font-semibold">Status / next action</th>
+                  <th className="p-4 font-semibold">Status / blocker / next action</th>
+                  <th className="p-4 font-semibold">Latest evidence</th>
                 </tr>
               </thead>
               <tbody>
@@ -159,7 +184,8 @@ export default async function ManageOrdersPage({
                     <td className="p-4">
                       {ORDER_STATUS_LABEL[o.status as OrderStatus] ?? o.status}
                       <p className="mt-2 max-w-xs text-xs leading-5 text-muted-foreground">
-                        {orderNextStep(o, true)}
+                        Blocker: {o.paymentStatus === 'refund_due' ? 'Refund due' : o.status === 'cancelled' ? 'Cancelled' : 'None recorded'}<br />
+                        Next: {orderNextStep(o, true)}
                       </p>
                       {o.returnedAt && (
                         <span className="ml-2 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
@@ -167,10 +193,24 @@ export default async function ManageOrdersPage({
                         </span>
                       )}
                     </td>
+                    <td className="p-4 text-xs text-muted-foreground">
+                      {o.returnedAt ? 'Return recorded' : 'Order record'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <div className="grid divide-y divide-border md:hidden">
+              {list.map((o) => (
+                <article key={o.id} className="grid gap-2 p-4 text-sm">
+                  <Link href={`/manage/orders/${o.orderNumber}`} className="font-semibold text-primary">{o.orderNumber}</Link>
+                  <span>{o.consigneeName} · {formatCents(o.totalCents)} · {o.paymentStatus}</span>
+                  <span className="text-muted-foreground">Owner: {o.assignedName ?? 'Unassigned'} · Due: {o.serviceDueAt?.toISOString().slice(0, 16).replace('T', ' ') ?? '—'} UTC</span>
+                  <span>Status: {ORDER_STATUS_LABEL[o.status as OrderStatus] ?? o.status} · Next: {orderNextStep(o, true)}</span>
+                  <span className="text-xs text-muted-foreground">Latest evidence: {o.returnedAt ? 'Return recorded' : 'Order record'}</span>
+                </article>
+              ))}
+            </div>
           </div>
         )}
         {!loaded.unavailable && (
