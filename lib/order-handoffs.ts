@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, or, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { orderEvents, orders, staffUsers, type Order } from '@/db/schema';
 import { canFulfil, type StaffPrincipal } from '@/lib/staff-auth';
@@ -11,6 +11,11 @@ export type OrderHandoffInput = {
 };
 
 export type OrderHandoffResult = { ok: true } | { ok: false; error: string };
+export const BULK_ORDER_ASSIGNMENT_LIMIT = 50;
+export type BulkOrderAssignmentRecord = Pick<Order, 'id' | 'orderNumber' | 'status' | 'lastTransitionId'>;
+export type BulkOrderAssignmentResult =
+  | { ok: true; changed: string[]; unchanged: [] }
+  | { ok: false; error: string; changed: []; unchanged: string[] };
 
 const actor = (staff: StaffPrincipal) => `${staff.name} (${staff.id})`;
 const id = (prefix: string) => `${prefix}_${randomToken().slice(0, 24)}`;
@@ -110,4 +115,85 @@ export async function handoffOrder(
   ]);
   if (!changed || changed.length === 0) return { ok: false, error: 'The order changed while you were working. Reload and try again.' };
   return { ok: true };
+}
+
+/**
+ * Operations-approved bulk policy: administrators may assign up to one queue
+ * page (50 orders) to one active fulfilment owner, with one mandatory due time.
+ * The operation is all-or-nothing: every row must still match the version that
+ * was rendered, otherwise the guarded update changes nothing.
+ */
+export async function bulkAssignOrders(
+  selected: BulkOrderAssignmentRecord[],
+  input: Pick<OrderHandoffInput, 'assignedTo' | 'serviceDueAt' | 'note'>,
+  staff: StaffPrincipal,
+  now = new Date(),
+): Promise<BulkOrderAssignmentResult> {
+  const unchanged = selected.map((record) => record.orderNumber);
+  const fail = (error: string): BulkOrderAssignmentResult => ({ ok: false, error, changed: [], unchanged });
+  if (staff.role !== 'admin') return fail('Only administrators can assign multiple orders.');
+  if (selected.length === 0) return fail('Select at least one order.');
+  if (selected.length > BULK_ORDER_ASSIGNMENT_LIMIT) return fail(`Select no more than ${BULK_ORDER_ASSIGNMENT_LIMIT} orders.`);
+  if (new Set(selected.map((record) => record.id)).size !== selected.length) return fail('Each order may be selected only once.');
+  if (selected.some((record) => record.status === 'cancelled')) return fail('Cancelled orders cannot be assigned.');
+  const targetId = (input.assignedTo ?? '').trim();
+  if (!targetId) return fail('Choose an owner.');
+  const due = parseDue(input.serviceDueAt);
+  if (due === 'bad' || !due) return fail('Choose a valid service due date and time.');
+  if (due.getTime() <= now.getTime()) return fail('The service due date must be in the future.');
+  if (due.getTime() > now.getTime() + 366 * 24 * 60 * 60 * 1000) return fail('The service due date must be within one year.');
+  const [target] = await getDb()
+    .select({ id: staffUsers.id, name: staffUsers.name })
+    .from(staffUsers)
+    .where(and(eq(staffUsers.id, targetId), eq(staffUsers.active, true), or(eq(staffUsers.role, 'admin'), eq(staffUsers.role, 'ops'))))
+    .limit(1);
+  if (!target) return fail('Choose an active operations or administrator owner.');
+
+  const expectedJson = JSON.stringify(selected.map(({ id, status, lastTransitionId }) => ({
+    id,
+    status,
+    lastTransitionId,
+  })));
+  const marker = id('obulk');
+  const note = (input.note ?? '').trim().slice(0, 1000);
+  const eventNote = `Bulk assigned to ${target.name}. Service due ${due.toISOString()}.${note ? ` ${note}` : ''}`;
+  const [changed] = await getDb().batch([
+    getDb().update(orders).set({
+      assignedTo: target.id,
+      assignedName: target.name,
+      serviceDueAt: due,
+      lastTransitionId: marker,
+      updatedAt: now,
+    }).where(sql`
+      EXISTS (
+        SELECT 1 FROM json_each(${expectedJson}) item
+        WHERE json_extract(item.value, '$.id') = ${orders.id}
+          AND json_extract(item.value, '$.status') = ${orders.status}
+          AND json_extract(item.value, '$.lastTransitionId') IS ${orders.lastTransitionId}
+      )
+      AND (
+        SELECT count(*) FROM ${orders} expected_orders
+        JOIN json_each(${expectedJson}) item
+          ON json_extract(item.value, '$.id') = expected_orders.id
+         AND json_extract(item.value, '$.status') = expected_orders.status
+         AND json_extract(item.value, '$.lastTransitionId') IS expected_orders.last_transition_id
+      ) = ${selected.length}
+    `).returning({ orderNumber: orders.orderNumber }),
+    getDb().insert(orderEvents).select(
+      getDb().select({
+        id: sql<string>`'oev_' || lower(hex(randomblob(12)))`.as('id'),
+        orderId: orders.id,
+        fromStatus: orders.status,
+        toStatus: orders.status,
+        note: sql<string>`${eventNote}`.as('note'),
+        actor: sql<string>`${actor(staff)}`.as('actor'),
+        internal: sql<number>`1`.as('internal'),
+        createdAt: sql<number>`${Math.floor(now.getTime() / 1000)}`.as('created_at'),
+      }).from(orders).where(eq(orders.lastTransitionId, marker)),
+    ),
+  ]);
+  if (!changed || changed.length !== selected.length) {
+    return fail('No orders changed because at least one selected order was updated by someone else. Reload and try again.');
+  }
+  return { ok: true, changed: changed.map((record) => record.orderNumber), unchanged: [] };
 }

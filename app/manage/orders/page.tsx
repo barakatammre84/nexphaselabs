@@ -13,6 +13,10 @@ import {
 } from '@/lib/workflow-display';
 import { requireStaff } from '@/lib/staff-auth';
 import { formatCents } from '@/lib/visibility-rules';
+import { getDb } from '@/db';
+import { staffUsers } from '@/db/schema';
+import { and, asc, eq, or } from 'drizzle-orm';
+import { BulkAssignmentForm } from './bulk-assignment-form';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -37,6 +41,11 @@ export default async function ManageOrdersPage({
   const loaded = await loadCatalog(() =>
     listOrderQueue(queue, query, page, staff.id, filters),
   );
+  const owners = staff.role === 'admin' ? await getDb()
+    .select({ id: staffUsers.id, name: staffUsers.name })
+    .from(staffUsers)
+    .where(and(eq(staffUsers.active, true), or(eq(staffUsers.role, 'admin'), eq(staffUsers.role, 'ops'))))
+    .orderBy(asc(staffUsers.name)) : [];
   const list = loaded.data?.rows ?? [];
   const filterParams = Object.fromEntries(
     Object.entries(filters).filter(
@@ -112,6 +121,12 @@ export default async function ManageOrdersPage({
         <p className="mt-4 text-sm text-muted-foreground">
           {ORDER_QUEUES[queue]} · Page {page} · Up to 50 orders per page
         </p>
+        {staff.role === 'admin' && list.length > 0 && (
+          <BulkAssignmentForm
+            owners={owners}
+            rows={list.map(({ id, orderNumber, status, lastTransitionId }) => ({ id, orderNumber, status, lastTransitionId }))}
+          />
+        )}
         {loaded.unavailable ? (
           <div className="mt-10">
             <CatalogUnavailable />

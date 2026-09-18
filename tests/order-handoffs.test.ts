@@ -9,7 +9,7 @@ vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 
 import { getDb } from '@/db';
 import { accounts, orderEvents, orders, staffUsers } from '@/db/schema';
-import { handoffOrder } from '@/lib/order-handoffs';
+import { bulkAssignOrders, handoffOrder } from '@/lib/order-handoffs';
 import { listOrderQueue } from '@/lib/order-queue';
 import type { StaffPrincipal } from '@/lib/staff-auth';
 
@@ -19,16 +19,16 @@ const admin = { id: 'admin', name: 'Admin', role: 'admin' } as StaffPrincipal;
 const first = { id: 'first', name: 'First owner', role: 'ops' } as StaffPrincipal;
 const second = { id: 'second', name: 'Second owner', role: 'qc' } as StaffPrincipal;
 
-async function order() {
+async function order(id = 'order', orderNumber = 'NX-260908-0001') {
   await getDb().insert(accounts).values({
     id: 'account',
     email: 'synthetic@example.invalid',
     name: 'Synthetic',
     passwordHash: 'unused',
-  });
+  }).onConflictDoNothing();
   await getDb().insert(orders).values({
-    id: 'order',
-    orderNumber: 'NX-260908-0001',
+    id,
+    orderNumber,
     accountId: 'account',
     status: 'paid',
     subtotalCents: 100,
@@ -68,6 +68,41 @@ afterEach(() => {
 });
 
 describe('order ownership and handoffs', () => {
+  it('bulk assigns atomically with one attributed event per order', async () => {
+    const firstOrder = await order();
+    const result = await bulkAssignOrders(
+      [firstOrder],
+      { assignedTo: first.id, serviceDueAt: '2026-09-09T12:00:00Z', note: 'Queue triage.' },
+      admin,
+      now,
+    );
+    expect(result).toEqual({ ok: true, changed: [firstOrder.orderNumber], unchanged: [] });
+    expect((await getDb().select().from(orderEvents))[0].actor).toContain(admin.id);
+  });
+
+  it('rejects the full bulk selection when any rendered version is stale', async () => {
+    const stale = await order();
+    const unchanged = await order('order-2', 'NX-260908-0002');
+    await handoffOrder(stale, { assignedTo: first.id, serviceDueAt: '2026-09-09T12:00:00Z' }, admin, now);
+    const result = await bulkAssignOrders(
+      [stale, unchanged],
+      { assignedTo: admin.id, serviceDueAt: '2026-09-10T12:00:00Z' },
+      admin,
+      now,
+    );
+    expect(result.ok).toBe(false);
+    const saved = await getDb().select().from(orders);
+    expect(saved.find((row) => row.id === stale.id)?.assignedTo).toBe(first.id);
+    expect(saved.find((row) => row.id === unchanged.id)?.assignedTo).toBeNull();
+    expect(await getDb().select().from(orderEvents)).toHaveLength(1);
+  });
+
+  it('reserves bulk assignment for admins and fulfilment owners', async () => {
+    const current = await order();
+    expect((await bulkAssignOrders([current], { assignedTo: first.id, serviceDueAt: '2026-09-09T12:00:00Z' }, first, now)).ok).toBe(false);
+    expect((await bulkAssignOrders([current], { assignedTo: second.id, serviceDueAt: '2026-09-09T12:00:00Z' }, admin, now)).ok).toBe(false);
+  });
+
   it('lets staff self-claim an unassigned order with a future target', async () => {
     const current = await order();
     expect(

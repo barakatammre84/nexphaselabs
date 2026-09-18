@@ -35,9 +35,9 @@ The highest software-control risks are:
 3. The readiness ledger records evidence but does not itself block all
    launch-critical selling or shipping paths; this is intentional in code but
    needs an explicit business gate (`lib/operational-controls.ts:38-52`).
-4. Queue usability does not scale: orders, lots, and verification have no
-   bulk work; lots and verification lack search/pagination; mobile tables
-   require horizontal scrolling (`app/manage/orders/page.tsx:98-188`,
+4. Queue usability remains uneven: lots and verification have no bulk work,
+   while orders have a policy-bounded bulk assignment path; mobile tables
+   still require horizontal scrolling (`app/manage/orders/page.tsx`,
    `app/manage/lots/page.tsx:70-164`,
    `app/manage/verification/page.tsx:35-133`).
 
@@ -159,20 +159,22 @@ Responsive card views summarize owner, due date, blocker, next action, and
 latest evidence without forcing horizontal scrolling on phones
 (`app/manage/orders/page.tsx`, `app/manage/lots/page.tsx`,
 `app/manage/verification/page.tsx`, `lib/order-queue.ts`,
-`lib/lots-admin.ts`, `lib/organizations.ts`). The current operating policy
-approves no bulk assignment action: it remains deliberately unavailable until
-an owner approves selection, due-date, partial-failure, and handoff rules. The
-existing single-order handoff remains the only assignment mutation and retains
-its conditional marker/event audit guard, so every assignment is attributable
-and concurrency-safe.
+`lib/lots-admin.ts`, `lib/organizations.ts`). The approved bulk-order policy is
+deliberately narrow: only administrators may assign orders, only active
+operations or administrator owners are eligible, one queue page (50 records)
+is the selection limit, and one future service due time is mandatory.
+Processing is all-or-nothing: a concurrent change rejects the whole selection.
+The result names every changed and unchanged order, and each changed order
+receives an internal event naming the acting staff member. Lots and
+verification remain ineligible for bulk assignment.
 
 ### Accessibility, keyboard, and mobile
 
 Forms have visible labels and many outcome messages use `role=status` or
 `role=alert`. Native links, forms, selects, and `<details>` are keyboard
-compatible. However, tables omit `scope="col"`, the navigation has no skip
-link or `aria-current`, focus-visible treatment is inconsistent, and there
-is no keyboard/bulk queue workflow
+compatible. The order bulk assignment workflow uses native keyboard-operable
+controls. However, tables omit `scope="col"`, the navigation has no skip link
+or `aria-current`, and focus-visible treatment is inconsistent
 (`app/manage/orders/page.tsx:101-109`,
 `app/manage/payments/zelle/page.tsx:251-253`,
 `app/manage/layout.tsx:31-146`). Minimum-width tables (900px orders; similar
@@ -269,8 +271,8 @@ These are not merely software tickets
 * SEC-02 export authorization, minimization, purpose and audit history.
 * SEC-03 reset concurrency/idempotency and SEC-04 trusted proxy invariant.
 * Add direct route/API authorization and destructive-action race tests.
-* Add queue search/pagination/bulk assignment or explicitly document a volume
-  ceiling; add consistent owner/due/next-action fields.
+* Add policy-approved lot/verification bulk work or explicitly document a
+  volume ceiling; keep consistent owner/due/next-action fields.
 
 ### P1 — policy/training/manual work
 
@@ -307,7 +309,7 @@ summary columns.
 | A | Replace finance/account-approval reuse with explicit finance/report permissions; gate payment/refund/label-refund; implement dual approval where policy requires; add direct unauthorized POST tests. Acceptance: admin/QC/ops matrix passes for page/action/API and every financial/destructive event has actor and independent approval. | Software; member approval of authority first | New finding; not a duplicate |
 | B | Add export data minimization, explicit purpose/confirmation, export event, and retention/alerting. Acceptance: sensitive CSV download is denied outside approved role, logged with actor/purpose/period, and test fixtures prove no unnecessary credential/customer fields. | Software + retention policy | Distinct from Task 16’s staging checkout-log scope |
 | C | Make staff password reset concurrency-safe/idempotent and enforce trusted proxy/header deployment invariant. Acceptance: duplicate submission yields one usable OTP; direct untrusted forwarded headers cannot weaken cookie transport. | Software + deployment configuration | New finding |
-| D | Add scalable queue triage: server-side lot/verification search and pagination, order multi-filters, bulk assignment only where policy allows, consistent due/owner/next-action summaries. Acceptance: representative high-volume fixture remains usable on keyboard/mobile and every bulk operation is attributable. | Software + volume policy | New finding |
+| D | Complete scalable queue triage for lots and verification where policy allows; retain the approved admin-only, 50-order, mandatory-due-date, all-or-nothing order assignment control. Acceptance: representative high-volume fixtures remain usable on keyboard/mobile and every bulk operation is attributable. | Software + volume policy | Order portion complete; lot/verification policy remains |
 | E | Conduct the named three-person authority, exceptional-release, access-review, and SOP walkthrough; record owners/backups, approvals, corrections, acknowledgements, and review dates. | Policy/training/business approval | Includes Task 47’s audit outcome; not a duplicate of existing release/deploy tasks |
 | F | Populate approved catalog, supplier, quality, inventory, PO, parcel, tax, and shipping evidence; reconcile a witnessed physical count. Acceptance: no launch-critical control is “ready” without current evidence and a named owner. | Data/provider/business approval | New; does not duplicate payment-after-restock tasks |
 | G | Run one named end-to-end supplier → close rehearsal including recall/CAPA, external-boundary failures, handoffs, reports, and customer communication. Acceptance: all variances have owners/dates and no unresolved P0 remains. | Operational rehearsal/training | New; separate from Tasks 43/44 |

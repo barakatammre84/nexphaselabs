@@ -3,7 +3,7 @@
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { getOrderByNumber } from '@/lib/orders';
-import { handoffOrder, type OrderHandoffInput } from '@/lib/order-handoffs';
+import { bulkAssignOrders, handoffOrder, type BulkOrderAssignmentRecord, type OrderHandoffInput } from '@/lib/order-handoffs';
 import { canFulfil, requireStaff } from '@/lib/staff-auth';
 import { requestContactVerification } from '@/lib/order-contact-verification';
 
@@ -12,6 +12,47 @@ export type OrderHandoffState = {
   errors: string[];
   saved: boolean;
 };
+
+export type BulkOrderAssignmentState = {
+  error?: string;
+  changed: string[];
+  unchanged: string[];
+};
+
+export async function bulkAssignOrdersAction(
+  _previous: BulkOrderAssignmentState,
+  data: FormData,
+): Promise<BulkOrderAssignmentState> {
+  if (!(await sameOriginAction())) return { error: 'Request rejected: cross-origin.', changed: [], unchanged: [] };
+  const staff = await requireStaff('/manage/orders');
+  let selected: BulkOrderAssignmentRecord[] = [];
+  try {
+    selected = data.getAll('orders').flatMap((value) => {
+      if (typeof value !== 'string') return [];
+      const parsed = JSON.parse(value) as BulkOrderAssignmentRecord;
+      return parsed && typeof parsed.id === 'string' && typeof parsed.orderNumber === 'string'
+        ? [parsed]
+        : [];
+    });
+  } catch {
+    return { error: 'The selection was invalid. Reload and try again.', changed: [], unchanged: [] };
+  }
+  try {
+    const result = await bulkAssignOrders(selected, {
+      assignedTo: String(data.get('assignedTo') ?? ''),
+      serviceDueAt: String(data.get('serviceDueAt') ?? ''),
+      note: String(data.get('note') ?? ''),
+    }, staff);
+    revalidatePath('/manage');
+    revalidatePath('/manage/orders');
+    return result.ok
+      ? { changed: result.changed, unchanged: result.unchanged }
+      : { error: result.error, changed: result.changed, unchanged: result.unchanged };
+  } catch (error) {
+    console.error('[orders] bulk assignment failed', error instanceof Error ? error.message : error);
+    return { error: 'No orders changed. Try again shortly.', changed: [], unchanged: selected.map((record) => record.orderNumber) };
+  }
+}
 
 async function sameOriginAction() {
   const h = await headers();
