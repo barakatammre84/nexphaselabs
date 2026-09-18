@@ -15,3 +15,4 @@
 - [Sensitive export monitoring](sensitive-export-monitoring.md) — retain metadata, never copied customer rows; use approved purposes and preserve open-alert evidence through review.
 - [Queue assignment identity](queue-assignment-identity.md) — operational owners are active, role-eligible staff identities; recheck eligibility inside the atomic handoff.
 - [Server-action browser harnesses](server-action-browser-harnesses.md) — static React rendering cannot submit function-valued server actions; use a shared view with a private POST endpoint.
+- [Custom-domain deployment drift](custom-domain-deployment-drift.md) — a custom domain can serve an older build even when the workspace source and local preview are current.
