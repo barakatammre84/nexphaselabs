@@ -256,11 +256,34 @@ function maximumTaxCents(orderCents: number): number {
   );
 }
 
+/**
+ * TaxJar expects a total discount per line, not a per-unit discount.
+ * Allocate proportionally to merchandise value with cumulative integer rounding,
+ * so the final remainder cent is retained and the line amounts match the subtotal.
+ * https://support.taxjar.com/article/640-how-should-i-handle-discounts-in-the-api
+ */
+function lineDiscounts(lineTotals: number[], grossSubtotal: number, netSubtotal: number): number[] {
+  if (grossSubtotal === 0) return lineTotals.map(() => 0);
+  const discount = BigInt(grossSubtotal - netSubtotal);
+  const gross = BigInt(grossSubtotal);
+  let cumulativeGross = BigInt(0);
+  let allocated = BigInt(0);
+  return lineTotals.map((total) => {
+    cumulativeGross += BigInt(total);
+    const cumulativeDiscount = (discount * cumulativeGross) / gross;
+    const share = cumulativeDiscount - allocated;
+    allocated = cumulativeDiscount;
+    return Number(share);
+  });
+}
+
 /** Calculate only. Recording the final transaction happens after real payment settlement. */
 export async function quoteTax(input: TaxQuoteInput) {
   const configuration = taxConfiguration();
   if (!configuration.ok) return configuration;
   let orderCents: number;
+  let lineSum = 0;
+  const lineTotals: number[] = [];
   try {
     if (addressError(input.to) || input.lines.length === 0)
       throw new RangeError('Invalid tax quote input.');
@@ -271,21 +294,14 @@ export async function quoteTax(input: TaxQuoteInput) {
       input.shippingCents,
       'Tax quote total',
     );
-    let lineSum = 0;
     for (const line of input.lines) {
       assertNonNegativeSafeInteger(line.quantity, 'Tax line quantity');
       if (line.quantity === 0)
         throw new RangeError('Tax line quantity must be positive.');
       assertNonNegativeSafeInteger(line.unitPriceCents, 'Tax line unit price');
-      lineSum = safeAdd(
-        lineSum,
-        safeMultiply(
-          line.quantity,
-          line.unitPriceCents,
-          'Tax line total',
-        ),
-        'Tax line sum',
-      );
+      const total = safeMultiply(line.quantity, line.unitPriceCents, 'Tax line total');
+      lineTotals.push(total);
+      lineSum = safeAdd(lineSum, total, 'Tax line sum');
     }
     // A discounted subtotal may be below the undiscounted line sum, never above it.
     if (input.subtotalCents > lineSum)
@@ -369,6 +385,7 @@ export async function quoteTax(input: TaxQuoteInput) {
     };
   }
   try {
+    const discounts = lineDiscounts(lineTotals, lineSum, input.subtotalCents);
     const response = await fetch(configuration.url, {
       method: 'POST',
       signal: AbortSignal.timeout(12_000),
@@ -389,12 +406,13 @@ export async function quoteTax(input: TaxQuoteInput) {
         to_street: input.to.street1,
         amount: dollars(input.subtotalCents),
         shipping: dollars(input.shippingCents),
-        line_items: input.lines.map((line) => ({
+        line_items: input.lines.map((line, index) => ({
           id: line.id,
           quantity: line.quantity,
           product_identifier: line.sku,
           description: line.description.slice(0, 255),
           unit_price: dollars(line.unitPriceCents),
+          discount: dollars(discounts[index]),
         })),
       }),
     });

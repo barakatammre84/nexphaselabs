@@ -88,6 +88,66 @@ describe('tax calculation boundary', () => {
     expect(await quoteTax(input)).toMatchObject({ ok: false });
   });
 
+  it.each([
+    { subtotal: 10000, discounts: [0, 0] },
+    { subtotal: 7500, discounts: [2250, 250] },
+    { subtotal: 8999, discounts: [900, 101] },
+    { subtotal: 0, discounts: [9000, 1000] },
+  ])('sends matching TaxJar totals for a discounted subtotal of $subtotal cents', async ({ subtotal, discounts }) => {
+    Object.assign(env, {
+      APP_ENV: 'staging',
+      TAX_PROVIDER: 'taxjar',
+      TAXJAR_API_KEY: 'synthetic_taxjar_key_123456',
+      TAXJAR_SANDBOX: 'true',
+      SHIPPING_FROM_JSON: JSON.stringify(address),
+    });
+    const provider = vi.fn().mockResolvedValue(new Response(JSON.stringify({ tax: { amount_to_collect: 0 } })));
+    vi.stubGlobal('fetch', provider);
+    const result = await quoteTax({
+      ...input,
+      subtotalCents: subtotal,
+      lines: [
+        { ...input.lines[0], quantity: 3, unitPriceCents: 3000 },
+        { ...input.lines[0], id: 'second', quantity: 1, unitPriceCents: 1000 },
+      ],
+    });
+    expect(result).toMatchObject({ ok: true });
+    const body = JSON.parse(provider.mock.calls[0][1].body);
+    expect(body.amount).toBe(subtotal / 100);
+    // Shipping is separate, and a multi-unit line's discount must not be divided by quantity.
+    expect(body.shipping).toBe(10);
+    expect(body.line_items.map((line: { discount: number }) => Math.round(line.discount * 100))).toEqual(discounts);
+    const netCents = body.line_items.reduce(
+      (sum: number, line: { quantity: number; unit_price: number; discount: number }) =>
+        sum + line.quantity * Math.round(line.unit_price * 100) - Math.round(line.discount * 100),
+      0,
+    );
+    expect(netCents).toBe(subtotal);
+  });
+
+  it.each([
+    { unitPriceCents: 333, subtotal: 998, discounts: [0, 0, 1] },
+    { unitPriceCents: 0, subtotal: 0, discounts: [0, 0, 0] },
+  ])('preserves remainder cents and zero-price lines: %o', async ({ unitPriceCents, subtotal, discounts }) => {
+    Object.assign(env, {
+      APP_ENV: 'staging',
+      TAX_PROVIDER: 'taxjar',
+      TAXJAR_API_KEY: 'synthetic_taxjar_key_123456',
+      TAXJAR_SANDBOX: 'true',
+      SHIPPING_FROM_JSON: JSON.stringify(address),
+    });
+    const provider = vi.fn().mockResolvedValue(new Response(JSON.stringify({ tax: { amount_to_collect: 0 } })));
+    vi.stubGlobal('fetch', provider);
+    expect(await quoteTax({
+      ...input,
+      subtotalCents: subtotal,
+      shippingCents: 0,
+      lines: ['a', 'b', 'c'].map((id) => ({ ...input.lines[0], id, unitPriceCents })),
+    })).toMatchObject({ ok: true });
+    const body = JSON.parse(provider.mock.calls[0][1].body);
+    expect(body.line_items.map((line: { discount: number }) => Math.round(line.discount * 100))).toEqual(discounts);
+  });
+
   it('refuses unsafe provider request and response amounts without rounding them', async () => {
     Object.assign(env, {
       APP_ENV: 'staging',
