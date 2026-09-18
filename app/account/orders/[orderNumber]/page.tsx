@@ -26,6 +26,7 @@ import { trackingUrl } from '@/lib/tracking';
 import { formatCents } from '@/lib/visibility-rules';
 import { OrderProgress } from '@/components/site/order-progress';
 import { ZellePaymentPanel } from '@/components/site/zelle-payment-panel';
+import { OrderRefundStatus } from '@/components/site/order-refund-status';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -317,18 +318,13 @@ export default async function OrderPage({ params, searchParams }: Props) {
             {order.returnedAt.toISOString().slice(0, 10)}.
           </p>
         )}
-        {(order.paymentStatus === 'refund_due' ||
-          order.paymentStatus === 'refunded') && (
-          <p className="mt-2 text-sm text-muted-foreground">
-            Refund: {formatCents(order.refundCents ?? 0)} sent
-            {order.refundedAt
-              ? ` (first on ${order.refundedAt.toISOString().slice(0, 10)})`
-              : ''}
-            {order.paymentStatus === 'refund_due'
-              ? ' — the remainder is being processed.'
-              : '.'}
-          </p>
-        )}
+        <OrderRefundStatus
+          paymentStatus={order.paymentStatus}
+          refundDueCents={order.refundDueCents}
+          refundCents={order.refundCents}
+          totalCents={order.totalCents}
+          refundedAt={order.refundedAt}
+        />
 
         {cancellable && (
           <h2

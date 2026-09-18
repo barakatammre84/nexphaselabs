@@ -15,9 +15,10 @@ import {
 /**
  * Payment methods behind one interface.
  *
- * Card processors (Stripe, PayPal, Square) prohibit this category, so the
- * rails are bank transfer and self-hosted Bitcoin (BTCPay Server). Which of
- * them is live is configuration, not code:
+ * The owner has confirmed ACH and Zelle for current use; card processing
+ * is still being arranged. No card payment method is implemented here.
+ * The existing BTCPay adapter is retained; availability is configuration,
+ * not a statement of provider approval:
  *
  *   PAYMENT_BANK_INSTRUCTIONS  remittance text shown for bank transfer / ACH
  *   BTCPAY_HOST, BTCPAY_STORE_ID, BTCPAY_API_KEY, BTCPAY_WEBHOOK_SECRET
@@ -71,7 +72,7 @@ const zelle: PaymentMethod = {
   id: 'zelle',
   label: 'Zelle',
   description:
-    'Send the exact order total through your U.S. bank. We confirm the Chase receipt before preparation begins.',
+    'Send the exact order total through your U.S. bank. We confirm receipt before preparation begins.',
   enabled: zelleCheckoutEnabled,
   async begin(order) {
     const config = zelleConfig();
@@ -90,6 +91,7 @@ const zelle: PaymentMethod = {
             ]
           : []),
         `Memo: ${order.orderNumber}`,
+        'Reporting a payment does not confirm receipt. Your order remains unpaid until we verify the bank payment.',
         'Check the recipient name in your bank before sending. Do not send a second payment while confirmation is pending.',
         'Zelle payments are generally final and do not include purchase protection.',
       ],
@@ -118,24 +120,26 @@ export type PaymentMethod = {
 
 const bankTransfer: PaymentMethod = {
   id: 'bank_transfer',
-  label: 'Bank transfer (ACH or wire)',
+  label: 'ACH / bank transfer',
   description:
-    'Pay from your organisation’s bank account. Quote the order number as the reference.',
+    'Send a transfer from your bank using the payment instructions. Include your order number as the reference.',
   enabled: () =>
     livePaymentsAllowed(env.APP_ENV) &&
     Boolean(env.PAYMENT_BANK_INSTRUCTIONS?.trim()),
   async begin(order) {
     return {
       method: 'bank_transfer',
-      title: 'Bank transfer',
+      title: 'Pay by ACH / bank transfer',
       lines: [
         `Amount: ${dollarAmount(order.totalCents)} ${order.currency}`,
         `Reference: ${order.orderNumber}`,
+        'Send the transfer from your bank. Selecting this method does not debit your account.',
         ...String(env.PAYMENT_BANK_INSTRUCTIONS ?? '')
           .split(/\r?\n/)
           .map((l) => l.trim())
           .filter(Boolean),
         'Material is picked and shipped once the transfer has cleared.',
+        'Do not send a second transfer while payment confirmation is pending.',
       ],
       url: null,
       reference: order.orderNumber,

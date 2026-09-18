@@ -78,7 +78,7 @@ export function ZellePaymentPanel({
         <p className="mt-2 max-w-2xl text-sm leading-6 text-primary-foreground/85">
           {simulated
             ? 'Test only. Do not open your bank or send money. These fake details exercise the customer claim and staff review workflow.'
-            : 'Use these exact details in your bank. We begin preparation after the Chase receipt is matched.'}
+            : 'Use these exact details in your bank. Preparation begins only after we confirm that payment was received.'}
         </p>
       </div>
       <div className="grid gap-0 md:grid-cols-[1fr_220px]">
@@ -138,7 +138,7 @@ export function ZellePaymentPanel({
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
                 {simulated
                   ? 'The order remains unpaid until a staff member reviews and records the simulated payment.'
-                  : 'We are checking Chase for this exact payment. Do not send it again. Confirmation usually appears within five minutes; a mismatch is reviewed by our team.'}
+                  : 'Your order remains unpaid until we confirm receipt of the bank payment. Confirmation may require manual review. Do not send the payment again.'}
               </p>
             </div>
           </div>
