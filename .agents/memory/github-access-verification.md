@@ -16,4 +16,6 @@ works.
 remote-ref lookup. Treat stale tracking refs as local metadata, not proof of
 current synchronization. If the connection is active but credentials are
 unavailable in this context, report that distinction instead of claiming all
-repositories are accessible or repeatedly requesting authorization.
+repositories are accessible or repeatedly requesting authorization. For shell
+pushes, the user may need to complete `gh auth login` and `gh auth setup-git`;
+Replit OAuth reauthorization does not automatically provision CLI credentials.
