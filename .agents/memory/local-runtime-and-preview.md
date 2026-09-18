@@ -14,3 +14,9 @@ A persisted development-server lock is not proof that a preview server is alive.
 **Why:** A carried-over vinext lock blocked managed startup even though the named process was absent from the shell and the preview refused connections. Restarting alone did not resolve it.
 
 **How to apply:** Corroborate an "already running" banner with process identity and the serving endpoint before acting. Remove only a confirmed stale lock; never blindly kill its recorded PID, which may be reused.
+
+The local D1 state can exist without any schema or seed rows, causing the preview to render with an explicit catalog-unavailable state and `/api/health` to return 503.
+
+**Why:** A fresh or reset workspace had a D1 file but no tables; the app was healthy once local migrations and the baseline seed were applied.
+
+**How to apply:** When local catalog reads fail, inspect local D1 tables before changing storefront code; apply the local migrations and seed only the local database, then recheck `/api/health`.
