@@ -11,5 +11,8 @@ export function expectedMigrationTags(): string[] {
 }
 
 export function migrationListsMatch(expected: readonly string[], applied: readonly string[]): boolean {
-  return expected.length === applied.length && expected.every((tag, index) => tag === applied[index]);
+  if (expected.length !== applied.length) return false;
+  const expectedSorted = [...expected].sort();
+  const appliedSorted = [...applied].sort();
+  return expectedSorted.every((tag, index) => tag === appliedSorted[index]);
 }

@@ -44,6 +44,15 @@ describe('deployment dependency health', () => {
     expect(
       await checkMigrationState(DB, ['0000_wild_living_lightning', '0001_fast_spyke', '0002_pending']),
     ).toMatchObject({ ok: false, applied: ['0000_wild_living_lightning', '0001_fast_spyke'] });
+
+    const outOfOrder = vi.fn().mockResolvedValue({
+      results: [{ name: '0001_fast_spyke.sql' }, { name: '0000_wild_living_lightning.sql' }],
+    });
+    const reorderedDB = { prepare: vi.fn(() => ({ all: outOfOrder })) } as unknown as Pick<D1Database, 'prepare'>;
+    expect(await checkMigrationState(reorderedDB, ['0000_wild_living_lightning', '0001_fast_spyke'])).toMatchObject({
+      ok: true,
+      applied: ['0001_fast_spyke', '0000_wild_living_lightning'],
+    });
   });
 
   it('fails closed when the migration history table cannot be read', async () => {

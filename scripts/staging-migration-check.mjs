@@ -81,13 +81,16 @@ function matches(health, expected, release) {
     health.release === release &&
     health.ok === true &&
     health.migration?.ok === true &&
-    sameList(health.migration.expected, expected) &&
-    sameList(health.migration.applied, expected)
+    sameMigrationSet(health.migration.expected, expected) &&
+    sameMigrationSet(health.migration.applied, expected)
   );
 }
 
-function sameList(actual, expected) {
-  return Array.isArray(actual) && actual.length === expected.length && actual.every((tag, index) => tag === expected[index]);
+function sameMigrationSet(actual, expected) {
+  if (!Array.isArray(actual) || actual.length !== expected.length) return false;
+  const actualSorted = [...actual].sort();
+  const expectedSorted = [...expected].sort();
+  return expectedSorted.every((tag, index) => tag === actualSorted[index]);
 }
 
 function summarize(health) {
