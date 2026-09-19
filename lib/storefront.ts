@@ -11,16 +11,21 @@ import { publishableLot } from '@/lib/lots-public';
 import { priceFor, type Visibility } from '@/lib/visibility-rules';
 
 /**
- * The storefront listing rule (Chapter 19 §19.2, 14 Sep 2026).
+ * The storefront listing rule.
  *
- * A product is on the storefront when it is published AND has a photograph
- * AND at least one active pack with an approved public price AND at least one
- * publishable lot on record. Anything else is not listed: the record and its
- * URL stay, the public page answers 404 until the product is stocked, priced
- * and photographed. "Out of stock" is shown only for a listed product whose
- * lots cannot currently supply a pack — never as a substitute for a price or a
- * lot that was never there. The product's internal `status` field is not
- * consulted here; the storefront shows in stock, out of stock, or nothing.
+ * As adopted 14 Sep 2026 (Chapter 19 §19.2): a product was on the storefront
+ * only when published AND photographed AND priced AND backed by a publishable
+ * lot; anything else answered 404.
+ *
+ * Reversed 19 Sep 2026 by Ammre: every PUBLISHED product is listed. A product
+ * with no sellable pack — no approved price, no publishable lot, or a lot that
+ * cannot supply the pack — is shown as "Out of stock" and cannot be added to
+ * the cart. Where no photograph exists the page says so (ProductImage
+ * placeholder); where no price exists none is shown. Nothing about what can be
+ * BOUGHT changed: `sellableSkus` still requires an approved price and a lot
+ * that supplies the pack, and the internal `status` field is still not
+ * consulted. `listingBlockers` is kept for the manager screens and now only
+ * reports why a listed product has nothing to sell.
  */
 
 export type PublishableStock = {
@@ -46,7 +51,7 @@ function lotUsable(lot: PublishableStock, now: Date): boolean {
   return !lot.retestDate || lot.retestDate.getTime() > now.getTime();
 }
 
-/** Why a published product is off the storefront. Empty means it is listed. */
+/** Why a listed product has nothing to sell today. Empty means at least a price and a lot exist. */
 export function listingBlockers(product: Pick<CatalogProduct, 'image' | 'variants'>, stock: PublishableStock[]): string[] {
   const blockers: string[] = [];
   if (!product.image) blockers.push('No photograph');
@@ -67,7 +72,7 @@ export function sellableSkus(product: CatalogProduct, stock: PublishableStock[],
 }
 
 export function toListed(product: CatalogProduct, stock: PublishableStock[], now = new Date()): ListedProduct | null {
-  if (listingBlockers(product, stock).length) return null;
+  // 19 Sep 2026: publication alone lists a product; blockers only decide stock state.
   const skus = sellableSkus(product, stock, now);
   return { ...product, stock: skus.length ? 'in_stock' : 'out_of_stock', sellableSkus: skus };
 }
@@ -139,7 +144,7 @@ export async function isListed(product: CatalogProduct, now = new Date()): Promi
   return toListed(product, await publishableStock([product.code]), now) !== null;
 }
 
-/** One storefront product by slug, or null when it is not listed (the page answers 404). */
+/** One storefront product by slug, or null when no published product has that slug. */
 export async function getStorefrontProduct(slug: string, now = new Date()): Promise<ListedProduct | null> {
   const product = await getPublishedProduct(slug);
   if (!product) return null;
