@@ -335,6 +335,7 @@ export const seedProducts: Product[] = [
     packSizes: [
       { quantity: '5 mg' },
       { quantity: '25 mg' },
+      { quantity: '50 mg' },
       { quantity: '100 mg' },
     ],
     status: 'available',
