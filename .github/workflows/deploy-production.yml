@@ -56,7 +56,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci --no-audit --no-fund
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Checks
         run: |
           npx tsc --noEmit
