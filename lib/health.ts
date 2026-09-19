@@ -25,7 +25,10 @@ export async function checkMigrationState(
 
   try {
     const result = await DB.prepare(MIGRATION_HISTORY_PROBE).all<{ name: string }>();
-    const applied = result.results.map((row) => row.name);
+    // D1 records the migration filename, including ".sql"; the build journal
+    // exposes Drizzle's bare migration tag. Normalize the storage suffix before
+    // comparing the two release manifests.
+    const applied = result.results.map((row) => row.name.replace(/\.sql$/, ''));
     return {
       ok: migrationListsMatch(expectedTags, applied),
       expected: expectedTags,

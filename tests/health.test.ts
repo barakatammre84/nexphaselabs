@@ -32,7 +32,7 @@ describe('deployment dependency health', () => {
 
   it('proves staging D1 has exactly the build migration history', async () => {
     const all = vi.fn().mockResolvedValue({
-      results: [{ name: '0000_wild_living_lightning' }, { name: '0001_fast_spyke' }],
+      results: [{ name: '0000_wild_living_lightning.sql' }, { name: '0001_fast_spyke.sql' }],
     });
     const DB = { prepare: vi.fn(() => ({ all })) } as unknown as Pick<D1Database, 'prepare'>;
     expect(await checkMigrationState(DB, ['0000_wild_living_lightning', '0001_fast_spyke'])).toEqual({
