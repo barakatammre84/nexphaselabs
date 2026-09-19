@@ -2,7 +2,7 @@
  * Cutover day, checked rather than hoped.
  *
  *   npx tsx scripts/cutover-verify.ts                              # the live domain
- *   npx tsx scripts/cutover-verify.ts https://staging-host --user tester:password
+ *   npx tsx scripts/cutover-verify.ts https://staging-host         # after CLOUDFLARE_ENV=staging npm run build
  *   npx tsx scripts/cutover-verify.ts --json > vantage-oakland.json
  *   npx tsx scripts/cutover-verify.ts --compare vantage-a.json vantage-b.json
  *
@@ -18,8 +18,15 @@
  *      mirrored URL list, so this cannot drift from the code that serves them.)
  *   3. Is the sitemap there, and does it leak anything it should not?
  *   4. Does robots.txt say what production robots.txt should say?
- *   5. Is the production origin indexable — and no staging origin competing?
+ *   5. Is the production origin indexable — and is no staging origin competing
+ *      with it, or open past the access boundary its build declares?
  *   6. Warm the top paths and time them.
+ *
+ * A staging origin's access boundary is the staging deploy's own
+ * (scripts/lib/staging-access.mjs), asked anonymously. Its mode is read from the
+ * built configuration — --config, default dist/server/wrangler.json — and never
+ * inferred from what the origin answers. --user tester:password only lets the
+ * other checks see past a closed staging's password.
  *
  * On timings: chapter 11 §11.4 withdrew a 78-second "measurement" that came
  * from the measuring tool rather than the site. The rule adopted afterwards is
@@ -29,6 +36,7 @@
 import { readFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { legacyDecision, normalisePath } from '../lib/legacy-redirects';
+import { proveAccessBoundary, readAccessMode } from './lib/staging-access.mjs';
 
 type Check = {
   name: string;
@@ -43,6 +51,7 @@ const args = process.argv.slice(2);
 const json = args.includes('--json');
 const compare = args.indexOf('--compare');
 const credentials = valueOf('--user');
+const configPath = valueOf('--config') ?? 'dist/server/wrangler.json';
 const vantage = valueOf('--vantage') ?? hostname();
 const origin = (args.find((arg) => arg.startsWith('http')) ?? 'https://nexphaselabs.net').replace(/\/$/, '');
 
@@ -66,6 +75,8 @@ const timings: Timing[] = [];
  * the health endpoint and the expectations follow it.
  */
 let environment = 'unknown';
+/** The access mode a deployed non-production origin's build declares, once read. */
+let accessMode: 'open' | 'closed' | undefined;
 
 await health();
 await legacyUrls();
@@ -227,23 +238,54 @@ async function indexability() {
         : `a ${environment} origin is missing X-Robots-Tag: noindex and can be indexed`,
     severity: 'blocker',
   });
-  // A local environment is not reachable from outside, so there is nothing to close.
+  // A local environment is not reachable from outside, so it has no boundary to hold.
   if (!production() && !['development', 'test', 'local', 'unknown'].includes(environment)) {
-    const anonymous = await fetch(`${origin}/`, { redirect: 'manual' }).catch(() => null);
+    await accessBoundary();
+  }
+}
+
+/**
+ * A deployed non-production origin must hold the boundary its build declares,
+ * proven by the staging deploy's own rules rather than a copy of them. The mode
+ * comes from the build and never from the origin's answers: a check that took a
+ * 200 to mean "open" would pass the 16.3 failure. Open, public pages answer 200,
+ * staff pages send a stranger to staff sign-in and private APIs refuse one;
+ * closed, the password challenge on every path; noindex on every answer in both.
+ */
+async function accessBoundary() {
+  let access: { mode: 'open' | 'closed'; declared: string | undefined };
+  try {
+    access = readAccessMode(configPath, environment);
+  } catch (error) {
     checks.push({
-      name: 'closed',
-      ok: anonymous?.status === 401,
-      detail:
-        anonymous === null
-          ? 'could not be reached'
-          : anonymous.status === 401
-            ? '401 to an anonymous request'
-            : anonymous.status === 503
-              ? 'STAGING_ACCESS_PASSWORD is not set, so the environment refuses everyone'
-              : `answered ${anonymous.status} to an anonymous request — this origin is OPEN`,
+      name: 'access',
+      ok: false,
+      detail: `${error instanceof Error ? error.message : String(error)} The access mode is read from the build, never inferred from what this origin answers; name the build with --config.`,
       severity: 'blocker',
     });
+    return;
   }
+  accessMode = access.mode;
+  const source = `${access.mode} mode — STAGING_ACCESS_OPEN is ${access.declared === undefined ? 'not declared' : JSON.stringify(access.declared)} in ${configPath}`;
+  const failures: string[] = [];
+  const hints = new Set<string>();
+  for await (const verdict of proveAccessBoundary(new URL(origin).origin, access.mode)) {
+    if (verdict.ok) continue;
+    failures.push(`${verdict.kind} ${verdict.path}: ${verdict.detail}`);
+    if (verdict.hint) hints.add(verdict.hint);
+  }
+  checks.push({
+    name: 'access',
+    ok: failures.length === 0,
+    detail: failures.length
+      ? [`${source}, and the boundary does not hold:`, ...failures, ...hints].join('\n           ')
+      : `${source}. ${
+          access.mode === 'open'
+            ? 'Public pages answer 200, staff pages send strangers to sign-in, private APIs refuse them'
+            : 'Every path is challenged for the staging password'
+        }, and every answer is noindex.`,
+    severity: 'blocker',
+  });
 }
 
 /** Fetch the top paths once to pull them into the edge cache, and time them. */
@@ -298,10 +340,16 @@ function report() {
   }
   console.log(`\nCutover verification — ${origin}`);
   console.log(`Environment: ${environment} · vantage: ${vantage} · ${new Date().toISOString()}`);
+  const boundary =
+    accessMode === 'open'
+      ? 'storefront open, staff area and private APIs behind their logins, '
+      : accessMode === 'closed'
+        ? 'closed, '
+        : '';
   console.log(
     production()
       ? 'Checked as the live domain: indexable, sitemap present, old URLs redirected.\n'
-      : `Checked as a ${environment} origin: closed, unindexable, no sitemap.\n`,
+      : `Checked as a ${environment} origin: ${boundary}unindexable, no sitemap.\n`,
   );
   for (const check of checks) {
     const mark = check.ok ? 'ok  ' : check.severity === 'blocker' ? 'FAIL' : 'warn';

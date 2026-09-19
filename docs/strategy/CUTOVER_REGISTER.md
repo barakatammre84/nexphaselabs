@@ -42,7 +42,7 @@ Found during this pass:
 
 ```bash
 npm run cutover:verify                                   # the live domain
-npm run cutover:verify -- https://staging-host --user tester:password
+npm run cutover:verify -- https://staging-host           # after CLOUDFLARE_ENV=staging npm run build
 npm run cutover:verify -- --json > vantage-a.json        # and again from a second machine
 npm run cutover:verify -- --compare vantage-a.json vantage-b.json
 ```
@@ -65,8 +65,8 @@ the day actually turns on:
 
 **It checks a non-production origin as its mirror image**, which is what makes it usable on staging:
 there the sitemap must be *empty*, robots must say `Disallow: /`, the `noindex` header must be
-*present*, and an anonymous request must be refused. Reporting correct staging behaviour as three
-failures would have made the tool useless exactly where it gets most of its use.
+*present*, and the origin must hold the access boundary its build declares. Reporting correct staging
+behaviour as three failures would have made the tool useless exactly where it gets most of its use.
 
 **On timings**, §11.4 withdrew a 78-second figure that came from the measuring tool. This writes a
 JSON report per vantage and compares two of them; if the medians disagree by more than 3× it says so
@@ -76,6 +76,16 @@ produced. It never pronounces on a timing from one machine.
 Proven against the built worker in both modes — as `development` (sitemap empty, robots closed,
 noindex present, no blockers) and as `production` (17 sitemap URLs including 5 products, all 29 old
 URLs decided, robots correct, indexable, no blockers).
+
+**Access check corrected 14 September 2026**, when the owner made staging public. It had required an
+anonymous `GET /` to answer 401, so against public staging it reported correct behaviour as a blocker,
+and it never asked whether staff pages and private APIs still refused a stranger. It now proves the
+staging deploy's own boundary — `scripts/lib/staging-access.mjs`, which `scripts/staging-access-check.mjs`
+also runs — with the mode read from the built configuration (`--config`, default
+`dist/server/wrangler.json`) and never from what the origin answers. Open: public pages answer 200,
+staff pages redirect to staff sign-in, private APIs answer 401 or 403. Closed: the password challenge
+on every path. Both: `noindex` on every answer. `--user` is now needed only to see past a closed
+staging's password. Production's checks are unchanged. `tests/cutover-verify.test.ts`.
 
 ### 5. `c11-dns` — the mail records
 
