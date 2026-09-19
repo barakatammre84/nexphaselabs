@@ -76,22 +76,17 @@ describe('an indexed WordPress product URL', () => {
     expect(new URL(response.headers.get('location')!).pathname).toBe('/catalog/ghk-cu');
   });
 
-  it('never sends anyone to a page that answers 404', async () => {
-    // BPC-157 is published but not listed, so /catalog/bpc-157 is a 404. The old
-    // URL must not point at it — that is the defect this test was written for.
+  it('sends a published product with no released lot to its own page, which now answers "Out of stock" rather than 404', async () => {
+    // Until 19 Sep 2026 a published product without a lot was not listed and
+    // /catalog/bpc-157 was a 404, so this URL had to fall back to /catalog.
+    // Under the 19 Sep rule every published product is listed, so the old URL
+    // goes straight to the product page, permanently.
     const response = await call('bpc-157');
-    const location = new URL(response.headers.get('location')!).pathname;
-    expect(location).not.toBe('/catalog/bpc-157');
-    expect(location).toBe('/catalog');
+    expect(response.status).toBe(301);
+    expect(new URL(response.headers.get('location')!).pathname).toBe('/catalog/bpc-157');
   });
 
-  it('calls an unlisted product temporary, because out of stock is not forever', async () => {
-    const response = await call('bpc-157');
-    expect(response.status).toBe(302);
-    expect(response.headers.get('cache-control')).toBe('no-store');
-  });
-
-  it('upgrades itself to a permanent redirect once the product is listed', async () => {
+  it('answers the same once a lot is released', async () => {
     local.sqlite.exec("INSERT INTO lots (id, lot_number, product_code, product_name, cas_number, status, analytical_lab, accession_number, testing_standard, received_at, quantity_remaining, quantity_received) VALUES ('l2','BPC-2601','BPC-157','BPC-157','137525-51-0','released','Independent Lab Services','ACC-2','NXP-REL-2026.1',unixepoch(),'500 mg','500 mg')");
     const response = await call('bpc-157');
     expect(response.status).toBe(301);

@@ -135,8 +135,8 @@ describe('sitemap', () => {
   it('lists storefront products and no others', async () => {
     const list = await urls();
     expect(list).toContain('https://nexphaselabs.net/catalog/ghk-cu');
-    // published and priced, but no publishable lot: not on the storefront, so not in the map
-    expect(list).not.toContain('https://nexphaselabs.net/catalog/bpc-157');
+    // published and priced, but no publishable lot: listed as out of stock since 19 Sep 2026, so it is in the sitemap
+    expect(list).toContain('https://nexphaselabs.net/catalog/bpc-157');
     expect(list).not.toContain('https://nexphaselabs.net/catalog/not-published-yet');
     expect(list).not.toContain('https://nexphaselabs.net/catalog/withdrawn-product');
   });

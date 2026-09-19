@@ -4,10 +4,11 @@ import type { CatalogProduct } from '@/lib/catalog-data';
 import { listingBlockers, normaliseSort, sellableSkus, sortStorefront, toListed, visibleStock, type ListedProduct, type PublishableStock } from '@/lib/storefront';
 
 /**
- * The storefront listing rule (Chapter 19): listed means photographed, priced
- * and backed by a publishable lot; "out of stock" is a state of a listed
- * product, never a substitute for a missing price or lot; and the internal
- * product status is not consulted at all.
+ * The storefront listing rule. From 14 Sep 2026 (Chapter 19) listed meant
+ * photographed, priced and backed by a publishable lot. Reversed 19 Sep 2026:
+ * every published product is listed; a product with nothing sellable shows
+ * "out of stock". What can be bought is unchanged, and the internal product
+ * status is still not consulted.
  */
 function product(overrides: Partial<CatalogProduct> = {}): CatalogProduct {
   return {
@@ -53,13 +54,18 @@ describe('listing rule', () => {
     expect(listed?.stock).toBe('in_stock');
     expect(listed?.sellableSkus).toEqual(['NPL-0001-5MG']);
   });
-  it('does not list without a photograph, a price, or a lot', () => {
+  it('lists a published product without a photograph, a price, or a lot, as out of stock with nothing sellable', () => {
     expect(listingBlockers(product({ image: undefined }), [vial5])).toEqual(['No photograph']);
     expect(listingBlockers(product({ variants: product().variants.map((v) => ({ ...v, listPriceCents: null })) }), [vial5])).toEqual(['No approved public price']);
     expect(listingBlockers(product(), [])).toEqual(['No released, publishable lot']);
-    expect(toListed(product(), [], now)).toBeNull();
+    const unstocked = toListed(product(), [], now);
+    expect(unstocked?.stock).toBe('out_of_stock');
+    expect(unstocked?.sellableSkus).toEqual([]);
+    const unpriced = toListed(product({ variants: product().variants.map((v) => ({ ...v, listPriceCents: null })) }), [vial5], now);
+    expect(unpriced?.stock).toBe('out_of_stock');
+    expect(unpriced?.sellableSkus).toEqual([]);
   });
-  it('shows out of stock only for a listed product whose lots cannot supply a pack', () => {
+  it('shows out of stock for a listed product whose lots cannot supply a pack', () => {
     expect(toListed(product(), [expired], now)?.stock).toBe('out_of_stock');
     expect(toListed(product(), [{ ...vial5, quantityRemaining: '0 vials' }], now)?.stock).toBe('out_of_stock');
   });
